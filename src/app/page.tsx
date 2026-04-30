@@ -1001,7 +1001,7 @@ export default function App() {
       setAllGodowns(p => p.filter(x => Number(x.companyId) !== Number(id)));
       setAllStockCategories(p => p.filter(x => Number(x.companyId) !== Number(id)));
 
-      if (Number(activeCompany.id) === Number(id)) {
+      if (activeCompany && Number(activeCompany.id) === Number(id)) {
         const remaining = companies.filter(c => Number(c.id) !== Number(id));
         if (remaining.length > 0) {
           setActiveCompany(remaining[0]);
@@ -1035,7 +1035,7 @@ export default function App() {
       return v;
     }
     const id = Date.now();
-    const companyId = activeCompany.id;
+    const companyId = activeCompany?.id;
     const newV = { id, companyId, ...v };
     setAllVouchers(p => [...p, newV]);
     setPrintVoucher(newV);
@@ -1507,7 +1507,7 @@ export default function App() {
                 <tbody>
                   {activeCompany ? (
                     <tr className="active-row">
-                      <td style={{fontWeight:'bold'}}>{activeCompany.name}</td>
+                      <td style={{fontWeight:'bold'}}>{activeCompany?.name}</td>
                       <td style={{textAlign:'right',fontSize:12}}>10-Apr-26</td>
                     </tr>
                   ) : (
@@ -3474,7 +3474,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const itemSubtotal = rows.reduce((s,r)=>s+r.amount,0);
 
   // ===== TALLY PRIME GST LOGIC: CGST+SGST (same state) vs IGST (different state) =====
-  const companyState = (activeCompany.state || '').toLowerCase().trim();
+  const companyState = (activeCompany?.state || '').toLowerCase().trim();
   const partyLedger = ledgers.find(l => l.name === partyName);
   const partyState = (partyLedger?.state || '').toLowerCase().trim();
   const isInterState = partyState !== '' && companyState !== '' && partyState !== companyState;
@@ -3747,7 +3747,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             {partyName && partyLedger?.state && (
               <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:6,fontSize:11}}>
                 <span style={{background:isInterState?'#fff3e0':'#e8f5e9',padding:'2px 10px',border:`1px solid ${isInterState?'#ff9800':'#4caf50'}`,borderRadius:2,fontWeight:'bold',color:isInterState?'#e65100':'#2e7d32'}}>
-                  {isInterState ? `⚡ INTER-STATE (${activeCompany.state} → ${partyLedger.state}) — IGST` : `✓ INTRA-STATE (${activeCompany.state}) — CGST + SGST`}
+                  {isInterState ? `⚡ INTER-STATE (${activeCompany?.state} → ${partyLedger.state}) — IGST` : `✓ INTRA-STATE (${activeCompany?.state}) — CGST + SGST`}
                 </span>
               </div>
             )}
