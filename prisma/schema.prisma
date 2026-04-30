@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id               Int       @id @default(autoincrement())
+  name             String
+  organizationName String
+  mobile           String
+  address          String
+  profession       String
+  email            String    @unique
+  password         String
+  sessionToken     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  companies        Company[]
+}
+
+model Company {
+  id          Int      @id @default(autoincrement())
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  mailingName String?
+  address     String?
+  state       String?
+  pinCode     String?
+  telephone   String?
+  mobile      String?
+  email       String?
+  website     String?
+  showMobile  Boolean @default(true)
+  showEmail   Boolean @default(true)
+  showWebsite Boolean @default(true)
+  logo        String? // base64 logo
+  showLogo    Boolean @default(false)
+  currencySymbol String?
+  currencyName   String?
+  gstin       String?
+  financialYearStart DateTime
+  booksBeginFrom     DateTime
+  securityControl    Boolean  @default(false)
+  password           String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  vouchers  Voucher[]
+  ledgers   Ledger[]
+  stockGroups StockGroup[]
+  stockItems  StockItem[]
+  units       Unit[]
+}
+
+model Ledger {
+  id        Int      @id @default(autoincrement())
+  name      String
+  groupName   String
+  alias       String?
+  mailingName String?
+  address     String?
+  state       String?
+  pinCode     String?
+  panItNo     String?
+  gstin       String?
+  openingBal  Float   @default(0.0)
+  balanceType String @default("Dr") // Dr or Cr
+  companyId Int
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucherEntries VoucherEntry[]
+  createdAt DateTime @default(now())
+}
+
+model Voucher {
+  id        Int      @id @default(autoincrement())
+  companyId Int
+  type      String   // Sales, Purchase, Receipt, Payment, Contra, Journal
+  date      DateTime
+  voucherNo String
+  narration String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entries   VoucherEntry[]
+  inventoryEntries InventoryEntry[]
+  createdAt DateTime @default(now())
+}
+
+model VoucherEntry {
+  id        Int      @id @default(autoincrement())
+  voucherId Int
+  ledgerId  Int
+  amount    Float
+  entryType String   // Dr or Cr
+  voucher   Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  ledger    Ledger   @relation(fields: [ledgerId], references: [id])
+}
+
+model StockGroup {
+  id        Int      @id @default(autoincrement())
+  name      String
+  companyId Int
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items     StockItem[]
+}
+
+model Unit {
+  id        Int      @id @default(autoincrement())
+  name      String   // Nos, Kgs, etc.
+  formalName String?
+  decimalPlaces Int @default(0)
+  companyId Int
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model StockItem {
+  id        Int      @id @default(autoincrement())
+  name      String
+  groupId   Int?
+  group     StockGroup? @relation(fields: [groupId], references: [id])
+  unitId    Int?
+  openingQty Float    @default(0)
+  openingVal Float    @default(0)
+  gstApplicable String @default("Applicable")
+  companyId Int
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  inventoryEntries InventoryEntry[]
+}
+
+model InventoryEntry {
+  id          Int      @id @default(autoincrement())
+  voucherId   Int
+  stockItemId Int
+  qty         Float
+  rate        Float
+  unit        String
+  amount      Float
+  voucher     Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  stockItem   StockItem @relation(fields: [stockItemId], references: [id])
+}

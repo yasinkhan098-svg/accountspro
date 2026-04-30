@@ -1,0 +1,562 @@
+:root {
+  --tally-nav-blue: #1d4885;
+  --tally-subnav-blue: #4a779d;
+  --tally-bg: #e2eaf2;
+  --tally-border: #91b9d7;
+  --tally-menu-hover: #f6af3d; 
+  --tally-input-active: #ffe8a1;
+  --tally-text-main: #000000;
+  --tally-text-gray: #444444;
+  --tally-right-panel: #d3dfeb;
+  --tally-overlay: rgba(0, 0, 0, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--tally-bg);
+  color: var(--tally-text-main);
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+}
+
+/* --- Top Navigation --- */
+.top-nav {
+  background-color: var(--tally-nav-blue);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 14px;
+  font-size: 12px;
+  height: 32px;
+}
+
+.top-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+
+.tally-logo {
+  font-weight: bold;
+  font-size: 16px; /* increased */
+  letter-spacing: 0.5px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 20px;
+}
+.nav-links div {
+  cursor: pointer;
+}
+.nav-links div b, .nav-links div u {
+  text-decoration: underline;
+  margin-right: 2px;
+  font-weight: bold;
+}
+
+.go-to-btn {
+  background-color: white;
+  color: var(--tally-text-main);
+  padding: 4px 24px;
+  font-weight: bold;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* --- Sub Navigation (Path) --- */
+.sub-nav {
+  background-color: var(--tally-subnav-blue);
+  color: white;
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid white;
+  height: 28px;
+}
+
+/* --- Main Layout --- */
+.main-layout {
+  display: flex;
+  flex: 1;
+  height: calc(100vh - 60px);
+}
+
+/* Left Panel (For Gateway) */
+.left-panel {
+  flex: 1;
+  border-right: 1px solid var(--tally-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.company-info-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  border-bottom: 2px solid var(--tally-border);
+}
+
+.info-block span {
+  display: block;
+  font-size: 12px;
+  color: var(--tally-nav-blue);
+  font-weight: bold;
+  text-transform: uppercase;
+}
+.info-block strong {
+  display: block;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.company-list-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 15px;
+  border-bottom: 1px solid var(--tally-border);
+  font-size: 12px;
+  color: var(--tally-nav-blue);
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.company-list-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 15px;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+/* Right Core Area */
+.right-core {
+  flex: 1.2;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* Moved to top */
+  padding-top: 15vh; /* Adjusted for approx 2.5 inch upward offset from center */
+  position: relative;
+}
+
+.tally-menu-container {
+  width: 300px; /* Wider for bigger font */
+  position: relative;
+}
+
+.tally-menu-box {
+  width: 300px;
+  background: #fbfdff;
+  border: 2px solid var(--tally-nav-blue); /* Thicker Dark balanced border */
+  display: flex;
+  flex-direction: column;
+  box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+  outline: 1px solid white; /* Double border effect */
+}
+
+.menu-list-container {
+  padding: 5px 0;
+}
+
+.submenu-popup {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #fbfdff;
+  display: flex;
+  flex-direction: column;
+}
+
+.tally-menu-title {
+  background-color: var(--tally-nav-blue);
+  color: white;
+  padding: 6px;
+  text-align: center;
+  font-size: 15px; /* Increased */
+  font-weight: bold;
+}
+
+.menu-item {
+  font-size: 14px; /* Increased from 11px */
+  padding: 4px 24px;
+  cursor: pointer;
+  color: #111;
+  font-weight: bold;
+}
+
+.menu-item.selected {
+  background-color: var(--tally-menu-hover);
+  color: black;
+}
+
+.menu-item .highlight {
+  color: #c91111;
+  font-weight: bold;
+}
+
+.menu-item.selected .highlight {
+  color: black;
+}
+
+/* Master Menu Popup */
+.master-menu-popup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  box-shadow: 0px 8px 20px rgba(0,0,0,0.25);
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Sidebar Restoration */
+.sidebar {
+  width: 120px;
+  background-color: var(--tally-right-panel);
+  border-left: 1px solid var(--tally-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-btn {
+  background: white;
+  border: 1px solid var(--tally-border);
+  margin: 2px 5px;
+  padding: 3px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--tally-nav-blue);
+  font-weight: 500;
+  text-align: left;
+}
+
+.sidebar-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.sidebar-btn-spacer {
+  flex: 1;
+}
+
+/* Left Panel Table */
+.company-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.company-table th {
+  text-align: left;
+  padding: 8px 15px;
+  color: var(--tally-nav-blue);
+  font-weight: bold;
+  border-bottom: 1px solid var(--tally-border);
+  font-size: 11px;
+}
+
+.company-table td {
+  padding: 10px 15px;
+  font-weight: bold;
+}
+
+.active-row {
+  color: #000;
+}
+
+/* Form Layout */
+.form-workspace {
+  flex: 1;
+  background: #fdfdfd;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.form-row {
+  display: flex;
+  margin-bottom: 5px;
+  align-items: center;
+}
+
+.form-row label {
+  width: 200px;
+  font-size: 13px;
+}
+
+.form-input {
+  border: 1px solid #ccc;
+  padding: 2px 5px;
+  font-size: 13px;
+  background: transparent;
+  outline: none;
+}
+
+.form-input:focus {
+  background-color: var(--tally-input-active);
+  border: 1px solid #777;
+}
+
+.menu-header {
+    background: transparent;
+    color: var(--tally-text-gray);
+    font-size: 12px;
+    font-weight: bold;
+    padding: 10px 24px 4px 24px;
+}
+
+/* --- Modals and Popups --- */
+.modal-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--tally-overlay);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+.modal-box {
+  background: white;
+  border: 2px solid var(--tally-nav-blue);
+  outline: 1px solid white;
+  min-width: 300px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  background: var(--tally-nav-blue);
+  color: white;
+  padding: 6px;
+  font-weight: bold;
+  text-align: center;
+  font-size: 14px;
+}
+
+.modal-body {
+  padding: 0;
+}
+
+.modal-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-list-item {
+  padding: 8px 20px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  color: #111;
+}
+
+.modal-list-item:hover, .modal-list-item.selected {
+  background-color: var(--tally-menu-hover);
+  color: #000;
+}
+
+/* Company info data row */
+.company-info-data {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 15px 10px;
+  font-size: 13px;
+  font-weight: bold;
+  border-bottom: 2px solid var(--tally-border);
+}
+
+/* Form section title */
+.form-section-title {
+  font-weight: bold;
+  font-size: 13px;
+  padding: 5px 0;
+  margin: 15px 0 8px 0;
+  border-bottom: 1px solid #dde;
+  color: var(--tally-nav-blue);
+}
+
+/* For form colon spacing */
+.colon {
+  margin: 0 8px;
+  font-weight: bold;
+  color: #555;
+}
+
+/* Feature Modal rows */
+.feature-section {
+  font-weight: bold;
+  font-size: 12px;
+  color: var(--tally-nav-blue);
+  border-bottom: 1px solid #dde;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.feature-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+  border-bottom: 1px dotted #eee;
+}
+
+.feature-row span {
+  font-weight: bold;
+  color: #1a7a4a;
+}
+
+/* Report View */
+.report-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: var(--tally-nav-blue);
+  color: white;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.report-table th {
+  background: #dde4f0;
+  padding: 6px 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--tally-border);
+  font-size: 12px;
+  color: var(--tally-nav-blue);
+  font-weight: bold;
+}
+
+.report-table td {
+  padding: 5px 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.report-table tfoot td {
+  background: #e8f0f8;
+  font-weight: bold;
+  padding: 6px 12px;
+  border-top: 2px solid var(--tally-border);
+}
+
+/* Voucher Container */
+.voucher-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.voucher-header {
+  padding: 10px 15px;
+  border-bottom: 1px solid #dde;
+  background: #fafafa;
+}
+
+/* Form content wrapper */
+.form-content {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Alt+C Panel */
+.altc-panel {
+  position: relative;
+}
+
+/* Small tips in forms */
+.field-tip {
+  font-size: 11px;
+  color: #888;
+  margin-left: 8px;
+  font-style: italic;
+}
+
+/* --- Print Styles --- */
+@page {
+  size: A4;
+  margin: 0 !important; /* Forces removal of browser headers/footers */
+}
+
+@media print {
+  body {
+    background: white !important;
+    overflow: visible !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .app-container, .main-layout, .main-content, .form-workspace, .right-core, .print-preview-main, .print-invoice-container {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+  .top-nav, .sub-nav, .sidebar, .left-panel, .voucher-header, .no-print, .tally-sidebar {
+    display: none !important;
+  }
+  #tax-invoice-print-container {
+    display: block !important;
+    width: 100% !important;
+  }
+  .invoice-copy {
+    width: 190mm !important; /* A4 width (210mm) minus 10mm margins on each side */
+    min-height: 277mm !important; /* A4 height (297mm) minus 10mm margins on each side */
+    padding: 0 !important;
+    margin: 10mm auto !important; /* This creates the physical margin on the paper */
+    background: white !important;
+    box-sizing: border-box;
+    page-break-after: always;
+    box-shadow: none !important;
+    border: 1px solid #555 !important;
+    position: relative;
+  }
+  .invoice-copy:last-child {
+    page-break-after: auto;
+  }
+}
