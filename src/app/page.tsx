@@ -1349,18 +1349,18 @@ export default function App() {
         else if (e.key === 'Enter') {
           e.preventDefault(); e.stopPropagation();
           if (menuItems[companyModalIdx] && menuItems[companyModalIdx].category !== 'header') {
-            menuItems[companyModalIdx].action();
+            menuItems[companyModalIdx].action?.();
           }
         }
         return;
       }
       if (e.key==='ArrowDown'){e.preventDefault();let n=(selectedIdx+1)%menu.length;while(menu[n]?.category==='header')n=(n+1)%menu.length;setSelectedIdx(n);}
       else if (e.key==='ArrowUp'){e.preventDefault();let n=(selectedIdx-1+menu.length)%menu.length;while(menu[n]?.category==='header')n=(n-1+menu.length)%menu.length;setSelectedIdx(n);}
-      else if (e.key==='Enter'){e.preventDefault();if(menu[selectedIdx]?.category!=='header')menu[selectedIdx].action();}
+      else if (e.key==='Enter'){e.preventDefault();if(menu[selectedIdx]?.category!=='header')menu[selectedIdx].action?.();}
       else {
         const ch=e.key.toLowerCase();
         const fi=menu.findIndex(x=>x.highlight.toLowerCase()===ch&&x.category!=='header');
-        if(fi!==-1){e.preventDefault();setSelectedIdx(fi);menu[fi].action();}
+        if(fi!==-1){e.preventDefault();setSelectedIdx(fi);menu[fi].action?.();}
       }
     };
     window.addEventListener('keydown', onKey);
@@ -1557,7 +1557,7 @@ export default function App() {
                     <div className="menu-list-container">
                       {gatewayMenu.map((item,i)=>{
                         if(item.category==='header') return <div key={i} className="menu-header">{item.label}</div>;
-                        return <div key={i} className={`menu-item ${selectedIdx===i?'selected':''}`} onClick={()=>{setSelectedIdx(i);item.action();}}>
+                        return <div key={i} className={`menu-item ${selectedIdx===i?'selected':''}`} onClick={()=>{setSelectedIdx(i);item.action?.();}}>
                           <span className="highlight">{item.highlight}</span>: {item.label}
                         </div>;
                       })}
@@ -1576,7 +1576,7 @@ export default function App() {
                       {getActiveMenu().map((item,i)=>{
                         if(item.label===''&&item.category==='header') return <div key={i} style={{height:6}}/>;
                         if(item.category==='header') return <div key={i} className="menu-header">{item.label}</div>;
-                        return <div key={i} className={`menu-item ${selectedIdx===i?'selected':''}`} onClick={()=>{setSelectedIdx(i);item.action();}}>
+                        return <div key={i} className={`menu-item ${selectedIdx===i?'selected':''}`} onClick={()=>{setSelectedIdx(i);item.action?.();}}>
                           {item.label.split('').map((ch,ci)=>ch.toUpperCase()===item.highlight.toUpperCase()&&item.label.indexOf(ch)===item.label.toUpperCase().indexOf(item.highlight.toUpperCase())?<span key={ci} className="highlight">{ch}</span>:ch)}
                         </div>;
                       })}
