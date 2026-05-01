@@ -40,11 +40,11 @@ interface VoucherTypeData { id: number; companyId: number; name: string; type: s
 interface CurrencyData { id: number; companyId: number; name: string; symbol: string; isoCode: string; decimalPlaces: number; }
 interface Company { 
   id: number; name: string; mailingName?: string; address?: string; state?: string; country?: string; gstin?: string; 
-  phone?: string; mobile?: string; email?: string; website?: string; 
+  telephone?: string; mobile?: string; email?: string; website?: string; 
   registrationType?: string; bankName?: string; bankHolderName?: string; accountNo?: string; ifsc?: string; swiftCode?: string; 
   financialYearStart?: string; booksBeginFrom?: string; securityControl?: boolean; password?: string;
   showMobile?: boolean; showEmail?: boolean; showWebsite?: boolean;
-  logo?: string; showLogo?: boolean;
+  logo?: string; showLogo?: boolean; pinCode?: string;
 }
 
 interface VoucherEntry { id: number; ledgerId: number; ledgerName: string; amount: number; entryType: 'Dr' | 'Cr'; narration?: string; }
@@ -2235,7 +2235,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlte
             onKeyDown={handleKeyDown}
             defaultValue={selCo} autoComplete="off"/>
         </div>
-        {([['Pincode','c-pin',100],['Telephone','c-tel',200]] as const).map(([label,id,w],i)=>(
+        {([['Pincode','c-pin',100],['Telephone','c-telephone',200]] as const).map(([label,id,w],i)=>(
           <div key={i} className="form-row"><label style={{width:160}}>{label}</label><span className="colon">:</span><input id={id} type="text" className="form-input" style={{width:w}} defaultValue={activeAlterItem?.[(id as string).replace('c-','')]||''}/></div>
         ))}
         <div className="form-row">
@@ -2335,7 +2335,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlte
                 state: (document.getElementById('c-state') as HTMLInputElement).value,
                 country: (document.getElementById('c-country') as HTMLInputElement).value,
                 pinCode: (document.getElementById('c-pin') as HTMLInputElement).value,
-                telephone: (document.getElementById('c-tel') as HTMLInputElement).value,
+                telephone: (document.getElementById('c-telephone') as HTMLInputElement).value,
                 mobile: (document.getElementById('c-mob') as HTMLInputElement).value,
                 email: (document.getElementById('c-email') as HTMLInputElement).value,
                 website: (document.getElementById('c-web') as HTMLInputElement).value,
