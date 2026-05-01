@@ -617,7 +617,7 @@ export default function App() {
         <div style="text-align:center; margin-bottom:30px; border-bottom:3px double #333; padding-bottom:15px;">
           <h1 style="margin:0; font-size:28px; color:#1c5282; font-weight:bold;">${activeCompany?.name || 'LEDGERX COMPANY'}</h1>
           <p style="margin:5px 0; font-size:13px; font-weight:bold;">${activeCompany?.address || ''}</p>
-          <p style="margin:2px 0; font-size:12px;">GSTIN: ${activeCompany?.gstin || ''} | Phone: ${activeCompany?.phone || ''}</p>
+          <p style="margin:2px 0; font-size:12px;">GSTIN: ${activeCompany?.gstin || ''} | Phone: ${activeCompany?.telephone || ''}</p>
           <p style="margin:10px 0 0 0; font-size:14px; font-weight:bold; color:#d9534f;">Financial Year: ${activeCompany?.financialYearStart || '2026-27'}</p>
         </div>
         
