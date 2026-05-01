@@ -44,6 +44,11 @@ model Company {
   currencySymbol String?
   currencyName   String?
   gstin       String?
+  bankName        String?
+  bankHolderName  String?
+  accountNo       String?
+  ifsc            String?
+  swiftCode       String?
   financialYearStart DateTime
   booksBeginFrom     DateTime
   securityControl    Boolean  @default(false)

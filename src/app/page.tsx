@@ -762,8 +762,12 @@ export default function App() {
           const data = await res.json();
           if (data.companies) {
             setCompanies(prev => {
-              // Merge or overwrite? Let's overwrite with backend truth for companies
-              return data.companies;
+              const updated = data.companies;
+              if (activeCompany) {
+                const match = updated.find((c: any) => c.id === activeCompany.id);
+                if (match) setActiveCompany(match);
+              }
+              return updated;
             });
           }
         }
@@ -905,6 +909,9 @@ export default function App() {
       else if (type === 'currency') setAllCurrencies(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
       else if (type === 'company') {
         setCompanies(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
+        if (activeCompany && activeCompany.id === alterItem.id) {
+          setActiveCompany({ ...activeCompany, ...data });
+        }
         // Update backend
         try {
           const res = await fetch('/api/companies', {
@@ -1196,7 +1203,7 @@ export default function App() {
           const name = fv('c-name'); if (!name) { alert('Company Name is required!'); return; }
           const logoEl = document.querySelector('img[alt="Preview"]') as HTMLImageElement;
           type = 'company'; data = { 
-            name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), mobile: fv('c-mob'), telephone: fv('c-tel'), email: fv('c-email'), website: fv('c-web'),
+            name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'),
             registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'),
             financialYearStart: fv('c-fy-start'), booksBeginFrom: fv('c-books-start'),
             securityControl: fsv('c-sec-ctrl') === 'Yes', password: fv('c-pwd'),
@@ -5359,6 +5366,21 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   const [showOptions, setShowOptions] = useState(true);
   const [tempCopies, setTempCopies] = useState(1);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'p' && !showOptions) {
+        e.preventDefault();
+        setShowOptions(true);
+      }
+      if (e.key === 'Enter' && showOptions) {
+        e.preventDefault();
+        handlePrint();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showOptions, tempCopies]);
+
   const salesVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note'].includes(v.type));
   const v = printVoucher || salesVouchers[0] || null;
 
@@ -5592,7 +5614,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
       {/* ===== Footer ===== */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',minHeight:100}}>
         <div style={{padding:'8px 12px',borderRight:'1px solid #555',fontSize:10}}>
-          {company?.bankName && (
+          {(company?.bankName || company?.accountNo || company?.ifsc) && (
             <div style={{marginBottom:10, paddingBottom:6, borderBottom:'1px solid #eee'}}>
               <div style={{fontWeight:'bold',textDecoration:'underline',marginBottom:2}}>Company's Bank Details:</div>
               <div>Bank Name : <b>{company?.bankName}</b></div>
