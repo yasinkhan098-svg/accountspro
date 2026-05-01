@@ -5592,20 +5592,20 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
       {/* ===== Footer ===== */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',minHeight:100}}>
         <div style={{padding:'8px 12px',borderRight:'1px solid #555',fontSize:10}}>
-          {company.bankName && (
+          {company?.bankName && (
             <div style={{marginBottom:10, paddingBottom:6, borderBottom:'1px solid #eee'}}>
               <div style={{fontWeight:'bold',textDecoration:'underline',marginBottom:2}}>Company's Bank Details:</div>
-              <div>Bank Name : <b>{company.bankName}</b></div>
-              <div>A/c Holder Name : <b>{company.bankHolderName || company.name}</b></div>
-              <div>A/c No. : <b>{company.accountNo}</b></div>
-              <div>IFSC Code : <b>{company.ifsc}</b></div>
+              <div>Bank Name : <b>{company?.bankName}</b></div>
+              <div>A/c Holder Name : <b>{company?.bankHolderName || company?.name}</b></div>
+              <div>A/c No. : <b>{company?.accountNo}</b></div>
+              <div>IFSC Code : <b>{company?.ifsc}</b></div>
             </div>
           )}
           <div style={{fontWeight:'bold',textDecoration:'underline'}}>Declaration:</div>
           <div>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
         </div>
         <div style={{padding:'8px 12px',textAlign:'right',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
-          <div style={{fontSize:11}}>for <b>{company.name}</b></div>
+          <div style={{fontSize:11}}>for <b>{company?.name}</b></div>
           <div style={{marginTop:40}}><div style={{borderTop:'1px solid #555', display:'inline-block', paddingTop:4, width:150, textAlign:'center'}}>Authorised Signatory</div></div>
         </div>
       </div>
