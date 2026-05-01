@@ -912,7 +912,7 @@ export default function App() {
       return true;
     } else {
       const id = Date.now();
-      const companyId = type !== 'company' ? activeCompany?.id : null;
+      const companyId = type !== 'company' ? (activeCompany?.id || 0) : 0;
       if (type === 'ledger') setAllLedgers(p => [...p, { id, companyId, ...data }]);
       else if (type === 'group') setAllGroups(p => [...p, { id, companyId, ...data }]);
       else if (type === 'stockGroup') setAllStockGroups(p => [...p, { id, companyId, ...data }]);
@@ -1028,14 +1028,14 @@ export default function App() {
     goBack();
   };
 
-  const saveVoucher = (v: any) => {
+  const saveVoucher = (v: any): Voucher => {
     if(v.id) {
       setAllVouchers(p => p.map(x => x.id === v.id ? { ...x, ...v } : x));
       setPrintVoucher(v);
       return v;
     }
     const id = Date.now();
-    const companyId = activeCompany?.id;
+    const companyId = activeCompany?.id || 0;
     const newV = { id, companyId, ...v };
     setAllVouchers(p => [...p, newV]);
     setPrintVoucher(newV);
@@ -3215,7 +3215,7 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave}:{activeAl
 
 // ==================== VOUCHER ENTRY FORM ====================
 function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes}:{
-  activeAlterItem?:any; activeVoucher:VoucherTypeKey; ledgers:Ledger[]; stockItems:StockItem[]; units:UnitData[]; vouchers:Voucher[]; activeCompany:Company; currentDate:string; onF2:()=>void; onPrintPreview:(v:Voucher)=>void; onCancel:()=>void;
+  activeAlterItem?:any; activeVoucher:VoucherTypeKey; ledgers:Ledger[]; stockItems:StockItem[]; units:UnitData[]; vouchers:Voucher[]; activeCompany:Company | null; currentDate:string; onF2:()=>void; onPrintPreview:(v:Voucher)=>void; onCancel:()=>void;
   onAltC:(ctx:AltCContext)=>void; onSave:(v:any)=>Voucher; onDelete:(id:number)=>void; onChangeType:(t:VoucherTypeKey)=>void; voucherTypes:VoucherTypeData[];
 }) {
   const isInventory = ['Sales','Purchase','Credit Note','Debit Note'].includes(activeVoucher);
@@ -3556,6 +3556,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     }
     return {
       ...(activeAlterItem ? {id: activeAlterItem.id} : {}),
+      companyId: activeCompany?.id || 0,
       type:activeVoucher, date:currentDate, number:vNum, voucherNo:formattedNo, refNo:refNo||`${activeVoucher.slice(0,3).toUpperCase()}/${vNum}`,
       partyName, partyId: ledgers.find(l=>l.name===partyName)?.id||0,
       inventoryEntries: isInventory ? rows.filter(r=>r.itemName).map((r,i)=>({id:i+1,...r})) : [],
@@ -5334,7 +5335,7 @@ function numberToWords(num: number): string {
 }
 
 function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
-  vouchers:Voucher[];company:Company;printVoucher:Voucher|null;ledgers:Ledger[];onSelectVoucher:(v:Voucher)=>void;
+  vouchers:Voucher[];company:Company | null;printVoucher:Voucher|null;ledgers:Ledger[];onSelectVoucher:(v:Voucher)=>void;
 }) {
   const [numCopies, setNumCopies] = useState(1);
   const [showOptions, setShowOptions] = useState(true);
@@ -5377,7 +5378,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     const map:Record<string,string>={'Uttarakhand':'05','Uttar Pradesh':'09','Delhi':'07','Maharashtra':'27','Gujarat':'24','Rajasthan':'08','Punjab':'03','Haryana':'06','Karnataka':'29','Tamil Nadu':'33','West Bengal':'19','Bihar':'10','Madhya Pradesh':'23','Andhra Pradesh':'28','Telangana':'36','Odisha':'21','Kerala':'32','Assam':'18','Jharkhand':'20','Chhattisgarh':'22','Himachal Pradesh':'02','Jammu and Kashmir':'01','Goa':'30'};
     return map[s]||'00';
   };
-  const companyState = company.state||'';
+  const companyState = company?.state||'';
   const buyerState = pd?.buyerState||v.partyName;
 
   const tdB:React.CSSProperties = {border:'1px solid #555',padding:'4px 6px',fontSize:11,verticalAlign:'top'};
@@ -5412,20 +5413,20 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
       {/* ===== TOP: Company | Invoice details ===== */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid #555'}}>
         <div style={{padding:'8px 12px',borderRight:'1px solid #555', display:'flex', gap: 15}}>
-          {company.showLogo && company.logo && (
+          {company?.showLogo && company?.logo && (
             <div style={{width: '1in', height: '1in', flexShrink: 0, border: '1px solid #eee', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
               <img src={company.logo} alt="Logo" style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain'}} />
             </div>
           )}
           <div style={{flex: 1}}>
-            <div style={{fontWeight:'bold',fontSize:14}}>{company.mailingName || company.name}</div>
-            <div style={{fontSize:11, marginTop:2}}>{company.address||'—'}</div>
-            <div style={{marginTop:4}}>GSTIN/UIN : <b>{company.gstin||'—'}</b></div>
+            <div style={{fontWeight:'bold',fontSize:14}}>{company?.mailingName || company?.name || 'Unknown Company'}</div>
+            <div style={{fontSize:11, marginTop:2}}>{company?.address||'—'}</div>
+            <div style={{marginTop:4}}>GSTIN/UIN : <b>{company?.gstin||'—'}</b></div>
             <div>State Name : {companyState}{companyState?`, Code : ${stateCode(companyState)}`:''}</div>
-            {company.telephone && <div>Telephone: {company.telephone}</div>}
-            {company.showMobile && company.mobile && <div>Mobile: {company.mobile}</div>}
-            {company.showEmail && company.email && <div>E-Mail : {company.email}</div>}
-            {company.showWebsite && company.website && <div>Website: {company.website}</div>}
+            {company?.telephone && <div>Telephone: {company.telephone}</div>}
+            {company?.showMobile && company?.mobile && <div>Mobile: {company.mobile}</div>}
+            {company?.showEmail && company?.email && <div>E-Mail : {company.email}</div>}
+            {company?.showWebsite && company?.website && <div>Website: {company.website}</div>}
           </div>
         </div>
         <div style={{padding:'0'}}>

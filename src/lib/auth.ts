@@ -1,10 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-// In Next.js App Router, it's best practice to instantiate PrismaClient 
-// globally to avoid connection exhaustion in development.
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+import { prisma } from "./prisma";
 
 export async function getAuthenticatedUser(req: Request) {
   const authHeader = req.headers.get("Authorization");
