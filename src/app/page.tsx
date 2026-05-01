@@ -2217,8 +2217,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlte
             onKeyDown={handleKeyDown}
             defaultValue={selCo} autoComplete="off"/>
         </div>
-        {[['Pincode','c-pin',100],['Telephone','c-tel',200]].map(([label,id,w],i)=>(
-          <div key={i} className="form-row"><label style={{width:160}}>{label as string}</label><span className="colon">:</span><input id={id as string} type="text" className="form-input" style={{width:w as number}} defaultValue={activeAlterItem?.[id.replace('c-','')]||''}/></div>
+        {([['Pincode','c-pin',100],['Telephone','c-tel',200]] as const).map(([label,id,w],i)=>(
+          <div key={i} className="form-row"><label style={{width:160}}>{label}</label><span className="colon">:</span><input id={id} type="text" className="form-input" style={{width:w}} defaultValue={activeAlterItem?.[(id as string).replace('c-','')]||''}/></div>
         ))}
         <div className="form-row">
           <label style={{width:160}}>Mobile</label><span className="colon">:</span>
