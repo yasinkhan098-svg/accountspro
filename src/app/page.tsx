@@ -1621,7 +1621,7 @@ export default function App() {
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={allVouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
             {screen==='ALTER_LIST' && (
-              <AlterListView type={alterListType} ledgers={ledgers} groups={groups}
+              <AlterListView type={alterListType} ledgers={ledgers} groups={groups} stockGroups={stockGroups}
                 companies={companies}
                 units={units} voucherTypes={voucherTypes} currencies={currencies}
                 stockItems={stockItems} stockCategories={stockCategories} godowns={godowns}
@@ -5657,8 +5657,8 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   );
 }
 
-function AlterListView({type,ledgers,companies,stockGroups,units,voucherTypes,currencies,stockItems,stockCategories,godowns,onSelect}:{
-  type:string;ledgers:Ledger[];companies:Company[];stockGroups:StockGroup[];units:UnitData[];voucherTypes:VoucherTypeData[];currencies:CurrencyData[];stockItems:StockItem[];stockCategories:StockCategory[];godowns:GodownData[];onSelect:(item:any)=>void;
+function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherTypes,currencies,stockItems,stockCategories,godowns,onSelect}:{
+  type:string;ledgers:Ledger[];companies:Company[];groups:StockGroup[];stockGroups:StockGroup[];units:UnitData[];voucherTypes:VoucherTypeData[];currencies:CurrencyData[];stockItems:StockItem[];stockCategories:StockCategory[];godowns:GodownData[];onSelect:(item:any)=>void;
 }) {
   const [search,setSearch]=useState('');
   const [selIdx, setSelIdx] = useState(0);
