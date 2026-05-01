@@ -3471,7 +3471,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     setFocus(null);setFilter('');setListSel(99999);
   };
 
-  const itemSubtotal = rows.reduce((s,r)=>s+r.amount,0);
+  const itemSubtotal = rows.reduce((s: number, r: any) => s + r.amount, 0);
 
   // ===== TALLY PRIME GST LOGIC: CGST+SGST (same state) vs IGST (different state) =====
   const companyState = (activeCompany?.state || '').toLowerCase().trim();
@@ -3495,14 +3495,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     }));
   }, [rows, isInterState]);
 
-  const totalCgst = gstBreakdown.reduce((s, g) => s + g.cgst, 0);
-  const totalSgst = gstBreakdown.reduce((s, g) => s + g.sgst, 0);
-  const totalIgst = gstBreakdown.reduce((s, g) => s + g.igst, 0);
+  const totalCgst = gstBreakdown.reduce((s: number, g: any) => s + g.cgst, 0);
+  const totalSgst = gstBreakdown.reduce((s: number, g: any) => s + g.sgst, 0);
+  const totalIgst = gstBreakdown.reduce((s: number, g: any) => s + g.igst, 0);
   const totalTax = totalCgst + totalSgst + totalIgst;
   const grandTotal = itemSubtotal + totalTax;
 
-  const accDr = accEntries.filter(e=>e.entryType==='Dr').reduce((s,e)=>s+e.amount,0);
-  const accCr = accEntries.filter(e=>e.entryType==='Cr').reduce((s,e)=>s+e.amount,0);
+  const accDr = accEntries.filter(e=>e.entryType==='Dr').reduce((s: number, e: any) => s + e.amount, 0);
+  const accCr = accEntries.filter(e=>e.entryType==='Cr').reduce((s: number, e: any) => s + e.amount, 0);
   const balanced = Math.abs(accDr-accCr)<0.01;
 
   const vColors:Record<string,string>={Sales:'#1c5282',Purchase:'#5a2d82',Receipt:'#1a7a4a',Payment:'#8B0000',Contra:'#4a4a00',Journal:'#00555a','Credit Note':'#7a3d00','Debit Note':'#00407a'};
@@ -5352,7 +5352,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     </div>
   );
 
-  const itemSubtotal = v.inventoryEntries.reduce((s,e)=>s+e.amount,0);
+  const itemSubtotal = v.inventoryEntries.reduce((s: number, e: any) => s + e.amount, 0);
   const cgst = v.entries.find(e=>e.ledgerName==='CGST Payable')?.amount||0;
   const sgst = v.entries.find(e=>e.ledgerName==='SGST Payable')?.amount||0;
   const igst = v.entries.find(e=>e.ledgerName==='IGST Payable')?.amount||0;
