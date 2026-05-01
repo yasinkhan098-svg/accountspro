@@ -5743,7 +5743,7 @@ function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherT
       <div ref={listRef} className="modal-list" style={{flex:1,overflowY:'auto'}}>
         {filtered.map((it,i)=>(
           <div key={i} className={`modal-list-item ${i===selIdx?'selected':''}`} onClick={()=>onSelect(it)} style={{display:'flex',justifyContent:'space-between'}}>
-            <span style={{fontWeight:'bold'}}>{typeof it === 'string' ? it : it.name || it.symbol || ''}</span>
+            <span style={{fontWeight:'bold'}}>{typeof it === 'string' ? it : (it as any).name || (it as any).symbol || ''}</span>
             <span style={{opacity:0.45,fontSize:11}}>{(it && typeof it === 'object' && 'groupName' in it) ? it.groupName as string : ''}</span>
           </div>
         ))}
