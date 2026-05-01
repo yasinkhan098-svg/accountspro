@@ -4911,7 +4911,7 @@ function PurchaseRegisterView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[
               const taxable=v.inventoryEntries.reduce((s,e)=>s+e.amount,0);
               const cgst=v.entries.filter(e=>e.ledgerName==='CGST Payable').reduce((s,e)=>s+e.amount,0);
               const sgst=v.entries.filter(e=>e.ledgerName==='SGST Payable').reduce((s,e)=>s+e.amount,0);
-              return <tr key={i} style={{cursor:'pointer', background: i===rowIdx?'#cbe0ff':'', backgroundSecondary:v.type==='Debit Note'?'#fff5f5':''}}
+              return <tr key={i} style={{cursor:'pointer', background: i===rowIdx ? '#cbe0ff' : (v.type==='Debit Note' ? '#fff5f5' : '')}}
                 onClick={()=>onDrillDown?.(v)}
                 onMouseEnter={()=>setRowIdx(i)}>
                 <td style={{fontSize:12}}>{v.date}</td>
