@@ -49,6 +49,24 @@ interface Company {
 
 interface VoucherEntry { id: number; ledgerId: number; ledgerName: string; amount: number; entryType: 'Dr' | 'Cr'; narration?: string; }
 interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; unit: string; amount: number; gstRate: number; hsnCode?: string; altQty?: string; }
+
+interface VoucherRow {
+  itemId: number;
+  itemName: string;
+  qty: number;
+  rate: number;
+  unit: string;
+  amount: number;
+  gstRate: number;
+  hsnCode?: string;
+}
+
+interface AccountEntry {
+  ledgerId: number;
+  ledgerName: string;
+  amount: number;
+  entryType: 'Dr' | 'Cr';
+}
 interface PartyDetails {
   buyerName: string; buyerMailingName: string; buyerAddress: string;
   buyerState: string; buyerCountry: string; buyerGstin: string; buyerPlace: string;
@@ -3224,8 +3242,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const [partyName, setPartyName] = useState(activeAlterItem?.partyName || '');
   const [partyBalance, setPartyBalance] = useState<number|null>(null);
   const [refNo, setRefNo] = useState(activeAlterItem?.refNo || '');
-  const [rows, setRows] = useState(activeAlterItem?.inventoryEntries?.length ? activeAlterItem.inventoryEntries : [{itemId:0,itemName:'',qty:0,rate:0,unit:'Nos',amount:0,gstRate:18}]);
-  const [accEntries, setAccEntries] = useState(activeAlterItem?.entries?.length ? activeAlterItem.entries : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+  const [rows, setRows] = useState<VoucherRow[]>(activeAlterItem?.inventoryEntries?.length ? activeAlterItem.inventoryEntries : [{itemId:0,itemName:'',qty:0,rate:0,unit:'Nos',amount:0,gstRate:18}]);
+  const [accEntries, setAccEntries] = useState<AccountEntry[]>(activeAlterItem?.entries?.length ? activeAlterItem.entries : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
   const [narration, setNarration] = useState(activeAlterItem?.narration || '');
   const [focus, setFocus] = useState<{field:string;rowIdx?:number}|null>(null);
   const [filter, setFilter] = useState('');
