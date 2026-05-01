@@ -488,7 +488,7 @@ export default function App() {
         <table>
           <tr><td colspan="${table.rows[0].cells.length}" class="header-title">${activeCompany?.name || 'LEDGERX COMPANY'}</td></tr>
           <tr><td colspan="${table.rows[0].cells.length}" class="header-sub">${activeCompany?.address || ''}</td></tr>
-          <tr><td colspan="${table.rows[0].cells.length}" class="header-sub">GSTIN: ${activeCompany?.gstin || ''} | Phone: ${activeCompany?.phone || ''}</td></tr>
+          <tr><td colspan="${table.rows[0].cells.length}" class="header-sub">GSTIN: ${activeCompany?.gstin || ''} | Phone: ${activeCompany?.telephone || ''}</td></tr>
           <tr><td colspan="${table.rows[0].cells.length}" class="header-sub" style="color:#d9534f; font-weight:bold;">Financial Year: ${activeCompany?.financialYearStart || '2026-27'}</td></tr>
           <tr><td colspan="${table.rows[0].cells.length}"></td></tr>
           <tr><td colspan="${table.rows[0].cells.length}" class="report-title">${reportTitle}</td></tr>
