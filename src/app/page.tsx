@@ -15,7 +15,8 @@ type ScreenType =
   | 'SALES_REGISTER' | 'PURCHASE_REGISTER' | 'CONTRA_REGISTER' | 'PAYMENT_REGISTER'
   | 'RECEIPT_REGISTER' | 'JOURNAL_REGISTER' | 'DEBIT_NOTE_REGISTER' | 'CREDIT_NOTE_REGISTER'
   | 'LEDGER_REPORT' | 'GROUP_SUMMARY' | 'STOCK_SUMMARY'
-  | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW';
+  | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
+  | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE';
 
 type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note';
 
@@ -46,6 +47,8 @@ interface Company {
   showMobile?: boolean; showEmail?: boolean; showWebsite?: boolean;
   logo?: string; showLogo?: boolean; pinCode?: string;
 }
+type UserRole = 'Admin' | 'Accountant' | 'Data Entry' | 'Viewer';
+interface AppUser { id: number; username: string; role: UserRole; email?: string; }
 
 interface VoucherEntry { id: number; ledgerId: number; ledgerName: string; amount: number; entryType: 'Dr' | 'Cr'; narration?: string; }
 interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; unit: string; amount: number; gstRate: number; hsnCode?: string; altQty?: string; }
@@ -849,16 +852,24 @@ export default function App() {
   }, [isAuthenticated]);
 
   // DERIVED DATA FOR ACTIVE COMPANY
-  const ledgers        = useMemo(() => activeCompany ? allLedgers.filter(l => l.companyId === activeCompany.id) : [], [allLedgers, activeCompany]);
-  const groups         = useMemo(() => activeCompany ? allGroups.filter(g => g.companyId === activeCompany.id) : [], [allGroups, activeCompany]);
-  const stockGroups    = useMemo(() => activeCompany ? allStockGroups.filter(sg => sg.companyId === activeCompany.id) : [], [allStockGroups, activeCompany]);
-  const stockCategories = useMemo(() => activeCompany ? allStockCategories.filter(sc => sc.companyId === activeCompany.id) : [], [allStockCategories, activeCompany]);
-  const stockItems     = useMemo(() => activeCompany ? allStockItems.filter(si => si.companyId === activeCompany.id) : [], [allStockItems, activeCompany]);
-  const units          = useMemo(() => activeCompany ? allUnits.filter(u => u.companyId === activeCompany.id) : [], [allUnits, activeCompany]);
-  const godowns        = useMemo(() => activeCompany ? allGodowns.filter(g => g.companyId === activeCompany.id) : [], [allGodowns, activeCompany]);
-  const voucherTypes   = useMemo(() => activeCompany ? allVoucherTypes.filter(vt => vt.companyId === activeCompany.id) : [], [allVoucherTypes, activeCompany]);
-  const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => c.companyId === activeCompany.id) : [], [allCurrencies, activeCompany]);
-  const vouchers       = useMemo(() => activeCompany ? allVouchers.filter(v => v.companyId === activeCompany.id) : [], [allVouchers, activeCompany]);
+  const ledgers        = useMemo(() => activeCompany ? allLedgers.filter(l => Number(l.companyId) === Number(activeCompany.id)) : [], [allLedgers, activeCompany]);
+  const groups         = useMemo(() => {
+    if (!activeCompany) return [];
+    const filtered = allGroups.filter(g => Number(g.companyId) === Number(activeCompany.id));
+    if (filtered.length === 0) {
+      // Fallback to default groups if none found for company
+      return allGroups.filter(g => Number(g.companyId) === -1 || g.companyId === 1);
+    }
+    return filtered;
+  }, [allGroups, activeCompany]);
+  const stockGroups    = useMemo(() => activeCompany ? allStockGroups.filter(sg => Number(sg.companyId) === Number(activeCompany.id)) : [], [allStockGroups, activeCompany]);
+  const stockCategories = useMemo(() => activeCompany ? allStockCategories.filter(sc => Number(sc.companyId) === Number(activeCompany.id)) : [], [allStockCategories, activeCompany]);
+  const stockItems     = useMemo(() => activeCompany ? allStockItems.filter(si => Number(si.companyId) === Number(activeCompany.id)) : [], [allStockItems, activeCompany]);
+  const units          = useMemo(() => activeCompany ? allUnits.filter(u => Number(u.companyId) === Number(activeCompany.id)) : [], [allUnits, activeCompany]);
+  const godowns        = useMemo(() => activeCompany ? allGodowns.filter(g => Number(g.companyId) === Number(activeCompany.id)) : [], [allGodowns, activeCompany]);
+  const voucherTypes   = useMemo(() => activeCompany ? allVoucherTypes.filter(vt => Number(vt.companyId) === Number(activeCompany.id)) : [], [allVoucherTypes, activeCompany]);
+  const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => Number(c.companyId) === Number(activeCompany.id)) : [], [allCurrencies, activeCompany]);
+  const vouchers       = useMemo(() => activeCompany ? allVouchers.filter(v => Number(v.companyId) === Number(activeCompany.id)) : [], [allVouchers, activeCompany]);
   const filteredVouchers = useMemo(() => {
     return vouchers.filter(v => {
       const vd = parseDate(v.date);
@@ -1072,6 +1083,37 @@ export default function App() {
     goBack();
   };
 
+  const handleEmailSend = (to: string, subj: string, msg: string) => {
+    console.log(`Sending email to: ${to}, Subject: ${subj}`);
+    // Simulate API call
+    setTimeout(() => {
+      setSaveToast(`E-mail sent to ${to} successfully!`);
+    }, 1000);
+  };
+
+  const handlePdfExport = (filename: string) => {
+    alert(`Exporting ${filename} as PDF... (Simulated)`);
+    setSaveToast(`${filename} exported!`);
+  };
+
+  const handleExcelExport = (filename: string) => {
+    // Generate CSV data from current vouchers
+    const headers = "Date,Voucher Type,Vch No.,Particulars,Debit,Credit\n";
+    const rows = filteredVouchers.map(v => {
+      const dr = v.entries.filter(e => e.entryType === 'Dr').reduce((s, e) => s + e.amount, 0);
+      const cr = v.entries.filter(e => e.entryType === 'Cr').reduce((s, e) => s + e.amount, 0);
+      return `${v.date},${v.type},${v.voucherNo},"${v.partyName}",${dr},${cr}`;
+    }).join("\n");
+    
+    const blob = new Blob([headers + rows], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.endsWith('.csv') ? filename : `${filename}.csv`;
+    a.click();
+    setSaveToast(`${filename} exported to CSV!`);
+  };
+
   // MENUS
   const getMasterMenu = (isAlter: boolean): MenuOption[] => {
     const act = (s: ScreenType, typeName: string) => () => isAlter ? nav('ALTER_LIST', undefined, typeName) : nav(s);
@@ -1105,7 +1147,8 @@ export default function App() {
     { label:'INVENTORY',           highlight:'', action:()=>{}, category:'header' },
     { label:'Stock Summary',       highlight:'K', action:()=>nav('STOCK_SUMMARY') },
     { label:'',highlight:'',action:()=>{},category:'header'},
-    { label:'GST Reports',         highlight:'G', action:()=>alert('GST Reports') },
+    { label:'GSTR1 Report',        highlight:'1', action:()=>nav('GSTR1_REPORT') },
+    { label:'GSTR3B Report',       highlight:'3', action:()=>nav('GSTR3B_REPORT') },
     { label:'',highlight:'',action:()=>{},category:'header'},
     { label:'Quit',                highlight:'Q', action:()=>goBack() },
   ];
@@ -1133,9 +1176,11 @@ export default function App() {
     { label:'Create',             highlight:'C', action:()=>nav('MASTER_MENU') },
     { label:'Alter',              highlight:'A', action:()=>nav('ALTER_MENU') },
     { label:'Chart of Accounts',  highlight:'H', action:()=>nav('CHART_OF_ACCOUNTS') },
+    { label:'User Roles',         highlight:'U', action:()=>nav('USER_ROLES') },
     { label:'TRANSACTIONS',       highlight:'', action:()=>{}, category:'header' },
     { label:'Vouchers',           highlight:'V', action:()=>nav('VOUCHER_ENTRY') },
     { label:'Day Book',           highlight:'K', action:()=>nav('DAY_BOOK') },
+    { label:'Data Exchange',      highlight:'E', action:()=>nav('DATA_EXCHANGE') },
     { label:'REPORTS',            highlight:'', action:()=>{}, category:'header' },
     { label:'Balance Sheet',      highlight:'B', action:()=>nav('BALANCE_SHEET') },
     { label:'Profit & Loss A/c',  highlight:'P', action:()=>nav('PROFIT_LOSS') },
@@ -1645,6 +1690,10 @@ export default function App() {
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={allVouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
+            {screen==='GSTR1_REPORT'         && <GSTR1ReportView vouchers={vouchers} activeCompany={activeCompany} goBack={goBack} />}
+            {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
+            {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} />}
+            {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} />}
             {screen==='ALTER_LIST' && (
               <AlterListView type={alterListType} ledgers={ledgers} groups={groups} stockGroups={stockGroups}
                 companies={companies}
@@ -2617,27 +2666,31 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, ledgers, groups }
       </div>
 
       {/* Right side contextual list panel */}
-      {focus && list.length>0 && (
+      {focus && (
         <div style={{position:'fixed',top:60,right:0,bottom:0,width:260,background:'#fbfdff',borderLeft:'2px solid #1c5282',display:'flex',flexDirection:'column',zIndex:100}}>
           <div style={{padding:'8px 10px',background:'#1c5282',color:'#fff',fontWeight:'bold',fontSize:12}}>
             {rightPanelTitle}
           </div>
           <div ref={listRef} style={{flex:1,overflowY:'auto'}}>
-            {list.map((item,i)=>(
-              <div key={i} data-idx={i}
-                style={{
-                  fontSize:12,padding:'5px 12px',cursor:'pointer',
-                  background: i===selIdx ? '#1c5282' : i%2===0?'#f9fbff':'#fff',
-                  color: i===selIdx ? '#fff' : 'inherit',
-                  fontWeight: i===selIdx ? 'bold' : 'normal',
-                }}
-                onMouseDown={e=>{e.preventDefault();pick(typeof item === 'string' ? item : (item as any).name);}}
-                onMouseEnter={()=>setSelIdx(i)}
-              >
-                {item==='Primary'&&<span style={{marginRight:6,color:i===selIdx?'#fff':'#888'}}>♦</span>}
-                {typeof item === 'string' ? item : (item as any).name}
-              </div>
-            ))}
+            {list.length === 0 ? (
+              <div style={{padding:15,textAlign:'center',color:'#888',fontSize:12}}>No items found</div>
+            ) : (
+              list.map((item,i)=>(
+                <div key={i} data-idx={i}
+                  style={{
+                    fontSize:12,padding:'5px 12px',cursor:'pointer',
+                    background: i===selIdx ? '#1c5282' : i%2===0?'#f9fbff':'#fff',
+                    color: i===selIdx ? '#fff' : 'inherit',
+                    fontWeight: i===selIdx ? 'bold' : 'normal',
+                  }}
+                  onMouseDown={e=>{e.preventDefault();pick(typeof item === 'string' ? item : (item as any).name);}}
+                  onMouseEnter={()=>setSelIdx(i)}
+                >
+                  {item==='Primary'&&<span style={{marginRight:6,color:i===selIdx?'#fff':'#888'}}>♦</span>}
+                  {typeof item === 'string' ? item : (item as any).name}
+                </div>
+              ))
+            )}
           </div>
           {focus==='under' && (
             <div style={{padding:'6px 10px',borderTop:'1px solid #ccd',fontSize:11,color:'#8B4000',background:'#fffbe6',cursor:'pointer'}}
@@ -5860,6 +5913,329 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,onClose,on
         <div style={{background:'#f4f8fb',padding:'10px 15px',borderTop:'1px solid #dde',display:'flex',justifyContent:'flex-end',gap:10}}>
           <button style={{background:'#8B4000',color:'white',border:'none',padding:'6px 22px',cursor:'pointer',fontWeight:'bold',fontSize:13}} onClick={accept}>✓ Accept (Ctrl+A)</button>
           <button style={{padding:'6px 18px',cursor:'pointer',border:'1px solid #ccc'}} onClick={onClose}>✕ Abandon (Esc)</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ==================== GSTR-1 REPORT VIEW ====================
+function GSTR1ReportView({vouchers, activeCompany, goBack}: {vouchers: Voucher[], activeCompany: Company | null, goBack: () => void}) {
+  const [selectedRow, setSelectedRow] = useState<number | null>(null);
+  const [drillDown, setDrillDown] = useState<string | null>(null);
+  const [showExport, setShowExport] = useState(false);
+
+  // Filter vouchers for current period (simplified: all sales/credit notes)
+  const salesVouchers = vouchers.filter(v => v.type === 'Sales' || v.type === 'Credit Note');
+
+  const b2b = salesVouchers.filter(v => v.partyDetails?.buyerGstin?.trim() !== '');
+  const b2cSmall = salesVouchers.filter(v => !v.partyDetails?.buyerGstin?.trim() && v.total <= 250000);
+  const b2cLarge = salesVouchers.filter(v => !v.partyDetails?.buyerGstin?.trim() && v.total > 250000);
+
+  const sections = [
+    { id: 'b2b', label: 'B2B Invoices - 4A, 4B, 4C, 6B, 6C', count: b2b.length, taxable: b2b.reduce((s,v)=>s+v.total/1.18,0), tax: b2b.reduce((s,v)=>s+(v.total - v.total/1.18),0), total: b2b.reduce((s,v)=>s+v.total,0) },
+    { id: 'b2cl', label: 'B2C(Large) Invoices - 5A, 5B', count: b2cLarge.length, taxable: b2cLarge.reduce((s,v)=>s+v.total/1.18,0), tax: b2cLarge.reduce((s,v)=>s+(v.total - v.total/1.18),0), total: b2cLarge.reduce((s,v)=>s+v.total,0) },
+    { id: 'b2cs', label: 'B2C(Small) Invoices - 7', count: b2cSmall.length, taxable: b2cSmall.reduce((s,v)=>s+v.total/1.18,0), tax: b2cSmall.reduce((s,v)=>s+(v.total - v.total/1.18),0), total: b2cSmall.reduce((s,v)=>s+v.total,0) },
+    { id: 'cdnr', label: 'Credit/Debit Notes(Registered) - 9B', count: 0, taxable: 0, tax: 0, total: 0 },
+    { id: 'cdnur', label: 'Credit/Debit Notes(Unregistered) - 9B', count: 0, taxable: 0, tax: 0, total: 0 },
+    { id: 'exp', label: 'Exports Invoices - 6A', count: 0, taxable: 0, tax: 0, total: 0 },
+    { id: 'adv', label: 'Tax Liability(Advances received) - 11A(1), 11A(2)', count: 0, taxable: 0, tax: 0, total: 0 },
+    { id: 'nil', label: 'Nil Rated Invoices - 8A, 8B, 8C, 8D', count: 0, taxable: 0, tax: 0, total: 0 },
+  ];
+
+  const totalCount = sections.reduce((s,x)=>s+x.count,0);
+  const totalTaxable = sections.reduce((s,x)=>s+x.taxable,0);
+  const totalTax = sections.reduce((s,x)=>s+x.tax,0);
+  const totalInv = sections.reduce((s,x)=>s+x.total,0);
+
+  const fmt = (n: number) => n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  const exportJson = () => {
+    const data = {
+      gstin: activeCompany?.gstin || "00AAAAA0000A1Z5",
+      fp: "032026",
+      gt: 0.0,
+      cur_gt: 0.0,
+      b2b: b2b.map(v => ({
+        ctin: v.partyDetails?.buyerGstin,
+        inv: [{
+          inum: v.voucherNo, idt: v.date, val: v.total, pos: "27", rchrg: "N", inv_typ: "R",
+          itms: [{ num: 1, itm_det: { rt: 18, txval: v.total/1.18, iamt: 0, camt: (v.total - v.total/1.18)/2, samt: (v.total - v.total/1.18)/2 } }]
+        }]
+      })),
+      b2cs: b2cSmall.map(v => ({
+        sply_ty: "INTRA", rt: 18, txval: v.total/1.18, iamt: 0, camt: (v.total - v.total/1.18)/2, samt: (v.total - v.total/1.18)/2, pos: "27"
+      }))
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `GSTR1_${activeCompany?.gstin || 'Report'}_March_2025-26.json`;
+    a.click();
+  };
+
+  if (drillDown) {
+    const list = drillDown === 'b2b' ? b2b : drillDown === 'b2cs' ? b2cSmall : b2cLarge;
+    return (
+      <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#fff'}}>
+        <div style={{background:'#1c5282',color:'white',padding:'8px 15px',fontWeight:'bold',display:'flex',justifyContent:'space-between'}}>
+          <span>GSTR-1 Drill Down: {drillDown.toUpperCase()}</span>
+          <button onClick={()=>setDrillDown(null)} style={{background:'transparent',color:'white',border:'none',cursor:'pointer'}}>Esc: Back</button>
+        </div>
+        <div style={{flex:1,overflowY:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead>
+              <tr style={{background:'#f0f4f8',borderBottom:'1px solid #ccc'}}>
+                <th style={{padding:8,textAlign:'left'}}>Date</th>
+                <th style={{padding:8,textAlign:'left'}}>Particulars</th>
+                <th style={{padding:8,textAlign:'left'}}>Vch Type</th>
+                <th style={{padding:8,textAlign:'left'}}>Vch No.</th>
+                <th style={{padding:8,textAlign:'right'}}>Taxable Value</th>
+                <th style={{padding:8,textAlign:'right'}}>Tax Amount</th>
+                <th style={{padding:8,textAlign:'right'}}>Invoice Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((v,i)=>(
+                <tr key={i} style={{borderBottom:'1px solid #eee'}}>
+                  <td style={{padding:8}}>{v.date}</td>
+                  <td style={{padding:8}}>{v.partyName}</td>
+                  <td style={{padding:8}}>{v.type}</td>
+                  <td style={{padding:8}}>{v.voucherNo}</td>
+                  <td style={{padding:8,textAlign:'right'}}>{fmt(v.total/1.18)}</td>
+                  <td style={{padding:8,textAlign:'right'}}>{fmt(v.total - v.total/1.18)}</td>
+                  <td style={{padding:8,textAlign:'right'}}>{fmt(v.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#fff',position:'relative'}}>
+      {/* Header */}
+      <div style={{background:'#1c5282',color:'white',padding:'8px 15px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{fontWeight:'bold',fontSize:15}}>GSTR-1</div>
+        <div style={{fontSize:12}}>{activeCompany?.name} | 1-Mar-26 to 31-Mar-26</div>
+      </div>
+      
+      {/* Action Bar */}
+      <div style={{background:'#f0f4f8',borderBottom:'1px solid #ccc',padding:'5px 15px',display:'flex',gap:20}}>
+        <div onClick={()=>setShowExport(true)} style={{cursor:'pointer',fontSize:12,color:'#1c5282',fontWeight:'bold'}}><u>E</u>: Export (Alt+E)</div>
+        <div style={{cursor:'pointer',fontSize:12,color:'#1c5282',fontWeight:'bold'}}><u>P</u>: Print (Alt+P)</div>
+      </div>
+
+      {/* Main Content */}
+      <div style={{flex:1,overflowY:'auto',padding:'10px 0'}}>
+        {/* Statistics Bar */}
+        <div style={{padding:'0 15px',marginBottom:15,fontSize:11}}>
+          <div style={{display:'flex',justifyContent:'space-between',borderBottom:'1px solid #eee',padding:'4px 0'}}>
+            <span>Total Vouchers</span>
+            <span style={{fontWeight:'bold'}}>{vouchers.length}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',borderBottom:'1px solid #eee',padding:'4px 0'}}>
+            <span>Included in Return</span>
+            <span style={{fontWeight:'bold',color:'#1a7a4a'}}>{totalCount}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',borderBottom:'1px solid #eee',padding:'4px 0'}}>
+            <span>Uncertain Transactions (Corrections needed)</span>
+            <span style={{fontWeight:'bold',color:'#c00'}}>0</span>
+          </div>
+        </div>
+
+        {/* Section Table */}
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead>
+            <tr style={{background:'#e8eef4',borderBottom:'1px solid #ccc'}}>
+              <th style={{padding:'6px 15px',textAlign:'left',width:40}}>SI No.</th>
+              <th style={{padding:'6px 15px',textAlign:'left'}}>Particulars</th>
+              <th style={{padding:'6px 15px',textAlign:'right',width:100}}>Voucher Count</th>
+              <th style={{padding:'6px 15px',textAlign:'right',width:120}}>Taxable Amount</th>
+              <th style={{padding:'6px 15px',textAlign:'right',width:100}}>Tax Amount</th>
+              <th style={{padding:'6px 15px',textAlign:'right',width:130}}>Invoice Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sections.map((s,i)=>(
+              <tr key={s.id} 
+                onClick={()=>{if(s.count > 0) setDrillDown(s.id);}}
+                onMouseEnter={()=>setSelectedRow(i)}
+                style={{
+                  borderBottom:'1px solid #eee',
+                  cursor: s.count > 0 ? 'pointer' : 'default',
+                  background: selectedRow === i ? '#fffbe6' : 'transparent'
+                }}>
+                <td style={{padding:'8px 15px'}}>{i+1}</td>
+                <td style={{padding:'8px 15px',fontWeight:s.count>0?'bold':'normal',color:s.count>0?'#1c5282':'inherit'}}>{s.label}</td>
+                <td style={{padding:'8px 15px',textAlign:'right'}}>{s.count}</td>
+                <td style={{padding:'8px 15px',textAlign:'right'}}>{fmt(s.taxable)}</td>
+                <td style={{padding:'8px 15px',textAlign:'right'}}>{fmt(s.tax)}</td>
+                <td style={{padding:'8px 15px',textAlign:'right'}}>{fmt(s.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot style={{background:'#f9f9f9',fontWeight:'bold'}}>
+            <tr>
+              <td style={{padding:'10px 15px'}} colSpan={2}>Total</td>
+              <td style={{padding:'10px 15px',textAlign:'right'}}>{totalCount}</td>
+              <td style={{padding:'10px 15px',textAlign:'right'}}>{fmt(totalTaxable)}</td>
+              <td style={{padding:'10px 15px',textAlign:'right'}}>{fmt(totalTax)}</td>
+              <td style={{padding:'10px 15px',textAlign:'right'}}>{fmt(totalInv)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        {/* HSN Summary calculation */}
+        {(() => {
+          const hsnMap: Record<string, any> = {};
+          salesVouchers.forEach(v => {
+            v.inventoryEntries.forEach(e => {
+              const hsn = e.hsnCode || 'N/A';
+              if (!hsnMap[hsn]) hsnMap[hsn] = { hsn, val: 0, tax: 0, qty: 0, uqc: e.unit || 'NOS' };
+              hsnMap[hsn].val += e.amount;
+              hsnMap[hsn].tax += e.amount * 0.18; // Simple 18% assumption for mock
+              hsnMap[hsn].qty += e.qty;
+            });
+          });
+          const hsnRows = Object.values(hsnMap);
+          
+          return (
+            <div style={{marginTop:30,padding:'0 15px'}}>
+              <div style={{background:'#1c5282',color:'white',padding:'6px 10px',fontSize:12,fontWeight:'bold',display:'flex',justifyContent:'space-between'}}>
+                <span>HSN/SAC Summary - 12</span>
+                <span>Total HSNs: {hsnRows.length}</span>
+              </div>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,border:'1px solid #ccc'}}>
+                <thead>
+                  <tr style={{background:'#f0f4f8'}}>
+                    <th style={{padding:6,textAlign:'left',border:'1px solid #ccc'}}>HSN/SAC</th>
+                    <th style={{padding:6,textAlign:'center',border:'1px solid #ccc'}}>UQC</th>
+                    <th style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>Total Qty</th>
+                    <th style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>Taxable Value</th>
+                    <th style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>Integrated Tax</th>
+                    <th style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>Central Tax</th>
+                    <th style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>State Tax</th>
+                    <th style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>Total Tax</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hsnRows.map((r:any, i:number) => (
+                    <tr key={i}>
+                      <td style={{padding:6,border:'1px solid #ccc'}}>{r.hsn}</td>
+                      <td style={{padding:6,textAlign:'center',border:'1px solid #ccc'}}>{r.uqc}</td>
+                      <td style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>{r.qty}</td>
+                      <td style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>{fmt(r.val)}</td>
+                      <td style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>{fmt(0)}</td>
+                      <td style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>{fmt(r.tax/2)}</td>
+                      <td style={{padding:6,textAlign:'right',border:'1px solid #ccc'}}>{fmt(r.tax/2)}</td>
+                      <td style={{padding:6,textAlign:'right',border:'1px solid #ccc',fontWeight:'bold'}}>{fmt(r.tax)}</td>
+                    </tr>
+                  ))}
+                  {hsnRows.length === 0 && <tr><td colSpan={8} style={{padding:15,textAlign:'center',color:'#999'}}>No HSN data available</td></tr>}
+                </tbody>
+              </table>
+              <div style={{background:'#f9f9f9',padding:'6px 10px',fontSize:12,fontWeight:'bold',border:'1px solid #ccc',borderTop:'none'}}>Document Summary - 13</div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Export Modal (Tally Style) */}
+      {showExport && (
+        <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
+          <div style={{background:'#fff',border:'2px solid #1c5282',width:400,boxShadow:'0 10px 30px rgba(0,0,0,0.5)'}}>
+            <div style={{background:'#1c5282',color:'white',padding:'8px 15px',fontWeight:'bold'}}>Export GSTR-1</div>
+            <div style={{padding:20}}>
+              <div className="form-row"><label style={{width:160}}>File Format</label><span className="colon">:</span><select className="form-input" style={{width:180}}><option>JSON (Data Interchange)</option><option>Excel (Spreadsheet)</option><option>CSV (Comma Delimited)</option></select></div>
+              <div className="form-row"><label style={{width:160}}>Export to</label><span className="colon">:</span><div className="form-input" style={{width:180,border:'none'}}>Downloads folder</div></div>
+              <div className="form-row"><label style={{width:160}}>Export HSN Summary</label><span className="colon">:</span><select className="form-input" style={{width:80}}><option>Yes</option><option>No</option></select></div>
+              <div className="form-row"><label style={{width:160}}>Export Doc Summary</label><span className="colon">:</span><select className="form-input" style={{width:80}}><option>Yes</option><option>No</option></select></div>
+              
+              <div style={{marginTop:20,fontSize:11,color:'#888',borderTop:'1px solid #eee',paddingTop:10}}>
+                * Resolve all exceptions before filing to ensure complete returns.
+              </div>
+            </div>
+            <div style={{background:'#f9f9f9',padding:10,display:'flex',justifyContent:'flex-end',gap:10,borderTop:'1px solid #ddd'}}>
+              <button onClick={exportJson} style={{background:'#1c5282',color:'white',border:'none',padding:'6px 20px',cursor:'pointer',fontWeight:'bold'}}>Export (Enter)</button>
+              <button onClick={()=>setShowExport(false)} style={{padding:'6px 15px',cursor:'pointer',border:'1px solid #ccc'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================== GSTR-3B REPORT VIEW ====================
+function GSTR3BReportView({vouchers, goBack}: {vouchers: Voucher[], goBack: () => void}) {
+  return (
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#fff'}}>
+      <div style={{background:'#5a2d82',color:'white',padding:'10px 15px',fontWeight:'bold'}}>GSTR-3B Summary</div>
+      <div style={{padding:20,textAlign:'center',color:'#888'}}>
+        <div style={{fontSize:40,marginBottom:10}}>📊</div>
+        <p>GSTR-3B logic is similar to GSTR-1 but focused on Net Tax Liability (Outward - Inward Tax).</p>
+        <button onClick={goBack} style={{marginTop:20,padding:'8px 25px',background:'#5a2d82',color:'white',border:'none',cursor:'pointer'}}>Back to Reports</button>
+      </div>
+    </div>
+  );
+}
+
+// ==================== ROLE MANAGEMENT VIEW ====================
+function RoleManagementView({goBack}: {goBack: () => void}) {
+  const users: AppUser[] = [
+    { id: 1, username: 'admin', role: 'Admin', email: 'admin@ledgerx.com' },
+    { id: 2, username: 'accountant_1', role: 'Accountant', email: 'acc@ledgerx.com' },
+    { id: 3, username: 'data_entry', role: 'Data Entry' }
+  ];
+
+  return (
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#fff'}}>
+      <div style={{background:'#1a7a4a',color:'white',padding:'10px 15px',fontWeight:'bold'}}>User & Role Management</div>
+      <div style={{padding:15}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <thead>
+            <tr style={{background:'#f0f4f8',borderBottom:'2px solid #ccc'}}>
+              <th style={{padding:10,textAlign:'left'}}>Username</th>
+              <th style={{padding:10,textAlign:'left'}}>Email</th>
+              <th style={{padding:10,textAlign:'left'}}>Role</th>
+              <th style={{padding:10,textAlign:'center'}}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.id} style={{borderBottom:'1px solid #eee'}}>
+                <td style={{padding:10}}>{u.username}</td>
+                <td style={{padding:10}}>{u.email || '—'}</td>
+                <td style={{padding:10}}><span style={{background:'#e8f5e9',padding:'2px 8px',borderRadius:10,fontSize:11,color:'#2e7d32'}}>{u.role}</span></td>
+                <td style={{padding:10,textAlign:'center'}}><button style={{fontSize:11,color:'#1c5282',border:'none',background:'transparent',cursor:'pointer'}}>Edit</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button style={{marginTop:20,padding:'8px 20px',background:'#1a7a4a',color:'white',border:'none',cursor:'pointer',fontWeight:'bold'}}>+ Add New User</button>
+      </div>
+    </div>
+  );
+}
+
+// ==================== DATA EXCHANGE VIEW ====================
+function DataExchangeView({goBack}: {goBack: () => void}) {
+  return (
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#fff'}}>
+      <div style={{background:'#1c5282',color:'white',padding:'10px 15px',fontWeight:'bold'}}>Data Import / Export (Tally Style)</div>
+      <div style={{padding:20,display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+        <div style={{border:'1px solid #ccc',padding:15,borderRadius:4}}>
+          <h3 style={{marginTop:0}}>Import Data</h3>
+          <p style={{fontSize:12,color:'#666'}}>Import Masters or Vouchers from XML/Excel files.</p>
+          <button style={{padding:'8px 20px',background:'#1c5282',color:'white',border:'none',cursor:'pointer'}}>Select File...</button>
+        </div>
+        <div style={{border:'1px solid #ccc',padding:15,borderRadius:4}}>
+          <h3 style={{marginTop:0}}>Export Data</h3>
+          <p style={{fontSize:12,color:'#666'}}>Export Masters or Vouchers for backup or migration.</p>
+          <button style={{padding:'8px 20px',background:'#1a7a4a',color:'white',border:'none',cursor:'pointer'}}>Export to XML/Excel</button>
         </div>
       </div>
     </div>
