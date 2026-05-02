@@ -6026,162 +6026,113 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
   }, [drillDown, drillDownParty, selectedRow, selectedVchIdx, sections, partyRows, currentPartyVouchers, goBack]);
 
   // EXPORT HANDLERS
-    const exportJson = () => {
-      const stateCodeMap: Record<string, string> = {
-        'Andaman and Nicobar Islands': '35', 'Andhra Pradesh': '37', 'Arunachal Pradesh': '12', 'Assam': '18', 'Bihar': '10',
-        'Chandigarh': '04', 'Chhattisgarh': '22', 'Dadra and Nagar Haveli and Daman and Diu': '26', 'Delhi': '07', 'Goa': '30',
-        'Gujarat': '24', 'Haryana': '06', 'Himachal Pradesh': '02', 'Jammu and Kashmir': '01', 'Jharkhand': '20',
-        'Karnataka': '29', 'Kerala': '32', 'Ladakh': '38', 'Lakshadweep': '31', 'Madhya Pradesh': '23',
-        'Maharashtra': '27', 'Manipur': '14', 'Meghalaya': '17', 'Mizoram': '15', 'Nagaland': '13',
-        'Odisha': '21', 'Puducherry': '34', 'Punjab': '03', 'Rajasthan': '08', 'Sikkim': '11',
-        'Tamil Nadu': '33', 'Telangana': '36', 'Tripura': '16', 'Uttar Pradesh': '09', 'Uttarakhand': '05', 'West Bengal': '19'
-      };
+  const [showExportGstModal, setShowExportGstModal] = useState(false);
 
-      const formatGstDate = (d: string) => {
-        const months: Record<string, string> = {
-          'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-          'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
-        };
-        const parts = d.split('-');
-        if (parts.length === 3) {
-          const day = parts[0].padStart(2, '0');
-          // Handle both numeric and name-based months
-          let month = months[parts[1]] || parts[1];
-          if (month.length === 1) month = '0' + month;
-          const year = parts[2];
-          return `${day}-${month}-${year}`;
-        }
-        return d;
-      };
-
-      // 1. Prepare HSN Data
-      const hsnMap: any = {};
-      salesVouchers.forEach(v => {
-        if (v.type !== 'Sales') return; // Only sales for GSTR-1 HSN
-        const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
-        v.inventoryEntries.forEach(item => {
-          const hsn = item.hsnCode || 'N/A';
-          const rate = item.gstRate || 18;
-          const key = `${hsn}_${rate}`;
-          
-          const unitObj = allUnits.find(u => u.name === item.unit || u.symbol === item.unit);
-          const uqc = unitObj?.uqc || 'NOS';
-
-          if(!hsnMap[key]) hsnMap[key] = { hsn_sc: hsn, desc: '', uqc: uqc, qty: 0, val: 0, txval: 0, iamt: 0, camt: 0, samt: 0, rt: rate, csamt: 0 };
-          const txval = item.amount / (1 + (rate / 100));
-          const tax = item.amount - txval;
-          hsnMap[key].qty += item.qty; hsnMap[key].val += item.amount; hsnMap[key].txval += txval;
-          if (isInterState) hsnMap[key].iamt += tax;
-          else { hsnMap[key].camt += tax/2; hsnMap[key].samt += tax/2; }
-        });
-      });
-
-      // 2. Prepare B2B Data (Grouped by CTIN)
-      const b2bGrouped: Record<string, any> = {};
-      b2bList.filter(v => v.type === 'Sales').forEach(v => {
-        const ctin = v.partyDetails?.buyerGstin?.trim();
-        if (!ctin) return;
-        if (!b2bGrouped[ctin]) b2bGrouped[ctin] = { ctin, inv: [] };
-
-        const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
-        
-        // Group items by rate within each invoice
-        const itemsByRate: Record<number, any> = {};
-        v.inventoryEntries.forEach(item => {
-           const rate = item.gstRate || 18;
-           if (!itemsByRate[rate]) itemsByRate[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
-           const txval = item.amount / (1 + (rate / 100));
-           const tax = item.amount - txval;
-           itemsByRate[rate].txval += txval;
-           if (isInterState) itemsByRate[rate].iamt += tax;
-           else { itemsByRate[rate].camt += tax/2; itemsByRate[rate].samt += tax/2; }
-        });
-
-        const itms = Object.entries(itemsByRate).map(([rate, det], idx) => {
-           const itmDet: any = { 
-             txval: Number(det.txval.toFixed(2)),
-             rt: Number(rate)
-           };
-           if (isInterState) itmDet.iamt = Number(det.iamt.toFixed(2));
-           else {
-             itmDet.camt = Number(det.camt.toFixed(2));
-             itmDet.samt = Number(det.samt.toFixed(2));
-           }
-           itmDet.csamt = 0.0;
-           return { num: idx + 1, itm_det: itmDet };
-        });
-
-        b2bGrouped[ctin].inv.push({
-          inum: v.voucherNo || v.number.toString(),
-          idt: formatGstDate(v.date),
-          val: Number(v.total.toFixed(2)),
-          pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05',
-          rchrg: "N",
-          inv_typ: "R",
-          itms: itms
-        });
-      });
-
-      // 3. Prepare Financial Period (FP)
-      const endParts = currentPeriod.end.split('-');
-      const months: Record<string, string> = {
-        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
-        'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
-      };
-      let mStr = '';
-      if (endParts[1]) {
-        mStr = months[endParts[1].toLowerCase().slice(0,3)] || endParts[1].padStart(2, '0');
-      }
-      const fp = mStr + (endParts[2] || '2026');
-
-      // 4. Document Summary (Only Sales Invoices)
-      const salesOnly = salesVouchers.filter(v => v.type === 'Sales');
-      const fromNo = salesOnly.length > 0 ? Math.min(...salesOnly.map(v => v.number)) : 0;
-      const toNo = salesOnly.length > 0 ? Math.max(...salesOnly.map(v => v.number)) : 0;
-
-      const data: any = { 
-        gstin: activeCompany?.gstin || "00AAAAA0000A1Z5", 
-        fp, 
-        gt: 0.00, 
-        cur_gt: 0.00,
-        b2b: Object.values(b2bGrouped),
-        hsn: { 
-          data: Object.values(hsnMap).map((item: any, idx: number) => ({
-            num: idx + 1,
-            hsn_sc: item.hsn_sc,
-            uqc: item.uqc,
-            qty: Number(item.qty.toFixed(2)),
-            rt: item.rt,
-            txval: Number(item.txval.toFixed(2)),
-            iamt: Number(item.iamt.toFixed(2)),
-            camt: Number(item.camt.toFixed(2)),
-            samt: Number(item.samt.toFixed(2)),
-            csamt: Number(item.csamt.toFixed(2))
-          }))
-        },
-        doc_issue: { 
-          doc_det: [{ 
-            doc_num: 1, 
-            doc_typ: "Invoices for outward supply", 
-            docs: [{ 
-              num: 1, 
-              from: fromNo.toString(), 
-              to: toNo.toString(), 
-              totnum: salesOnly.length, 
-              cancel: 0, 
-              net_issue: salesOnly.length 
-            }] 
-          }] 
-        }
-      };
-
-      const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); 
-      a.href = url; 
-      a.download = `GSTR1_${fp}.json`; 
-      a.click();
+  // EXPORT HANDLERS
+  const handleActualExport = (exportType: 'combined' | 'separate') => {
+    const stateCodeMap: Record<string, string> = {
+      'Andaman and Nicobar Islands': '35', 'Andhra Pradesh': '37', 'Arunachal Pradesh': '12', 'Assam': '18', 'Bihar': '10',
+      'Chandigarh': '04', 'Chhattisgarh': '22', 'Dadra and Nagar Haveli and Daman and Diu': '26', 'Delhi': '07', 'Goa': '30',
+      'Gujarat': '24', 'Haryana': '06', 'Himachal Pradesh': '02', 'Jammu and Kashmir': '01', 'Jharkhand': '20',
+      'Karnataka': '29', 'Kerala': '32', 'Ladakh': '38', 'Lakshadweep': '31', 'Madhya Pradesh': '23',
+      'Maharashtra': '27', 'Manipur': '14', 'Meghalaya': '17', 'Mizoram': '15', 'Nagaland': '13',
+      'Odisha': '21', 'Puducherry': '34', 'Punjab': '03', 'Rajasthan': '08', 'Sikkim': '11',
+      'Tamil Nadu': '33', 'Telangana': '36', 'Tripura': '16', 'Uttar Pradesh': '09', 'Uttarakhand': '05', 'West Bengal': '19'
     };
+
+    const formatGstDate = (d: string) => {
+      const months: Record<string, string> = {
+        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+        'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+      };
+      const parts = d.split('-');
+      if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        let month = months[parts[1]] || parts[1];
+        if (month.length === 1) month = '0' + month;
+        const year = parts[2];
+        return `${day}-${month}-${year}`;
+      }
+      return d;
+    };
+
+    // 1. Prepare HSN Data
+    const hsnMap: any = {};
+    salesVouchers.forEach(v => {
+      if (v.type !== 'Sales') return;
+      const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
+      v.inventoryEntries.forEach(item => {
+        const hsn = item.hsnCode || 'N/A';
+        const rate = item.gstRate || 18;
+        const key = `${hsn}_${rate}`;
+        const unitObj = allUnits.find(u => u.name === item.unit || u.symbol === item.unit);
+        const uqc = unitObj?.uqc || 'NOS';
+        if(!hsnMap[key]) hsnMap[key] = { hsn_sc: hsn, desc: '', uqc: uqc, qty: 0, val: 0, txval: 0, iamt: 0, camt: 0, samt: 0, rt: rate, csamt: 0 };
+        const txval = item.amount / (1 + (rate / 100));
+        const tax = item.amount - txval;
+        hsnMap[key].qty += item.qty; hsnMap[key].val += item.amount; hsnMap[key].txval += txval;
+        if (isInterState) hsnMap[key].iamt += tax;
+        else { hsnMap[key].camt += tax/2; hsnMap[key].samt += tax/2; }
+      });
+    });
+
+    // 2. Prepare B2B Data
+    const b2bGrouped: Record<string, any> = {};
+    b2bList.filter(v => v.type === 'Sales').forEach(v => {
+      const ctin = v.partyDetails?.buyerGstin?.trim();
+      if (!ctin) return;
+      if (!b2bGrouped[ctin]) b2bGrouped[ctin] = { ctin, inv: [] };
+      const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
+      const itemsByRate: Record<number, any> = {};
+      v.inventoryEntries.forEach(item => {
+         const rate = item.gstRate || 18;
+         if (!itemsByRate[rate]) itemsByRate[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
+         const txval = item.amount / (1 + (rate / 100));
+         const tax = item.amount - txval;
+         itemsByRate[rate].txval += txval;
+         if (isInterState) itemsByRate[rate].iamt += tax;
+         else { itemsByRate[rate].camt += tax/2; itemsByRate[rate].samt += tax/2; }
+      });
+      const itms = Object.entries(itemsByRate).map(([rate, det], idx) => {
+         const itmDet: any = { txval: Number(det.txval.toFixed(2)), rt: Number(rate) };
+         if (isInterState) itmDet.iamt = Number(det.iamt.toFixed(2));
+         else { itmDet.camt = Number(det.camt.toFixed(2)); itmDet.samt = Number(det.samt.toFixed(2)); }
+         itmDet.csamt = 0.0;
+         return { num: idx + 1, itm_det: itmDet };
+      });
+      b2bGrouped[ctin].inv.push({
+        inum: v.voucherNo || v.number.toString(), idt: formatGstDate(v.date), val: Number(v.total.toFixed(2)),
+        pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05', rchrg: "N", inv_typ: "R", itms: itms
+      });
+    });
+
+    const endParts = currentPeriod.end.split('-');
+    const months: Record<string, string> = { 'jan':'01','feb':'02','mar':'03','apr':'04','may':'05','jun':'06','jul':'07','aug':'08','sep':'09','oct':'10','nov':'11','dec':'12' };
+    let mStr = (endParts[1]) ? (months[endParts[1].toLowerCase().slice(0,3)] || endParts[1].padStart(2, '0')) : '01';
+    const fp = mStr + (endParts[2] || '2026');
+    const salesOnly = salesVouchers.filter(v => v.type === 'Sales');
+    const fromNo = salesOnly.length > 0 ? Math.min(...salesOnly.map(v => v.number)) : 0;
+    const toNo = salesOnly.length > 0 ? Math.max(...salesOnly.map(v => v.number)) : 0;
+    const baseData = { gstin: activeCompany?.gstin || "00AAAAA0000A1Z5", fp, gt: 0.00, cur_gt: 0.00 };
+
+    const download = (obj: any, fileName: string) => {
+      const blob = new Blob([JSON.stringify(obj, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = fileName; a.click();
+    };
+
+    if (exportType === 'combined') {
+      download({ ...baseData, b2b: Object.values(b2bGrouped),
+        hsn: { data: Object.values(hsnMap).map((item: any, idx: number) => ({ num: idx + 1, hsn_sc: item.hsn_sc, uqc: item.uqc, qty: Number(item.qty.toFixed(2)), rt: item.rt, txval: Number(item.txval.toFixed(2)), iamt: Number(item.iamt.toFixed(2)), camt: Number(item.camt.toFixed(2)), samt: Number(item.samt.toFixed(2)), csamt: Number(item.csamt.toFixed(2)) })) },
+        doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", docs: [{ num: 1, from: fromNo.toString(), to: toNo.toString(), totnum: salesOnly.length, cancel: 0, net_issue: salesOnly.length }] }] }
+      }, `GSTR1_Combined_${fp}.json`);
+    } else {
+      download({ ...baseData, b2b: Object.values(b2bGrouped) }, `B2B_${baseData.gstin}_${fp}.json`);
+      setTimeout(() => download({ ...baseData, hsn: { data: Object.values(hsnMap).map((item: any, idx: number) => ({ num: idx + 1, hsn_sc: item.hsn_sc, uqc: item.uqc, qty: Number(item.qty.toFixed(2)), rt: item.rt, txval: Number(item.txval.toFixed(2)), iamt: Number(item.iamt.toFixed(2)), camt: Number(item.camt.toFixed(2)), samt: Number(item.samt.toFixed(2)), csamt: Number(item.csamt.toFixed(2)) })) } }, `HSN_${baseData.gstin}_${fp}.json`), 500);
+      setTimeout(() => download({ ...baseData, doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", docs: [{ num: 1, from: fromNo.toString(), to: toNo.toString(), totnum: salesOnly.length, cancel: 0, net_issue: salesOnly.length }] }] } }, `Docs_${baseData.gstin}_${fp}.json`), 1000);
+    }
+    setShowExportGstModal(false);
+  };
 
     const exportExcel = () => {
     let html = `<html><head><meta charset="utf-8"></head><body><h2>GSTR-1 Report - ${activeCompany?.name}</h2><table border="1">`;
@@ -6406,8 +6357,30 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
         <div style={{cursor:'pointer'}} onClick={goBack}><u>Q</u>: Quit</div>
         <div style={{cursor:'pointer'}} onClick={exportExcel}><u>X</u>: Excel</div>
         <div style={{cursor:'pointer'}} onClick={exportCsv}><u>C</u>: CSV</div>
-        <div style={{cursor:'pointer'}} onClick={exportJson}><u>E</u>: Export JSON</div>
+        <div style={{cursor:'pointer'}} onClick={()=>setShowExportGstModal(true)}><u>E</u>: Export JSON</div>
       </div>
+
+      {showExportGstModal && (
+        <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>setShowExportGstModal(false)}>
+          <div className="modal-box" style={{width:400}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">Export GSTR-1 Configuration</div>
+            <div style={{padding:20}}>
+              <div style={{marginBottom:15, fontWeight:'bold', color:'#1c5282'}}>Export Data:</div>
+              <div style={{display:'flex', flexDirection:'column', gap:10}}>
+                <button className="tally-btn" style={{textAlign:'left', justifyContent:'flex-start'}} onClick={()=>handleActualExport('combined')}>
+                  1. Combined JSON (Single File)
+                </button>
+                <button className="tally-btn" style={{textAlign:'left', justifyContent:'flex-start'}} onClick={()=>handleActualExport('separate')}>
+                  2. Separate JSON Files (B2B, HSN, Docs)
+                </button>
+              </div>
+            </div>
+            <div style={{background:'#f0f4f8', padding:'8px 15px', textAlign:'right', borderTop:'1px solid #ddd'}}>
+              <button className="tally-btn" style={{background:'#eee', color:'#333', border:'1px solid #ccc'}} onClick={()=>setShowExportGstModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
