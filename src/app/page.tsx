@@ -6068,9 +6068,9 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
         const unitObj = allUnits.find(u => u.name === item.unit || u.symbol === item.unit);
         const uqc = unitObj?.uqc || 'NOS';
         if(!hsnMap[key]) hsnMap[key] = { hsn_sc: hsn, desc: '', uqc: uqc, qty: 0, val: 0, txval: 0, iamt: 0, camt: 0, samt: 0, rt: rate, csamt: 0 };
-        const txval = item.amount / (1 + (rate / 100));
-        const tax = item.amount - txval;
-        hsnMap[key].qty += item.qty; hsnMap[key].val += item.amount; hsnMap[key].txval += txval;
+        const txval = item.amount; // In Tally-like apps, item amount is usually the taxable value
+        const tax = (txval * rate) / 100;
+        hsnMap[key].qty += item.qty; hsnMap[key].val += (txval + tax); hsnMap[key].txval += txval;
         if (isInterState) hsnMap[key].iamt += tax;
         else { hsnMap[key].camt += tax/2; hsnMap[key].samt += tax/2; }
       });
@@ -6087,8 +6087,8 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
       v.inventoryEntries.forEach(item => {
          const rate = item.gstRate || 18;
          if (!itemsByRate[rate]) itemsByRate[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
-         const txval = item.amount / (1 + (rate / 100));
-         const tax = item.amount - txval;
+         const txval = item.amount; 
+         const tax = (txval * rate) / 100;
          itemsByRate[rate].txval += txval;
          if (isInterState) itemsByRate[rate].iamt += tax;
          else { itemsByRate[rate].camt += tax/2; itemsByRate[rate].samt += tax/2; }
@@ -6102,7 +6102,7 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
       });
       b2bGrouped[ctin].inv.push({
         inum: v.voucherNo || v.number.toString(), idt: formatGstDate(v.date), val: Number(v.total.toFixed(2)),
-        pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05', rchrg: "N", inv_typ: "R", itms: itms
+        pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05', rchrg: "N", itms: itms, inv_typ: "R"
       });
     });
 
@@ -6116,7 +6116,8 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
     const baseData = { gstin: activeCompany?.gstin || "00AAAAA0000A1Z5", fp, gt: 0.00, cur_gt: 0.00 };
 
     const download = (obj: any, fileName: string) => {
-      const blob = new Blob([JSON.stringify(obj, null, 2)], {type: 'application/json'});
+      // Minified JSON to match Tally Prime's exact output
+      const blob = new Blob([JSON.stringify(obj)], {type: 'application/json'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = fileName; a.click();
     };
