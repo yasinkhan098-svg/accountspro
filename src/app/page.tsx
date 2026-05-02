@@ -6067,7 +6067,7 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
         const rate = item.gstRate || 18;
         const key = `${hsn}_${rate}`;
         const unitObj = allUnits.find(u => u.name === item.unit || u.symbol === item.unit);
-        const uqc = unitObj?.uqc || 'NOS';
+        const uqc = (unitObj?.uqc || 'NOS').toUpperCase();
         if(!hsnMap[key]) hsnMap[key] = { hsn_sc: hsn, desc: '', uqc: uqc, qty: 0, val: 0, txval: 0, iamt: 0, camt: 0, samt: 0, rt: rate, csamt: 0 };
         const txval = item.amount; // In Tally-like apps, item amount is usually the taxable value
         const tax = (txval * rate) / 100;
@@ -6120,7 +6120,7 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
 
     const download = (obj: any, fileName: string) => {
       const jsonStr = JSON.stringify(obj, (key, value) => {
-        const integerFields = ['num', 'rt', 'doc_num', 'totnum', 'cancel', 'net_issue', 'pos', 'inum', 'idt', 'ctin', 'fp', 'gstin', 'rchrg', 'inv_typ', 'doc_typ'];
+        const integerFields = ['num', 'rt', 'doc_num', 'totnum', 'cancel', 'net_issue', 'pos', 'inum', 'idt', 'ctin', 'fp', 'gstin', 'rchrg', 'inv_typ', 'doc_typ', 'qty'];
         if (typeof value === 'number' && !integerFields.includes(key)) {
           return value.toFixed(2);
         }
