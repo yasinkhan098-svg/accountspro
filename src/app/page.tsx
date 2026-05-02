@@ -1682,7 +1682,7 @@ export default function App() {
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={allVouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
-            {screen==='GSTR1_REPORT'         && <GSTR1ReportView vouchers={filteredVouchers} activeCompany={activeCompany} currentPeriod={currentPeriod} goBack={goBack} onDrillDownVoucher={(v)=>nav('VOUCHER_ENTRY',v)} />}
+            {screen==='GSTR1_REPORT'         && <GSTR1ReportView vouchers={filteredVouchers} activeCompany={activeCompany} currentPeriod={currentPeriod} allUnits={allUnits} goBack={goBack} onDrillDownVoucher={(v)=>nav('VOUCHER_ENTRY',v)} />}
             {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
             {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} />}
             {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} />}
@@ -5933,7 +5933,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,onClose,on
   );
 }
 // ==================== GSTR-1 REPORT VIEW (TALLY PRIME STYLE) ====================
-function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack, onDrillDownVoucher}: {vouchers: Voucher[], activeCompany: Company | null, currentPeriod: {start:string, end:string}, goBack: () => void, onDrillDownVoucher: (v:Voucher)=>void}) {
+function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBack, onDrillDownVoucher}: {vouchers: Voucher[], activeCompany: Company | null, currentPeriod: {start:string, end:string}, allUnits: UnitData[], goBack: () => void, onDrillDownVoucher: (v:Voucher)=>void}) {
   const [drillDown, setDrillDown] = useState<string | null>(null);
   const [drillDownParty, setDrillDownParty] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<number>(0);
