@@ -1682,7 +1682,7 @@ export default function App() {
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={allVouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
-            {screen==='GSTR1_REPORT'         && <GSTR1ReportView vouchers={filteredVouchers} activeCompany={activeCompany} currentPeriod={currentPeriod} goBack={goBack} />}
+            {screen==='GSTR1_REPORT'         && <GSTR1ReportView vouchers={filteredVouchers} activeCompany={activeCompany} currentPeriod={currentPeriod} goBack={goBack} onDrillDownVoucher={(v)=>nav('VOUCHER_ENTRY',v)} />}
             {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
             {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} />}
             {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} />}
@@ -5933,9 +5933,11 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,onClose,on
   );
 }
 // ==================== GSTR-1 REPORT VIEW (TALLY PRIME STYLE) ====================
-function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack}: {vouchers: Voucher[], activeCompany: Company | null, currentPeriod: {start:string, end:string}, goBack: () => void}) {
+function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack, onDrillDownVoucher}: {vouchers: Voucher[], activeCompany: Company | null, currentPeriod: {start:string, end:string}, goBack: () => void, onDrillDownVoucher: (v:Voucher)=>void}) {
   const [drillDown, setDrillDown] = useState<string | null>(null);
-  const [selectedRow, setSelectedRow] = useState<number | null>(null);
+  const [drillDownParty, setDrillDownParty] = useState<number | null>(null);
+  const [selectedRow, setSelectedRow] = useState<number>(0);
+  const [selectedVchIdx, setSelectedVchIdx] = useState<number>(0);
 
   const fmt = (n: number) => n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
   
@@ -5945,40 +5947,24 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack}: {vouc
   // Tax calculation helper
   const getTaxBreakdown = (v: Voucher) => {
     const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
-    let taxable = 0;
-    let igst = 0;
-    let cgst = 0;
-    let sgst = 0;
-    let totalTax = 0;
-
+    let taxable = 0, igst = 0, cgst = 0, sgst = 0, totalTax = 0;
     v.inventoryEntries.forEach(item => {
       const rate = item.gstRate || 18;
       const txVal = item.amount / (1 + (rate / 100));
       const tax = item.amount - txVal;
-      
-      taxable += txVal;
-      totalTax += tax;
-      if (isInterState) {
-        igst += tax;
-      } else {
-        cgst += tax / 2;
-        sgst += tax / 2;
-      }
+      taxable += txVal; totalTax += tax;
+      if (isInterState) igst += tax; else { cgst += tax / 2; sgst += tax / 2; }
     });
-
     return { taxable, igst, cgst, sgst, totalTax };
   };
 
-  // Sections Data
   // Correct B2C Filters according to GST Rules
   const b2bList = salesVouchers.filter(v => v.partyDetails?.buyerGstin?.trim() !== '');
-  
   const b2cLarge = salesVouchers.filter(v => {
     const isInter = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
     const isUnreg = !v.partyDetails?.buyerGstin?.trim();
     return isUnreg && isInter && v.total > 250000;
   });
-
   const b2cSmall = salesVouchers.filter(v => {
     const isInter = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
     const isUnreg = !v.partyDetails?.buyerGstin?.trim();
@@ -5993,61 +5979,179 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack}: {vouc
     { id: 'docs', label: 'Document Summary - 13',             vouchers: salesVouchers },
   ];
 
+  // DRILL DOWN CALCULATIONS
+  const partyGroups = useMemo(() => {
+    const groups: Record<number, {id:number, name:string, gstin:string, count:number, taxable:number, igst:number, cgst:number, sgst:number, total:number, vouchers:Voucher[]}> = {};
+    b2bList.forEach(v => {
+      const {taxable, igst, cgst, sgst} = getTaxBreakdown(v);
+      if (!groups[v.partyId]) groups[v.partyId] = {id:v.partyId, name: v.partyName, gstin: v.partyDetails?.buyerGstin||'', count:0, taxable:0, igst:0, cgst:0, sgst:0, total:0, vouchers:[]};
+      groups[v.partyId].count++;
+      groups[v.partyId].taxable += taxable;
+      groups[v.partyId].igst += igst;
+      groups[v.partyId].cgst += cgst;
+      groups[v.partyId].sgst += sgst;
+      groups[v.partyId].total += v.total;
+      groups[v.partyId].vouchers.push(v);
+    });
+    return Object.values(groups);
+  }, [b2bList]);
+
+  const partyRows = partyGroups;
+  const currentPartyVouchers = drillDownParty ? (partyGroups.find(p=>p.id===drillDownParty)?.vouchers || []) : [];
+
+  // KEYBOARD HANDLING
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (drillDown) setDrillDown(null);
+        if (drillDownParty) setDrillDownParty(null);
+        else if (drillDown) setDrillDown(null);
         else goBack();
+      } else if (drillDownParty) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedVchIdx(p => Math.min(p+1, currentPartyVouchers.length-1)); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedVchIdx(p => Math.max(p-1, 0)); }
+        else if (e.key === 'Enter') { e.preventDefault(); onDrillDownVoucher(currentPartyVouchers[selectedVchIdx]); }
+      } else if (drillDown === 'b2b') {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedRow(p => Math.min(p+1, partyRows.length-1)); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedRow(p => Math.max(p-1, 0)); }
+        else if (e.key === 'Enter') { e.preventDefault(); setDrillDownParty(partyRows[selectedRow].id); setSelectedVchIdx(0); }
       } else if (!drillDown) {
-        if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedRow(p => Math.min((p === null ? -1 : p) + 1, sections.length - 1)); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedRow(p => Math.max((p === null ? 1 : p) - 1, 0)); }
-        else if (e.key === 'Enter' && selectedRow !== null) { e.preventDefault(); setDrillDown(sections[selectedRow].id); }
+        if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedRow(p => Math.min(p+1, sections.length-1)); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedRow(p => Math.max(p-1, 0)); }
+        else if (e.key === 'Enter') { e.preventDefault(); setDrillDown(sections[selectedRow].id); setSelectedRow(0); }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [drillDown, selectedRow, sections, goBack]);
+  }, [drillDown, drillDownParty, selectedRow, selectedVchIdx, sections, partyRows, currentPartyVouchers, goBack]);
 
-  // DRILL DOWN: PARTY-WISE B2B (IMAGE 3)
-  if (drillDown === 'b2b') {
-    const partyGroups: Record<string, {name:string, gstin:string, count:number, taxable:number, igst:number, cgst:number, sgst:number, total:number}> = {};
-    b2bList.forEach(v => {
-      const {taxable, igst, cgst, sgst} = getTaxBreakdown(v);
-      const key = v.partyId.toString();
-      if (!partyGroups[key]) partyGroups[key] = {name: v.partyName, gstin: v.partyDetails?.buyerGstin||'', count:0, taxable:0, igst:0, cgst:0, sgst:0, total:0};
-      partyGroups[key].count++;
-      partyGroups[key].taxable += taxable;
-      partyGroups[key].igst += igst;
-      partyGroups[key].cgst += cgst;
-      partyGroups[key].sgst += sgst;
-      partyGroups[key].total += v.total;
+  // EXPORT HANDLERS
+  const exportJson = () => {
+    const stateCodeMap: Record<string, string> = { 'Maharashtra':'27', 'Delhi':'07', 'Uttar Pradesh':'09', 'Gujarat':'24', 'Karnataka':'29', 'Tamil Nadu':'33', 'West Bengal':'19', 'Rajasthan':'08' };
+    const hsnMap: any = {};
+    salesVouchers.forEach(v => {
+      v.inventoryEntries.forEach(item => {
+        const k = item.hsnCode || 'N/A';
+        const rate = item.gstRate || 18;
+        if(!hsnMap[k]) hsnMap[k] = { hsn_sc:k, desc:'', uqc:item.unit||'NOS', qty:0, val:0, txval:0, iamt:0, camt:0, samt:0 };
+        const txval = item.amount / (1 + (rate / 100));
+        const tax = item.amount - txval;
+        hsnMap[k].qty += item.qty; hsnMap[k].val += item.amount; hsnMap[k].txval += txval;
+        if (v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state) hsnMap[k].iamt += tax;
+        else { hsnMap[k].camt += tax/2; hsnMap[k].samt += tax/2; }
+      });
     });
+    const fromNo = salesVouchers.length > 0 ? Math.min(...salesVouchers.map(v => v.number)) : 0;
+    const toNo = salesVouchers.length > 0 ? Math.max(...salesVouchers.map(v => v.number)) : 0;
+    const endParts = currentPeriod.end.split('-');
+    const mIdx = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].findIndex(m => endParts[1].toLowerCase().startsWith(m));
+    const fp = (mIdx + 1).toString().padStart(2, '0') + endParts[2];
+    const data = { gstin: activeCompany?.gstin||"00AAAAA0000A1Z5", fp, gt:0.0, cur_gt:0.0,
+      b2b: b2bList.map(v => {
+        const {taxable, igst, cgst, sgst} = getTaxBreakdown(v);
+        return { ctin: v.partyDetails?.buyerGstin, inv: [{ inum: v.voucherNo, idt: v.date, val: v.total, pos: stateCodeMap[v.partyDetails?.buyerState||'']||'27', rchrg: "N", inv_typ: "R", itms: [{ num: 1, itm_det: { rt: 18, txval: taxable, iamt: igst, camt: cgst, samt: sgst } }] }] };
+      }),
+      hsn: { data: Object.values(hsnMap) },
+      doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", from: fromNo.toString(), to: toNo.toString(), totcnt: salesVouchers.length, canc: 0, net_issue: salesVouchers.length }] }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `GSTR1_${fp}.json`; a.click();
+  };
 
+  const exportExcel = () => {
+    let html = `<html><head><meta charset="utf-8"></head><body><h2>GSTR-1 Report - ${activeCompany?.name}</h2><table border="1">`;
+    html += `<tr><th>Section</th><th>Count</th><th>Taxable</th><th>Tax</th><th>Total</th></tr>`;
+    sections.forEach(s => {
+      const tx = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).taxable, 0);
+      const tax = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).totalTax, 0);
+      const tot = s.vouchers.reduce((sum, v) => sum + v.total, 0);
+      html += `<tr><td>${s.label}</td><td>${s.vouchers.length}</td><td>${tx.toFixed(2)}</td><td>${tax.toFixed(2)}</td><td>${tot.toFixed(2)}</td></tr>`;
+    });
+    html += `</table></body></html>`;
+    const blob = new Blob([html], {type: 'application/vnd.ms-excel'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `GSTR1_Report.xls`; a.click();
+  };
+
+  const exportCsv = () => {
+    let csv = "Section,Count,Taxable,Tax,Total\n";
+    sections.forEach(s => {
+      const tx = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).taxable, 0);
+      const tax = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).totalTax, 0);
+      const tot = s.vouchers.reduce((sum, v) => sum + v.total, 0);
+      csv += `"${s.label}",${s.vouchers.length},${tx.toFixed(2)},${tax.toFixed(2)},${tot.toFixed(2)}\n`;
+    });
+    const blob = new Blob([csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `GSTR1_Report.csv`; a.click();
+  };
+
+  // RENDER LAYERS
+  if (drillDownParty) {
+    const party = partyGroups.find(p=>p.id===drillDownParty);
     return (
-      <div className="report-workspace" style={{background:'#fff'}}>
+      <div className="report-workspace" style={{background:'#fff',height:'100%',display:'flex',flexDirection:'column'}}>
         <div style={{background:'#1c5282',color:'white',padding:'8px 15px',fontWeight:'bold',display:'flex',justifyContent:'space-between'}}>
-          <span>GSTR-1 - Voucher Register (B2B Invoices)</span>
-          <button onClick={()=>setDrillDown(null)} className="tally-btn-sm">Esc: Back</button>
+          <span>B2B Vouchers: {party?.name} ({party?.gstin})</span>
+          <button onClick={()=>setDrillDownParty(null)} className="tally-btn-sm">Esc: Back</button>
         </div>
-        <div style={{padding:15}}>
+        <div style={{flex:1, overflowY:'auto'}}>
           <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-            <thead>
-              <tr style={{background:'#f0f4f8'}}>
-                <th style={{padding:8,textAlign:'left'}}>Particulars</th>
-                <th style={{padding:8,textAlign:'left'}}>GSTIN/UIN</th>
-                <th style={{padding:8,textAlign:'center'}}>Voucher Count</th>
-                <th style={{padding:8,textAlign:'right'}}>Taxable Amount</th>
-                <th style={{padding:8,textAlign:'right'}}>Integrated Tax</th>
-                <th style={{padding:8,textAlign:'right'}}>Central Tax</th>
-                <th style={{padding:8,textAlign:'right'}}>State Tax</th>
+            <thead style={{position:'sticky',top:0,background:'#e8eef4'}}>
+              <tr>
+                <th style={{padding:8,textAlign:'left'}}>Date</th>
+                <th style={{padding:8,textAlign:'left'}}>Voucher No.</th>
+                <th style={{padding:8,textAlign:'right'}}>Taxable Value</th>
+                <th style={{padding:8,textAlign:'right'}}>Tax Amount</th>
                 <th style={{padding:8,textAlign:'right'}}>Invoice Amount</th>
               </tr>
             </thead>
             <tbody>
-              {Object.values(partyGroups).map((p,i)=>(
-                <tr key={i} style={{borderBottom:'1px solid #eee'}}>
-                  <td style={{padding:8}}>{p.name}</td>
+              {currentPartyVouchers.map((v,i)=>(
+                <tr key={i} onClick={()=>onDrillDownVoucher(v)} onMouseEnter={()=>setSelectedVchIdx(i)}
+                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedVchIdx?'#fffbe6':'transparent'}}>
+                  <td style={{padding:8}}>{v.date}</td>
+                  <td style={{padding:8}}>{v.voucherNo}</td>
+                  <td style={{padding:8,textAlign:'right'}}>{fmt(getTaxBreakdown(v).taxable)}</td>
+                  <td style={{padding:8,textAlign:'right'}}>{fmt(getTaxBreakdown(v).totalTax)}</td>
+                  <td style={{padding:8,textAlign:'right',fontWeight:'bold'}}>{fmt(v.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{background:'#1c5282',color:'white',padding:'5px 15px',fontSize:11,textAlign:'center'}}>Enter: Alter Voucher | Esc: Back</div>
+      </div>
+    );
+  }
+
+  if (drillDown === 'b2b') {
+    return (
+      <div className="report-workspace" style={{background:'#fff',height:'100%',display:'flex',flexDirection:'column'}}>
+        <div style={{background:'#1c5282',color:'white',padding:'8px 15px',fontWeight:'bold',display:'flex',justifyContent:'space-between'}}>
+          <span>GSTR-1 - B2B Invoices (Party-wise)</span>
+          <button onClick={()=>setDrillDown(null)} className="tally-btn-sm">Esc: Back</button>
+        </div>
+        <div style={{flex:1, overflowY:'auto'}}>
+          <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead style={{position:'sticky',top:0,background:'#e8eef4'}}>
+              <tr>
+                <th style={{padding:8,textAlign:'left'}}>Particulars (Party Name)</th>
+                <th style={{padding:8,textAlign:'left'}}>GSTIN/UIN</th>
+                <th style={{padding:8,textAlign:'center'}}>Vch Count</th>
+                <th style={{padding:8,textAlign:'right'}}>Taxable</th>
+                <th style={{padding:8,textAlign:'right'}}>Integrated</th>
+                <th style={{padding:8,textAlign:'right'}}>Central</th>
+                <th style={{padding:8,textAlign:'right'}}>State</th>
+                <th style={{padding:8,textAlign:'right'}}>Total Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {partyRows.map((p,i)=>(
+                <tr key={i} onClick={()=>{setDrillDownParty(p.id); setSelectedVchIdx(0);}} onMouseEnter={()=>setSelectedRow(i)}
+                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedRow?'#fffbe6':'transparent'}}>
+                  <td style={{padding:8,fontWeight:'bold',color:'#1c5282'}}>{p.name}</td>
                   <td style={{padding:8}}>{p.gstin}</td>
                   <td style={{padding:8,textAlign:'center'}}>{p.count}</td>
                   <td style={{padding:8,textAlign:'right'}}>{fmt(p.taxable)}</td>
@@ -6064,7 +6168,6 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack}: {vouc
     );
   }
 
-  // DRILL DOWN: HSN SUMMARY (IMAGE 1)
   if (drillDown === 'hsn') {
     const hsnMap: Record<string, any> = {};
     salesVouchers.forEach(v => {
@@ -6072,58 +6175,37 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack}: {vouc
       v.inventoryEntries.forEach(item => {
         const key = item.hsnCode || 'N/A';
         const rate = item.gstRate || 18;
-        if (!hsnMap[key]) hsnMap[key] = {hsn:key, desc:'', type:'Goods', uqc:item.unit||'NOS', qty:0, val:0, txval:0, igst:0, cgst:0, sgst:0, totalTax:0, rate: rate};
-        
+        if (!hsnMap[key]) hsnMap[key] = {hsn:key, desc:'', uqc:item.unit||'NOS', qty:0, val:0, txval:0, igst:0, cgst:0, sgst:0, totalTax:0, rate};
         const txval = item.amount / (1 + (rate / 100));
         const tax = item.amount - txval;
-        hsnMap[key].qty += item.qty;
-        hsnMap[key].val += item.amount;
-        hsnMap[key].txval += txval;
-        if (isInter) hsnMap[key].igst += tax;
-        else { hsnMap[key].cgst += tax/2; hsnMap[key].sgst += tax/2; }
+        hsnMap[key].qty += item.qty; hsnMap[key].val += item.amount; hsnMap[key].txval += txval;
+        if (isInter) hsnMap[key].igst += tax; else { hsnMap[key].cgst += tax/2; hsnMap[key].sgst += tax/2; }
         hsnMap[key].totalTax += tax;
       });
     });
-
     return (
-      <div className="report-workspace" style={{background:'#fff'}}>
+      <div className="report-workspace" style={{background:'#fff',height:'100%',display:'flex',flexDirection:'column'}}>
         <div style={{background:'#1c5282',color:'white',padding:'8px 15px',fontWeight:'bold',display:'flex',justifyContent:'space-between'}}>
           <span>GSTR-1 - HSN/SAC Summary</span>
           <button onClick={()=>setDrillDown(null)} className="tally-btn-sm">Esc: Back</button>
         </div>
-        <div style={{padding:15, overflowX:'auto'}}>
+        <div style={{flex:1, overflow:'auto'}}>
           <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
             <thead>
               <tr style={{background:'#f0f4f8', borderBottom:'1px solid #333'}}>
-                <th style={{padding:6,textAlign:'left'}}>HSN/SAC</th>
-                <th style={{padding:6,textAlign:'left'}}>Description</th>
-                <th style={{padding:6,textAlign:'left'}}>Type of Supply</th>
-                <th style={{padding:6,textAlign:'center'}}>UQC</th>
-                <th style={{padding:6,textAlign:'right'}}>Total Quantity</th>
-                <th style={{padding:6,textAlign:'right'}}>Total Value</th>
-                <th style={{padding:6,textAlign:'center'}}>Tax Rate</th>
-                <th style={{padding:6,textAlign:'right'}}>Taxable Amount</th>
-                <th style={{padding:6,textAlign:'right'}}>Integrated Tax</th>
-                <th style={{padding:6,textAlign:'right'}}>Central Tax</th>
-                <th style={{padding:6,textAlign:'right'}}>State Tax</th>
-                <th style={{padding:6,textAlign:'right'}}>Total Tax</th>
+                <th style={{padding:6,textAlign:'left'}}>HSN/SAC</th><th style={{padding:6,textAlign:'left'}}>UQC</th>
+                <th style={{padding:6,textAlign:'right'}}>Qty</th><th style={{padding:6,textAlign:'right'}}>Value</th>
+                <th style={{padding:6,textAlign:'center'}}>Rate</th><th style={{padding:6,textAlign:'right'}}>Taxable</th>
+                <th style={{padding:6,textAlign:'right'}}>IGST</th><th style={{padding:6,textAlign:'right'}}>CGST</th><th style={{padding:6,textAlign:'right'}}>SGST</th>
               </tr>
             </thead>
             <tbody>
               {Object.values(hsnMap).map((r,i)=>(
                 <tr key={i} style={{borderBottom:'1px solid #eee'}}>
-                  <td style={{padding:6}}>{r.hsn}</td>
-                  <td style={{padding:6}}>{r.desc}</td>
-                  <td style={{padding:6}}>{r.type}</td>
-                  <td style={{padding:6,textAlign:'center'}}>{r.uqc}</td>
-                  <td style={{padding:6,textAlign:'right'}}>{r.qty}</td>
-                  <td style={{padding:6,textAlign:'right'}}>{fmt(r.val)}</td>
-                  <td style={{padding:6,textAlign:'center'}}>{r.rate}%</td>
-                  <td style={{padding:6,textAlign:'right'}}>{fmt(r.txval)}</td>
-                  <td style={{padding:6,textAlign:'right'}}>{fmt(r.igst)}</td>
-                  <td style={{padding:6,textAlign:'right'}}>{fmt(r.cgst)}</td>
-                  <td style={{padding:6,textAlign:'right'}}>{fmt(r.sgst)}</td>
-                  <td style={{padding:6,textAlign:'right',fontWeight:'bold'}}>{fmt(r.totalTax)}</td>
+                  <td style={{padding:6}}>{r.hsn}</td><td style={{padding:6}}>{r.uqc}</td>
+                  <td style={{padding:6,textAlign:'right'}}>{r.qty}</td><td style={{padding:6,textAlign:'right'}}>{fmt(r.val)}</td>
+                  <td style={{padding:6,textAlign:'center'}}>{r.rate}%</td><td style={{padding:6,textAlign:'right'}}>{fmt(r.txval)}</td>
+                  <td style={{padding:6,textAlign:'right'}}>{fmt(r.igst)}</td><td style={{padding:6,textAlign:'right'}}>{fmt(r.cgst)}</td><td style={{padding:6,textAlign:'right'}}>{fmt(r.sgst)}</td>
                 </tr>
               ))}
             </tbody>
@@ -6133,144 +6215,58 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack}: {vouc
     );
   }
 
-  // DRILL DOWN: DOCUMENT SUMMARY (IMAGE 2)
   if (drillDown === 'docs') {
-    const nums = salesVouchers.map(v => parseInt(v.voucherNo.replace(/\D/g,''))).filter(n => !isNaN(n));
+    const nums = salesVouchers.map(v => v.number).filter(n => !isNaN(n));
     const min = nums.length ? Math.min(...nums) : 0;
     const max = nums.length ? Math.max(...nums) : 0;
-    
     return (
-      <div className="report-workspace" style={{background:'#fff'}}>
+      <div className="report-workspace" style={{background:'#fff',height:'100%',display:'flex',flexDirection:'column'}}>
         <div style={{background:'#1c5282',color:'white',padding:'8px 15px',fontWeight:'bold',display:'flex',justifyContent:'space-between'}}>
           <span>GSTR-1 - Document Summary</span>
           <button onClick={()=>setDrillDown(null)} className="tally-btn-sm">Esc: Back</button>
         </div>
         <div style={{padding:15}}>
           <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-            <thead>
-              <tr style={{background:'#f0f4f8', borderBottom:'1px solid #333'}}>
-                <th style={{padding:10,textAlign:'left'}} rowSpan={2}>Nature of Document</th>
-                <th style={{padding:10,textAlign:'center'}} colSpan={2}>Serial No.</th>
-                <th style={{padding:10,textAlign:'center'}} rowSpan={2}>Total No.</th>
-                <th style={{padding:10,textAlign:'center'}} rowSpan={2}>Cancelled</th>
-                <th style={{padding:10,textAlign:'center'}} rowSpan={2}>Nett Issued</th>
-              </tr>
-              <tr style={{background:'#f0f4f8', borderBottom:'1px solid #333'}}>
-                <th style={{padding:5,textAlign:'center'}}>From</th>
-                <th style={{padding:5,textAlign:'center'}}>To</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{padding:10,fontWeight:'bold'}}>Invoices for outward supply (Sales)</td>
-                <td style={{padding:10,textAlign:'center'}}>{min}</td>
-                <td style={{padding:10,textAlign:'center'}}>{max}</td>
-                <td style={{padding:10,textAlign:'center'}}>{salesVouchers.length}</td>
-                <td style={{padding:10,textAlign:'center'}}>0</td>
-                <td style={{padding:10,textAlign:'center',background:'#fffbe6'}}>{salesVouchers.length}</td>
-              </tr>
-            </tbody>
+            <thead><tr style={{background:'#f0f4f8'}}><th>Nature</th><th>From</th><th>To</th><th>Total</th><th>Cancelled</th><th>Net</th></tr></thead>
+            <tbody><tr><td>Outward Supply</td><td>{min}</td><td>{max}</td><td>{salesVouchers.length}</td><td>0</td><td>{salesVouchers.length}</td></tr></tbody>
           </table>
         </div>
       </div>
     );
   }
 
-  // DRILL DOWN: B2C REGISTER (LARGE/SMALL)
-  if (drillDown === 'b2cl' || drillDown === 'b2cs') {
-    const list = drillDown === 'b2cl' ? b2cLarge : b2cSmall;
-    return (
-      <div className="report-workspace" style={{background:'#fff'}}>
-        <div style={{background:'#1c5282',color:'white',padding:'8px 15px',fontWeight:'bold',display:'flex',justifyContent:'space-between'}}>
-          <span>GSTR-1 - {drillDown === 'b2cl' ? 'B2C (Large)' : 'B2C (Small)'} Invoices</span>
-          <button onClick={()=>setDrillDown(null)} className="tally-btn-sm">Esc: Back</button>
-        </div>
-        <div style={{padding:15}}>
-          <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-            <thead>
-              <tr style={{background:'#f0f4f8'}}>
-                <th style={{padding:8,textAlign:'left'}}>Date</th>
-                <th style={{padding:8,textAlign:'left'}}>Vch No.</th>
-                <th style={{padding:8,textAlign:'left'}}>Party Name</th>
-                <th style={{padding:8,textAlign:'right'}}>Taxable</th>
-                <th style={{padding:8,textAlign:'right'}}>Tax</th>
-                <th style={{padding:8,textAlign:'right'}}>Invoice Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((v, i) => {
-                const {taxable, totalTax} = getTaxBreakdown(v);
-                return (
-                  <tr key={i} style={{borderBottom:'1px solid #eee'}}>
-                    <td style={{padding:8}}>{v.date}</td>
-                    <td style={{padding:8}}>{v.voucherNo}</td>
-                    <td style={{padding:8}}>{v.partyName}</td>
-                    <td style={{padding:8,textAlign:'right'}}>{fmt(taxable)}</td>
-                    <td style={{padding:8,textAlign:'right'}}>{fmt(totalTax)}</td>
-                    <td style={{padding:8,textAlign:'right',fontWeight:'bold'}}>{fmt(v.total)}</td>
-                  </tr>
-                );
-              })}
-              {list.length === 0 && <tr><td colSpan={6} style={{padding:20,textAlign:'center',color:'#999'}}>No vouchers found in this category.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
-
-  // MAIN SUMMARY VIEW
+  // MAIN SUMMARY
   return (
-    <div className="report-workspace" style={{background:'#fff'}}>
+    <div className="report-workspace" style={{background:'#fff',height:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
+      {/* Header */}
       <div style={{background:'#1c5282',color:'white',padding:'10px 15px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div style={{fontWeight:'bold',fontSize:16}}>GSTR-1 - Return Summary</div>
-        <div style={{fontSize:12,opacity:0.9}}>{activeCompany?.name} | Period: {currentPeriod.start} to {currentPeriod.end}</div>
-      </div>
-      
-      {/* Return Summary Section */}
-      <div style={{padding:15, borderBottom:'1px solid #ccc', background:'#f9f9f9'}}>
-        <div style={{fontSize:12,fontWeight:'bold',marginBottom:10,color:'#1c5282'}}>Particulars Summary</div>
-        <div style={{display:'flex',flexDirection:'column',gap:5,fontSize:11}}>
-          <div style={{display:'flex',justifyContent:'space-between',background:'#fffbe6',padding:6,border:'1px solid #e0d0a0'}}>
-            <span style={{fontWeight:'bold'}}>Total Vouchers</span>
-            <span style={{fontWeight:'bold'}}>{vouchers.length}</span>
-          </div>
-          <div style={{display:'flex',justifyContent:'space-between',padding:5,borderBottom:'1px solid #eee'}}>
-            <span>Included in Return</span>
-            <span style={{fontWeight:'bold',color:'#1a7a4a'}}>{salesVouchers.length}</span>
-          </div>
-          <div style={{display:'flex',justifyContent:'space-between',padding:5,borderBottom:'1px solid #eee'}}>
-            <span>Incomplete Information (Corrections needed)</span>
-            <span style={{fontWeight:'bold',color:'#d93025'}}>0</span>
-          </div>
-        </div>
+        <div style={{fontSize:12,opacity:0.9}}>{activeCompany?.name} | {currentPeriod.start} to {currentPeriod.end}</div>
       </div>
 
-      {/* Sections List */}
-      <div style={{padding:'10px 0'}}>
+      {/* Stats */}
+      <div style={{padding:10, background:'#f9f9f9', borderBottom:'1px solid #ccc', display:'flex', gap:30}}>
+        <div><span style={{fontSize:11,color:'#666'}}>Total Vouchers:</span> <span style={{fontWeight:'bold'}}>{vouchers.length}</span></div>
+        <div><span style={{fontSize:11,color:'#666'}}>Included:</span> <span style={{fontWeight:'bold',color:'#1a7a4a'}}>{salesVouchers.length}</span></div>
+        <div><span style={{fontSize:11,color:'#666'}}>Incomplete:</span> <span style={{fontWeight:'bold',color:'#d93025'}}>0</span></div>
+      </div>
+
+      {/* Sections */}
+      <div style={{flex:1, overflowY:'auto'}}>
         <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
           <thead>
             <tr style={{background:'#e8eef4',borderBottom:'2px solid #ccc'}}>
-              <th style={{padding:10,textAlign:'left',width:50}}>SI No.</th>
-              <th style={{padding:10,textAlign:'left'}}>Particulars</th>
-              <th style={{padding:10,textAlign:'right',width:100}}>Vch Count</th>
-              <th style={{padding:10,textAlign:'right',width:140}}>Taxable Amount</th>
-              <th style={{padding:10,textAlign:'right',width:140}}>Tax Amount</th>
-              <th style={{padding:10,textAlign:'right',width:140}}>Invoice Amount</th>
+              <th style={{padding:10,textAlign:'left'}}>SI No.</th><th style={{padding:10,textAlign:'left'}}>Particulars</th>
+              <th style={{padding:10,textAlign:'right'}}>Count</th><th style={{padding:10,textAlign:'right'}}>Taxable</th>
+              <th style={{padding:10,textAlign:'right'}}>Tax Amount</th><th style={{padding:10,textAlign:'right'}}>Invoice Amount</th>
             </tr>
           </thead>
           <tbody>
             {sections.map((s,i)=>(
-              <tr key={s.id} 
-                onClick={() => setDrillDown(s.id)}
-                onMouseEnter={() => setSelectedRow(i)}
-                style={{
-                  borderBottom:'1px solid #eee',
-                  cursor:'pointer',
-                  background: selectedRow === i ? '#fffbe6' : 'transparent'
-                }}>
+              <tr key={s.id} onClick={()=>setDrillDown(s.id)} onMouseEnter={()=>setSelectedRow(i)}
+                style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedRow?'#fffbe6':'transparent'}}>
                 <td style={{padding:10}}>{i+1}</td>
-                <td style={{padding:10,color:'#1c5282',fontWeight:'bold'}}>{s.label}</td>
+                <td style={{padding:10,fontWeight:'bold',color:'#1c5282'}}>{s.label}</td>
                 <td style={{padding:10,textAlign:'right'}}>{s.vouchers.length}</td>
                 <td style={{padding:10,textAlign:'right'}}>{fmt(s.vouchers.reduce((sum,v)=>sum+getTaxBreakdown(v).taxable,0))}</td>
                 <td style={{padding:10,textAlign:'right'}}>{fmt(s.vouchers.reduce((sum,v)=>sum+getTaxBreakdown(v).totalTax,0))}</td>
@@ -6281,77 +6277,12 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack}: {vouc
         </table>
       </div>
 
-      {/* Export Bar */}
-      <div style={{position:'absolute',bottom:0,left:0,right:0,background:'#1c5282',color:'white',padding:'8px 20px',display:'flex',justifyContent:'flex-end',gap:20,fontSize:12}}>
+      {/* Bottom Bar */}
+      <div style={{background:'#1c5282',color:'white',padding:'8px 20px',display:'flex',justifyContent:'flex-end',gap:25,fontSize:12,borderTop:'1px solid #fff'}}>
         <div style={{cursor:'pointer'}} onClick={goBack}><u>Q</u>: Quit</div>
-        <div style={{cursor:'pointer'}} onClick={() => {
-          const stateCodeMap: Record<string, string> = {
-            'Maharashtra': '27', 'Delhi': '07', 'Uttar Pradesh': '09', 'Gujarat': '24',
-            'Karnataka': '29', 'Tamil Nadu': '33', 'West Bengal': '19', 'Rajasthan': '08'
-          };
-          
-          const hsnMap: any = {};
-          salesVouchers.forEach(v => {
-            const isInter = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
-            v.inventoryEntries.forEach(item => {
-              const k = item.hsnCode || 'N/A';
-              const rate = item.gstRate || 18;
-              if(!hsnMap[k]) hsnMap[k] = { hsn_sc:k, desc:'', uqc:item.unit||'NOS', qty:0, val:0, txval:0, iamt:0, camt:0, samt:0 };
-              const txval = item.amount / (1 + (rate / 100));
-              const tax = item.amount - txval;
-              
-              hsnMap[k].qty += item.qty;
-              hsnMap[k].val += item.amount;
-              hsnMap[k].txval += txval;
-              if (isInter) {
-                hsnMap[k].iamt += tax;
-              } else {
-                hsnMap[k].camt += tax / 2;
-                hsnMap[k].samt += tax / 2;
-              }
-            });
-          });
-
-          const fromNo = salesVouchers.length > 0 ? Math.min(...salesVouchers.map(v => v.number)) : 0;
-          const toNo = salesVouchers.length > 0 ? Math.max(...salesVouchers.map(v => v.number)) : 0;
-          
-          const endParts = currentPeriod.end.split('-');
-          const monthNames = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-          let mm = endParts[1];
-          if (isNaN(parseInt(mm))) {
-            const idx = monthNames.findIndex(m => mm.toLowerCase().startsWith(m));
-            mm = (idx + 1).toString().padStart(2, '0');
-          } else {
-            mm = mm.padStart(2, '0');
-          }
-          const fp = mm + endParts[2];
-          
-          const jsonData = {
-            gstin: activeCompany?.gstin || "00AAAAA0000A1Z5",
-            fp: fp,
-            gt: 0.0, cur_gt: 0.0,
-            b2b: b2bList.map(v => {
-              const {taxable, igst, cgst, sgst} = getTaxBreakdown(v);
-              const pos = stateCodeMap[v.partyDetails?.buyerState || ''] || '27';
-              return {
-                ctin: v.partyDetails?.buyerGstin,
-                inv: [{ 
-                  inum: v.voucherNo, idt: v.date, val: v.total, pos: pos, rchrg: "N", inv_typ: "R", 
-                  itms: [{ num: 1, itm_det: { rt: 18, txval: taxable, iamt: igst, camt: cgst, samt: sgst } }] 
-                }]
-              };
-            }),
-            hsn: { data: Object.values(hsnMap) },
-            doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", from: fromNo.toString(), to: toNo.toString(), totcnt: salesVouchers.length, canc: 0, net_issue: salesVouchers.length }] }
-          };
-          const blob = new Blob([JSON.stringify(jsonData, null, 2)], {type: 'application/json'});
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `GSTR1_PORTAL_${currentPeriod.start}_to_${currentPeriod.end}.json`;
-          a.click();
-          alert("GSTR-1 JSON generated with HSN & Doc Summary!");
-        }}><u>E</u>: Export JSON (Alt+E)</div>
+        <div style={{cursor:'pointer'}} onClick={exportExcel}><u>X</u>: Excel</div>
+        <div style={{cursor:'pointer'}} onClick={exportCsv}><u>C</u>: CSV</div>
+        <div style={{cursor:'pointer'}} onClick={exportJson}><u>E</u>: Export JSON</div>
       </div>
     </div>
   );
