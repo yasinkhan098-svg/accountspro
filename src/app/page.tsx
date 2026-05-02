@@ -6183,15 +6183,7 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack, onDril
       a.click();
     };
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); 
-    a.href = url; 
-    a.download = `GSTR1_${fp}.json`; 
-    a.click();
-  };
-
-  const exportExcel = () => {
+    const exportExcel = () => {
     let html = `<html><head><meta charset="utf-8"></head><body><h2>GSTR-1 Report - ${activeCompany?.name}</h2><table border="1">`;
     html += `<tr><th>Section</th><th>Count</th><th>Taxable</th><th>Tax</th><th>Total</th></tr>`;
     sections.forEach(s => {
