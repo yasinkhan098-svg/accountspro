@@ -466,9 +466,30 @@ export default function App() {
       return;
     }
 
+    const isCsv = customFileName.toLowerCase().endsWith('.csv');
+    const finalFileName = isCsv ? customFileName : (customFileName.endsWith('.xls') ? customFileName : customFileName + '.xls');
+
+    if (isCsv) {
+      // Generate CSV data from table
+      let csvContent = "";
+      const rows = Array.from(table.rows);
+      rows.forEach(row => {
+        const cols = Array.from(row.cells).map(cell => `"${cell.innerText.replace(/"/g, '""')}"`);
+        csvContent += cols.join(",") + "\n";
+      });
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = finalFileName;
+      a.click();
+      setSaveToast(`${finalFileName} exported!`);
+      return;
+    }
+
     const cleanScreen = screen.replace(/_/g, ' ');
     const reportTitle = cleanScreen === 'GATEWAY MAIN' ? 'FINANCIAL REPORT' : cleanScreen.toUpperCase();
-    const finalFileName = customFileName.endsWith('.xls') ? customFileName : customFileName + '.xls';
 
     // Build the Excel HTML content
     let excelHtml = `
@@ -1081,37 +1102,6 @@ export default function App() {
   const deleteVoucher = (id: number) => {
     setAllVouchers(p => p.filter(x => x.id !== id));
     goBack();
-  };
-
-  const handleEmailSend = (to: string, subj: string, msg: string) => {
-    console.log(`Sending email to: ${to}, Subject: ${subj}`);
-    // Simulate API call
-    setTimeout(() => {
-      setSaveToast(`E-mail sent to ${to} successfully!`);
-    }, 1000);
-  };
-
-  const handlePdfExport = (filename: string) => {
-    alert(`Exporting ${filename} as PDF... (Simulated)`);
-    setSaveToast(`${filename} exported!`);
-  };
-
-  const handleExcelExport = (filename: string) => {
-    // Generate CSV data from current vouchers
-    const headers = "Date,Voucher Type,Vch No.,Particulars,Debit,Credit\n";
-    const rows = filteredVouchers.map(v => {
-      const dr = v.entries.filter(e => e.entryType === 'Dr').reduce((s, e) => s + e.amount, 0);
-      const cr = v.entries.filter(e => e.entryType === 'Cr').reduce((s, e) => s + e.amount, 0);
-      return `${v.date},${v.type},${v.voucherNo},"${v.partyName}",${dr},${cr}`;
-    }).join("\n");
-    
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename.endsWith('.csv') ? filename : `${filename}.csv`;
-    a.click();
-    setSaveToast(`${filename} exported to CSV!`);
   };
 
   // MENUS
