@@ -6050,7 +6050,8 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
         const day = parts[0].padStart(2, '0');
         let month = months[parts[1]] || parts[1];
         if (month.length === 1) month = '0' + month;
-        const year = parts[2];
+        let year = parts[2];
+        if (year.length === 2) year = '20' + year;
         return `${day}-${month}-${year}`;
       }
       return d;
@@ -6109,30 +6110,25 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
     const endParts = currentPeriod.end.split('-');
     const months: Record<string, string> = { 'jan':'01','feb':'02','mar':'03','apr':'04','may':'05','jun':'06','jul':'07','aug':'08','sep':'09','oct':'10','nov':'11','dec':'12' };
     let mStr = (endParts[1]) ? (months[endParts[1].toLowerCase().slice(0,3)] || endParts[1].padStart(2, '0')) : '01';
-    const fp = mStr + (endParts[2] || '2026');
+    let yr = endParts[2] || '2026';
+    if(yr.length === 2) yr = '20' + yr;
+    const fp = mStr + yr;
     const salesOnly = salesVouchers.filter(v => v.type === 'Sales');
     const fromNo = salesOnly.length > 0 ? Math.min(...salesOnly.map(v => v.number)) : 0;
     const toNo = salesOnly.length > 0 ? Math.max(...salesOnly.map(v => v.number)) : 0;
     const baseData = { gstin: activeCompany?.gstin || "00AAAAA0000A1Z5", fp, gt: 0.00, cur_gt: 0.00 };
 
     const download = (obj: any, fileName: string) => {
-      // Tally Prime uses a very specific format: 
-      // 1. Minified (one line)
-      // 2. Numbers always have two decimal places even if .00
-      
-      // First, we convert monetary/qty values to strings with 2 decimals
-      // then stringify, then use regex to remove quotes from those numbers 
-      // so they appear as literals 23600.00 in the JSON text.
       const jsonStr = JSON.stringify(obj, (key, value) => {
-        if (typeof value === 'number' && !['num', 'rt', 'doc_num', 'totnum', 'cancel', 'net_issue', 'pos'].includes(key)) {
+        const integerFields = ['num', 'rt', 'doc_num', 'totnum', 'cancel', 'net_issue', 'pos', 'inum', 'idt', 'ctin', 'fp', 'gstin', 'rchrg', 'inv_typ', 'doc_typ'];
+        if (typeof value === 'number' && !integerFields.includes(key)) {
           return value.toFixed(2);
         }
-        if (key === 'gt' || key === 'cur_gt' || key === 'csamt') return Number(value).toFixed(2);
+        if (['gt', 'cur_gt', 'csamt'].includes(key)) return Number(value).toFixed(2);
         return value;
       });
       
-      // Remove quotes from the fixed-decimal strings to make them JSON number literals
-      const minifiedJson = jsonStr.replace(/"(\d+\.\d{2})"/g, '$1');
+      const minifiedJson = jsonStr.replace(/"(-?\d+\.\d{2})"/g, '$1');
       
       const blob = new Blob([minifiedJson], {type: 'application/json'});
       const url = URL.createObjectURL(blob);
