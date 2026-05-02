@@ -6027,36 +6027,131 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, goBack, onDril
 
   // EXPORT HANDLERS
   const exportJson = () => {
-    const stateCodeMap: Record<string, string> = { 'Maharashtra':'27', 'Delhi':'07', 'Uttar Pradesh':'09', 'Gujarat':'24', 'Karnataka':'29', 'Tamil Nadu':'33', 'West Bengal':'19', 'Rajasthan':'08' };
+    const stateCodeMap: Record<string, string> = {
+      'Andaman and Nicobar Islands': '35', 'Andhra Pradesh': '37', 'Arunachal Pradesh': '12', 'Assam': '18', 'Bihar': '10',
+      'Chandigarh': '04', 'Chhattisgarh': '22', 'Dadra and Nagar Haveli and Daman and Diu': '26', 'Delhi': '07', 'Goa': '30',
+      'Gujarat': '24', 'Haryana': '06', 'Himachal Pradesh': '02', 'Jammu and Kashmir': '01', 'Jharkhand': '20',
+      'Karnataka': '29', 'Kerala': '32', 'Ladakh': '38', 'Lakshadweep': '31', 'Madhya Pradesh': '23',
+      'Maharashtra': '27', 'Manipur': '14', 'Meghalaya': '17', 'Mizoram': '15', 'Nagaland': '13',
+      'Odisha': '21', 'Puducherry': '34', 'Punjab': '03', 'Rajasthan': '08', 'Sikkim': '11',
+      'Tamil Nadu': '33', 'Telangana': '36', 'Tripura': '16', 'Uttar Pradesh': '09', 'Uttarakhand': '05', 'West Bengal': '19'
+    };
+
+    const formatGstDate = (d: string) => {
+      const months: Record<string, string> = {
+        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+        'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+      };
+      const parts = d.split('-');
+      if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = months[parts[1]] || '01';
+        const year = parts[2];
+        return `${day}-${month}-${year}`;
+      }
+      return d;
+    };
+
     const hsnMap: any = {};
     salesVouchers.forEach(v => {
       v.inventoryEntries.forEach(item => {
         const k = item.hsnCode || 'N/A';
         const rate = item.gstRate || 18;
-        if(!hsnMap[k]) hsnMap[k] = { hsn_sc:k, desc:'', uqc:item.unit||'NOS', qty:0, val:0, txval:0, iamt:0, camt:0, samt:0 };
+        const key = `${k}_${rate}`;
+        if(!hsnMap[key]) hsnMap[key] = { hsn_sc:k, desc:'', uqc:item.unit||'NOS', qty:0, val:0, txval:0, iamt:0, camt:0, samt:0, rt: rate, csamt: 0 };
         const txval = item.amount / (1 + (rate / 100));
         const tax = item.amount - txval;
-        hsnMap[k].qty += item.qty; hsnMap[k].val += item.amount; hsnMap[k].txval += txval;
-        if (v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state) hsnMap[k].iamt += tax;
-        else { hsnMap[k].camt += tax/2; hsnMap[k].samt += tax/2; }
+        hsnMap[key].qty += item.qty; hsnMap[key].val += item.amount; hsnMap[key].txval += txval;
+        if (v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state) hsnMap[key].iamt += tax;
+        else { hsnMap[key].camt += tax/2; hsnMap[key].samt += tax/2; }
       });
     });
+
     const fromNo = salesVouchers.length > 0 ? Math.min(...salesVouchers.map(v => v.number)) : 0;
     const toNo = salesVouchers.length > 0 ? Math.max(...salesVouchers.map(v => v.number)) : 0;
     const endParts = currentPeriod.end.split('-');
     const mIdx = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].findIndex(m => endParts[1].toLowerCase().startsWith(m));
     const fp = (mIdx + 1).toString().padStart(2, '0') + endParts[2];
-    const data = { gstin: activeCompany?.gstin||"00AAAAA0000A1Z5", fp, gt:0.0, cur_gt:0.0,
+
+    const data = { 
+      gstin: activeCompany?.gstin || "00AAAAA0000A1Z5", 
+      fp, 
+      gt: 0.0, 
+      cur_gt: 0.0,
       b2b: b2bList.map(v => {
-        const {taxable, igst, cgst, sgst} = getTaxBreakdown(v);
-        return { ctin: v.partyDetails?.buyerGstin, inv: [{ inum: v.voucherNo, idt: v.date, val: v.total, pos: stateCodeMap[v.partyDetails?.buyerState||'']||'27', rchrg: "N", inv_typ: "R", itms: [{ num: 1, itm_det: { rt: 18, txval: taxable, iamt: igst, camt: cgst, samt: sgst } }] }] };
+        const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
+        
+        // Group items by rate within the invoice
+        const itemsByRate: Record<number, any> = {};
+        v.inventoryEntries.forEach(item => {
+           const rate = item.gstRate || 18;
+           if (!itemsByRate[rate]) itemsByRate[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
+           const txval = item.amount / (1 + (rate / 100));
+           const tax = item.amount - txval;
+           itemsByRate[rate].txval += txval;
+           if (isInterState) itemsByRate[rate].iamt += tax;
+           else { itemsByRate[rate].camt += tax/2; itemsByRate[rate].samt += tax/2; }
+        });
+
+        const itms = Object.entries(itemsByRate).map(([rate, det], idx) => {
+           const itmDet: any = { rt: Number(rate), txval: Number(det.txval.toFixed(2)), csamt: 0.0 };
+           if (isInterState) itmDet.iamt = Number(det.iamt.toFixed(2));
+           else {
+             itmDet.camt = Number(det.camt.toFixed(2));
+             itmDet.samt = Number(det.samt.toFixed(2));
+           }
+           return { num: idx + 1, itm_det: itmDet };
+        });
+
+        return { 
+          ctin: v.partyDetails?.buyerGstin, 
+          inv: [{ 
+            inum: v.voucherNo, 
+            idt: formatGstDate(v.date), 
+            val: Number(v.total.toFixed(2)), 
+            pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05', 
+            rchrg: "N", 
+            inv_typ: "R", 
+            itms: itms
+          }] 
+        };
       }),
-      hsn: { data: Object.values(hsnMap) },
-      doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", from: fromNo.toString(), to: toNo.toString(), totcnt: salesVouchers.length, canc: 0, net_issue: salesVouchers.length }] }
+      hsn: { 
+        data: Object.values(hsnMap).map((item: any, idx: number) => ({
+          num: idx + 1,
+          hsn_sc: item.hsn_sc,
+          uqc: item.uqc,
+          qty: item.qty,
+          rt: item.rt,
+          txval: Number(item.txval.toFixed(2)),
+          iamt: Number(item.iamt.toFixed(2)),
+          camt: Number(item.camt.toFixed(2)),
+          samt: Number(item.samt.toFixed(2)),
+          csamt: Number(item.csamt.toFixed(2))
+        }))
+      },
+      doc_issue: { 
+        doc_det: [{ 
+          doc_num: 1, 
+          doc_typ: "Invoices for outward supply", 
+          docs: [{ 
+            num: 1, 
+            from: fromNo.toString(), 
+            to: toNo.toString(), 
+            totnum: salesVouchers.length, 
+            cancel: 0, 
+            net_issue: salesVouchers.length 
+          }] 
+        }] 
+      }
     };
+
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `GSTR1_${fp}.json`; a.click();
+    const a = document.createElement('a'); 
+    a.href = url; 
+    a.download = `GSTR1_${fp}.json`; 
+    a.click();
   };
 
   const exportExcel = () => {
