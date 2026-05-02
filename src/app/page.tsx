@@ -6116,20 +6116,69 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
     const baseData = { gstin: activeCompany?.gstin || "00AAAAA0000A1Z5", fp, gt: 0.00, cur_gt: 0.00 };
 
     const download = (obj: any, fileName: string) => {
-      // Minified JSON to match Tally Prime's exact output
-      const blob = new Blob([JSON.stringify(obj)], {type: 'application/json'});
+      // Tally Prime uses a very specific format: 
+      // 1. Minified (one line)
+      // 2. Numbers always have two decimal places even if .00
+      
+      // First, we convert monetary/qty values to strings with 2 decimals
+      // then stringify, then use regex to remove quotes from those numbers 
+      // so they appear as literals 23600.00 in the JSON text.
+      const jsonStr = JSON.stringify(obj, (key, value) => {
+        if (typeof value === 'number' && !['num', 'rt', 'doc_num', 'totnum', 'cancel', 'net_issue', 'pos'].includes(key)) {
+          return value.toFixed(2);
+        }
+        if (key === 'gt' || key === 'cur_gt' || key === 'csamt') return Number(value).toFixed(2);
+        return value;
+      });
+      
+      // Remove quotes from the fixed-decimal strings to make them JSON number literals
+      const minifiedJson = jsonStr.replace(/"(\d+\.\d{2})"/g, '$1');
+      
+      const blob = new Blob([minifiedJson], {type: 'application/json'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = fileName; a.click();
     };
 
     if (exportType === 'combined') {
-      download({ ...baseData, b2b: Object.values(b2bGrouped),
-        hsn: { data: Object.values(hsnMap).map((item: any, idx: number) => ({ num: idx + 1, hsn_sc: item.hsn_sc, uqc: item.uqc, qty: Number(item.qty.toFixed(2)), rt: item.rt, txval: Number(item.txval.toFixed(2)), iamt: Number(item.iamt.toFixed(2)), camt: Number(item.camt.toFixed(2)), samt: Number(item.samt.toFixed(2)), csamt: Number(item.csamt.toFixed(2)) })) },
+      const data = { 
+        ...baseData, 
+        b2b: Object.values(b2bGrouped),
+        hsn: { 
+          data: Object.values(hsnMap).map((item: any, idx: number) => ({ 
+            num: idx + 1, 
+            hsn_sc: item.hsn_sc, 
+            uqc: item.uqc, 
+            qty: item.qty, 
+            rt: item.rt, 
+            txval: item.txval, 
+            iamt: item.iamt, 
+            camt: item.camt, 
+            samt: item.samt, 
+            csamt: item.csamt 
+          })) 
+        },
         doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", docs: [{ num: 1, from: fromNo.toString(), to: toNo.toString(), totnum: salesOnly.length, cancel: 0, net_issue: salesOnly.length }] }] }
-      }, `GSTR1_Combined_${fp}.json`);
+      };
+      download(data, `GSTR1_Full_${fp}.json`);
     } else {
       download({ ...baseData, b2b: Object.values(b2bGrouped) }, `B2B_${baseData.gstin}_${fp}.json`);
-      setTimeout(() => download({ ...baseData, hsn: { data: Object.values(hsnMap).map((item: any, idx: number) => ({ num: idx + 1, hsn_sc: item.hsn_sc, uqc: item.uqc, qty: Number(item.qty.toFixed(2)), rt: item.rt, txval: Number(item.txval.toFixed(2)), iamt: Number(item.iamt.toFixed(2)), camt: Number(item.camt.toFixed(2)), samt: Number(item.samt.toFixed(2)), csamt: Number(item.csamt.toFixed(2)) })) } }, `HSN_${baseData.gstin}_${fp}.json`), 500);
+      setTimeout(() => download({ 
+        ...baseData, 
+        hsn: { 
+          data: Object.values(hsnMap).map((item: any, idx: number) => ({ 
+            num: idx + 1, 
+            hsn_sc: item.hsn_sc, 
+            uqc: item.uqc, 
+            qty: item.qty, 
+            rt: item.rt, 
+            txval: item.txval, 
+            iamt: item.iamt, 
+            camt: item.camt, 
+            samt: item.samt, 
+            csamt: item.csamt 
+          })) 
+        } 
+      }, `HSN_${baseData.gstin}_${fp}.json`), 500);
       setTimeout(() => download({ ...baseData, doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", docs: [{ num: 1, from: fromNo.toString(), to: toNo.toString(), totnum: salesOnly.length, cancel: 0, net_issue: salesOnly.length }] }] } }, `Docs_${baseData.gstin}_${fp}.json`), 1000);
     }
     setShowExportGstModal(false);
