@@ -2982,8 +2982,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   const lists:Record<string,string[]>={
     under: stockGroups.map(g=>g.name),
     category: stockCategories.map(c=>c.name),
-    units: units.map(u=>u.name),
-    altunit: ['Not Applicable',...units.map(u=>u.name)],
+    units: units.map(u=>u.symbol || u.name),
+    altunit: ['Not Applicable',...units.map(u=>u.symbol || u.name)],
   };
   const list=(lists[focus||'']||[]).filter(i=>!filter||i.toLowerCase().includes(filter.toLowerCase()));
 
@@ -3081,7 +3081,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   };
 
   // Determine right panel content
-  const showRightPanel = focus !== null;
+  const showRightPanel = focus !== null && (focus !== 'name' || !!activeAlterItem);
   const rightPanelTitle = focus==='name'
     ? `List of Stock Items (${filteredStockItems.length})`
     : focus==='under' ? `List of Stock Groups (${list.length})`
@@ -3237,7 +3237,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
           </div>
           {(focus==='under'||focus==='units'||focus==='altunit') && (
             <div style={{padding:'6px 10px',borderTop:'1px solid #ccd',fontSize:11,color:'#8B4000',background:'#fffbe6',cursor:'pointer'}}
-              onMouseDown={e=>{e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[focus]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[focus]) as HTMLInputElement;if(inp)inp.value=n;}});}}>
+              onMouseDown={e=>{e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[focus]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[focus]) as HTMLInputElement;if(inp){inp.value=n;if(focus==='units')setCurrentUnit(n);}}});}}>
               ⚡ Alt+C: Create New
             </div>
           )}
