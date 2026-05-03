@@ -3545,7 +3545,7 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave}:{activeAl
 }
 
 // ==================== VOUCHER ENTRY FORM ====================
-function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes}:{
+function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes,altCReturnContext,onAltCReturnHandled}:{
   activeAlterItem?:any; activeVoucher:VoucherTypeKey; ledgers:Ledger[]; stockItems:StockItem[]; units:UnitData[]; vouchers:Voucher[]; activeCompany:Company | null; currentDate:string; onF2:()=>void; onPrintPreview:(v:Voucher)=>void; onCancel:()=>void;
   onAltC:(ctx:AltCContext)=>void; onSave:(v:any)=>Promise<Voucher>; onDelete:(id:number)=>void; onChangeType:(t:VoucherTypeKey)=>void; voucherTypes:VoucherTypeData[];
   altCReturnContext?: any; onAltCReturnHandled:()=>void;
