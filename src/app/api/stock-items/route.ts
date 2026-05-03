@@ -13,7 +13,8 @@ export async function POST(req: Request) {
         openingQty: parseFloat(data.openingQty || 0),
         openingVal: parseFloat(data.openingVal || 0),
         gstApplicable: data.gstApplicable || "Applicable"
-      }
+      },
+      include: { unit: true }
     });
     return NextResponse.json({ success: true, item });
   } catch (error: any) {
@@ -34,7 +35,8 @@ export async function PUT(req: Request) {
         openingQty: parseFloat(data.openingQty || 0),
         openingVal: parseFloat(data.openingVal || 0),
         gstApplicable: data.gstApplicable || "Applicable"
-      }
+      },
+      include: { unit: true }
     });
     return NextResponse.json({ success: true, item });
   } catch (error: any) {

@@ -1467,9 +1467,10 @@ export default function App() {
             }
 
             if (alterItem) {
-              alert((data.name || data.symbol) + ' altered successfully!');
+              alert((data.name || data.symbol || 'Record') + ' altered successfully!');
               goBack();
             } else {
+              alert((data.name || data.symbol || 'Record') + ' saved successfully!');
               resetForm(data.name || data.symbol || 'Record');
             }
           }
@@ -1867,15 +1868,15 @@ export default function App() {
         {isFormScreen && (
           <div className="form-workspace">
             {screen==='COMPANY_CREATION'    && <CompanyCreationForm    key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('company',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='GROUP_CREATION'      && <GroupCreationForm      key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('group',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
-            {screen==='LEDGER_CREATION'     && <LedgerCreationForm     key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('ledger',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
-            {screen==='CURRENCY_CREATION'   && <CurrencyCreationForm   key={formKey} activeAlterItem={alterItem} currencies={currencies} onSave={async d=>{const ok=await saveMaster('currency',d); if(ok){alterItem?goBack():resetForm(d.name||d.symbol);}}} />}
-            {screen==='VOUCHER_TYPE_CREATION'&& <VoucherTypeCreationForm key={formKey} activeAlterItem={alterItem} voucherTypes={voucherTypes} onSave={async d=>{const ok=await saveMaster('voucherType',d); if(ok){alterItem?goBack():resetForm(d.name);}}} />}
-            {screen==='STOCK_GROUP_CREATION' && <StockGroupCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} onSave={async d=>{const ok=await saveMaster('stockGroup',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onAltC={setAltCCtx} />}
-            {screen==='STOCK_CATEGORY_CREATION'&&<StockCategoryCreationForm key={formKey} activeAlterItem={alterItem} stockCategories={stockCategories} onSave={async d=>{const ok=await saveMaster('stockCategory',d); if(ok){alterItem?goBack():resetForm(d.name);}}} />}
-            {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onAltC={setAltCCtx} />}
-            {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){alterItem?goBack():resetForm(d.name||d.symbol);}}} />}
-            {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){alterItem?goBack():resetForm(d.name);}}} />}
+            {screen==='GROUP_CREATION'      && <GroupCreationForm      key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('group',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
+            {screen==='LEDGER_CREATION'     && <LedgerCreationForm     key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('ledger',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
+            {screen==='CURRENCY_CREATION'   && <CurrencyCreationForm   key={formKey} activeAlterItem={alterItem} currencies={currencies} onSave={async d=>{const ok=await saveMaster('currency',d); if(ok){alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
+            {screen==='VOUCHER_TYPE_CREATION'&& <VoucherTypeCreationForm key={formKey} activeAlterItem={alterItem} voucherTypes={voucherTypes} onSave={async d=>{const ok=await saveMaster('voucherType',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
+            {screen==='STOCK_GROUP_CREATION' && <StockGroupCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} onSave={async d=>{const ok=await saveMaster('stockGroup',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} />}
+            {screen==='STOCK_CATEGORY_CREATION'&&<StockCategoryCreationForm key={formKey} activeAlterItem={alterItem} stockCategories={stockCategories} onSave={async d=>{const ok=await saveMaster('stockCategory',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
+            {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} />}
+            {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
+            {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
             {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={setAltCCtx} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} />}
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
@@ -2669,7 +2670,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlte
   );
 }
 
-function GroupCreationForm({ activeAlterItem, onSave, onAltC, ledgers, groups }: { activeAlterItem?: any; onSave:(d:any)=>void; onAltC:(ctx:AltCContext)=>void; ledgers:Ledger[]; groups: StockGroup[]; }) {
+function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers, groups }: { activeAlterItem?: any; onSave:(d:any)=>void; onAltC:(ctx:AltCContext)=>void; onDelete?:(type:string,id:number)=>void; ledgers:Ledger[]; groups: StockGroup[]; }) {
   const ref = useRef<HTMLInputElement>(null);
   const [focus, setFocus] = useState(false);
   const [filter, setFilter] = useState('');
@@ -2742,11 +2743,28 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, ledgers, groups }:
           onAltC={()=>onAltC({fieldType:'group',onCreated:n=>{const inp=document.getElementById('g-under') as HTMLInputElement;if(inp)inp.value=n;}})}
         />
       )}
+      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('group', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const name = fv('g-name'); if (!name) { alert('Group Name is required!'); document.getElementById('g-name')?.focus(); return; }
+            const data = { name, alias: fv('g-alias'), under: fv('g-under') || 'Primary' };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
+      </div>
     </div>
   );
 }
 
-function LedgerCreationForm({ activeAlterItem, onSave, onAltC, ledgers, groups }:{activeAlterItem?:any;onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;ledgers:Ledger[]; groups:StockGroup[];}) {
+function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers, groups }:{activeAlterItem?:any;onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;ledgers:Ledger[]; groups:StockGroup[];}) {
   const ref = useRef<HTMLInputElement>(null);
   const [focus, setFocus] = useState<string|null>(null);
   const [filter, setFilter] = useState('');
@@ -2928,11 +2946,29 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, ledgers, groups }
           )}
         </div>
       )}
+      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('ledger', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
+            const name = fv('l-name'); if (!name) { alert('Ledger Name is required!'); document.getElementById('l-name')?.focus(); return; }
+            const data = { name, alias: fv('l-alias'), groupName: fv('l-under') || 'Sundry Debtors', address: fv('l-addr'), state: fv('l-state'), country: fv('l-country'), gstin: fv('l-gst'), pan: fv('l-pan'), ifsc: fv('l-ifsc'), phone: fv('l-phone'), openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
+      </div>
     </div>
   );
 }
 
-function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC}:{activeAlterItem?:any;stockGroups:StockGroup[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void}) {
+function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDelete}:{activeAlterItem?:any;stockGroups:StockGroup[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void}) {
   const ref=useRef<HTMLInputElement>(null);
   const [focus,setFocus]=useState(false);
   const [filter,setFilter]=useState('');
@@ -2975,6 +3011,23 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC}:{act
         </div>
       </div>
       {focus&&<ListPanel title="List of Stock Groups" items={list} selectedName={list[sel]} onSelect={pick} onAltC={()=>onAltC({fieldType:'stockGroup',onCreated:n=>{const inp=document.getElementById('sg-under') as HTMLInputElement;if(inp)inp.value=n;}})}/>}
+      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('stockGroup', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const name = fv('sg-name'); if (!name) { alert('Stock Group Name is required!'); return; }
+            const data = { name, alias: fv('sg-alias'), under: fv('sg-under') || 'Primary' };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
+      </div>
     </div>
   );
 }
@@ -3003,7 +3056,7 @@ function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave}:{act
   );
 }
 
-function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,units,stockItems,onSave,onAltC}:{activeAlterItem?:any;stockGroups:StockGroup[];stockCategories:StockCategory[];units:UnitData[];stockItems:StockItem[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;}) {
+function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,units,stockItems,onSave,onAltC,onDelete}:{activeAlterItem?:any;stockGroups:StockGroup[];stockCategories:StockCategory[];units:UnitData[];stockItems:StockItem[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;}) {
   const ref=useRef<HTMLInputElement>(null);
   const [focus,setFocus]=useState<string|null>(null);
   const [filter,setFilter]=useState('');
@@ -3284,11 +3337,46 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
           )}
         </div>
       )}
+      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('stockItem', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const name = fv('item-name'); if (!name) { alert('Stock Item Name is required!'); return; }
+            const unitName = fv('item-units');
+            if (!unitName) { alert('Unit is required!'); document.getElementById('item-units')?.focus(); return; }
+            const matchedUnit = units.find(u => (u.symbol || u.name || '').toLowerCase() === unitName.toLowerCase());
+            if (!matchedUnit) {
+              alert(`Unit "${unitName}" not found in master list. Please create it first using Alt+C or select from list.`);
+              document.getElementById('item-units')?.focus();
+              return;
+            }
+            const data = { 
+              name, alias: fv('item-alias'), 
+              under: fv('item-under') || 'Primary', 
+              category: fv('item-cat') || 'Not Applicable', 
+              unit: matchedUnit.symbol || matchedUnit.name, 
+              unitId: matchedUnit.id,
+              gstRate: parseFloat(fv('item-gst')) || 18, 
+              hsnCode: fv('item-hsn'), 
+              openingQty: parseFloat(fv('item-oqty')) || 0, 
+              openingRate: parseFloat(fv('item-orate')) || 0 
+            };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
+      </div>
     </div>
   );
 }
 
-function UnitCreationForm({activeAlterItem,units,onSave}:{activeAlterItem?:any;units:UnitData[];onSave:(d:any)=>void}) {
+function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterItem?:any;units:UnitData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
   return (
@@ -3322,6 +3410,23 @@ function UnitCreationForm({activeAlterItem,units,onSave}:{activeAlterItem?:any;u
             <span style={{opacity:0.6,fontSize:11}}>{u.formalName}</span>
           </div>)}
         </div>
+      </div>
+      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('unit', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const sym = fv('unit-sym'); if (!sym) { alert('Unit Symbol is required!'); return; }
+            const data = { name: sym, symbol: sym, formalName: fv('unit-name') || sym, uqc: fv('unit-uqc') || 'NOS', decimalPlaces: parseInt(fv('unit-decimal')) || 0 };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
       </div>
     </div>
   );
@@ -4307,7 +4412,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <div key={i} onMouseDown={e=>{e.preventDefault();if(focus.field==='item')pickItem(it as StockItem);else pickLedger(it as Ledger);}}
                 style={{padding:'5px 18px',cursor:'pointer',background:(!isEndOfItem&&i===listSel)?'#ffc436':'transparent',fontWeight:(!isEndOfItem&&i===listSel)?'bold':'normal',fontSize:13}}>
                 {it && 'name' in (it as any) ? (it as any).name : 'Unknown Item'}
-                {focus.field!=='item'&&'openingBalance' in it&&(
+                {focus.field==='item' && (
+                  <span style={{float:'right',fontSize:11,opacity:0.6}}>{typeof (it as any).unit === 'string' ? (it as any).unit : (it as any).unit?.symbol || (it as any).unit?.name || 'Nos'}</span>
+                )}
+                {focus.field!=='item' && 'openingBalance' in (it as any) && (
                   <span style={{float:'right',fontSize:11,opacity:0.6}}>{fmt(getLedgerClosingBalance(it as Ledger,[]))} {(it as Ledger).balanceType}</span>
                 )}
               </div>
