@@ -761,20 +761,23 @@ export default function App() {
       } catch (e) { return def; }
     };
 
-    // Load user-specific local data
-    setCompanies(getUStored('companies', []));
-    setAllLedgers(getUStored('allLedgers', []));
-    setAllGroups(getUStored('allGroups', TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: -1, name: g, under: 'Primary' }))));
-    setAllStockGroups(getUStored('allStockGroups', []));
-    setAllStockCategories(getUStored('allStockCategories', [{ id:1, companyId: -1, name:"Not Applicable", under:"Primary" }]));
-    setAllStockItems(getUStored('allStockItems', []));
-    setAllUnits(getUStored('allUnits', []));
-    setAllGodowns(getUStored('allGodowns', [{ id:1, companyId: -1, name:"Main Location", under:"Primary", address:"" }]));
-    setAllVoucherTypes(getUStored('allVoucherTypes', []));
-    setAllCurrencies(getUStored('allCurrencies', []));
-    setAllVouchers(getUStored('allVouchers', []));
-    setActiveCompany(getUStored('activeCompany', null));
-    setCurrentPeriod(getUStored('currentPeriod', { start: '01-Apr-2026', end: '31-Mar-2027' }));
+    // Load user-specific local data ONLY if state is currently empty to prevent overwriting cloud data
+    const localCompanies = getUStored('companies', []);
+    if (localCompanies.length > 0 && companies.length === 0) setCompanies(localCompanies);
+    
+    const localLedgers = getUStored('allLedgers', []);
+    if (localLedgers.length > 0 && allLedgers.length === 0) setAllLedgers(localLedgers);
+    
+    const localVouchers = getUStored('allVouchers', []);
+    if (localVouchers.length > 0 && allVouchers.length === 0) setAllVouchers(localVouchers);
+
+    const localActive = getUStored('activeCompany', null);
+    if (localActive && !activeCompany) setActiveCompany(localActive);
+
+    // Also load others if they are empty
+    if (allUnits.length === 0) setAllUnits(getUStored('allUnits', []));
+    if (allStockItems.length === 0) setAllStockItems(getUStored('allStockItems', []));
+    if (allGroups.length === 0) setAllGroups(getUStored('allGroups', TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: -1, name: g, under: 'Primary' }))));
 
     // Fetch from backend to sync
     const fetchCompanies = async () => {
@@ -1855,7 +1858,7 @@ export default function App() {
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={allVouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
-            {screen==='GSTR1_REPORT'         && <GSTR1ReportView vouchers={filteredVouchers} activeCompany={activeCompany} currentPeriod={currentPeriod} allUnits={allUnits} goBack={goBack} onDrillDownVoucher={(v)=>nav('VOUCHER_ENTRY',v)} />}
+            {screen==='GSTR1_REPORT'         && <GSTR1ReportView vouchers={filteredVouchers} activeCompany={activeCompany} ledgers={ledgers} currentPeriod={currentPeriod} allUnits={allUnits} goBack={goBack} onDrillDownVoucher={(v)=>nav('VOUCHER_ENTRY',v)} />}
             {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
             {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} />}
             {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} />}
@@ -6106,7 +6109,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,onClose,on
   );
 }
 // ==================== GSTR-1 REPORT VIEW (TALLY PRIME STYLE) ====================
-function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBack, onDrillDownVoucher}: {vouchers: Voucher[], activeCompany: Company | null, currentPeriod: {start:string, end:string}, allUnits: UnitData[], goBack: () => void, onDrillDownVoucher: (v:Voucher)=>void}) {
+function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUnits, goBack, onDrillDownVoucher}: {vouchers: Voucher[], activeCompany: Company | null, ledgers: Ledger[], currentPeriod: {start:string, end:string}, allUnits: UnitData[], goBack: () => void, onDrillDownVoucher: (v:Voucher)=>void}) {
   const [drillDown, setDrillDown] = useState<string | null>(null);
   const [drillDownParty, setDrillDownParty] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<number>(0);
@@ -6114,12 +6117,22 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
 
   const fmt = (n: number) => n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
   
-  // Basic Logic: Get Sales and Credit Notes
-  const salesVouchers = useMemo(() => vouchers.filter(v => v.type === 'Sales' || v.type === 'Credit Note'), [vouchers]);
+  // Tax calculation helper with fallback to Ledger Master for State/GSTIN
+  const getVchGstin = (v: Voucher) => {
+    if (v.partyDetails?.buyerGstin?.trim()) return v.partyDetails.buyerGstin.trim();
+    const ledger = ledgers.find(l => l.id === v.partyId);
+    return ledger?.gstin?.trim() || "";
+  };
 
-  // Tax calculation helper
+  const getVchState = (v: Voucher) => {
+    if (v.partyDetails?.buyerState?.trim()) return v.partyDetails.buyerState.trim();
+    const ledger = ledgers.find(l => l.id === v.partyId);
+    return ledger?.state?.trim() || activeCompany?.state || "";
+  };
+
   const getTaxBreakdown = (v: Voucher) => {
-    const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
+    const vState = getVchState(v);
+    const isInterState = vState && activeCompany?.state && vState !== activeCompany.state;
     let taxable = 0, igst = 0, cgst = 0, sgst = 0, totalTax = 0;
     v.inventoryEntries.forEach(item => {
       const rate = item.gstRate || 18;
@@ -6131,33 +6144,57 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
     return { taxable, igst, cgst, sgst, totalTax };
   };
 
-  // Correct B2C Filters according to GST Rules
-  const b2bList = salesVouchers.filter(v => v.partyDetails?.buyerGstin?.trim() !== '');
-  const b2cLarge = salesVouchers.filter(v => {
-    const isInter = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
-    const isUnreg = !v.partyDetails?.buyerGstin?.trim();
-    return isUnreg && isInter && v.total > 250000;
-  });
-  const b2cSmall = salesVouchers.filter(v => {
-    const isInter = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
-    const isUnreg = !v.partyDetails?.buyerGstin?.trim();
-    return isUnreg && (!isInter || v.total <= 250000);
-  });
+  // Basic Logic: Get Sales and Credit/Debit Notes
+  const salesVouchers = useMemo(() => vouchers.filter(v => v.type === 'Sales'), [vouchers]);
+  const noteVouchers = useMemo(() => vouchers.filter(v => v.type === 'Credit Note' || v.type === 'Debit Note'), [vouchers]);
+
+  // Table 4: B2B Invoices (Registered)
+  const b2bList = useMemo(() => salesVouchers.filter(v => getVchGstin(v) !== ""), [salesVouchers, ledgers]);
+
+  // Table 5: B2C Large (Unregistered + Inter-state + > 2.5L)
+  const b2cLarge = useMemo(() => salesVouchers.filter(v => {
+    const gstin = getVchGstin(v);
+    const vState = getVchState(v);
+    const isInter = vState !== activeCompany?.state;
+    return !gstin && isInter && v.total > 250000;
+  }), [salesVouchers, ledgers, activeCompany]);
+
+  // Table 7: B2C Small (Unregistered + (Intra-state OR (Inter-state <= 2.5L)))
+  const b2cSmall = useMemo(() => salesVouchers.filter(v => {
+    const gstin = getVchGstin(v);
+    const vState = getVchState(v);
+    const isInter = vState !== activeCompany?.state;
+    return !gstin && (!isInter || v.total <= 250000);
+  }), [salesVouchers, ledgers, activeCompany]);
+
+  // Table 9B: Credit/Debit Notes (Registered)
+  const cdnrList = useMemo(() => noteVouchers.filter(v => getVchGstin(v) !== ""), [noteVouchers, ledgers]);
+
+  // Table 9B: Credit/Debit Notes (Unregistered - only for B2CL)
+  const cdnurList = useMemo(() => noteVouchers.filter(v => {
+    const gstin = getVchGstin(v);
+    const vState = getVchState(v);
+    const isInter = vState !== activeCompany?.state;
+    return !gstin && isInter && v.total > 250000;
+  }), [noteVouchers, ledgers, activeCompany]);
 
   const sections = [
-    { id: 'b2b',  label: 'B2B Invoices - 4A, 4B, 4C, 6B, 6C', vouchers: b2bList },
-    { id: 'b2cl', label: 'B2C(Large) Invoices - 5A, 5B',      vouchers: b2cLarge },
-    { id: 'b2cs', label: 'B2C(Small) Invoices - 7',           vouchers: b2cSmall },
-    { id: 'hsn',  label: 'HSN/SAC Summary - 12',              vouchers: salesVouchers },
-    { id: 'docs', label: 'Document Summary - 13',             vouchers: salesVouchers },
+    { id: 'b2b',   label: 'B2B Invoices - 4A, 4B, 4C, 6B, 6C', vouchers: b2bList },
+    { id: 'b2cl',  label: 'B2C(Large) Invoices - 5A, 5B',      vouchers: b2cLarge },
+    { id: 'b2cs',  label: 'B2C(Small) Invoices - 7',           vouchers: b2cSmall },
+    { id: 'cdnr',  label: 'CDNR (Reg) - 9B',                   vouchers: cdnrList },
+    { id: 'cdnur', label: 'CDNUR (Unreg) - 9B',                vouchers: cdnurList },
+    { id: 'hsn',   label: 'HSN/SAC Summary - 12',              vouchers: salesVouchers },
+    { id: 'docs',  label: 'Document Summary - 13',             vouchers: salesVouchers },
   ];
 
-  // DRILL DOWN CALCULATIONS
+  // DRILL DOWN CALCULATIONS (B2B Party-wise)
   const partyGroups = useMemo(() => {
     const groups: Record<number, {id:number, name:string, gstin:string, count:number, taxable:number, igst:number, cgst:number, sgst:number, total:number, vouchers:Voucher[]}> = {};
     b2bList.forEach(v => {
       const {taxable, igst, cgst, sgst} = getTaxBreakdown(v);
-      if (!groups[v.partyId]) groups[v.partyId] = {id:v.partyId, name: v.partyName, gstin: v.partyDetails?.buyerGstin||'', count:0, taxable:0, igst:0, cgst:0, sgst:0, total:0, vouchers:[]};
+      const gstin = getVchGstin(v);
+      if (!groups[v.partyId]) groups[v.partyId] = {id:v.partyId, name: v.partyName, gstin: gstin, count:0, taxable:0, igst:0, cgst:0, sgst:0, total:0, vouchers:[]};
       groups[v.partyId].count++;
       groups[v.partyId].taxable += taxable;
       groups[v.partyId].igst += igst;
@@ -6167,7 +6204,7 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
       groups[v.partyId].vouchers.push(v);
     });
     return Object.values(groups);
-  }, [b2bList]);
+  }, [b2bList, ledgers]);
 
   const partyRows = partyGroups;
   const currentPartyVouchers = drillDownParty ? (partyGroups.find(p=>p.id===drillDownParty)?.vouchers || []) : [];
