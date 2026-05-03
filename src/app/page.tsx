@@ -3401,7 +3401,7 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
       <div style={{flex:1,padding:20}}>
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Unit {activeAlterItem?'Alteration':'Creation'}</div>
         {[
-          ['Symbol (Short Name)', 'unit-sym', 100, 'e.g. Nos', activeAlterItem?.symbol],
+          ['Symbol (Short Name)', 'unit-sym', 100, 'e.g. Nos', activeAlterItem?.symbol || activeAlterItem?.name],
           ['Formal Name', 'unit-name', 260, 'e.g. Numbers', activeAlterItem?.formalName],
           ['Unit Quantity Code (GST)', 'unit-uqc', 100, 'NOS', activeAlterItem?.uqc]
         ].map(([label, id, w, ph, val], i) => (
@@ -3410,7 +3410,7 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
             <input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:i===0?'bold':'normal'}} defaultValue={val as string || ''} placeholder={ph as string}/>
           </div>
         ))}
-        <div className="form-row"><label style={{width:200}}>Number of Decimal Places</label><span className="colon">:</span><input id="unit-decimal" type="text" className="form-input" style={{width:60,textAlign:'center',fontWeight:'bold'}} defaultValue={activeAlterItem?.decimalPlaces||'0'}/></div>
+        <div className="form-row"><label style={{width:200}}>Number of Decimal Places</label><span className="colon">:</span><input id="unit-decimal" type="text" className="form-input" style={{width:60,textAlign:'center',fontWeight:'bold'}} defaultValue={activeAlterItem?.decimalPlaces || '0'}/></div>
         <div style={{marginTop:25,borderTop:'1px solid #eee',paddingTop:15}}>
           <div className="form-section-title" style={{marginTop:0}}>Compound Unit (Optional)</div>
           <div className="form-row"><label style={{width:200}}>Is it a compound unit?</label><span className="colon">:</span><select className="form-input" style={{width:80}}><option>No</option><option>Yes</option></select></div>
@@ -3419,28 +3419,35 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
           </div>
         </div>
       </div>
-      <div style={{width:280,borderLeft:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fbfdff'}}>
-        <div className="modal-header" style={{fontSize:12}}>List of Units ({units.length})</div>
-        <div style={{flex:1,overflowY:'auto'}}>
-          {units.map((u,i)=><div key={i} className="modal-list-item" style={{fontSize:12,display:'flex',justifyContent:'space-between'}}>
-            <span style={{fontWeight:'bold'}}>{u.symbol}</span>
-            <span style={{opacity:0.6,fontSize:11}}>{u.formalName}</span>
-          </div>)}
+      {activeAlterItem && (
+        <div style={{width:280,borderLeft:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fbfdff'}}>
+          <div className="modal-header" style={{fontSize:12}}>List of Units ({units.length})</div>
+          <div style={{flex:1,overflowY:'auto'}}>
+            {units.map((u,i)=><div key={i} className="modal-list-item" style={{fontSize:12,display:'flex',justifyContent:'space-between'}}>
+              <span style={{fontWeight:'bold'}}>{u.symbol || u.name}</span>
+              <span style={{opacity:0.6,fontSize:11}}>{u.formalName}</span>
+            </div>)}
+          </div>
         </div>
-      </div>
-      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+      )}
+      <div className="form-footer" style={{background:'#dde4f0',padding:'10px 20px',display:'flex',justifyContent:'flex-end',gap:10,borderTop:'2px solid #b0bedc'}}>
         {activeAlterItem && onDelete && (
-          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
-            onClick={()=>onDelete('unit', activeAlterItem.id)}>
-            Delete (Alt+D)
+          <button style={{background:'#d93025',color:'white',border:'none',padding:'7px 25px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
+            onClick={() => onDelete('unit', activeAlterItem.id)}>
+            Alt+D: Delete
           </button>
         )}
-        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
-          onClick={()=>{
-            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+        <button className="dispatch-detail-modal-accept-btn" style={{background:'#1c5282',color:'white',border:'none',padding:'7px 26px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
+          onClick={() => {
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
             const sym = fv('unit-sym'); if (!sym) { alert('Unit Symbol is required!'); return; }
-            const data = { name: sym, symbol: sym, formalName: fv('unit-name') || sym, uqc: fv('unit-uqc') || 'NOS', decimalPlaces: parseInt(fv('unit-decimal')) || 0 };
-            onSave(data);
+            onSave({
+              name: sym,
+              symbol: sym,
+              formalName: fv('unit-name'),
+              uqc: fv('unit-uqc'),
+              decimalPlaces: parseInt(fv('unit-decimal')) || 0
+            });
           }}>
           ✓ Accept (Ctrl+A)
         </button>
@@ -6253,7 +6260,7 @@ function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherT
     if(type==='Ledger') return ledgers;
     if(type==='Group') return groups;
     if(type==='Stock Group') return stockGroups;
-    if(type==='Unit') return units.map(u=>({...u,name:u.symbol}));
+    if(type==='Unit') return units.map(u=>({...u,name:u.symbol || u.name}));
     if(type==='Voucher Type') return voucherTypes;
     if(type==='Currency') return currencies.map(c=>({...c,name:`${c.symbol} ${c.name}`}));
     if(type==='Stock Item') return stockItems;
