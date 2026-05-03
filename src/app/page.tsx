@@ -734,18 +734,18 @@ export default function App() {
   }, []);
 
   // ALL MASTER DATA IN STATE
-  const [companies,     setCompanies]     = useState<Company[]>(() => getStored('companies', INIT_COMPANIES));
-  const [allLedgers,    setAllLedgers]    = useState<Ledger[]>(() => getStored('allLedgers', INIT_LEDGERS));
-  const [allGroups,     setAllGroups]     = useState<StockGroup[]>(() => getStored('allGroups', TALLY_GROUPS.map((g, i) => ({ id: i + 1, companyId: 1, name: g, under: 'Primary' }))));
-  const [allStockGroups, setAllStockGroups] = useState<StockGroup[]>(() => getStored('allStockGroups', INIT_STOCK_GROUPS));
-  const [allStockCategories, setAllStockCategories] = useState<StockCategory[]>(() => getStored('allStockCategories', [{ id:1, companyId: 1, name:"Not Applicable", under:"Primary" }]));
-  const [allStockItems, setAllStockItems]   = useState<StockItem[]>(() => getStored('allStockItems', INIT_STOCK_ITEMS));
-  const [allUnits,      setAllUnits]      = useState<UnitData[]>(() => getStored('allUnits', INIT_UNITS));
-  const [allGodowns,    setAllGodowns]    = useState<GodownData[]>(() => getStored('allGodowns', [{ id:1, companyId: 1, name:"Main Location", under:"Primary", address:"" }]));
-  const [allVoucherTypes, setAllVoucherTypes] = useState<VoucherTypeData[]>(() => getStored('allVoucherTypes', INIT_VOUCHER_TYPES));
-  const [allCurrencies, setAllCurrencies]   = useState<CurrencyData[]>(() => getStored('allCurrencies', INIT_CURRENCIES));
-  const [allVouchers,   setAllVouchers]   = useState<Voucher[]>(() => getStored('allVouchers', INIT_VOUCHERS));
-  const [activeCompany, setActiveCompany] = useState<Company | null>(() => getStored('activeCompany', null));
+  const [companies,     setCompanies]     = useState<Company[]>([]);
+  const [allLedgers,    setAllLedgers]    = useState<Ledger[]>([]);
+  const [allGroups,     setAllGroups]     = useState<StockGroup[]>(() => TALLY_GROUPS.map((g, i) => ({ id: i + 1, companyId: -1, name: g, under: 'Primary' })));
+  const [allStockGroups, setAllStockGroups] = useState<StockGroup[]>([]);
+  const [allStockCategories, setAllStockCategories] = useState<StockCategory[]>([]);
+  const [allStockItems, setAllStockItems]   = useState<StockItem[]>([]);
+  const [allUnits,      setAllUnits]      = useState<UnitData[]>([]);
+  const [allGodowns,    setAllGodowns]    = useState<GodownData[]>([]);
+  const [allVoucherTypes, setAllVoucherTypes] = useState<VoucherTypeData[]>([]);
+  const [allCurrencies, setAllCurrencies]   = useState<CurrencyData[]>([]);
+  const [allVouchers,   setAllVouchers]   = useState<Voucher[]>([]);
+  const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [currentPeriod, setCurrentPeriod] = useState(() => getStored('currentPeriod', { start: '01-Apr-2026', end: '31-Mar-2027' }));
   const [showPeriod, setShowPeriod] = useState(false);
 
@@ -761,18 +761,18 @@ export default function App() {
       } catch (e) { return def; }
     };
 
-    // Load user-specific local data ONLY if state is currently empty to prevent overwriting cloud data
+    // Load user-specific local data
     const localCompanies = getUStored('companies', []);
-    if (localCompanies.length > 0 && companies.length === 0) setCompanies(localCompanies);
+    if (localCompanies.length > 0) setCompanies(localCompanies);
     
     const localLedgers = getUStored('allLedgers', []);
-    if (localLedgers.length > 0 && allLedgers.length === 0) setAllLedgers(localLedgers);
+    if (localLedgers.length > 0) setAllLedgers(localLedgers);
     
     const localVouchers = getUStored('allVouchers', []);
-    if (localVouchers.length > 0 && allVouchers.length === 0) setAllVouchers(localVouchers);
+    if (localVouchers.length > 0) setAllVouchers(localVouchers);
 
     const localActive = getUStored('activeCompany', null);
-    if (localActive && !activeCompany) setActiveCompany(localActive);
+    if (localActive) setActiveCompany(localActive);
 
     // Also load others if they are empty
     if (allUnits.length === 0) setAllUnits(getUStored('allUnits', []));
@@ -823,11 +823,12 @@ export default function App() {
         if (vRes.ok && vData.vouchers) {
           setAllVouchers(prev => {
             const others = prev.filter(v => Number(v.companyId) !== Number(cid));
+            const localOnly = prev.filter(v => Number(v.companyId) === Number(cid) && String(v.id).length >= 12);
             const mapped = vData.vouchers.map((v: any) => ({
               ...v,
               date: new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
             }));
-            return [...others, ...mapped];
+            return [...others, ...localOnly, ...mapped];
           });
         }
 
@@ -2985,9 +2986,10 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
 
   // Filtered stock items for name field
   const filteredStockItems = useMemo(() => {
+    if (!stockItems || !Array.isArray(stockItems)) return [];
     if (!nameFilter) return stockItems;
     const q = nameFilter.toLowerCase();
-    return stockItems.filter(it => it.name.toLowerCase().includes(q));
+    return stockItems.filter(it => it && it.name && it.name.toLowerCase().includes(q));
   }, [stockItems, nameFilter]);
 
   // Scroll selected item into view
@@ -3016,6 +3018,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
 
   // pick stock item from name list
   const pickStockItem=(it:StockItem)=>{
+    if (!it) return;
     const nameEl=document.getElementById('item-name') as HTMLInputElement;
     const underEl=document.getElementById('item-under') as HTMLInputElement;
     const catEl=document.getElementById('item-cat') as HTMLInputElement;
@@ -3024,14 +3027,14 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     const gstEl=document.getElementById('item-gst') as HTMLInputElement;
     const oqtyEl=document.getElementById('item-oqty') as HTMLInputElement;
     const orateEl=document.getElementById('item-orate') as HTMLInputElement;
-    if(nameEl) nameEl.value=it.name;
-    if(underEl) underEl.value=it.under;
-    if(catEl) catEl.value=it.category;
-    if(unitsEl) unitsEl.value=it.unit;
+    if(nameEl) nameEl.value=it.name || '';
+    if(underEl) underEl.value=it.under || 'Primary';
+    if(catEl) catEl.value=it.category || 'Not Applicable';
+    if(unitsEl) unitsEl.value=it.unit || 'Nos';
     if(hsnEl) hsnEl.value=it.hsnCode||'';
-    if(gstEl) gstEl.value=String(it.gstRate);
-    if(oqtyEl) oqtyEl.value=String(it.openingQty);
-    if(orateEl) orateEl.value=String(it.openingRate);
+    if(gstEl) gstEl.value=String(it.gstRate || 18);
+    if(oqtyEl) oqtyEl.value=String(it.openingQty || 0);
+    if(orateEl) orateEl.value=String(it.openingRate || 0);
     setFocus(null);
     setTimeout(()=>{
       const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
@@ -3190,8 +3193,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                     onMouseDown={e=>{e.preventDefault();pickStockItem(it);}}
                     onMouseEnter={()=>setNameSel(i)}
                   >
-                    <span>{it.name}</span>
-                    <span style={{opacity:0.5,fontSize:11}}>{typeof it.unit === 'string' ? it.unit : (it.unit as any).symbol}</span>
+                    <span>{it?.name || 'Unknown Item'}</span>
+                    <span style={{opacity:0.5,fontSize:11}}>{typeof it?.unit === 'string' ? it.unit : (it?.unit as any)?.symbol || 'Nos'}</span>
                   </div>
                 ))
             ) : (
