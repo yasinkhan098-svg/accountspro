@@ -3698,7 +3698,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       const l=ledgers.filter(l=>!filter||l.name.toLowerCase().includes(filter.toLowerCase()));
       return l;
     }
-    if(focus?.field==='item') return stockItems.filter(it=>!filter||it.name.toLowerCase().includes(filter.toLowerCase()));
+    if(focus?.field==='item') return stockItems.filter(it=>it && it.name && (!filter || it.name.toLowerCase().includes(filter.toLowerCase())));
     return [];
   };
   const currentList = getList();
@@ -3733,9 +3733,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     setFocus(null);setFilter('');setListSel(0);
   };
   const pickItem=(it:StockItem)=>{
+    if(!it) return;
     if(focus?.field==='item'&&focus.rowIdx!==undefined){
       const idx = focus.rowIdx;
-      const nr=[...rows];nr[idx]={...nr[idx],itemId:it.id,itemName:it.name,unit:it.unit,gstRate:it.gstRate,hsnCode:it.hsnCode||''};
+      const nr=[...rows];
+      nr[idx]={
+        ...nr[idx],
+        itemId:it.id || 0,
+        itemName:it.name || '',
+        unit:it.unit || 'Nos',
+        gstRate:it.gstRate || 18,
+        hsnCode:it.hsnCode || ''
+      };
       setRows(nr);
       setTimeout(() => document.getElementById(`item-qty-${idx}`)?.focus(), 80);
     }
@@ -4000,7 +4009,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                        }
                      }
                    }} /></div>
-                <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{typeof row.unit === 'string' ? row.unit : (row.unit as any).symbol}</div>
+                <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{typeof row.unit === 'string' ? row.unit : (row.unit as any)?.symbol || 'Nos'}</div>
                 <div style={{width:120,textAlign:'right',fontWeight:'bold',color:vc}}>{row.amount?fmt(row.amount):''}</div>
               </div>
             ))}
@@ -4188,7 +4197,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             {(currentList as any[]).map((it,i)=>(
               <div key={i} onMouseDown={e=>{e.preventDefault();if(focus.field==='item')pickItem(it as StockItem);else pickLedger(it as Ledger);}}
                 style={{padding:'5px 18px',cursor:'pointer',background:(!isEndOfItem&&i===listSel)?'#ffc436':'transparent',fontWeight:(!isEndOfItem&&i===listSel)?'bold':'normal',fontSize:13}}>
-                {'name' in it ? it.name : ''}
+                {it && 'name' in (it as any) ? (it as any).name : 'Unknown Item'}
                 {focus.field!=='item'&&'openingBalance' in it&&(
                   <span style={{float:'right',fontSize:11,opacity:0.6}}>{fmt(getLedgerClosingBalance(it as Ledger,[]))} {(it as Ledger).balanceType}</span>
                 )}
