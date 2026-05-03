@@ -119,6 +119,7 @@ model Unit {
   decimalPlaces Int @default(0)
   companyId Int
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items     StockItem[]
 }
 
 model StockItem {
@@ -127,6 +128,7 @@ model StockItem {
   groupId   Int?
   group     StockGroup? @relation(fields: [groupId], references: [id])
   unitId    Int?
+  unit      Unit? @relation(fields: [unitId], references: [id])
   openingQty Float    @default(0)
   openingVal Float    @default(0)
   gstApplicable String @default("Applicable")
