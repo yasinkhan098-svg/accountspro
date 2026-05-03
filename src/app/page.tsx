@@ -1870,7 +1870,7 @@ export default function App() {
             {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onAltC={setAltCCtx} />}
             {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){alterItem?goBack():resetForm(d.name||d.symbol);}}} />}
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){alterItem?goBack():resetForm(d.name);}}} />}
-            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={setAltCCtx} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} />}
+            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={setAltCCtx} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} />}
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
             {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
@@ -3545,10 +3545,10 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave}:{activeAl
 }
 
 // ==================== VOUCHER ENTRY FORM ====================
-function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes,altCReturnContext,onAltCReturnHandled,setAltCReturnContext}:{
+function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes,altCReturnContext,onAltCReturnHandled,setAltCReturnContext,onNav}:{
   activeAlterItem?:any; activeVoucher:VoucherTypeKey; ledgers:Ledger[]; stockItems:StockItem[]; units:UnitData[]; vouchers:Voucher[]; activeCompany:Company | null; currentDate:string; onF2:()=>void; onPrintPreview:(v:Voucher)=>void; onCancel:()=>void;
   onAltC:(ctx:AltCContext)=>void; onSave:(v:any)=>Promise<Voucher>; onDelete:(id:number)=>void; onChangeType:(t:VoucherTypeKey)=>void; voucherTypes:VoucherTypeData[];
-  altCReturnContext?: any; onAltCReturnHandled:()=>void; setAltCReturnContext:(ctx:any)=>void;
+  altCReturnContext?: any; onAltCReturnHandled:()=>void; setAltCReturnContext:(ctx:any)=>void; onNav:(s:any,item?:any,type?:string)=>void;
 }) {
   const isInventory = ['Sales','Purchase','Credit Note','Debit Note'].includes(activeVoucher);
   const isPurchaseSide = ['Purchase','Debit Note'].includes(activeVoucher);
@@ -4034,7 +4034,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 if(e.altKey&&e.key.toLowerCase()==='c'){
                   e.preventDefault();
                   setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'party' });
-                  nav('LEDGER_CREATION');
+                  onNav('LEDGER_CREATION');
                   return;
                 }
                 listKeyDown(e);
@@ -4077,7 +4077,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       if(e.altKey&&e.key.toLowerCase()==='c'){
                         e.preventDefault();
                         setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'item', rowIdx: idx });
-                        nav('STOCK_ITEM_CREATION');
+                        onNav('STOCK_ITEM_CREATION');
                       }
                       else if(e.key==='Enter'){
                         e.preventDefault(); e.stopPropagation();
@@ -4190,7 +4190,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   placeholder={idx===0?`${activeVoucher==='Payment'||activeVoucher==='Contra'?'Account Dr (who pays)':'Account Dr'}...`:`Account Cr...`}
                   onFocus={()=>{setFocus({field:'accledger',rowIdx:idx});setFilter(entry.ledgerName);setListSel(0);}}
                   onChange={e=>{const ne=[...accEntries];ne[idx].ledgerName=e.target.value;setAccEntries(ne);setFilter(e.target.value);}}
-                  onKeyDown={e=>{if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault(); setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx }); nav('LEDGER_CREATION'); }else listKeyDown(e);}}
+                  onKeyDown={e=>{if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault(); setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx }); onNav('LEDGER_CREATION'); }else listKeyDown(e);}}
                   onBlur={()=>setTimeout(()=>setFocus(f=>f?.field==='accledger'&&f.rowIdx===idx?null:f),200)}
                 />
               </div>
