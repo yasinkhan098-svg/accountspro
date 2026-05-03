@@ -1948,7 +1948,7 @@ export default function App() {
       {altCCtx && (
         <AltCModal ctx={altCCtx} ledgers={ledgers} stockGroups={stockGroups} units={units} voucherTypes={voucherTypes} groups={groups}
           onClose={()=>setAltCCtx(null)}
-          onCreated={(type,data)=>{ saveMaster(type,data); altCCtx.onCreated(data.name||data.symbol||''); setAltCCtx(null); }}
+          onCreated={async (type,data)=>{ await saveMaster(type,data); altCCtx.onCreated(data.name||data.symbol||''); setAltCCtx(null); }}
         />
       )}
 
@@ -4037,8 +4037,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               value={partyName} onChange={e=>{setPartyName(e.target.value);setFilter(e.target.value);}}
               onFocus={()=>{setFocus({field:'party'});setListSel(0);}}
               onKeyDown={e=>{
-                if(e.altKey&&e.key.toLowerCase()==='c'){
-                  e.preventDefault();
+                  e.preventDefault(); e.stopPropagation();
                   setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'party' });
                   onNav('LEDGER_CREATION');
                   return;
@@ -4081,7 +4080,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     onChange={e=>{const nr=[...rows];nr[idx].itemName=e.target.value;setRows(nr);setFilter(e.target.value);}}
                     onKeyDown={e=>{
                       if(e.altKey&&e.key.toLowerCase()==='c'){
-                        e.preventDefault();
+                        e.preventDefault(); e.stopPropagation();
                         setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'item', rowIdx: idx });
                         onNav('STOCK_ITEM_CREATION');
                       }
@@ -4196,7 +4195,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   placeholder={idx===0?`${activeVoucher==='Payment'||activeVoucher==='Contra'?'Account Dr (who pays)':'Account Dr'}...`:`Account Cr...`}
                   onFocus={()=>{setFocus({field:'accledger',rowIdx:idx});setFilter(entry.ledgerName);setListSel(0);}}
                   onChange={e=>{const ne=[...accEntries];ne[idx].ledgerName=e.target.value;setAccEntries(ne);setFilter(e.target.value);}}
-                  onKeyDown={e=>{if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault(); setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx }); onNav('LEDGER_CREATION'); }else listKeyDown(e);}}
+                  onKeyDown={e=>{if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault(); e.stopPropagation(); setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx }); onNav('LEDGER_CREATION'); }else listKeyDown(e);}}
                   onBlur={()=>setTimeout(()=>setFocus(f=>f?.field==='accledger'&&f.rowIdx===idx?null:f),200)}
                 />
               </div>
@@ -5583,7 +5582,7 @@ function StockSummaryView({stockItems,vouchers,onBack,onDrillDown}:{stockItems:S
               return <tr key={i} style={{cursor:'pointer', background: i===rowIdx?'#ffd700':'', color:i===rowIdx?'#000':'inherit'}} onClick={()=>onDrillDown?.(it.id)} onMouseEnter={()=>setRowIdx(i)}>
                 <td style={{fontWeight:'bold'}}>{it.name}</td>
                 <td style={{fontSize:12,color:'#555'}}>{it.under}</td>
-                <td style={{fontSize:12}}>{typeof it.unit === 'string' ? it.unit : (it.unit as any).symbol}</td>
+                <td style={{fontSize:12}}>{typeof it.unit === 'string' ? it.unit : (it.unit as any)?.symbol || (it.unit as any)?.name || 'Nos'}</td>
                 <td style={{textAlign:'center',fontSize:12}}>{it.gstRate}%</td>
                 <td style={{textAlign:'right'}}>{it.openingQty}</td>
                 <td style={{textAlign:'right',color:'#006600'}}>{bought||'-'}</td>
@@ -5899,9 +5898,9 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               <td style={{...tdB,textAlign:'center'}}>{i+1}</td>
               <td style={{...tdB}}><b>{e.itemName}</b></td>
               <td style={{...tdB,textAlign:'center'}}>{e.hsnCode||'—'}</td>
-              <td style={{...tdB,textAlign:'right'}}><b>{e.qty} {typeof e.unit === 'string' ? e.unit : (e.unit as any).symbol}</b></td>
+              <td style={{...tdB,textAlign:'right'}}><b>{e.qty} {typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</b></td>
               <td style={{...tdB,textAlign:'right'}}>{fmt(e.rate)}</td>
-              <td style={{...tdB,textAlign:'center'}}>{typeof e.unit === 'string' ? e.unit : (e.unit as any).symbol}</td>
+              <td style={{...tdB,textAlign:'center'}}>{typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</td>
               <td style={{...tdB,textAlign:'right'}}><b>{fmt(e.amount)}</b></td>
             </tr>
           ))}
@@ -6094,8 +6093,8 @@ function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherT
     } else {
       // Find item matching current alter name if available
       const idx = items.findIndex(it => {
-        const name = typeof it === 'string' ? it : (it as any).name || (it as any).symbol || '';
-        return name.toLowerCase().includes(search.toLowerCase());
+        const name = typeof it === 'string' ? it : (it as any)?.name || (it as any)?.symbol || '';
+        return (name || '').toLowerCase().includes((search || '').toLowerCase());
       });
       setSelIdx(idx >= 0 ? idx : 0);
     }
