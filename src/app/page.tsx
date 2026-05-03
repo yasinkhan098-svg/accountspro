@@ -785,20 +785,76 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.companies) {
-            setCompanies(prev => {
-              const updated = data.companies;
-              if (activeCompany) {
-                const match = updated.find((c: any) => c.id === activeCompany.id);
-                if (match) setActiveCompany(match);
-              }
-              return updated;
-            });
+            setCompanies(data.companies);
+            // If we have an active company ID, re-sync it
+            if (activeCompany) {
+              const match = data.companies.find((c: any) => Number(c.id) === Number(activeCompany.id));
+              if (match) setActiveCompany(match);
+            }
           }
         }
       } catch (err) { console.error('Failed to sync companies:', err); }
     };
     fetchCompanies();
   }, [isMounted, isAuthenticated, currentUser?.id]);
+
+  // Cloud Sync for all data when Company is opened
+  useEffect(() => {
+    if (!isAuthenticated || !activeCompany || !activeCompany.id) return;
+
+    const syncData = async () => {
+      try {
+        const token = authClient.getToken();
+        const cid = activeCompany.id;
+
+        // 1. Fetch Ledgers
+        const lRes = await fetch(`/api/ledgers?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const lData = await lRes.json();
+        if (lRes.ok && lData.ledgers) {
+          setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...lData.ledgers]);
+        }
+
+        // 2. Fetch Vouchers
+        const vRes = await fetch(`/api/vouchers?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const vData = await vRes.json();
+        if (vRes.ok && vData.vouchers) {
+          setAllVouchers(prev => {
+            const others = prev.filter(v => Number(v.companyId) !== Number(cid));
+            const mapped = vData.vouchers.map((v: any) => ({
+              ...v,
+              date: new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+            }));
+            return [...others, ...mapped];
+          });
+        }
+
+        // 3. Fetch Stock Items
+        const siRes = await fetch(`/api/stock-items?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const siData = await siRes.json();
+        if (siRes.ok && siData.items) {
+          setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...siData.items]);
+        }
+
+        // 4. Fetch Units
+        const uRes = await fetch(`/api/units?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const uData = await uRes.json();
+        if (uRes.ok && uData.units) {
+          setAllUnits(prev => [...prev.filter(u => Number(u.companyId) !== Number(cid)), ...uData.units]);
+        }
+
+        // 5. Fetch Stock Groups
+        const sgRes = await fetch(`/api/stock-groups?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const sgData = await sgRes.json();
+        if (sgRes.ok && sgData.groups) {
+          setAllStockGroups(prev => [...prev.filter(sg => Number(sg.companyId) !== Number(cid)), ...sgData.groups]);
+        }
+
+      } catch (err) {
+        console.error("Cloud Sync Error:", err);
+      }
+    };
+    syncData();
+  }, [activeCompany?.id, isAuthenticated]);
 
   // User-Specific Auto Save Effect
   useEffect(() => {
@@ -930,61 +986,139 @@ export default function App() {
 
   // Save master
   const saveMaster = async (type: string, data: any) => {
+    const token = authClient.getToken();
+    const cid = activeCompany?.id || 0;
+
     if (alterItem && alterItem.id) {
-      if (type === 'ledger') setAllLedgers(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
+      if (type === 'ledger') {
+        try {
+          const res = await fetch('/api/ledgers', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ id: alterItem.id, ...data })
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            setAllLedgers(p => p.map(x => x.id === alterItem.id ? resData.ledger : x));
+          }
+        } catch (e) { console.error("Ledger update failed", e); }
+      }
+      else if (type === 'stockItem') {
+        try {
+          const res = await fetch('/api/stock-items', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ id: alterItem.id, ...data })
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            setAllStockItems(p => p.map(x => x.id === alterItem.id ? resData.item : x));
+          }
+        } catch (e) { console.error("Item update failed", e); }
+      }
       else if (type === 'group') setAllGroups(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
-      else if (type === 'stockGroup') setAllStockGroups(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
-      else if (type === 'stockItem') setAllStockItems(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
-      else if (type === 'unit') setAllUnits(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
-      else if (type === 'godown') setAllGodowns(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
-      else if (type === 'voucherType') setAllVoucherTypes(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
-      else if (type === 'currency') setAllCurrencies(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
+      else if (type === 'stockGroup') {
+        try {
+          const res = await fetch('/api/stock-groups', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ id: alterItem.id, ...data })
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            setAllStockGroups(p => p.map(x => x.id === alterItem.id ? resData.group : x));
+          }
+        } catch (e) { console.error("Stock Group update failed", e); }
+      }
+      else if (type === 'unit') {
+        try {
+          const res = await fetch('/api/units', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ id: alterItem.id, ...data })
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            setAllUnits(p => p.map(x => x.id === alterItem.id ? resData.unit : x));
+          }
+        } catch (e) { console.error("Unit update failed", e); }
+      }
       else if (type === 'company') {
         setCompanies(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
         if (activeCompany && activeCompany.id === alterItem.id) {
           setActiveCompany({ ...activeCompany, ...data });
         }
-        // Update backend
         try {
           const res = await fetch('/api/companies', {
             method: 'PUT',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authClient.getToken()}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ id: alterItem.id, ...data })
           });
-          if (!res.ok) {
-            const errData = await res.json();
-            alert("Error updating company: " + (errData.error || "Unknown error"));
-            return false;
-          }
-        } catch (e) {
-          console.error("Update failed", e);
-          alert("Connection error during update.");
-          return false;
-        }
+          if (!res.ok) return false;
+        } catch (e) { return false; }
       }
-      else if (type === 'stockCategory') setAllStockCategories(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
       return true;
     } else {
       const id = Date.now();
-      const companyId = type !== 'company' ? (activeCompany?.id || 0) : 0;
-      if (type === 'ledger') setAllLedgers(p => [...p, { id, companyId, ...data }]);
-      else if (type === 'group') setAllGroups(p => [...p, { id, companyId, ...data }]);
-      else if (type === 'stockGroup') setAllStockGroups(p => [...p, { id, companyId, ...data }]);
-      else if (type === 'stockItem') setAllStockItems(p => [...p, { id, companyId, ...data }]);
-      else if (type === 'unit') setAllUnits(p => [...p, { id, companyId, ...data }]);
-      else if (type === 'godown') setAllGodowns(p => [...p, { id, companyId, ...data }]);
-      else if (type === 'voucherType') setAllVoucherTypes(p => [...p, { id, companyId, ...data }]);
-      else if (type === 'currency') setAllCurrencies(p => [...p, { id, companyId, ...data }]);
+      if (type === 'ledger') {
+        try {
+          const res = await fetch('/api/ledgers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ companyId: cid, ...data })
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            setAllLedgers(p => [...p, resData.ledger]);
+          }
+        } catch (e) { setAllLedgers(p => [...p, { id, companyId: cid, ...data }]); }
+      }
+      else if (type === 'stockItem') {
+        try {
+          const res = await fetch('/api/stock-items', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ companyId: cid, ...data })
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            setAllStockItems(p => [...p, resData.item]);
+          }
+        } catch (e) { setAllStockItems(p => [...p, { id, companyId: cid, ...data }]); }
+      }
+      else if (type === 'unit') {
+        try {
+          const res = await fetch('/api/units', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ companyId: cid, ...data })
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            setAllUnits(p => [...p, resData.unit]);
+          }
+        } catch (e) { setAllUnits(p => [...p, { id, companyId: cid, ...data }]); }
+      }
+      else if (type === 'stockGroup') {
+        try {
+          const res = await fetch('/api/stock-groups', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ companyId: cid, ...data })
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            setAllStockGroups(p => [...p, resData.group]);
+          }
+        } catch (e) { setAllStockGroups(p => [...p, { id, companyId: cid, ...data }]); }
+      }
       else if (type === 'company') {
         try {
           const res = await fetch('/api/companies', {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authClient.getToken()}`
+              'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify(data)
           });
@@ -992,25 +1126,17 @@ export default function App() {
           if (res.ok && resData.company) {
             const newCo = resData.company;
             setCompanies(p => [...p, newCo]);
-            // Initialize basic groups for new company in state
             setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' }))]);
             setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
             setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
             setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
-            
             setActiveCompany(newCo);
             return true;
-          } else {
-            alert("Error creating company: " + (resData.error || "Server error"));
-            return false;
           }
-        } catch (e) {
-          console.error("Creation failed", e);
-          alert("Connection error during creation.");
-          return false;
-        }
+        } catch (e) { return false; }
       }
-      else if (type === 'stockCategory') setAllStockCategories(p => [...p, { id, companyId, ...data }]);
+      else if (type === 'group') setAllGroups(p => [...p, { id, companyId: cid, ...data }]);
+      else if (type === 'stockCategory') setAllStockCategories(p => [...p, { id, companyId: cid, ...data }]);
       return true;
     }
   };
@@ -1033,19 +1159,29 @@ export default function App() {
     const { type, id, name } = pendingDelete;
     setPendingDelete(null);
 
-    if (type === 'company') {
-      // Permanent Database Deletion
-      try {
-        await fetch('/api/companies', {
+    const token = authClient.getToken();
+
+    try {
+      let endpoint = '';
+      if (type === 'company') endpoint = '/api/companies';
+      else if (type === 'ledger') endpoint = '/api/ledgers';
+      else if (type === 'stockItem') endpoint = '/api/stock-items';
+      else if (type === 'stockGroup') endpoint = '/api/stock-groups';
+      else if (type === 'unit') endpoint = '/api/units';
+
+      if (endpoint) {
+        await fetch(endpoint, {
           method: 'DELETE',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authClient.getToken()}`
+            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({ id })
         });
-      } catch (e) { console.warn("API Error:", e); }
+      }
+    } catch (e) { console.warn("API Delete Error:", e); }
 
+    if (type === 'company') {
       setCompanies(p => p.filter(x => Number(x.id) !== Number(id)));
       setAllLedgers(p => p.filter(x => Number(x.companyId) !== Number(id)));
       setAllVouchers(p => p.filter(x => Number(x.companyId) !== Number(id)));
@@ -1085,21 +1221,58 @@ export default function App() {
     goBack();
   };
 
-  const saveVoucher = (v: any): Voucher => {
-    if(v.id) {
-      setAllVouchers(p => p.map(x => x.id === v.id ? { ...x, ...v } : x));
-      setPrintVoucher(v);
-      return v;
-    }
-    const id = Date.now();
+  const saveVoucher = async (v: any): Promise<Voucher> => {
+    const token = authClient.getToken();
     const companyId = activeCompany?.id || 0;
-    const newV = { id, companyId, ...v };
-    setAllVouchers(p => [...p, newV]);
+
+    const isEdit = v.id && String(v.id).length < 12; // DB IDs are small, timestamp IDs are large
+
+    try {
+      const res = await fetch('/api/vouchers', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ...v, companyId })
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        const savedV = {
+          ...resData.voucher,
+          date: new Date(resData.voucher.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+        };
+        if (isEdit) {
+          setAllVouchers(p => p.map(x => x.id === v.id ? savedV : x));
+        } else {
+          setAllVouchers(p => [...p, savedV]);
+        }
+        setPrintVoucher(savedV);
+        return savedV;
+      }
+    } catch (e) { console.error("Voucher Cloud Save Failed", e); }
+
+    // Fallback to local if cloud fails
+    const id = v.id || Date.now();
+    const newV = { ...v, id, companyId };
+    if (v.id) {
+      setAllVouchers(p => p.map(x => x.id === v.id ? newV : x));
+    } else {
+      setAllVouchers(p => [...p, newV]);
+    }
     setPrintVoucher(newV);
     return newV;
   };
 
-  const deleteVoucher = (id: number) => {
+  const deleteVoucher = async (id: number) => {
+    try {
+      await fetch('/api/vouchers', {
+        method: 'DELETE',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authClient.getToken()}`
+        },
+        body: JSON.stringify({ id })
+      });
+    } catch (e) { console.error("Voucher Delete Error:", e); }
+
     setAllVouchers(p => p.filter(x => x.id !== id));
     goBack();
   };
@@ -3308,7 +3481,7 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave}:{activeAl
 // ==================== VOUCHER ENTRY FORM ====================
 function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes}:{
   activeAlterItem?:any; activeVoucher:VoucherTypeKey; ledgers:Ledger[]; stockItems:StockItem[]; units:UnitData[]; vouchers:Voucher[]; activeCompany:Company | null; currentDate:string; onF2:()=>void; onPrintPreview:(v:Voucher)=>void; onCancel:()=>void;
-  onAltC:(ctx:AltCContext)=>void; onSave:(v:any)=>Voucher; onDelete:(id:number)=>void; onChangeType:(t:VoucherTypeKey)=>void; voucherTypes:VoucherTypeData[];
+  onAltC:(ctx:AltCContext)=>void; onSave:(v:any)=>Promise<Voucher>; onDelete:(id:number)=>void; onChangeType:(t:VoucherTypeKey)=>void; voucherTypes:VoucherTypeData[];
 }) {
   const isInventory = ['Sales','Purchase','Credit Note','Debit Note'].includes(activeVoucher);
   const isPurchaseSide = ['Purchase','Debit Note'].includes(activeVoucher);
@@ -3663,7 +3836,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     };
   };
 
-  const handleSave=()=>{
+  const handleSave= async ()=>{
     if(!partyName){alert('Party name is required');return;}
     const voucherData = getVoucherData();
     
@@ -3674,7 +3847,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       return;
     }
 
-    const savedV = onSave(voucherData);
+    const savedV = await onSave(voucherData);
     setPrintPromptSel('yes');
     setShowPrintPrompt({
       voucher: savedV,

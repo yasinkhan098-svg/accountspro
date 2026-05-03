@@ -47,6 +47,55 @@ export async function POST(req: Request) {
   }
 }
 
+export async function PUT(req: Request) {
+  try {
+    const data = await req.json();
+    const { id, companyId, type, date, voucherNo, narration, entries = [], inventoryEntries = [] } = data;
+
+    if (!id) return NextResponse.json({ success: false, error: "Missing voucher ID" }, { status: 400 });
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Delete existing entries and inventoryEntries first
+      await tx.voucherEntry.deleteMany({ where: { voucherId: parseInt(id) } });
+      await tx.inventoryEntry.deleteMany({ where: { voucherId: parseInt(id) } });
+
+      const voucher = await tx.voucher.update({
+        where: { id: parseInt(id) },
+        data: {
+          type,
+          date: new Date(date || new Date()),
+          voucherNo: voucherNo || "1",
+          narration,
+          entries: {
+            create: entries.map((e: any) => ({
+              ledgerId: parseInt(e.ledgerId),
+              amount: parseFloat(e.amount),
+              entryType: e.entryType
+            }))
+          },
+          inventoryEntries: {
+            create: inventoryEntries.map((i: any) => ({
+              stockItemId: parseInt(i.itemId),
+              qty: parseFloat(i.qty),
+              rate: parseFloat(i.rate),
+              unit: i.unit,
+              amount: parseFloat(i.amount)
+            }))
+          }
+        },
+        include: { entries: true, inventoryEntries: true }
+      });
+      return voucher;
+    });
+
+    return NextResponse.json({ success: true, voucher: result });
+  } catch (error: any) {
+    console.error("Voucher Update Error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const companyId = searchParams.get('companyId');
@@ -56,4 +105,16 @@ export async function GET(req: Request) {
     orderBy: { createdAt: 'desc' }
   });
   return NextResponse.json({ success: true, vouchers });
+}
+export async function DELETE(req: Request) {
+  try {
+    const data = await req.json();
+    if (!data.id) throw new Error("Voucher ID is required");
+    await prisma.voucher.delete({
+      where: { id: parseInt(data.id) }
+    });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 }
