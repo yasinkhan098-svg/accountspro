@@ -3032,7 +3032,7 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDel
   );
 }
 
-function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave}:{activeAlterItem?:any;stockCategories:StockCategory[];onSave:(d:any)=>void}) {
+function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave,onDelete}:{activeAlterItem?:any;stockCategories:StockCategory[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
   return (
@@ -3051,7 +3051,24 @@ function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave}:{act
         <div style={{flex:1,overflowY:'auto'}}>
           {stockCategories.map((c,i)=><div key={i} className="modal-list-item" style={{fontSize:12}}>{c.name}</div>)}
         </div>
+        <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('stockCategory', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const name = fv('sc-name'); if (!name) { alert('Stock Category Name is required!'); return; }
+            const data = { name };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
       </div>
+    </div>
     </div>
   );
 }
@@ -3432,7 +3449,7 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
   );
 }
 
-function GodownCreationForm({activeAlterItem,godowns,onSave}:{activeAlterItem?:any;godowns:GodownData[];onSave:(d:any)=>void}) {
+function GodownCreationForm({activeAlterItem,godowns,onSave,onDelete}:{activeAlterItem?:any;godowns:GodownData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
   return (
@@ -3462,11 +3479,28 @@ function GodownCreationForm({activeAlterItem,godowns,onSave}:{activeAlterItem?:a
           {godowns.map((g,i)=><div key={i} className="modal-list-item" style={{fontSize:12}}>{g.name}</div>)}
         </div>
       </div>
+      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('godown', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const name = fv('gd-name'); if (!name) { alert('Godown Name is required!'); return; }
+            const data = { name, alias: fv('gd-alias'), under: (document.getElementById('gd-under') as HTMLSelectElement)?.value || 'Primary' };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
+      </div>
     </div>
   );
 }
 
-function CurrencyCreationForm({activeAlterItem,currencies,onSave}:{activeAlterItem?:any;currencies:CurrencyData[];onSave:(d:any)=>void}) {
+function CurrencyCreationForm({activeAlterItem,currencies,onSave,onDelete}:{activeAlterItem?:any;currencies:CurrencyData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
   const ref=useRef<HTMLInputElement>(null);
   const [listSelIdx, setListSelIdx] = useState(0);
   const [showList, setShowList] = useState(false);
@@ -3607,11 +3641,28 @@ function CurrencyCreationForm({activeAlterItem,currencies,onSave}:{activeAlterIt
           )}
         </div>
       </div>
+      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('currency', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const sym = fv('cur-sym'); if (!sym) { alert('Currency Symbol is required!'); return; }
+            const data = { symbol: sym, name: fv('cur-name') || sym, isoCode: fv('cur-iso'), paise: fv('cur-paise') };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
+      </div>
     </div>
   );
 }
 
-function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave}:{activeAlterItem?:any;voucherTypes:VoucherTypeData[];onSave:(d:any)=>void}) {
+function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave,onDelete}:{activeAlterItem?:any;voucherTypes:VoucherTypeData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
   return (
@@ -3650,6 +3701,24 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave}:{activeAl
         <div style={{flex:1,overflowY:'auto'}}>
           {voucherTypes.map((v,i)=><div key={i} className="modal-list-item" style={{fontSize:12}}>{v.name}</div>)}
         </div>
+      </div>
+      <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8',display:'flex',justifyContent:'flex-end',gap:15}}>
+        {activeAlterItem && onDelete && (
+          <button style={{background:'#f44336',color:'white',border:'none',padding:'8px 25px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+            onClick={()=>onDelete('voucherType', activeAlterItem.id)}>
+            Delete (Alt+D)
+          </button>
+        )}
+        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+          onClick={()=>{
+            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+            const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
+            const name = fv('vt-name'); if (!name) { alert('Voucher Type Name is required!'); return; }
+            const data = { name, type: fsv('vt-type'), abbreviation: fv('vt-abbr'), numberingMethod: fsv('vt-numbering'), startNumber: parseInt(fv('vt-start-no'))||1, width: parseInt(fv('vt-width'))||0, prefillWithZero: fsv('vt-zero')==='Yes', prefix: fv('vt-prefix'), suffix: fv('vt-suffix') };
+            onSave(data);
+          }}>
+          ✓ Accept (Ctrl+A)
+        </button>
       </div>
     </div>
   );
