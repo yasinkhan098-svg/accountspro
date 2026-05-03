@@ -1391,7 +1391,19 @@ export default function App() {
           type = 'stockCategory'; data = { name, under: 'Primary' };
         } else if (screen === 'STOCK_ITEM_CREATION') {
           const name = fv('item-name'); if (!name) { alert('Stock Item Name is required!'); return; }
-          type = 'stockItem'; data = { name, alias: '', under: fv('item-under') || 'Primary', category: fv('item-cat') || 'Not Applicable', unit: fv('item-units') || 'Nos', gstRate: parseFloat(fv('item-gst')) || 18, hsnCode: fv('item-hsn'), openingQty: parseFloat(fv('item-oqty')) || 0, openingRate: parseFloat(fv('item-orate')) || 0 };
+          const unitName = fv('item-units') || 'Nos';
+          const matchedUnit = allUnits.find(u => (u.symbol || u.name || '').toLowerCase() === unitName.toLowerCase());
+          type = 'stockItem'; data = { 
+            name, alias: '', 
+            under: fv('item-under') || 'Primary', 
+            category: fv('item-cat') || 'Not Applicable', 
+            unit: unitName, 
+            unitId: matchedUnit?.id || null,
+            gstRate: parseFloat(fv('item-gst')) || 18, 
+            hsnCode: fv('item-hsn'), 
+            openingQty: parseFloat(fv('item-oqty')) || 0, 
+            openingRate: parseFloat(fv('item-orate')) || 0 
+          };
         } else if (screen === 'UNIT_CREATION') {
           const sym = fv('unit-sym'); if (!sym) { alert('Unit Symbol is required!'); return; }
           type = 'unit'; data = { name: sym, symbol: sym, formalName: fv('unit-name') || sym, uqc: fv('unit-uqc') || 'NOS', decimalPlaces: parseInt(fv('unit-decimal')) || 0 };
@@ -3040,7 +3052,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     if(underEl) underEl.value=it.under || 'Primary';
     if(catEl) catEl.value=it.category || 'Not Applicable';
     if(unitsEl) {
-      const u = it.unit || 'Nos';
+      const u = typeof it.unit === 'string' ? it.unit : (it.unit as any)?.name || (it.unit as any)?.symbol || 'Nos';
       unitsEl.value = u;
       setCurrentUnit(u);
     }
@@ -3147,7 +3159,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                 }}
                 onKeyDown={handleKey('units')}
                 onBlur={()=>setTimeout(()=>setFocus(p=>p==='units'?null:p),200)}
-                defaultValue={activeAlterItem?.unit||'Nos'} autoComplete="off"/>
+                defaultValue={typeof activeAlterItem?.unit === 'string' ? activeAlterItem.unit : (activeAlterItem?.unit as any)?.name || (activeAlterItem?.unit as any)?.symbol || 'Nos'} autoComplete="off"/>
               <span style={{marginLeft:6,fontSize:11,color:'#888'}}>Alt+C</span>
             </div>
             {/* Alternate Unit */}
@@ -3183,7 +3195,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
           <span style={{width:150,fontSize:12}}>As on 1-Apr-2026</span>
           <input id="item-oqty" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingQty||'0'} onFocus={()=>setFocus(null)}/>
           <input id="item-orate" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingRate||'0.00'} onFocus={()=>setFocus(null)}/>
-          <span style={{width:60,fontSize:11,textAlign:'center'}}>{currentUnit}</span>
+          <span style={{width:60,fontSize:11,textAlign:'center'}}>{typeof currentUnit === 'string' ? currentUnit : (currentUnit as any)?.name || (currentUnit as any)?.symbol || 'Nos'}</span>
           <span style={{width:120,textAlign:'right',fontWeight:'bold',fontSize:13}}>
             ₹ {fmt((activeAlterItem?.openingQty||0)*(activeAlterItem?.openingRate||0))}
           </span>
@@ -3212,7 +3224,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                     onMouseEnter={()=>setNameSel(i)}
                   >
                     <span>{it?.name || 'Unknown Item'}</span>
-                    <span style={{opacity:0.5,fontSize:11}}>{typeof it?.unit === 'string' ? it.unit : (it?.unit as any)?.symbol || 'Nos'}</span>
+                    <span style={{opacity:0.5,fontSize:11}}>{typeof it?.unit === 'string' ? it.unit : (it?.unit as any)?.name || (it?.unit as any)?.symbol || 'Nos'}</span>
                   </div>
                 ))
             ) : (
@@ -4034,7 +4046,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                        }
                      }
                    }} /></div>
-                <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{typeof row.unit === 'string' ? row.unit : (row.unit as any)?.symbol || 'Nos'}</div>
+                <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{typeof row.unit === 'string' ? row.unit : (row.unit as any)?.name || (row.unit as any)?.symbol || 'Nos'}</div>
                 <div style={{width:120,textAlign:'right',fontWeight:'bold',color:vc}}>{row.amount?fmt(row.amount):''}</div>
               </div>
             ))}

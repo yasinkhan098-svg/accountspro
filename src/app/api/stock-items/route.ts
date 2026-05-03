@@ -47,7 +47,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const companyId = searchParams.get('companyId');
     const items = await prisma.stockItem.findMany({
-      where: companyId ? { companyId: parseInt(companyId) } : undefined
+      where: companyId ? { companyId: parseInt(companyId) } : undefined,
+      include: { unit: true }
     });
     return NextResponse.json({ success: true, items });
   } catch (error: any) {
