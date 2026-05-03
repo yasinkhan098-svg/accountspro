@@ -1394,7 +1394,7 @@ export default function App() {
           type = 'stockItem'; data = { name, alias: '', under: fv('item-under') || 'Primary', category: fv('item-cat') || 'Not Applicable', unit: fv('item-units') || 'Nos', gstRate: parseFloat(fv('item-gst')) || 18, hsnCode: fv('item-hsn'), openingQty: parseFloat(fv('item-oqty')) || 0, openingRate: parseFloat(fv('item-orate')) || 0 };
         } else if (screen === 'UNIT_CREATION') {
           const sym = fv('unit-sym'); if (!sym) { alert('Unit Symbol is required!'); return; }
-          type = 'unit'; data = { name: sym, symbol: sym, formalName: fv('unit-name') || sym, uqc: fv('unit-uqc') || 'NOS', decimalPlaces: 0 };
+          type = 'unit'; data = { name: sym, symbol: sym, formalName: fv('unit-name') || sym, uqc: fv('unit-uqc') || 'NOS', decimalPlaces: parseInt(fv('unit-decimal')) || 0 };
         } else if (screen === 'GODOWN_CREATION') {
           const name = fv('gd-name'); if (!name) { alert('Godown Name is required!'); return; }
           type = 'godown'; data = { name, alias: fv('gd-alias'), under: fsv('gd-under') || 'Primary' };
@@ -3004,11 +3004,17 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     }
   }, [nameSel, sel, focus]);
 
+  // Local state for reactive display
+  const [currentUnit, setCurrentUnit] = useState(activeAlterItem?.unit || 'Nos');
+
   // pick from under/category/units/altunit list
   const pick=(v:string)=>{
     const ids:Record<string,string>={under:'item-under',category:'item-cat',units:'item-units',altunit:'item-altunit'};
     const inp=document.getElementById(ids[focus!]||'') as HTMLInputElement;
-    if(inp){inp.value=v;}
+    if(inp){
+      inp.value=v;
+      if (focus === 'units') setCurrentUnit(v);
+    }
     setFocus(null);
     setTimeout(()=>{
       if(inp){
@@ -3129,7 +3135,12 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               <label style={{width:140}}>Units</label><span className="colon">:</span>
               <input id="item-units" type="text" className="form-input" style={{width:260,fontWeight:'bold'}}
                 onFocus={()=>{setFocus('units');setFilter('');setSel(0);}}
-                onInput={e=>{setFilter((e.target as HTMLInputElement).value);setSel(0);}}
+                onInput={e=>{
+                  const val = (e.target as HTMLInputElement).value;
+                  setFilter(val);
+                  setSel(0);
+                  setCurrentUnit(val || 'Nos');
+                }}
                 onKeyDown={handleKey('units')}
                 onBlur={()=>setTimeout(()=>setFocus(p=>p==='units'?null:p),200)}
                 defaultValue={activeAlterItem?.unit||'Nos'} autoComplete="off"/>
@@ -3168,7 +3179,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
           <span style={{width:150,fontSize:12}}>As on 1-Apr-2026</span>
           <input id="item-oqty" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingQty||'0'} onFocus={()=>setFocus(null)}/>
           <input id="item-orate" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingRate||'0.00'} onFocus={()=>setFocus(null)}/>
-          <span style={{width:60,fontSize:11,textAlign:'center'}}>{activeAlterItem?.unit||'Nos'}</span>
+          <span style={{width:60,fontSize:11,textAlign:'center'}}>{currentUnit}</span>
           <span style={{width:120,textAlign:'right',fontWeight:'bold',fontSize:13}}>
             ₹ {fmt((activeAlterItem?.openingQty||0)*(activeAlterItem?.openingRate||0))}
           </span>
@@ -3239,10 +3250,17 @@ function UnitCreationForm({activeAlterItem,units,onSave}:{activeAlterItem?:any;u
     <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
       <div style={{flex:1,padding:20}}>
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Unit {activeAlterItem?'Alteration':'Creation'}</div>
-        {[['Symbol (Short Name)','unit-sym',100,'e.g. Nos'],['Formal Name','unit-name',260,'e.g. Numbers'],['Unit Quantity Code (GST)','unit-uqc',100,'NOS']].map(([label,id,w,ph],i)=>(
-          <div key={i} className="form-row"><label style={{width:200}}>{label}</label><span className="colon">:</span><input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:i===0?'bold':'normal'}} defaultValue={activeAlterItem?.symbol||''} placeholder={ph as string}/></div>
+        {[
+          ['Symbol (Short Name)', 'unit-sym', 100, 'e.g. Nos', activeAlterItem?.symbol],
+          ['Formal Name', 'unit-name', 260, 'e.g. Numbers', activeAlterItem?.formalName],
+          ['Unit Quantity Code (GST)', 'unit-uqc', 100, 'NOS', activeAlterItem?.uqc]
+        ].map(([label, id, w, ph, val], i) => (
+          <div key={i} className="form-row">
+            <label style={{width:200}}>{label}</label><span className="colon">:</span>
+            <input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:i===0?'bold':'normal'}} defaultValue={val as string || ''} placeholder={ph as string}/>
+          </div>
         ))}
-        <div className="form-row"><label style={{width:200}}>Number of Decimal Places</label><span className="colon">:</span><input type="text" className="form-input" style={{width:60,textAlign:'center',fontWeight:'bold'}} defaultValue={activeAlterItem?.decimalPlaces||'2'}/></div>
+        <div className="form-row"><label style={{width:200}}>Number of Decimal Places</label><span className="colon">:</span><input id="unit-decimal" type="text" className="form-input" style={{width:60,textAlign:'center',fontWeight:'bold'}} defaultValue={activeAlterItem?.decimalPlaces||'0'}/></div>
         <div style={{marginTop:25,borderTop:'1px solid #eee',paddingTop:15}}>
           <div className="form-section-title" style={{marginTop:0}}>Compound Unit (Optional)</div>
           <div className="form-row"><label style={{width:200}}>Is it a compound unit?</label><span className="colon">:</span><select className="form-input" style={{width:80}}><option>No</option><option>Yes</option></select></div>
