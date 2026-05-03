@@ -6068,10 +6068,14 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
         const key = `${hsn}_${rate}`;
         const unitObj = allUnits.find(u => u.name === item.unit || u.symbol === item.unit);
         const uqc = (unitObj?.uqc || 'NOS').toUpperCase();
-        if(!hsnMap[key]) hsnMap[key] = { hsn_sc: hsn, desc: '', uqc: uqc, qty: 0, val: 0, txval: 0, iamt: 0, camt: 0, samt: 0, rt: rate, csamt: 0 };
-        const txval = item.amount; // In Tally-like apps, item amount is usually the taxable value
-        const tax = (txval * rate) / 100;
-        hsnMap[key].qty += item.qty; hsnMap[key].val += (txval + tax); hsnMap[key].txval += txval;
+        if(!hsnMap[key]) hsnMap[key] = { hsn_sc: hsn, uqc: uqc, qty: 0, txval: 0, iamt: 0, camt: 0, samt: 0, rt: rate, csamt: 0 };
+        
+        // Fix: Tally-like app stores inclusive amount, so calculate taxable (txval) and tax
+        const txval = item.amount / (1 + (rate / 100));
+        const tax = item.amount - txval;
+        
+        hsnMap[key].qty += item.qty; 
+        hsnMap[key].txval += txval;
         if (isInterState) hsnMap[key].iamt += tax;
         else { hsnMap[key].camt += tax/2; hsnMap[key].samt += tax/2; }
       });
@@ -6083,27 +6087,38 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
       const ctin = v.partyDetails?.buyerGstin?.trim();
       if (!ctin) return;
       if (!b2bGrouped[ctin]) b2bGrouped[ctin] = { ctin, inv: [] };
+      
       const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
       const itemsByRate: Record<number, any> = {};
+      
       v.inventoryEntries.forEach(item => {
          const rate = item.gstRate || 18;
          if (!itemsByRate[rate]) itemsByRate[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
-         const txval = item.amount; 
-         const tax = (txval * rate) / 100;
+         
+         const txval = item.amount / (1 + (rate / 100));
+         const tax = item.amount - txval;
+         
          itemsByRate[rate].txval += txval;
          if (isInterState) itemsByRate[rate].iamt += tax;
          else { itemsByRate[rate].camt += tax/2; itemsByRate[rate].samt += tax/2; }
       });
+
       const itms = Object.entries(itemsByRate).map(([rate, det], idx) => {
-         const itmDet: any = { txval: Number(det.txval.toFixed(2)), rt: Number(rate) };
-         if (isInterState) itmDet.iamt = Number(det.iamt.toFixed(2));
-         else { itmDet.camt = Number(det.camt.toFixed(2)); itmDet.samt = Number(det.samt.toFixed(2)); }
+         const itmDet: any = { txval: det.txval, rt: Number(rate) };
+         if (isInterState) itmDet.iamt = det.iamt;
+         else { itmDet.camt = det.camt; itmDet.samt = det.samt; }
          itmDet.csamt = 0.0;
          return { num: idx + 1, itm_det: itmDet };
       });
+
       b2bGrouped[ctin].inv.push({
-        inum: v.voucherNo || v.number.toString(), idt: formatGstDate(v.date), val: Number(v.total.toFixed(2)),
-        pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05', rchrg: "N", itms: itms, inv_typ: "R"
+        inum: v.voucherNo || v.number.toString(), 
+        idt: formatGstDate(v.date), 
+        val: v.total,
+        pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05', 
+        rchrg: "N", 
+        itms: itms, 
+        inv_typ: "R"
       });
     });
 
@@ -6113,24 +6128,39 @@ function GSTR1ReportView({vouchers, activeCompany, currentPeriod, allUnits, goBa
     let yr = endParts[2] || '2026';
     if(yr.length === 2) yr = '20' + yr;
     const fp = mStr + yr;
+    
     const salesOnly = salesVouchers.filter(v => v.type === 'Sales');
     const fromNo = salesOnly.length > 0 ? Math.min(...salesOnly.map(v => v.number)) : 0;
     const toNo = salesOnly.length > 0 ? Math.max(...salesOnly.map(v => v.number)) : 0;
-    const baseData = { gstin: activeCompany?.gstin || "00AAAAA0000A1Z5", fp, gt: 0.00, cur_gt: 0.00 };
+    const baseData = { gstin: activeCompany?.gstin || "05ABFFA1795E1ZN", fp, gt: 0.00, cur_gt: 0.00 };
 
     const download = (obj: any, fileName: string) => {
       const jsonStr = JSON.stringify(obj, (key, value) => {
-        const integerFields = ['num', 'rt', 'doc_num', 'totnum', 'cancel', 'net_issue', 'pos', 'inum', 'idt', 'ctin', 'fp', 'gstin', 'rchrg', 'inv_typ', 'doc_typ', 'qty'];
-        if (typeof value === 'number' && !integerFields.includes(key)) {
+        // String fields that should keep quotes
+        const stringFields = ['inum', 'idt', 'ctin', 'fp', 'gstin', 'rchrg', 'inv_typ', 'doc_typ', 'hsn_sc', 'uqc', 'from', 'to', 'pos'];
+        // Integer fields that should not have decimals
+        const integerFields = ['num', 'rt', 'doc_num', 'totnum', 'cancel', 'net_issue'];
+
+        if (stringFields.includes(key)) return value;
+        if (integerFields.includes(key)) return parseInt(value);
+        
+        // Special handling for qty: integer if whole, else decimal
+        if (key === 'qty' && typeof value === 'number') {
+          return Number.isInteger(value) ? value : parseFloat(value.toFixed(3));
+        }
+
+        // For all other numeric fields (amounts), force 2 decimal places as a string
+        // We will then strip the quotes using regex
+        if (typeof value === 'number') {
           return value.toFixed(2);
         }
-        if (['gt', 'cur_gt', 'csamt'].includes(key)) return Number(value).toFixed(2);
         return value;
       });
       
-      const minifiedJson = jsonStr.replace(/"(-?\d+\.\d{2})"/g, '$1');
+      // Strict regex to strip quotes from numeric strings with 2 decimals to match Tally format
+      const formattedJson = jsonStr.replace(/"(-?\d+\.\d{2})"/g, '$1');
       
-      const blob = new Blob([minifiedJson], {type: 'application/json'});
+      const blob = new Blob([formattedJson], {type: 'application/json'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = fileName; a.click();
     };
