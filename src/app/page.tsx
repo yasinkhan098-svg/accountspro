@@ -1400,14 +1400,20 @@ export default function App() {
           type = 'stockCategory'; data = { name, under: 'Primary' };
         } else if (screen === 'STOCK_ITEM_CREATION') {
           const name = fv('item-name'); if (!name) { alert('Stock Item Name is required!'); return; }
-          const unitName = fv('item-units') || 'Nos';
+          const unitName = fv('item-units');
+          if (!unitName) { alert('Unit is required!'); document.getElementById('item-units')?.focus(); return; }
           const matchedUnit = allUnits.find(u => (u.symbol || u.name || '').toLowerCase() === unitName.toLowerCase());
+          if (!matchedUnit) {
+            alert(`Unit "${unitName}" not found in master list. Please create it first using Alt+C or select from list.`);
+            document.getElementById('item-units')?.focus();
+            return;
+          }
           type = 'stockItem'; data = { 
             name, alias: '', 
             under: fv('item-under') || 'Primary', 
             category: fv('item-cat') || 'Not Applicable', 
-            unit: matchedUnit ? matchedUnit.name : unitName, 
-            unitId: matchedUnit?.id || null,
+            unit: matchedUnit.name, 
+            unitId: matchedUnit.id,
             gstRate: parseFloat(fv('item-gst')) || 18, 
             hsnCode: fv('item-hsn'), 
             openingQty: parseFloat(fv('item-oqty')) || 0, 
@@ -1506,7 +1512,7 @@ export default function App() {
         const type = typeMap[screen];
         if (type) deleteMaster(type, alterItem.id);
       }
-      if (e.altKey && e.key.toLowerCase() === 'c' && !altCCtx) {
+      if (e.altKey && e.key.toLowerCase() === 'c' && !altCCtx && screen !== 'VOUCHER_ENTRY') {
         e.preventDefault();
         const id = (document.activeElement as HTMLElement)?.id || '';
         if (id.includes('l-under') || id.includes('g-under')) setAltCCtx({ fieldType:'group', onCreated:()=>{} });
