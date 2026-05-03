@@ -3039,7 +3039,11 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     if(nameEl) nameEl.value=it.name || '';
     if(underEl) underEl.value=it.under || 'Primary';
     if(catEl) catEl.value=it.category || 'Not Applicable';
-    if(unitsEl) unitsEl.value=it.unit || 'Nos';
+    if(unitsEl) {
+      const u = it.unit || 'Nos';
+      unitsEl.value = u;
+      setCurrentUnit(u);
+    }
     if(hsnEl) hsnEl.value=it.hsnCode||'';
     if(gstEl) gstEl.value=String(it.gstRate || 18);
     if(oqtyEl) oqtyEl.value=String(it.openingQty || 0);
