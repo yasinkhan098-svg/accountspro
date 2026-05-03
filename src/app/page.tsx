@@ -339,7 +339,10 @@ const INIT_COMPANIES: Company[] = [];
 const INIT_VOUCHERS: Voucher[] = [];
 
 // ==================== UTILITY FUNCTIONS ====================
-function fmt(n: number) { return Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2 }); }
+function fmt(n: number) {
+  if (n === null || n === undefined || isNaN(n)) return '0.00';
+  return Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
   let bal = ledger.balanceType === 'Dr' ? ledger.openingBalance : -ledger.openingBalance;
@@ -3540,7 +3543,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     if (focus.field === 'item') {
       const currentVal = focus.rowIdx !== undefined ? (rows[focus.rowIdx]?.itemName || '') : '';
       if (currentVal) {
-        const idx = list.findIndex(it => 'name' in it && (it as any).name.toLowerCase() === currentVal.toLowerCase());
+        const idx = list.findIndex(it => it && 'name' in (it as any) && (it as any).name.toLowerCase() === currentVal.toLowerCase());
         if (idx >= 0) setListSel(idx);
         else setListSel(99999); // Not matched → default to End of Item
       } else {
@@ -3554,7 +3557,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     else if (focus.field === 'accledger' && focus.rowIdx !== undefined) currentVal = accEntries[focus.rowIdx]?.ledgerName || '';
     if (currentVal) {
       const idx = list.findIndex(it => {
-        const name = 'name' in it ? it.name : '';
+        const name = it && 'name' in (it as any) ? (it as any).name : '';
         return name.toLowerCase() === currentVal.toLowerCase();
       });
       if (idx >= 0) setListSel(idx);
