@@ -397,6 +397,7 @@ const parseDate = (d: string): Date => {
 export default function App() {
   const [screen, setScreen] = useState<ScreenType>('GATEWAY_MAIN');
   const [history, setHistory] = useState<ScreenType[]>([]);
+  const [altCReturnContext, setAltCReturnContext] = useState<{screen: ScreenType, field: string, rowIdx?: number} | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(1);
   const [activeVoucher, setActiveVoucher] = useState<VoucherTypeKey>('Sales');
   const [alterItem, setAlterItem] = useState<any>(null);
@@ -1007,6 +1008,7 @@ export default function App() {
           if (res.ok) {
             const resData = await res.json();
             setAllLedgers(p => p.map(x => x.id === alterItem.id ? resData.ledger : x));
+            return resData.ledger;
           }
         } catch (e) { console.error("Ledger update failed", e); }
       }
@@ -1020,6 +1022,7 @@ export default function App() {
           if (res.ok) {
             const resData = await res.json();
             setAllStockItems(p => p.map(x => x.id === alterItem.id ? resData.item : x));
+            return resData.item;
           }
         } catch (e) { console.error("Item update failed", e); }
       }
@@ -1034,6 +1037,7 @@ export default function App() {
           if (res.ok) {
             const resData = await res.json();
             setAllStockGroups(p => p.map(x => x.id === alterItem.id ? resData.group : x));
+            return resData.group;
           }
         } catch (e) { console.error("Stock Group update failed", e); }
       }
@@ -1047,6 +1051,7 @@ export default function App() {
           if (res.ok) {
             const resData = await res.json();
             setAllUnits(p => p.map(x => x.id === alterItem.id ? resData.unit : x));
+            return resData.unit;
           }
         } catch (e) { console.error("Unit update failed", e); }
       }
@@ -1077,8 +1082,9 @@ export default function App() {
           if (res.ok) {
             const resData = await res.json();
             setAllLedgers(p => [...p, resData.ledger]);
+            return resData.ledger;
           }
-        } catch (e) { setAllLedgers(p => [...p, { id, companyId: cid, ...data }]); }
+        } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllLedgers(p => [...p, newItem]); return newItem; }
       }
       else if (type === 'stockItem') {
         try {
@@ -1090,8 +1096,9 @@ export default function App() {
           if (res.ok) {
             const resData = await res.json();
             setAllStockItems(p => [...p, resData.item]);
+            return resData.item;
           }
-        } catch (e) { setAllStockItems(p => [...p, { id, companyId: cid, ...data }]); }
+        } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllStockItems(p => [...p, newItem]); return newItem; }
       }
       else if (type === 'unit') {
         try {
@@ -1103,8 +1110,9 @@ export default function App() {
           if (res.ok) {
             const resData = await res.json();
             setAllUnits(p => [...p, resData.unit]);
+            return resData.unit;
           }
-        } catch (e) { setAllUnits(p => [...p, { id, companyId: cid, ...data }]); }
+        } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllUnits(p => [...p, newItem]); return newItem; }
       }
       else if (type === 'stockGroup') {
         try {
@@ -1116,6 +1124,7 @@ export default function App() {
           if (res.ok) {
             const resData = await res.json();
             setAllStockGroups(p => [...p, resData.group]);
+            return resData.group;
           }
         } catch (e) { setAllStockGroups(p => [...p, { id, companyId: cid, ...data }]); }
       }
@@ -1138,7 +1147,7 @@ export default function App() {
             setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
             setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
             setActiveCompany(newCo);
-            return true;
+            return newCo;
           }
         } catch (e) { return false; }
       }
@@ -1441,9 +1450,36 @@ export default function App() {
             showLogo: (document.querySelector('input[type="checkbox"][id*="Logo"]') as HTMLInputElement)?.checked ?? false
           };
         }
-        if (type && data) {
-          const ok = await saveMaster(type, data);
-          if (ok) {
+          const savedObj = await saveMaster(type, data);
+          if (savedObj) {
+            const newItem = typeof savedObj === 'object' ? savedObj : { ...data, id: Date.now() };
+
+            if (altCReturnContext) {
+              const ctx = altCReturnContext;
+              setAltCReturnContext(null);
+              setScreen(ctx.screen);
+              setHistory(h => h.slice(0, -1));
+              
+              if (ctx.field === 'item' && ctx.rowIdx !== undefined) {
+                const nr = [...rows];
+                nr[ctx.rowIdx] = {
+                  ...nr[ctx.rowIdx],
+                  itemId: newItem.id,
+                  itemName: newItem.name,
+                  unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.name || 'Nos',
+                  gstRate: newItem.gstRate || 18,
+                  hsnCode: newItem.hsnCode || ''
+                };
+                setRows(nr);
+                setTimeout(() => document.getElementById(`item-qty-${ctx.rowIdx}`)?.focus(), 100);
+              } else if (ctx.field === 'party') {
+                setPartyName(newItem.name);
+                setPartyId(newItem.id);
+                setTimeout(() => document.getElementById('v-ref')?.focus(), 100);
+              }
+              return;
+            }
+
             if (alterItem) {
               alert((data.name || data.symbol) + ' altered successfully!');
               goBack();
@@ -1451,7 +1487,6 @@ export default function App() {
               resetForm(data.name || data.symbol || 'Record');
             }
           }
-        }
       };
 
       if (e.key === 'Escape') {
@@ -2885,8 +2920,9 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, ledgers, groups }
                 <div key={i} data-idx={i}
                   style={{
                     fontSize:12,padding:'5px 12px',cursor:'pointer',
-                    background: i===selIdx ? '#1c5282' : i%2===0?'#f9fbff':'#fff',
-                    color: i===selIdx ? '#fff' : 'inherit',
+                    background: i===selIdx ? '#ffeb3b' : i%2===0?'#f9fbff':'#fff',
+                    color: i===selIdx ? '#000' : 'inherit',
+                    border: i===selIdx ? '1px solid #fbc02d' : '1px solid transparent',
                     fontWeight: i===selIdx ? 'bold' : 'normal',
                   }}
                   onMouseDown={e=>{e.preventDefault();pick(typeof item === 'string' ? item : (item as any).name);}}
@@ -3037,7 +3073,12 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     },50);
   };
 
-  // pick stock item from name list
+  useEffect(() => {
+    if (activeAlterItem) {
+      const idx = filteredStockItems.findIndex(it => it.id === activeAlterItem.id);
+      if (idx >= 0) setNameSel(idx);
+    }
+  }, [activeAlterItem, filteredStockItems]);
   const pickStockItem=(it:StockItem)=>{
     if (!it) return;
     const nameEl=document.getElementById('item-name') as HTMLInputElement;
@@ -3216,8 +3257,9 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                   <div key={it.id||i} data-idx={i}
                     style={{
                       fontSize:12,padding:'6px 10px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',
-                      background: i===nameSel ? '#1c5282' : i%2===0?'#f9fbff':'#fff',
-                      color: i===nameSel ? '#fff' : 'inherit',
+                      background: i===nameSel ? '#ffeb3b' : i%2===0?'#f9fbff':'#fff',
+                      color: i===nameSel ? '#000' : 'inherit',
+                      border: i===nameSel ? '1px solid #fbc02d' : '1px solid transparent',
                       fontWeight: i===nameSel ? 'bold' : 'normal',
                     }}
                     onMouseDown={e=>{e.preventDefault();pickStockItem(it);}}
@@ -3234,8 +3276,9 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                   <div key={i} data-idx={i}
                     style={{
                       fontSize:12,padding:'6px 10px',cursor:'pointer',
-                      background: i===sel ? '#1c5282' : i%2===0?'#f9fbff':'#fff',
-                      color: i===sel ? '#fff' : 'inherit',
+                      background: i===sel ? '#ffeb3b' : i%2===0?'#f9fbff':'#fff',
+                      color: i===sel ? '#000' : 'inherit',
+                      border: i===sel ? '1px solid #fbc02d' : '1px solid transparent',
                       fontWeight: i===sel ? 'bold' : 'normal',
                     }}
                     onMouseDown={e=>{e.preventDefault();pick(typeof item === 'string' ? item : (item as any).name || (item as any).symbol);}}
@@ -3976,7 +4019,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             <input ref={ref} type="text" className="form-input" style={{width:350,fontWeight:'bold'}}
               value={partyName} onChange={e=>{setPartyName(e.target.value);setFilter(e.target.value);}}
               onFocus={()=>{setFocus({field:'party'});setListSel(0);}}
-              onKeyDown={e=>{if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();onAltC({fieldType:'ledger',onCreated:n=>setPartyName(n)});return;}listKeyDown(e);}}
+              onKeyDown={e=>{
+                if(e.altKey&&e.key.toLowerCase()==='c'){
+                  e.preventDefault();
+                  setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'party' });
+                  nav('LEDGER_CREATION');
+                  return;
+                }
+                listKeyDown(e);
+              }}
               onBlur={()=>setTimeout(()=>setFocus(null),200)}
               placeholder="Select party ledger (Alt+C to create new)"
             />
@@ -4012,7 +4063,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     onFocus={()=>{setFocus({field:'item',rowIdx:idx});setFilter(row.itemName);setListSel(99999);}}
                     onChange={e=>{const nr=[...rows];nr[idx].itemName=e.target.value;setRows(nr);setFilter(e.target.value);}}
                     onKeyDown={e=>{
-                      if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();onAltC({fieldType:'stockItem',onCreated:n=>{const nr=[...rows];nr[idx].itemName=n;setRows(nr);}});}
+                      if(e.altKey&&e.key.toLowerCase()==='c'){
+                        e.preventDefault();
+                        setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'item', rowIdx: idx });
+                        setScreen('STOCK_ITEM_CREATION');
+                      }
                       else if(e.key==='Enter'){
                         e.preventDefault(); e.stopPropagation();
                         if(isEndOfItem){
