@@ -4037,6 +4037,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               value={partyName} onChange={e=>{setPartyName(e.target.value);setFilter(e.target.value);}}
               onFocus={()=>{setFocus({field:'party'});setListSel(0);}}
               onKeyDown={e=>{
+                if(e.altKey&&e.key.toLowerCase()==='c'){
                   e.preventDefault(); e.stopPropagation();
                   setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'party' });
                   onNav('LEDGER_CREATION');
