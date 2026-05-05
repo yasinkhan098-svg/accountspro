@@ -4,15 +4,30 @@ import { prisma } from '@/lib/prisma';
 export async function POST(req: Request) {
   try {
     const data = await req.json();
+    let finalUnitId = data.unitId ? parseInt(data.unitId) : null;
+    
+    if (data.unit && data.companyId) {
+      const existing = await prisma.unit.findFirst({ where: { companyId: parseInt(data.companyId), name: data.unit } });
+      if (existing) {
+         finalUnitId = existing.id;
+      } else {
+         const nu = await prisma.unit.create({ data: { name: data.unit, formalName: data.unit, companyId: parseInt(data.companyId) }});
+         finalUnitId = nu.id;
+      }
+    }
+
     const item = await prisma.stockItem.create({
       data: {
         name: data.name,
         companyId: parseInt(data.companyId),
         groupId: data.groupId ? parseInt(data.groupId) : null,
-        unitId: data.unitId ? parseInt(data.unitId) : null,
+        unitId: finalUnitId,
         openingQty: parseFloat(data.openingQty || 0),
         openingVal: parseFloat(data.openingVal || 0),
-        gstApplicable: data.gstApplicable || "Applicable"
+        openingRate: parseFloat(data.openingRate || 0),
+        gstApplicable: data.gstApplicable || "Applicable",
+        gstRate: data.gstRate ? parseFloat(data.gstRate) : 18,
+        hsnCode: data.hsnCode || null
       },
       include: { unit: true }
     });
@@ -26,15 +41,30 @@ export async function PUT(req: Request) {
   try {
     const data = await req.json();
     if (!data.id) throw new Error("Item ID is required");
+    
+    let finalUnitId = data.unitId ? parseInt(data.unitId) : null;
+    if (data.unit && data.companyId) {
+      const existing = await prisma.unit.findFirst({ where: { companyId: parseInt(data.companyId), name: data.unit } });
+      if (existing) {
+         finalUnitId = existing.id;
+      } else {
+         const nu = await prisma.unit.create({ data: { name: data.unit, formalName: data.unit, companyId: parseInt(data.companyId) }});
+         finalUnitId = nu.id;
+      }
+    }
+
     const item = await prisma.stockItem.update({
       where: { id: parseInt(data.id) },
       data: {
         name: data.name,
         groupId: data.groupId ? parseInt(data.groupId) : null,
-        unitId: data.unitId ? parseInt(data.unitId) : null,
+        unitId: finalUnitId,
         openingQty: parseFloat(data.openingQty || 0),
         openingVal: parseFloat(data.openingVal || 0),
-        gstApplicable: data.gstApplicable || "Applicable"
+        openingRate: parseFloat(data.openingRate || 0),
+        gstApplicable: data.gstApplicable || "Applicable",
+        gstRate: data.gstRate ? parseFloat(data.gstRate) : 18,
+        hsnCode: data.hsnCode || null
       },
       include: { unit: true }
     });

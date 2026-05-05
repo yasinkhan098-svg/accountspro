@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+const normalizeLedger = (l: any) => ({
+  ...l,
+  openingBalance: l.openingBal ?? 0,
+  balanceType: l.balanceType || 'Dr',
+  pan: l.panItNo || '',
+});
+
 export async function POST(req: Request) {
   try {
     const data = await req.json();
@@ -14,15 +21,22 @@ export async function POST(req: Request) {
         address: data.address,
         state: data.state,
         pinCode: data.pinCode,
-        panItNo: data.panItNo,
+        panItNo: data.pan,
         gstin: data.gstin,
+        country: data.country,
+        phone: data.phone,
+        email: data.email,
+        registrationType: data.registrationType,
+        bankName: data.bankName,
+        accountNo: data.accountNo,
+        ifsc: data.ifsc,
         companyId: data.companyId,
-        openingBal: 0.0,
-        balanceType: 'Dr'
+        openingBal: data.openingBalance || 0.0,
+        balanceType: data.balanceType || 'Dr'
       }
     });
 
-    return NextResponse.json({ success: true, ledger });
+    return NextResponse.json({ success: true, ledger: normalizeLedger(ledger) });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -43,12 +57,21 @@ export async function PUT(req: Request) {
          address: data.address,
          state: data.state,
          pinCode: data.pinCode,
-         panItNo: data.panItNo,
+         panItNo: data.pan,
          gstin: data.gstin,
+         country: data.country,
+         phone: data.phone,
+         email: data.email,
+         registrationType: data.registrationType,
+         bankName: data.bankName,
+         accountNo: data.accountNo,
+         ifsc: data.ifsc,
+         openingBal: data.openingBalance || 0.0,
+         balanceType: data.balanceType || 'Dr'
        }
      });
  
-     return NextResponse.json({ success: true, ledger });
+     return NextResponse.json({ success: true, ledger: normalizeLedger(ledger) });
    } catch (error: any) {
      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
    }
@@ -73,9 +96,16 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const companyId = searchParams.get('companyId');
-    const ledgers = await prisma.ledger.findMany({
+    const rawLedgers = await prisma.ledger.findMany({
       where: companyId ? { companyId: parseInt(companyId) } : undefined
     });
+    // Normalize DB field names to frontend interface field names
+    const ledgers = rawLedgers.map((l: any) => ({
+      ...l,
+      openingBalance: l.openingBal ?? 0,
+      balanceType: l.balanceType || 'Dr',
+      pan: l.panItNo || '',
+    }));
     return NextResponse.json({ success: true, ledgers });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -26,7 +26,7 @@ interface Ledger {
   openingBalance: number; balanceType: 'Dr' | 'Cr';
   address?: string; state?: string; country?: string;
   gstin?: string; pan?: string; phone?: string; email?: string;
-  registrationType?: string; bankName?: string; accountNo?: string; ifsc?: string;
+  registrationType?: string; bankName?: string; accountNo?: string; ifsc?: string; pinCode?: string;
 }
 interface StockGroup { id: number; companyId: number; name: string; alias?: string; under: string; }
 interface StockCategory { id: number; companyId: number; name: string; alias?: string; under: string; }
@@ -315,12 +315,26 @@ const INIT_LEDGERS: Ledger[] = [];
 const INIT_STOCK_ITEMS: StockItem[] = [];
 
 const INIT_UNITS: UnitData[] = [
-  { id:1, companyId:1, name:"Nos",   symbol:"Nos",   formalName:"Numbers",    uqc:"NOS", decimalPlaces:0 },
-  { id:2, companyId:1, name:"Kgs",   symbol:"Kgs",   formalName:"Kilograms",  uqc:"KGS", decimalPlaces:3 },
-  { id:3, companyId:1, name:"Pcs",   symbol:"Pcs",   formalName:"Pieces",     uqc:"PCS", decimalPlaces:0 },
-  { id:4, companyId:1, name:"Box",   symbol:"Box",   formalName:"Boxes",      uqc:"BOX", decimalPlaces:0 },
-  { id:5, companyId:1, name:"Rolls", symbol:"Rolls", formalName:"Rolls",      uqc:"ROL", decimalPlaces:0 },
-  { id:6, companyId:1, name:"Mtr",   symbol:"Mtr",   formalName:"Meters",     uqc:"MTR", decimalPlaces:2 },
+  { id:-1, companyId:-1, name:"Nos",   symbol:"Nos",   formalName:"Numbers",     uqc:"NOS", decimalPlaces:0 },
+  { id:-2, companyId:-1, name:"Pcs",   symbol:"Pcs",   formalName:"Pieces",      uqc:"PCS", decimalPlaces:0 },
+  { id:-3, companyId:-1, name:"Kg",    symbol:"Kg",    formalName:"Kilogram",    uqc:"KGS", decimalPlaces:3 },
+  { id:-4, companyId:-1, name:"Gms",   symbol:"Gms",   formalName:"Grams",       uqc:"GMS", decimalPlaces:0 },
+  { id:-5, companyId:-1, name:"Ltr",   symbol:"Ltr",   formalName:"Litre",       uqc:"LTR", decimalPlaces:3 },
+  { id:-6, companyId:-1, name:"Mtr",   symbol:"Mtr",   formalName:"Meter",       uqc:"MTR", decimalPlaces:2 },
+  { id:-7, companyId:-1, name:"Set",   symbol:"Set",   formalName:"Set",         uqc:"SET", decimalPlaces:0 },
+  { id:-8, companyId:-1, name:"Bdl",   symbol:"Bdl",   formalName:"Bundle",      uqc:"BDL", decimalPlaces:0 },
+  { id:-9, companyId:-1, name:"Cft",   symbol:"Cft",   formalName:"Cubic Feet",  uqc:"CFT", decimalPlaces:2 },
+  { id:-10, companyId:-1, name:"Sqft", symbol:"Sqft",  formalName:"Square Feet", uqc:"SQF", decimalPlaces:2 },
+  { id:-11, companyId:-1, name:"Box",  symbol:"Box",   formalName:"Boxes",       uqc:"BOX", decimalPlaces:0 },
+  { id:-12, companyId:-1, name:"Dzn",  symbol:"Dzn",   formalName:"Dozen",       uqc:"DZN", decimalPlaces:0 },
+  { id:-13, companyId:-1, name:"Btl",  symbol:"Btl",   formalName:"Bottles",     uqc:"BTL", decimalPlaces:0 },
+  { id:-14, companyId:-1, name:"Bag",  symbol:"Bag",   formalName:"Bags",        uqc:"BAG", decimalPlaces:0 },
+  { id:-15, companyId:-1, name:"Tons", symbol:"Tons",  formalName:"Metric Tons", uqc:"MTS", decimalPlaces:3 },
+  { id:-16, companyId:-1, name:"Kits", symbol:"Kits",  formalName:"Kits",        uqc:"KIT", decimalPlaces:0 },
+  { id:-17, companyId:-1, name:"Pack", symbol:"Pack",  formalName:"Packs",       uqc:"PAC", decimalPlaces:0 },
+  { id:-18, companyId:-1, name:"Rol",  symbol:"Rol",   formalName:"Rolls",       uqc:"ROL", decimalPlaces:0 },
+  { id:-19, companyId:-1, name:"Ctn",  symbol:"Ctn",   formalName:"Cartons",     uqc:"CTN", decimalPlaces:0 },
+  { id:-20, companyId:-1, name:"Pair", symbol:"Pair",  formalName:"Pairs",       uqc:"PAR", decimalPlaces:0 }
 ];
 
 const INIT_STOCK_GROUPS: StockGroup[] = [];
@@ -778,8 +792,13 @@ export default function App() {
     const localActive = getUStored('activeCompany', null);
     if (localActive) setActiveCompany(localActive);
 
-    // Also load others if they are empty
-    if (allUnits.length === 0) setAllUnits(getUStored('allUnits', []));
+    const storedUnits = getUStored('allUnits', INIT_UNITS);
+    const missingInitUnits = INIT_UNITS.filter(iu => !storedUnits.some((eu: any) => eu.name === iu.name && Number(eu.companyId) === -1));
+    if (missingInitUnits.length > 0) {
+      setAllUnits([...storedUnits, ...missingInitUnits]);
+    } else {
+      setAllUnits(storedUnits.length > 0 ? storedUnits : INIT_UNITS);
+    }
     if (allStockItems.length === 0) setAllStockItems(getUStored('allStockItems', []));
     if (allGroups.length === 0) setAllGroups(getUStored('allGroups', TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: -1, name: g, under: 'Primary' }))));
 
@@ -950,7 +969,19 @@ export default function App() {
   const stockGroups    = useMemo(() => activeCompany ? allStockGroups.filter(sg => Number(sg.companyId) === Number(activeCompany.id)) : [], [allStockGroups, activeCompany]);
   const stockCategories = useMemo(() => activeCompany ? allStockCategories.filter(sc => Number(sc.companyId) === Number(activeCompany.id)) : [], [allStockCategories, activeCompany]);
   const stockItems     = useMemo(() => activeCompany ? allStockItems.filter(si => Number(si.companyId) === Number(activeCompany.id)) : [], [allStockItems, activeCompany]);
-  const units          = useMemo(() => activeCompany ? allUnits.filter(u => Number(u.companyId) === Number(activeCompany.id)) : [], [allUnits, activeCompany]);
+  const units          = useMemo(() => {
+    if (!activeCompany) return [];
+    const defaults = allUnits.filter(u => Number(u.companyId) === 1 || Number(u.companyId) === -1);
+    const companyUnits = allUnits.filter(u => Number(u.companyId) === Number(activeCompany.id));
+    const merged = [...defaults];
+    companyUnits.forEach(cu => {
+      const cuSym = (cu.symbol || cu.name || '').toLowerCase();
+      if (!merged.find(du => (du.symbol || du.name || '').toLowerCase() === cuSym)) {
+        merged.push(cu);
+      }
+    });
+    return merged;
+  }, [allUnits, activeCompany]);
   const godowns        = useMemo(() => activeCompany ? allGodowns.filter(g => Number(g.companyId) === Number(activeCompany.id)) : [], [allGodowns, activeCompany]);
   const voucherTypes   = useMemo(() => activeCompany ? allVoucherTypes.filter(vt => Number(vt.companyId) === Number(activeCompany.id)) : [], [allVoucherTypes, activeCompany]);
   const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => Number(c.companyId) === Number(activeCompany.id)) : [], [allCurrencies, activeCompany]);
@@ -1007,24 +1038,46 @@ export default function App() {
           });
           if (res.ok) {
             const resData = await res.json();
-            setAllLedgers(p => p.map(x => x.id === alterItem.id ? resData.ledger : x));
-            return resData.ledger;
+            // Map DB field names back to frontend interface field names
+            const updated = {
+              ...alterItem,
+              ...data,
+              id: alterItem.id,
+              openingBalance: resData.ledger?.openingBalance ?? data.openingBalance,
+              pan: resData.ledger?.pan ?? data.pan,
+            };
+            setAllLedgers(p => p.map(x => x.id === alterItem.id ? { ...x, ...updated } : x));
+            return updated;
+          } else {
+            // Fallback: update UI even if API fails
+            const updated = { ...alterItem, ...data, id: alterItem.id };
+            setAllLedgers(p => p.map(x => x.id === alterItem.id ? { ...x, ...updated } : x));
+            return updated;
           }
-        } catch (e) { console.error("Ledger update failed", e); }
+        } catch (e) {
+          console.error("Ledger update failed, applying local fallback", e);
+          const updated = { ...alterItem, ...data, id: alterItem.id };
+          setAllLedgers(p => p.map(x => x.id === alterItem.id ? { ...x, ...updated } : x));
+          return updated;
+        }
       }
       else if (type === 'stockItem') {
         try {
           const res = await fetch('/api/stock-items', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: alterItem.id, ...data })
+            body: JSON.stringify({ id: alterItem.id, companyId: cid, ...data })
           });
           if (res.ok) {
             const resData = await res.json();
             setAllStockItems(p => p.map(x => x.id === alterItem.id ? resData.item : x));
             return resData.item;
-          }
-        } catch (e) { console.error("Item update failed", e); }
+          } else throw new Error(await res.text());
+        } catch (e) { 
+          const updatedItem = { ...alterItem, ...data };
+          setAllStockItems(p => p.map(x => x.id === alterItem.id ? updatedItem : x)); 
+          return updatedItem;
+        }
       }
       else if (type === 'group') setAllGroups(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
       else if (type === 'stockGroup') {
@@ -1038,7 +1091,7 @@ export default function App() {
             const resData = await res.json();
             setAllStockGroups(p => p.map(x => x.id === alterItem.id ? resData.group : x));
             return resData.group;
-          }
+          } else throw new Error(await res.text());
         } catch (e) { console.error("Stock Group update failed", e); }
       }
       else if (type === 'unit') {
@@ -1052,7 +1105,7 @@ export default function App() {
             const resData = await res.json();
             setAllUnits(p => p.map(x => x.id === alterItem.id ? resData.unit : x));
             return resData.unit;
-          }
+          } else throw new Error(await res.text());
         } catch (e) { console.error("Unit update failed", e); }
       }
       else if (type === 'company') {
@@ -1083,7 +1136,7 @@ export default function App() {
             const resData = await res.json();
             setAllLedgers(p => [...p, resData.ledger]);
             return resData.ledger;
-          }
+          } else throw new Error(await res.text());
         } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllLedgers(p => [...p, newItem]); return newItem; }
       }
       else if (type === 'stockItem') {
@@ -1097,7 +1150,7 @@ export default function App() {
             const resData = await res.json();
             setAllStockItems(p => [...p, resData.item]);
             return resData.item;
-          }
+          } else throw new Error(await res.text());
         } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllStockItems(p => [...p, newItem]); return newItem; }
       }
       else if (type === 'unit') {
@@ -1111,7 +1164,7 @@ export default function App() {
             const resData = await res.json();
             setAllUnits(p => [...p, resData.unit]);
             return resData.unit;
-          }
+          } else throw new Error(await res.text());
         } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllUnits(p => [...p, newItem]); return newItem; }
       }
       else if (type === 'stockGroup') {
@@ -1125,7 +1178,7 @@ export default function App() {
             const resData = await res.json();
             setAllStockGroups(p => [...p, resData.group]);
             return resData.group;
-          }
+          } else throw new Error(await res.text());
         } catch (e) { setAllStockGroups(p => [...p, { id, companyId: cid, ...data }]); }
       }
       else if (type === 'company') {
@@ -1146,6 +1199,7 @@ export default function App() {
             setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
             setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
             setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
+            setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id }))]);
             setActiveCompany(newCo);
             return newCo;
           }
@@ -1391,7 +1445,7 @@ export default function App() {
           type = 'group'; data = { name, alias: fv('g-alias'), under: fv('g-under') || 'Primary' };
         } else if (screen === 'LEDGER_CREATION') {
           const name = fv('l-name'); if (!name) { alert('Ledger Name is required!'); document.getElementById('l-name')?.focus(); return; }
-          type = 'ledger'; data = { name, alias: fv('l-alias'), groupName: fv('l-under') || 'Sundry Debtors', address: fv('l-addr'), state: fv('l-state'), country: fv('l-country'), gstin: fv('l-gst'), pan: fv('l-pan'), ifsc: fv('l-ifsc'), phone: fv('l-phone'), openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' };
+          type = 'ledger'; data = { name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors', address: fv('l-addr'), state: fv('l-state'), country: fv('l-country'), gstin: fv('l-gst'), pan: fv('l-pan'), registrationType: fsv('l-reg'), ifsc: fv('l-ifsc'), bankName: fv('l-bank'), accountNo: fv('l-acc'), phone: fv('l-phone'), email: fv('l-email'), pinCode: fv('l-pin'), openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' };
         } else if (screen === 'STOCK_GROUP_CREATION') {
           const name = fv('sg-name'); if (!name) { alert('Stock Group Name is required!'); return; }
           type = 'stockGroup'; data = { name, alias: fv('sg-alias'), under: fv('sg-under') || 'Primary' };
@@ -1414,7 +1468,7 @@ export default function App() {
             category: fv('item-cat') || 'Not Applicable', 
             unit: matchedUnit.name, 
             unitId: matchedUnit.id,
-            gstRate: parseFloat(fv('item-gst')) || 18, 
+            gstRate: fv('item-gst') ? parseFloat(fv('item-gst')) : 18, 
             hsnCode: fv('item-hsn'), 
             openingQty: parseFloat(fv('item-oqty')) || 0, 
             openingRate: parseFloat(fv('item-orate')) || 0 
@@ -1453,12 +1507,13 @@ export default function App() {
             showEmail: (document.querySelector('input[type="checkbox"][id*="email"]') as HTMLInputElement)?.checked ?? true,
             showWebsite: (document.querySelector('input[type="checkbox"][id*="web"]') as HTMLInputElement)?.checked ?? true,
             logo: logoEl?.src || null,
-            showLogo: (document.querySelector('input[type="checkbox"][id*="Logo"]') as HTMLInputElement)?.checked ?? false
           };
         }
-          const savedObj = await saveMaster(type, data);
-          if (savedObj) {
-            const newItem = typeof savedObj === 'object' ? savedObj : { ...data, id: Date.now() };
+
+        if (!data) return;
+        const savedObj = await saveMaster(type, data);
+        if (savedObj) {
+          const newItem = typeof savedObj === 'object' ? savedObj : { ...data, id: Date.now() };
 
             if (altCReturnContext) {
               setAltCReturnContext({ ...altCReturnContext, newItem });
@@ -1548,6 +1603,7 @@ export default function App() {
           }
         }
         if (e.key === 'Enter') {
+          if (e.defaultPrevented) return;
           const activeId = (document.activeElement as HTMLElement)?.id || '';
           const dropdowns = ['l-under','g-under','c-state','c-country','l-state','l-country','item-under','item-units','item-cat','sg-under','sc-under','vt-parent','gd-under'];
           if (dropdowns.includes(activeId)) return;
@@ -2888,17 +2944,18 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
           </div>
           <div className="form-row"><label style={{width:140}}>Pincode</label><span className="colon">:</span><input id="l-pin" type="text" className="form-input" style={{width:100}} defaultValue={activeAlterItem?.pinCode||''} onFocus={()=>setFocus(null)}/></div>
           <div className="form-row"><label style={{width:140}}>Phone</label><span className="colon">:</span><input id="l-phone" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.phone||''} onFocus={()=>setFocus(null)}/></div>
+          <div className="form-row"><label style={{width:140}}>E-mail</label><span className="colon">:</span><input id="l-email" type="text" className="form-input" style={{width:220}} defaultValue={activeAlterItem?.email||''} onFocus={()=>setFocus(null)}/></div>
         </div>
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Tax Registration</b>
           <div className="form-row"><label style={{width:180}}>PAN/IT No.</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.pan||''} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select className="form-input" style={{width:180}}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
+          <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select id="l-reg" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType||'Regular'}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
           <div className="form-row"><label style={{width:180}}>GSTIN/UIN</label><span className="colon">:</span><input id="l-gst" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.gstin||''} onFocus={()=>setFocus(null)}/></div>
           <div className="form-row"><label style={{width:180}}>Set/Alter GST Details</label><span className="colon">:</span><select className="form-input"><option>No</option><option>Yes</option></select></div>
           <b style={{display:'block',margin:'15px 0 10px',textDecoration:'underline',fontSize:13,borderTop:'1px solid #eee',paddingTop:12}}>Banking Details</b>
-          <div className="form-row"><label style={{width:180}}>Bank Name</label><span className="colon">:</span><input type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.bankName||''} onFocus={()=>setFocus(null)}/></div>
+          <div className="form-row"><label style={{width:180}}>Bank Name</label><span className="colon">:</span><input id="l-bank" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.bankName||''} onFocus={()=>setFocus(null)}/></div>
           <div className="form-row"><label style={{width:180}}>A/C Holder Name</label><span className="colon">:</span><input type="text" className="form-input" style={{width:200}} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:180}}>A/C No.</label><span className="colon">:</span><input type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.accountNo||''} onFocus={()=>setFocus(null)}/></div>
+          <div className="form-row"><label style={{width:180}}>A/C No.</label><span className="colon">:</span><input id="l-acc" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.accountNo||''} onFocus={()=>setFocus(null)}/></div>
           <div className="form-row"><label style={{width:180}}>IFSC Code</label><span className="colon">:</span><input id="l-ifsc" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.ifsc||''} onFocus={()=>setFocus(null)}/></div>
         </div>
       </div>
@@ -2958,7 +3015,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
             const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
             const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
             const name = fv('l-name'); if (!name) { alert('Ledger Name is required!'); document.getElementById('l-name')?.focus(); return; }
-            const data = { name, alias: fv('l-alias'), groupName: fv('l-under') || 'Sundry Debtors', address: fv('l-addr'), state: fv('l-state'), country: fv('l-country'), gstin: fv('l-gst'), pan: fv('l-pan'), ifsc: fv('l-ifsc'), phone: fv('l-phone'), openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' };
+            const data = { name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors', address: fv('l-addr'), state: fv('l-state'), country: fv('l-country'), gstin: fv('l-gst'), pan: fv('l-pan'), registrationType: fsv('l-reg'), ifsc: fv('l-ifsc'), bankName: fv('l-bank'), accountNo: fv('l-acc'), phone: fv('l-phone'), email: fv('l-email'), pinCode: fv('l-pin'), openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' };
             onSave(data);
           }}>
           ✓ Accept (Ctrl+A)
@@ -3083,13 +3140,17 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   const listRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
 
-  const lists:Record<string,string[]>={
+  const lists:Record<string,any[]>={
     under: stockGroups.map(g=>g.name),
     category: stockCategories.map(c=>c.name),
-    units: units.map(u=>u.symbol || u.name),
-    altunit: ['Not Applicable',...units.map(u=>u.symbol || u.name)],
+    units: units,
+    altunit: [{name:'Not Applicable', symbol:'Not Applicable'}, ...units],
   };
-  const list=(lists[focus||'']||[]).filter(i=>!filter||i.toLowerCase().includes(filter.toLowerCase()));
+  const list=(lists[focus||'']||[]).filter(i=> {
+    if(!filter) return true;
+    if(typeof i === 'string') return i.toLowerCase().includes(filter.toLowerCase());
+    return ((i as any).symbol||(i as any).name||'').toLowerCase().includes(filter.toLowerCase());
+  });
 
   // Filtered stock items for name field
   const filteredStockItems = useMemo(() => {
@@ -3169,7 +3230,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[field]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[field]) as HTMLInputElement;if(inp)inp.value=n;}});return;}
     if(e.key==='ArrowDown'){e.preventDefault();setSel(p=>(p+1)%Math.max(1,list.length));}
     else if(e.key==='ArrowUp'){e.preventDefault();setSel(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
-    else if(e.key==='Enter'&&list.length>0){e.preventDefault();e.stopPropagation();pick(list[sel]);}
+    else if(e.key==='Enter'&&list.length>0){e.preventDefault();e.stopPropagation();const item=list[sel]; pick(typeof item === 'string' ? item : (item as any).symbol || (item as any).name);}
     else if(e.key==='Enter'&&list.length===0){
       e.preventDefault();e.stopPropagation();
       const ids:any={under:'item-under',category:'item-cat',units:'item-units',altunit:'item-altunit'};
@@ -3336,12 +3397,16 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                       color: i===sel ? '#000' : 'inherit',
                       border: i===sel ? '1px solid #fbc02d' : '1px solid transparent',
                       fontWeight: i===sel ? 'bold' : 'normal',
+                      display:'flex',justifyContent:'space-between',alignItems:'center'
                     }}
-                    onMouseDown={e=>{e.preventDefault();pick(typeof item === 'string' ? item : (item as any).name || (item as any).symbol);}}
+                    onMouseDown={e=>{e.preventDefault();pick(typeof item === 'string' ? item : (item as any).symbol || (item as any).name);}}
                     onMouseEnter={()=>setSel(i)}
                   >
-                    {item==='Primary' && <span style={{marginRight:6,color: i===sel?'#fff':'#888'}}>♦</span>}
-                    {typeof item === 'string' ? item : (item as any).name || (item as any).symbol}
+                    <span>
+                      {item==='Primary' && <span style={{marginRight:6,color: i===sel?'#fff':'#888'}}>♦</span>}
+                      {typeof item === 'string' ? item : (item as any).symbol || (item as any).name}
+                    </span>
+                    {typeof item !== 'string' && (item as any).formalName && <span style={{opacity:0.6,fontSize:11}}>{(item as any).formalName}</span>}
                   </div>
                 ))
             )}
@@ -3379,7 +3444,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               category: fv('item-cat') || 'Not Applicable', 
               unit: matchedUnit.symbol || matchedUnit.name, 
               unitId: matchedUnit.id,
-              gstRate: parseFloat(fv('item-gst')) || 18, 
+              gstRate: fv('item-gst') ? parseFloat(fv('item-gst')) : 18, 
               hsnCode: fv('item-hsn'), 
               openingQty: parseFloat(fv('item-oqty')) || 0, 
               openingRate: parseFloat(fv('item-orate')) || 0 
@@ -3397,39 +3462,41 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
   return (
-    <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
-      <div style={{flex:1,padding:20}}>
-        <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Unit {activeAlterItem?'Alteration':'Creation'}</div>
-        {[
-          ['Symbol (Short Name)', 'unit-sym', 100, 'e.g. Nos', activeAlterItem?.symbol || activeAlterItem?.name],
-          ['Formal Name', 'unit-name', 260, 'e.g. Numbers', activeAlterItem?.formalName],
-          ['Unit Quantity Code (GST)', 'unit-uqc', 100, 'NOS', activeAlterItem?.uqc]
-        ].map(([label, id, w, ph, val], i) => (
-          <div key={i} className="form-row">
-            <label style={{width:200}}>{label}</label><span className="colon">:</span>
-            <input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:i===0?'bold':'normal'}} defaultValue={val as string || ''} placeholder={ph as string}/>
-          </div>
-        ))}
-        <div className="form-row"><label style={{width:200}}>Number of Decimal Places</label><span className="colon">:</span><input id="unit-decimal" type="text" className="form-input" style={{width:60,textAlign:'center',fontWeight:'bold'}} defaultValue={activeAlterItem?.decimalPlaces || '0'}/></div>
-        <div style={{marginTop:25,borderTop:'1px solid #eee',paddingTop:15}}>
-          <div className="form-section-title" style={{marginTop:0}}>Compound Unit (Optional)</div>
-          <div className="form-row"><label style={{width:200}}>Is it a compound unit?</label><span className="colon">:</span><select className="form-input" style={{width:80}}><option>No</option><option>Yes</option></select></div>
-          <div style={{padding:10,background:'#f7f7f7',border:'1px solid #ddd',fontSize:12,marginTop:10,color:'#555'}}>
-            Compound unit example: 1 Box = 12 Nos. Enable this to define relationships between units.
+    <div className="form-content" style={{display:'flex',flexDirection:'column',height:'100%',padding:0}}>
+      <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+        <div style={{flex:1,padding:20,overflowY:'auto'}}>
+          <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Unit {activeAlterItem?'Alteration':'Creation'}</div>
+          {[
+            ['Symbol (Short Name)', 'unit-sym', 100, 'e.g. Nos', activeAlterItem?.symbol || activeAlterItem?.name],
+            ['Formal Name', 'unit-name', 260, 'e.g. Numbers', activeAlterItem?.formalName],
+            ['Unit Quantity Code (GST)', 'unit-uqc', 100, 'NOS', activeAlterItem?.uqc]
+          ].map(([label, id, w, ph, val], i) => (
+            <div key={i} className="form-row">
+              <label style={{width:200}}>{label}</label><span className="colon">:</span>
+              <input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:i===0?'bold':'normal'}} defaultValue={val as string || ''} placeholder={ph as string}/>
+            </div>
+          ))}
+          <div className="form-row"><label style={{width:200}}>Number of Decimal Places</label><span className="colon">:</span><input id="unit-decimal" type="text" className="form-input" style={{width:60,textAlign:'center',fontWeight:'bold'}} defaultValue={activeAlterItem?.decimalPlaces || '0'}/></div>
+          <div style={{marginTop:25,borderTop:'1px solid #eee',paddingTop:15}}>
+            <div className="form-section-title" style={{marginTop:0}}>Compound Unit (Optional)</div>
+            <div className="form-row"><label style={{width:200}}>Is it a compound unit?</label><span className="colon">:</span><select className="form-input" style={{width:80}}><option>No</option><option>Yes</option></select></div>
+            <div style={{padding:10,background:'#f7f7f7',border:'1px solid #ddd',fontSize:12,marginTop:10,color:'#555'}}>
+              Compound unit example: 1 Box = 12 Nos. Enable this to define relationships between units.
+            </div>
           </div>
         </div>
+        {activeAlterItem && (
+          <div style={{width:280,borderLeft:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fbfdff'}}>
+            <div className="modal-header" style={{fontSize:12}}>List of Units ({units.length})</div>
+            <div style={{flex:1,overflowY:'auto'}}>
+              {units.map((u,i)=><div key={i} className="modal-list-item" style={{fontSize:12,display:'flex',justifyContent:'space-between'}}>
+                <span style={{fontWeight:'bold'}}>{u.symbol || u.name}</span>
+                <span style={{opacity:0.6,fontSize:11}}>{u.formalName}</span>
+              </div>)}
+            </div>
+          </div>
+        )}
       </div>
-      {activeAlterItem && (
-        <div style={{width:280,borderLeft:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fbfdff'}}>
-          <div className="modal-header" style={{fontSize:12}}>List of Units ({units.length})</div>
-          <div style={{flex:1,overflowY:'auto'}}>
-            {units.map((u,i)=><div key={i} className="modal-list-item" style={{fontSize:12,display:'flex',justifyContent:'space-between'}}>
-              <span style={{fontWeight:'bold'}}>{u.symbol || u.name}</span>
-              <span style={{opacity:0.6,fontSize:11}}>{u.formalName}</span>
-            </div>)}
-          </div>
-        </div>
-      )}
       <div className="form-footer" style={{background:'#dde4f0',padding:'10px 20px',display:'flex',justifyContent:'flex-end',gap:10,borderTop:'2px solid #b0bedc'}}>
         {activeAlterItem && onDelete && (
           <button style={{background:'#d93025',color:'white',border:'none',padding:'7px 25px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
@@ -3986,27 +4053,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       setPartyName(l.name);
       const bal=getLedgerClosingBalance(l,vouchers);
       setPartyBalance(bal);
-      // For Sales/Purchase: show Party Details modal (Image 2 style)
-      if(isInventory){
-        const pd:PartyDetails={
-          buyerName:l.name, buyerMailingName:l.name, buyerAddress:l.address||'',
-          buyerState:l.state||'', buyerCountry:l.country||'India', buyerGstin:l.gstin||'', buyerPlace:l.state||'',
-          shipName:l.name, shipMailingName:l.name, shipAddress:l.address||'',
-          shipState:l.state||'', shipCountry:l.country||'India', shipGstin:l.gstin||'', shipPlace:l.state||'',
-          buyerOrderNo:'', buyerOrderDate:'', termsOfDelivery:'',
-        };
-        setPartyDetails(pd);
-        setShowPartyDetails(true);
-      } else {
-        const nextEl=document.getElementById('v-ref') as HTMLInputElement;
-        nextEl?.focus();
-      }
     } else if(focus?.field==='accledger'&&focus.rowIdx!==undefined){
       const idx = focus.rowIdx;
       const ne=[...accEntries];ne[idx]={...ne[idx],ledgerId:l.id,ledgerName:l.name};
       setAccEntries(ne);
-      const type = ne[idx].entryType;
-      setTimeout(() => document.getElementById(`acc-amt-${idx}-${type}`)?.focus(), 80);
     }
     setFocus(null);setFilter('');setListSel(0);
   };
@@ -4024,7 +4074,6 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         hsnCode:it.hsnCode || ''
       };
       setRows(nr);
-      setTimeout(() => document.getElementById(`item-qty-${idx}`)?.focus(), 80);
     }
     setFocus(null);setFilter('');setListSel(99999);
   };
@@ -4218,13 +4267,48 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               value={partyName} onChange={e=>{setPartyName(e.target.value);setFilter(e.target.value);}}
               onFocus={()=>{setFocus({field:'party'});setListSel(0);}}
               onKeyDown={e=>{
+                if (e.ctrlKey && e.key === 'Enter') {
+                  e.preventDefault(); e.stopPropagation();
+                  const l = ledgers.find(lx => lx.name === partyName);
+                  if (l) {
+                    setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'party' });
+                    onNav('LEDGER_CREATION', l);
+                  }
+                  return;
+                }
                 if(e.altKey&&e.key.toLowerCase()==='c'){
                   e.preventDefault(); e.stopPropagation();
                   setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'party' });
                   onNav('LEDGER_CREATION');
                   return;
                 }
-                listKeyDown(e);
+                if(e.key==='Enter'){
+                  e.preventDefault(); e.stopPropagation();
+                  if(focus?.field==='party') {
+                    listKeyDown(e);
+                  } else {
+                    if(isInventory && partyName){
+                      const l = ledgers.find(lx=>lx.name===partyName);
+                      if (l) {
+                        const pd:PartyDetails={
+                          buyerName:l.name, buyerMailingName:l.name, buyerAddress:l.address||'',
+                          buyerState:l.state||'', buyerCountry:l.country||'India', buyerGstin:l.gstin||'', buyerPlace:l.state||'',
+                          shipName:l.name, shipMailingName:l.name, shipAddress:l.address||'',
+                          shipState:l.state||'', shipCountry:l.country||'India', shipGstin:l.gstin||'', shipPlace:l.state||'',
+                          buyerOrderNo:'', buyerOrderDate:'', termsOfDelivery:'',
+                        };
+                        setPartyDetails(pd);
+                        setShowPartyDetails(true);
+                      } else {
+                        setTimeout(()=>document.getElementById('v-ref')?.focus(), 50);
+                      }
+                    } else {
+                      setTimeout(()=>document.getElementById('v-ref')?.focus(), 50);
+                    }
+                  }
+                } else {
+                  listKeyDown(e);
+                }
               }}
               onBlur={()=>setTimeout(()=>setFocus(null),200)}
               placeholder="Select party ledger (Alt+C to create new)"
@@ -4261,6 +4345,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     onFocus={()=>{setFocus({field:'item',rowIdx:idx});setFilter(row.itemName);setListSel(99999);}}
                     onChange={e=>{const nr=[...rows];nr[idx].itemName=e.target.value;setRows(nr);setFilter(e.target.value);}}
                     onKeyDown={e=>{
+                      if (e.ctrlKey && e.key === 'Enter') {
+                        e.preventDefault(); e.stopPropagation();
+                        const it = stockItems.find(x => x.name === row.itemName);
+                        if (it) {
+                          setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'item', rowIdx: idx });
+                          onNav('STOCK_ITEM_CREATION', it);
+                        }
+                        return;
+                      }
                       if(e.altKey&&e.key.toLowerCase()==='c'){
                         e.preventDefault(); e.stopPropagation();
                         setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'item', rowIdx: idx });
@@ -4268,12 +4361,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       }
                       else if(e.key==='Enter'){
                         e.preventDefault(); e.stopPropagation();
-                        if(isEndOfItem){
-                          goToNarration();
-                        } else if(currentList.length > 0 && focus?.field==='item'){
-                          pickItem(currentList[listSel] as StockItem);
+                        if(focus?.field==='item') {
+                          listKeyDown(e);
                         } else {
-                          goToNarration();
+                          if(isEndOfItem) goToNarration();
+                          else if(row.itemName) setTimeout(()=>document.getElementById(`item-qty-${idx}`)?.focus(), 50);
+                          else goToNarration();
                         }
                       } else {
                         listKeyDown(e);
@@ -4377,7 +4470,31 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   placeholder={idx===0?`${activeVoucher==='Payment'||activeVoucher==='Contra'?'Account Dr (who pays)':'Account Dr'}...`:`Account Cr...`}
                   onFocus={()=>{setFocus({field:'accledger',rowIdx:idx});setFilter(entry.ledgerName);setListSel(0);}}
                   onChange={e=>{const ne=[...accEntries];ne[idx].ledgerName=e.target.value;setAccEntries(ne);setFilter(e.target.value);}}
-                  onKeyDown={e=>{if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault(); e.stopPropagation(); setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx }); onNav('LEDGER_CREATION'); }else listKeyDown(e);}}
+                  onKeyDown={e=>{
+                    if (e.ctrlKey && e.key === 'Enter') {
+                      e.preventDefault(); e.stopPropagation();
+                      const l = ledgers.find(lx => lx.name === entry.ledgerName);
+                      if (l) {
+                        setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx });
+                        onNav('LEDGER_CREATION', l);
+                      }
+                      return;
+                    }
+                    if(e.altKey&&e.key.toLowerCase()==='c'){
+                      e.preventDefault(); e.stopPropagation(); 
+                      setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx }); 
+                      onNav('LEDGER_CREATION'); 
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault(); e.stopPropagation();
+                      if(focus?.field==='accledger') {
+                        listKeyDown(e);
+                      } else {
+                        setTimeout(() => document.getElementById(`acc-amt-${idx}-${entry.entryType}`)?.focus(), 50);
+                      }
+                    } else {
+                      listKeyDown(e);
+                    }
+                  }}
                   onBlur={()=>setTimeout(()=>setFocus(f=>f?.field==='accledger'&&f.rowIdx===idx?null:f),200)}
                 />
               </div>

@@ -73,6 +73,13 @@ model Ledger {
   pinCode     String?
   panItNo     String?
   gstin       String?
+  country     String?
+  phone       String?
+  email       String?
+  registrationType String?
+  bankName    String?
+  accountNo   String?
+  ifsc        String?
   openingBal  Float   @default(0.0)
   balanceType String @default("Dr") // Dr or Cr
   companyId Int
@@ -131,7 +138,10 @@ model StockItem {
   unit      Unit? @relation(fields: [unitId], references: [id])
   openingQty Float    @default(0)
   openingVal Float    @default(0)
+  openingRate Float   @default(0)
   gstApplicable String @default("Applicable")
+  gstRate     Float   @default(18)
+  hsnCode     String?
   companyId Int
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   inventoryEntries InventoryEntry[]
