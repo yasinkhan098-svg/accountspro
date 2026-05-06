@@ -58,7 +58,7 @@ type UserRole = 'Admin' | 'Accountant' | 'Data Entry' | 'Viewer';
 interface AppUser { id: number; username: string; role: UserRole; email?: string; }
 
 interface VoucherEntry { id: number; ledgerId: number; ledgerName: string; amount: number; entryType: 'Dr' | 'Cr'; narration?: string; }
-interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; gstRate: number; hsnCode?: string; altQty?: string; }
+interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; }
 
 interface VoucherRow {
   itemId: number;
