@@ -36,6 +36,8 @@ export async function POST(req: Request) {
         swiftCode: data.swiftCode || '',
         financialYearStart: new Date(data.financialYearStart || '2026-04-01'),
         booksBeginFrom: new Date(data.booksBeginFrom || '2026-04-01'),
+        registrationType: data.registrationType || 'Regular',
+        pan: data.pan || '',
         securityControl: data.securityControl || false,
         password: data.password || null
       }
@@ -87,6 +89,8 @@ export async function PUT(req: Request) {
         swiftCode: data.swiftCode || '',
         financialYearStart: new Date(data.financialYearStart || '2026-04-01'),
         booksBeginFrom: new Date(data.booksBeginFrom || '2026-04-01'),
+        registrationType: data.registrationType || 'Regular',
+        pan: data.pan || '',
         securityControl: data.securityControl || false,
         password: data.password || null
       }

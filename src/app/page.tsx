@@ -24,9 +24,10 @@ type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | '
 interface Ledger {
   id: number; companyId: number; name: string; alias?: string; groupName: string;
   openingBalance: number; balanceType: 'Dr' | 'Cr';
-  address?: string; state?: string; country?: string;
+  mailingName?: string; address?: string; state?: string; country?: string;
   gstin?: string; pan?: string; phone?: string; email?: string;
   registrationType?: string; bankName?: string; accountNo?: string; ifsc?: string; pinCode?: string;
+  bankHolderName?: string; setAlterGstDetails?: string;
 }
 interface StockGroup { id: number; companyId: number; name: string; alias?: string; under: string; }
 interface StockCategory { id: number; companyId: number; name: string; alias?: string; under: string; }
@@ -34,6 +35,12 @@ interface StockItem {
   id: number; companyId: number; name: string; alias?: string; under: string; category: string;
   unit: any; altUnit?: any; gstRate: number; hsnCode?: string;
   openingQty: number; openingRate: number;
+  showInclTax?: boolean;
+  showAmtInclTax?: boolean;
+  gstApplicable?: string;
+  typeOfSupply?: string;
+  costingMethod?: string;
+  marketValuationMethod?: string;
 }
 interface UnitData { id: number; companyId: number; name: string; symbol: string; formalName: string; uqc: string; decimalPlaces: number; }
 interface GodownData { id: number; companyId: number; name: string; alias?: string; under: string; address?: string; }
@@ -51,13 +58,15 @@ type UserRole = 'Admin' | 'Accountant' | 'Data Entry' | 'Viewer';
 interface AppUser { id: number; username: string; role: UserRole; email?: string; }
 
 interface VoucherEntry { id: number; ledgerId: number; ledgerName: string; amount: number; entryType: 'Dr' | 'Cr'; narration?: string; }
-interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; unit: string; amount: number; gstRate: number; hsnCode?: string; altQty?: string; }
+interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; gstRate: number; hsnCode?: string; altQty?: string; }
 
 interface VoucherRow {
   itemId: number;
   itemName: string;
   qty: number;
   rate: number;
+  rateInclTax: number;
+  amountInclTax: number;
   unit: string;
   amount: number;
   gstRate: number;
@@ -91,7 +100,7 @@ interface Voucher {
   dispatchDetails?: DispatchDetails;
 }
 interface MenuOption { label: string; highlight: string; action: () => void; category?: 'header' | 'item'; }
-interface AltCContext { fieldType: 'ledger' | 'group' | 'stockItem' | 'stockGroup' | 'unit' | 'currency' | 'voucherType' | 'godown' | 'stockCategory'; onCreated: (name: string) => void; }
+interface AltCContext { fieldType: 'ledger' | 'group' | 'stockItem' | 'stockGroup' | 'unit' | 'currency' | 'voucherType' | 'godown' | 'stockCategory'; onCreated: (newItem: any) => void; activeAlterItem?: any; }
 
 // ==================== STATIC DATA ====================
 const TALLY_GROUPS = [
@@ -1024,40 +1033,38 @@ export default function App() {
   }, [history]);
 
   // Save master
-  const saveMaster = async (type: string, data: any) => {
+  const saveMaster = async (type: string, data: any, existingItem?: any) => {
     const token = authClient.getToken();
     const cid = activeCompany?.id || 0;
+    const targetItem = existingItem || alterItem;
 
-    if (alterItem && alterItem.id) {
+    if (targetItem && targetItem.id) {
       if (type === 'ledger') {
         try {
           const res = await fetch('/api/ledgers', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: alterItem.id, ...data })
+            body: JSON.stringify({ id: targetItem.id, ...data })
           });
           if (res.ok) {
             const resData = await res.json();
-            // Map DB field names back to frontend interface field names
             const updated = {
-              ...alterItem,
+              ...targetItem,
               ...data,
-              id: alterItem.id,
+              id: targetItem.id,
               openingBalance: resData.ledger?.openingBalance ?? data.openingBalance,
               pan: resData.ledger?.pan ?? data.pan,
             };
-            setAllLedgers(p => p.map(x => x.id === alterItem.id ? { ...x, ...updated } : x));
+            setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
             return updated;
           } else {
-            // Fallback: update UI even if API fails
-            const updated = { ...alterItem, ...data, id: alterItem.id };
-            setAllLedgers(p => p.map(x => x.id === alterItem.id ? { ...x, ...updated } : x));
+            const updated = { ...targetItem, ...data, id: targetItem.id };
+            setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
             return updated;
           }
         } catch (e) {
-          console.error("Ledger update failed, applying local fallback", e);
-          const updated = { ...alterItem, ...data, id: alterItem.id };
-          setAllLedgers(p => p.map(x => x.id === alterItem.id ? { ...x, ...updated } : x));
+          const updated = { ...targetItem, ...data, id: targetItem.id };
+          setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
           return updated;
         }
       }
@@ -1066,30 +1073,30 @@ export default function App() {
           const res = await fetch('/api/stock-items', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: alterItem.id, companyId: cid, ...data })
+            body: JSON.stringify({ id: targetItem.id, companyId: cid, ...data })
           });
           if (res.ok) {
             const resData = await res.json();
-            setAllStockItems(p => p.map(x => x.id === alterItem.id ? resData.item : x));
+            setAllStockItems(p => p.map(x => x.id === targetItem.id ? resData.item : x));
             return resData.item;
           } else throw new Error(await res.text());
         } catch (e) { 
-          const updatedItem = { ...alterItem, ...data };
-          setAllStockItems(p => p.map(x => x.id === alterItem.id ? updatedItem : x)); 
+          const updatedItem = { ...targetItem, ...data };
+          setAllStockItems(p => p.map(x => x.id === targetItem.id ? updatedItem : x)); 
           return updatedItem;
         }
       }
-      else if (type === 'group') setAllGroups(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
+      else if (type === 'group') setAllGroups(p => p.map(x => x.id === targetItem.id ? { ...x, ...data } : x));
       else if (type === 'stockGroup') {
         try {
           const res = await fetch('/api/stock-groups', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: alterItem.id, ...data })
+            body: JSON.stringify({ id: targetItem.id, ...data })
           });
           if (res.ok) {
             const resData = await res.json();
-            setAllStockGroups(p => p.map(x => x.id === alterItem.id ? resData.group : x));
+            setAllStockGroups(p => p.map(x => x.id === targetItem.id ? resData.group : x));
             return resData.group;
           } else throw new Error(await res.text());
         } catch (e) { console.error("Stock Group update failed", e); }
@@ -1099,25 +1106,25 @@ export default function App() {
           const res = await fetch('/api/units', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: alterItem.id, ...data })
+            body: JSON.stringify({ id: targetItem.id, ...data })
           });
           if (res.ok) {
             const resData = await res.json();
-            setAllUnits(p => p.map(x => x.id === alterItem.id ? resData.unit : x));
+            setAllUnits(p => p.map(x => x.id === targetItem.id ? resData.unit : x));
             return resData.unit;
           } else throw new Error(await res.text());
         } catch (e) { console.error("Unit update failed", e); }
       }
       else if (type === 'company') {
-        setCompanies(p => p.map(x => x.id === alterItem.id ? { ...x, ...data } : x));
-        if (activeCompany && activeCompany.id === alterItem.id) {
+        setCompanies(p => p.map(x => x.id === targetItem.id ? { ...x, ...data } : x));
+        if (activeCompany && activeCompany.id === targetItem.id) {
           setActiveCompany({ ...activeCompany, ...data });
         }
         try {
           const res = await fetch('/api/companies', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: alterItem.id, ...data })
+            body: JSON.stringify({ id: targetItem.id, ...data })
           });
           if (!res.ok) return false;
         } catch (e) { return false; }
@@ -1924,15 +1931,15 @@ export default function App() {
         {isFormScreen && (
           <div className="form-workspace">
             {screen==='COMPANY_CREATION'    && <CompanyCreationForm    key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('company',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='GROUP_CREATION'      && <GroupCreationForm      key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('group',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
-            {screen==='LEDGER_CREATION'     && <LedgerCreationForm     key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('ledger',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
-            {screen==='CURRENCY_CREATION'   && <CurrencyCreationForm   key={formKey} activeAlterItem={alterItem} currencies={currencies} onSave={async d=>{const ok=await saveMaster('currency',d); if(ok){alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
-            {screen==='VOUCHER_TYPE_CREATION'&& <VoucherTypeCreationForm key={formKey} activeAlterItem={alterItem} voucherTypes={voucherTypes} onSave={async d=>{const ok=await saveMaster('voucherType',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='STOCK_GROUP_CREATION' && <StockGroupCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} onSave={async d=>{const ok=await saveMaster('stockGroup',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} />}
-            {screen==='STOCK_CATEGORY_CREATION'&&<StockCategoryCreationForm key={formKey} activeAlterItem={alterItem} stockCategories={stockCategories} onSave={async d=>{const ok=await saveMaster('stockCategory',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} />}
-            {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
-            {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
+            {screen==='GROUP_CREATION'      && <GroupCreationForm      key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('group',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
+            {screen==='LEDGER_CREATION'     && <LedgerCreationForm     key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('ledger',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
+            {screen==='CURRENCY_CREATION'   && <CurrencyCreationForm   key={formKey} activeAlterItem={alterItem} currencies={currencies} onSave={async d=>{const ok=await saveMaster('currency',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
+            {screen==='VOUCHER_TYPE_CREATION'&& <VoucherTypeCreationForm key={formKey} activeAlterItem={alterItem} voucherTypes={voucherTypes} onSave={async d=>{const ok=await saveMaster('voucherType',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
+            {screen==='STOCK_GROUP_CREATION' && <StockGroupCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} onSave={async d=>{const ok=await saveMaster('stockGroup',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} />}
+            {screen==='STOCK_CATEGORY_CREATION'&&<StockCategoryCreationForm key={formKey} activeAlterItem={alterItem} stockCategories={stockCategories} onSave={async d=>{const ok=await saveMaster('stockCategory',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
+            {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} />}
+            {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
+            {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
             {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={setAltCCtx} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} />}
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
@@ -2003,9 +2010,20 @@ export default function App() {
 
       {/* ====== MODALS ====== */}
       {altCCtx && (
-        <AltCModal ctx={altCCtx} ledgers={ledgers} stockGroups={stockGroups} units={units} voucherTypes={voucherTypes} groups={groups}
-          onClose={()=>setAltCCtx(null)}
-          onCreated={async (type,data)=>{ await saveMaster(type,data); altCCtx.onCreated(data.name||data.symbol||''); setAltCCtx(null); }}
+        <AltCModal 
+          ctx={altCCtx} 
+          ledgers={ledgers} 
+          stockGroups={stockGroups} 
+          units={units} 
+          voucherTypes={voucherTypes} 
+          groups={groups}
+          stockItems={stockItems}
+          stockCategories={stockCategories}
+          godowns={godowns}
+          currencies={currencies}
+          onClose={() => setAltCCtx(null)}
+          onSaveMaster={saveMaster}
+          onDeleteMaster={deleteMaster}
         />
       )}
 
@@ -2624,7 +2642,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlte
         <div className="form-section-title">Statutory Information</div>
         <div className="form-row"><label style={{width:220}}>Registration Type</label><span className="colon">:</span><select id="c-reg-type" className="form-input" style={{width:160}} defaultValue={activeAlterItem?.registrationType||'Regular'}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
         <div className="form-row"><label style={{width:220}}>GSTIN</label><span className="colon">:</span><input id="c-gstin" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.gstin||''} onInput={e => e.currentTarget.value = e.currentTarget.value.toUpperCase()}/></div>
-        <div className="form-row"><label style={{width:220}}>PAN No.</label><span className="colon">:</span><input type="text" className="form-input" style={{width:140}}/></div>
+        <div className="form-row"><label style={{width:220}}>PAN No.</label><span className="colon">:</span><input id="c-pan" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.pan||''}/></div>
         <div className="form-section-title">Banking Details</div>
         <div className="form-row"><label style={{width:220}}>Bank Name</label><span className="colon">:</span><input id="c-bank-name" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankName||''}/></div>
         <div className="form-row"><label style={{width:220}}>A/C Holder Name</label><span className="colon">:</span><input id="c-bank-holder" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankHolderName||''} onKeyDown={e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key)){(e.currentTarget as any).dataset.edited='1';}}}/></div>
@@ -2683,6 +2701,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlte
                 booksBeginFrom: (document.getElementById('c-books-start') as HTMLInputElement).value,
                 registrationType: (document.getElementById('c-reg-type') as HTMLSelectElement).value,
                 gstin: (document.getElementById('c-gstin') as HTMLInputElement).value,
+                pan: (document.getElementById('c-pan') as HTMLInputElement).value,
                 bankName: (document.getElementById('c-bank-name') as HTMLInputElement).value,
                 bankHolderName: (document.getElementById('c-bank-holder') as HTMLInputElement).value,
                 accountNo: (document.getElementById('c-acc-no') as HTMLInputElement).value,
@@ -2759,7 +2778,7 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
             onInput={e=>{const al=document.getElementById('g-alias') as HTMLInputElement;if(al&&!al.dataset.edited)al.value=e.currentTarget.value;}}/>
         </div>
         <div className="form-row"><label style={{width:100}}>(alias)</label><span className="colon">:</span>
-          <input id="g-alias" type="text" className="form-input" style={{width:360}} onInput={e=>(e.currentTarget.dataset.edited='1')}/>
+          <input id="g-alias" type="text" className="form-input" style={{width:360}} defaultValue={activeAlterItem?.alias||''} onInput={e=>(e.currentTarget.dataset.edited='1')}/>
         </div>
         <div className="form-row" style={{marginTop:20}}>
           <label style={{width:100}}>Under</label><span className="colon">:</span>
@@ -2778,13 +2797,22 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
         </div>
         <div style={{marginTop:30,borderTop:'1px solid #eee',paddingTop:20}}>
           <div className="form-section-title" style={{marginTop:0}}>Group Behaviour</div>
-          {[['Group behaves like a sub-ledger'],['Nett Debit/Credit Balances for Reporting'],['Used for calculation (eg. taxes, discounts)'],['Method to allocate when used in purchase invoice']].map(([label],i)=>(
-            <div key={i} className="form-row" style={{marginBottom:8}}>
-              <label style={{width:380}}>{label}</label><span className="colon">:</span>
-              {i<3?<select className="form-input" style={{width:80}}><option>No</option><option>Yes</option></select>
-               :<select className="form-input" style={{width:200}}><option>Not Applicable</option><option>Apportion by Qty</option><option>Apportion by Value</option></select>}
-            </div>
-          ))}
+          <div className="form-row" style={{marginBottom:8}}>
+            <label style={{width:380}}>Group behaves like a sub-ledger</label><span className="colon">:</span>
+            <select id="g-subledger" className="form-input" style={{width:80}} defaultValue={activeAlterItem?.behavesLikeSubLedger||'No'}><option>No</option><option>Yes</option></select>
+          </div>
+          <div className="form-row" style={{marginBottom:8}}>
+            <label style={{width:380}}>Nett Debit/Credit Balances for Reporting</label><span className="colon">:</span>
+            <select id="g-nett" className="form-input" style={{width:80}} defaultValue={activeAlterItem?.nettBalances||'No'}><option>No</option><option>Yes</option></select>
+          </div>
+          <div className="form-row" style={{marginBottom:8}}>
+            <label style={{width:380}}>Used for calculation (eg. taxes, discounts)</label><span className="colon">:</span>
+            <select id="g-calc" className="form-input" style={{width:80}} defaultValue={activeAlterItem?.usedForCalculation||'No'}><option>No</option><option>Yes</option></select>
+          </div>
+          <div className="form-row" style={{marginBottom:8}}>
+            <label style={{width:380}}>Method to allocate when used in purchase invoice</label><span className="colon">:</span>
+            <select id="g-alloc" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.allocationMethod||'Not Applicable'}><option>Not Applicable</option><option>Apportion by Qty</option><option>Apportion by Value</option></select>
+          </div>
         </div>
       </div>
       {/* Right list */}
@@ -2810,7 +2838,13 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
           onClick={()=>{
             const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
             const name = fv('g-name'); if (!name) { alert('Group Name is required!'); document.getElementById('g-name')?.focus(); return; }
-            const data = { name, alias: fv('g-alias'), under: fv('g-under') || 'Primary' };
+            const data = { 
+              name, alias: fv('g-alias'), under: fv('g-under') || 'Primary',
+              behavesLikeSubLedger: (document.getElementById('g-subledger') as HTMLSelectElement)?.value || 'No',
+              nettBalances: (document.getElementById('g-nett') as HTMLSelectElement)?.value || 'No',
+              usedForCalculation: (document.getElementById('g-calc') as HTMLSelectElement)?.value || 'No',
+              allocationMethod: (document.getElementById('g-alloc') as HTMLSelectElement)?.value || 'Not Applicable'
+            };
             onSave(data);
           }}>
           ✓ Accept (Ctrl+A)
@@ -2828,6 +2862,9 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const [selCo, setSelCo] = useState(activeAlterItem?.country||'India');
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(()=>{ ref.current?.focus(); },[]);
+
+  const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+  const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
 
   const getList = () => {
     if(focus==='under') return filter ? groups.filter(g=>g.name.toLowerCase().includes(filter.toLowerCase())).map(g=>g.name) : groups.map(g=>g.name);
@@ -2876,17 +2913,38 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
     }, 50);
   };
 
-  const handleFieldKey = (field:string) => (e:React.KeyboardEvent<HTMLInputElement>) => {
+  const handleFieldKey = (field:string) => (e:React.KeyboardEvent) => {
     if(field==='under'&&e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();onAltC({fieldType:'group',onCreated:n=>{const inp=document.getElementById('l-under') as HTMLInputElement;if(inp)inp.value=n;}});return;}
     if(e.key==='ArrowDown'){e.preventDefault();setSelIdx(p=>(p+1)%Math.max(1,list.length));}
     else if(e.key==='ArrowUp'){e.preventDefault();setSelIdx(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
     else if(e.key==='Enter'&&list.length>0){e.preventDefault();e.stopPropagation();pick(list[selIdx]);}
-    else if(e.key==='Enter'&&list.length===0){
-      // No list (filtered to empty) - move to next field
-      e.preventDefault();e.stopPropagation();
-      const ids:any={under:'l-under',country:'l-country',state:'l-state'};
-      const inp=document.getElementById(ids[field]||'') as HTMLInputElement;
-      if(inp){setFocus(null);const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];const idx=inputs.indexOf(inp);if(idx>=0&&idx<inputs.length-1)(inputs[idx+1]).focus();}
+    else if(e.key==='Enter'){
+      e.preventDefault();
+      moveToNext(e.currentTarget.id);
+    }
+  };
+
+  const ledgerFields = [
+    'l-name', 'l-alias', 'l-under', 'l-mail', 'l-addr', 'l-state', 'l-country', 
+    'l-pin', 'l-phone', 'l-email', 'l-pan', 'l-reg', 'l-gst', 'l-gst-alter', 
+    'l-bank', 'l-bank-holder', 'l-acc', 'l-ifsc', 'l-ob', 'l-ob-type', 'btn-save-ledger'
+  ];
+
+  const moveToNext = (currentId: string) => {
+    const idx = ledgerFields.indexOf(currentId);
+    if (idx >= 0 && idx < ledgerFields.length - 1) {
+      const next = document.getElementById(ledgerFields[idx + 1]);
+      if (next) next.focus();
+    }
+  };
+
+  const handleGlobalKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      const target = e.target as HTMLElement;
+      if (target.id === 'btn-save-ledger') return; // Let button handle its own click
+      if (['l-under', 'l-state', 'l-country'].includes(target.id) && list.length > 0) return;
+      e.preventDefault();
+      moveToNext(target.id);
     }
   };
 
@@ -2905,11 +2963,11 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
       <div style={{padding:'15px 25px'}}>
         <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span>
           <input id="l-name" ref={ref} autoFocus type="text" className="form-input" style={{width:400,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
-            onFocus={()=>setFocus(null)}
+            onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}
             onInput={e=>{const al=document.getElementById('l-alias') as HTMLInputElement;const ma=document.getElementById('l-mail') as HTMLInputElement;if(al&&!al.dataset.edited)al.value=e.currentTarget.value;if(ma&&!ma.dataset.edited)ma.value=e.currentTarget.value;}}/>
         </div>
         <div className="form-row"><label style={{width:100}}>(alias)</label><span className="colon">:</span>
-          <input id="l-alias" type="text" className="form-input" style={{width:400}} onFocus={()=>setFocus(null)} onKeyDown={e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key))(e.currentTarget as any).dataset.edited='1';}}/></div>
+          <input id="l-alias" type="text" className="form-input" style={{width:400}} defaultValue={activeAlterItem?.alias||''} onFocus={()=>setFocus(null)} onKeyDown={e=>{handleGlobalKeyDown(e);if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key))(e.currentTarget as any).dataset.edited='1';}}/></div>
         <div className="form-row" style={{marginTop:15}}>
           <label style={{width:100}}>Under</label><span className="colon">:</span>
           <input id="l-under" type="text" className="form-input" style={{width:300,fontWeight:'bold'}}
@@ -2924,8 +2982,8 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
       <div style={{display:'flex',flex:1,borderTop:'1px solid #eee',overflow:'hidden'}}>
         <div style={{flex:1,padding:'15px 25px',borderRight:'1px solid #eee',overflowY:'auto'}}>
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Mailing Details</b>
-          <div className="form-row"><label style={{width:140}}>Name</label><span className="colon">:</span><input id="l-mail" type="text" className="form-input" style={{width:220}} defaultValue={activeAlterItem?.name||''} onFocus={()=>setFocus(null)} onKeyDown={e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key))(e.currentTarget as any).dataset.edited='1';}} /></div>
-          <div className="form-row"><label style={{width:140}}>Address</label><span className="colon">:</span><textarea id="l-addr" className="form-input" style={{height:55,width:220}} defaultValue={activeAlterItem?.address||''} onFocus={()=>setFocus(null)}/></div>
+          <div className="form-row"><label style={{width:140}}>Name</label><span className="colon">:</span><input id="l-mail" type="text" className="form-input" style={{width:220}} defaultValue={activeAlterItem?.mailingName || activeAlterItem?.name || ''} onFocus={()=>setFocus(null)} onKeyDown={e=>{handleGlobalKeyDown(e); if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key))(e.currentTarget as any).dataset.edited='1';}} /></div>
+          <div className="form-row"><label style={{width:140}}>Address</label><span className="colon">:</span><textarea id="l-addr" className="form-input" style={{height:55,width:220}} defaultValue={activeAlterItem?.address||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
           <div className="form-row"><label style={{width:140}}>State</label><span className="colon">:</span>
             <input id="l-state" type="text" className="form-input" style={{width:180}}
               onFocus={()=>{setFocus('state');setFilter('');}}
@@ -2942,32 +3000,31 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
               onBlur={()=>setTimeout(()=>setFocus(p=>p==='country'?null:p),200)}
               defaultValue={selCo} autoComplete="off"/>
           </div>
-          <div className="form-row"><label style={{width:140}}>Pincode</label><span className="colon">:</span><input id="l-pin" type="text" className="form-input" style={{width:100}} defaultValue={activeAlterItem?.pinCode||''} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:140}}>Phone</label><span className="colon">:</span><input id="l-phone" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.phone||''} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:140}}>E-mail</label><span className="colon">:</span><input id="l-email" type="text" className="form-input" style={{width:220}} defaultValue={activeAlterItem?.email||''} onFocus={()=>setFocus(null)}/></div>
+          <div className="form-row"><label style={{width:140}}>Pincode</label><span className="colon">:</span><input id="l-pin" type="text" className="form-input" style={{width:100}} defaultValue={activeAlterItem?.pinCode||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:140}}>Phone</label><span className="colon">:</span><input id="l-phone" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.phone||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:140}}>E-mail</label><span className="colon">:</span><input id="l-email" type="text" className="form-input" style={{width:220}} defaultValue={activeAlterItem?.email||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
         </div>
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Tax Registration</b>
-          <div className="form-row"><label style={{width:180}}>PAN/IT No.</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.pan||''} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select id="l-reg" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType||'Regular'}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
-          <div className="form-row"><label style={{width:180}}>GSTIN/UIN</label><span className="colon">:</span><input id="l-gst" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.gstin||''} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:180}}>Set/Alter GST Details</label><span className="colon">:</span><select className="form-input"><option>No</option><option>Yes</option></select></div>
+          <div className="form-row"><label style={{width:180}}>PAN/IT No.</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.pan||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select id="l-reg" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType||'Regular'} onKeyDown={handleGlobalKeyDown}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
+          <div className="form-row"><label style={{width:180}}>GSTIN/UIN</label><span className="colon">:</span><input id="l-gst" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.gstin||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:180}}>Set/Alter GST Details</label><span className="colon">:</span><select id="l-gst-alter" className="form-input" defaultValue={activeAlterItem?.setAlterGstDetails||'No'} onKeyDown={handleGlobalKeyDown}><option>No</option><option>Yes</option></select></div>
           <b style={{display:'block',margin:'15px 0 10px',textDecoration:'underline',fontSize:13,borderTop:'1px solid #eee',paddingTop:12}}>Banking Details</b>
-          <div className="form-row"><label style={{width:180}}>Bank Name</label><span className="colon">:</span><input id="l-bank" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.bankName||''} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:180}}>A/C Holder Name</label><span className="colon">:</span><input type="text" className="form-input" style={{width:200}} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:180}}>A/C No.</label><span className="colon">:</span><input id="l-acc" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.accountNo||''} onFocus={()=>setFocus(null)}/></div>
-          <div className="form-row"><label style={{width:180}}>IFSC Code</label><span className="colon">:</span><input id="l-ifsc" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.ifsc||''} onFocus={()=>setFocus(null)}/></div>
+          <div className="form-row"><label style={{width:180}}>Bank Name</label><span className="colon">:</span><input id="l-bank" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.bankName||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:180}}>A/C Holder Name</label><span className="colon">:</span><input id="l-bank-holder" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankHolderName||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:180}}>A/C No.</label><span className="colon">:</span><input id="l-acc" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.accountNo||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:180}}>IFSC Code</label><span className="colon">:</span><input id="l-ifsc" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.ifsc||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
         </div>
       </div>
       <div style={{borderTop:'2px solid #1c5282',padding:'12px 25px',background:'#f8f8f8'}}>
         <div className="form-row">
           <label style={{width:200}}>Opening Balance (1-Apr-2026)</label><span className="colon">:</span>
-          <input id="l-ob" type="text" className="form-input" style={{width:150,textAlign:'right',fontWeight:'bold'}} defaultValue={activeAlterItem?.openingBalance||'0.00'} onFocus={()=>setFocus(null)}/>
-          <select id="l-ob-type" className="form-input" style={{width:50,marginLeft:8}}><option>Dr</option><option>Cr</option></select>
+          <input id="l-ob" type="text" className="form-input" style={{width:150,textAlign:'right',fontWeight:'bold'}} defaultValue={activeAlterItem?.openingBalance||'0.00'} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/>
+          <select id="l-ob-type" className="form-input" style={{width:50,marginLeft:8}} defaultValue={activeAlterItem?.balanceType || 'Dr'} onKeyDown={handleGlobalKeyDown}><option>Dr</option><option>Cr</option></select>
         </div>
       </div>
 
-      {/* Right side contextual list panel */}
       {focus && (
         <div style={{position:'fixed',top:60,right:120,bottom:0,width:300,background:'#fbfdff',borderLeft:'2px solid #1c5282',display:'flex',flexDirection:'column',zIndex:1000, boxShadow:'-4px 0 15px rgba(0,0,0,0.1)'}}>
           <div style={{padding:'8px 10px',background:'#1c5282',color:'#fff',fontWeight:'bold',fontSize:12}}>
@@ -3010,12 +3067,18 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
             Delete (Alt+D)
           </button>
         )}
-        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+        <button id="btn-save-ledger" style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
           onClick={()=>{
-            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
-            const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
             const name = fv('l-name'); if (!name) { alert('Ledger Name is required!'); document.getElementById('l-name')?.focus(); return; }
-            const data = { name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors', address: fv('l-addr'), state: fv('l-state'), country: fv('l-country'), gstin: fv('l-gst'), pan: fv('l-pan'), registrationType: fsv('l-reg'), ifsc: fv('l-ifsc'), bankName: fv('l-bank'), accountNo: fv('l-acc'), phone: fv('l-phone'), email: fv('l-email'), pinCode: fv('l-pin'), openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' };
+            const data = { 
+              name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors', 
+              address: (document.getElementById('l-addr') as HTMLTextAreaElement)?.value || '', state: fv('l-state'), country: fv('l-country'), 
+              gstin: fv('l-gst'), pan: fv('l-pan'), registrationType: fsv('l-reg'), 
+              setAlterGstDetails: fsv('l-gst-alter'),
+              ifsc: fv('l-ifsc'), bankName: fv('l-bank'), accountNo: fv('l-acc'), bankHolderName: fv('l-bank-holder'),
+              phone: fv('l-phone'), email: fv('l-email'), pinCode: fv('l-pin'), 
+              openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' 
+            };
             onSave(data);
           }}>
           ✓ Accept (Ctrl+A)
@@ -3137,8 +3200,13 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   const [sel,setSel]=useState(0);
   const [nameFilter, setNameFilter]=useState('');
   const [nameSel, setNameSel]=useState(0);
+  const [showInclTax, setShowInclTax] = useState(activeAlterItem?.showInclTax ?? false);
+  const [showAmtInclTax, setShowAmtInclTax] = useState(activeAlterItem?.showAmtInclTax ?? false);
   const listRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
+
+  const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
+  const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
 
   const lists:Record<string,any[]>={
     under: stockGroups.map(g=>g.name),
@@ -3218,6 +3286,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     if(gstEl) gstEl.value=String(it.gstRate || 18);
     if(oqtyEl) oqtyEl.value=String(it.openingQty || 0);
     if(orateEl) orateEl.value=String(it.openingRate || 0);
+    setShowInclTax(it.showInclTax ?? false);
+    setShowAmtInclTax(it.showAmtInclTax ?? false);
     setFocus(null);
     setTimeout(()=>{
       const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
@@ -3226,28 +3296,51 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     },50);
   };
 
+  const stockItemFields = [
+    'item-name', 'item-alias', 'item-under', 'item-cat', 'item-units', 'item-altunit',
+    'item-hsn', 'item-gst', 'item-show-incl-tax', 'item-show-amt-incl-tax',
+    'item-gst-app', 'item-supply-type', 'item-costing', 'item-market',
+    'item-oqty', 'item-orate', 'btn-save-item'
+  ];
+
+  const moveToNext = (currentId: string) => {
+    const idx = stockItemFields.indexOf(currentId);
+    if (idx >= 0 && idx < stockItemFields.length - 1) {
+      const next = document.getElementById(stockItemFields[idx + 1]);
+      if (next) next.focus();
+    }
+  };
+
+  const handleGlobalKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      const target = e.target as HTMLElement;
+      if (target.id === 'btn-save-item') return;
+      if (target.id === 'item-name' && filteredStockItems.length > 0 && !activeAlterItem) return;
+      if (['item-under', 'item-cat', 'item-units', 'item-altunit'].includes(target.id) && list.length > 0) return;
+      e.preventDefault();
+      moveToNext(target.id);
+    }
+  };
+
   const handleKey=(field:string)=>(e:React.KeyboardEvent<HTMLInputElement>)=>{
     if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[field]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[field]) as HTMLInputElement;if(inp)inp.value=n;}});return;}
     if(e.key==='ArrowDown'){e.preventDefault();setSel(p=>(p+1)%Math.max(1,list.length));}
     else if(e.key==='ArrowUp'){e.preventDefault();setSel(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
     else if(e.key==='Enter'&&list.length>0){e.preventDefault();e.stopPropagation();const item=list[sel]; pick(typeof item === 'string' ? item : (item as any).symbol || (item as any).name);}
-    else if(e.key==='Enter'&&list.length===0){
-      e.preventDefault();e.stopPropagation();
-      const ids:any={under:'item-under',category:'item-cat',units:'item-units',altunit:'item-altunit'};
-      const inp=document.getElementById(ids[field]||'') as HTMLInputElement;
-      if(inp){
-        setFocus(null);
-        const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
-        const idx=inputs.indexOf(inp);
-        if(idx>=0&&idx<inputs.length-1)(inputs[idx+1]).focus();
-      }
+    else if(e.key==='Enter'){
+      e.preventDefault();
+      moveToNext(e.currentTarget.id);
     }
   };
 
   const handleNameKeyDown=(e:React.KeyboardEvent<HTMLInputElement>)=>{
     if(e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();setNameSel(p=>Math.min(p+1,filteredStockItems.length-1));}
     else if(e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();setNameSel(p=>Math.max(p-1,0));}
-    else if(e.key==='Enter'&&filteredStockItems.length>0&&nameFilter){e.preventDefault();e.stopPropagation();pickStockItem(filteredStockItems[nameSel]);}
+    else if(e.key==='Enter'&&filteredStockItems.length>0&&nameFilter&&!activeAlterItem){e.preventDefault();e.stopPropagation();pickStockItem(filteredStockItems[nameSel]);}
+    else if(e.key==='Enter'){
+      e.preventDefault();
+      moveToNext(e.currentTarget.id);
+    }
   };
 
   // Determine right panel content
@@ -3278,8 +3371,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
             />
           </div>
           <div className="form-row"><label style={{width:140}}>(alias)</label><span className="colon">:</span>
-            <input type="text" className="form-input" style={{width:340}} defaultValue={activeAlterItem?.alias||''}
-              onFocus={()=>setFocus(null)}
+            <input id="item-alias" type="text" className="form-input" style={{width:340}} defaultValue={activeAlterItem?.alias||''}
+              onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}
             />
           </div>
           <div style={{marginTop:20}}>
@@ -3331,18 +3424,34 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                 defaultValue={activeAlterItem?.altUnit||'Not Applicable'} autoComplete="off"/>
             </div>
             <div className="form-row"><label style={{width:140}}>HSN/SAC Code</label><span className="colon">:</span>
-              <input id="item-hsn" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.hsnCode||''} onFocus={()=>setFocus(null)}/></div>
+              <input id="item-hsn" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.hsnCode||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
             <div className="form-row"><label style={{width:140}}>GST Rate (%)</label><span className="colon">:</span>
-              <input id="item-gst" type="text" className="form-input" style={{width:80,textAlign:'right'}} defaultValue={activeAlterItem?.gstRate||'18'} onFocus={()=>setFocus(null)}/><span style={{marginLeft:5}}>%</span></div>
+              <input id="item-gst" type="text" className="form-input" style={{width:80,textAlign:'right'}} defaultValue={activeAlterItem?.gstRate||'18'} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/><span style={{marginLeft:5}}>%</span></div>
+            <div className="form-row">
+              <label style={{width:140}}>Show Incl. Tax Rate</label><span className="colon">:</span>
+              <select id="item-show-incl-tax" className="form-input" style={{width:80}} value={showInclTax ? 'Yes' : 'No'} onChange={e=>setShowInclTax(e.target.value==='Yes')} onKeyDown={handleGlobalKeyDown}>
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+              <span style={{marginLeft:10,fontSize:11,color:'#666'}}>(For Voucher Entry)</span>
+            </div>
+            <div className="form-row">
+              <label style={{width:140}}>Show Incl. Tax Amt</label><span className="colon">:</span>
+              <select id="item-show-amt-incl-tax" className="form-input" style={{width:80}} value={showAmtInclTax ? 'Yes' : 'No'} onChange={e=>setShowAmtInclTax(e.target.value==='Yes')} onKeyDown={handleGlobalKeyDown}>
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+              <span style={{marginLeft:10,fontSize:11,color:'#666'}}>(For Voucher Entry)</span>
+            </div>
           </div>
         </div>
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Statutory Details</b>
-          <div className="form-row"><label style={{width:200}}>GST Applicable</label><span className="colon">:</span><select className="form-input" style={{width:140}}><option>Applicable</option><option>Not Applicable</option></select></div>
-          <div className="form-row"><label style={{width:200}}>Type of Supply</label><span className="colon">:</span><select className="form-input" style={{width:140}}><option>Goods</option><option>Services</option></select></div>
+          <div className="form-row"><label style={{width:200}}>GST Applicable</label><span className="colon">:</span><select id="item-gst-app" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.gstApplicable||'Applicable'} onKeyDown={handleGlobalKeyDown}><option>Applicable</option><option>Not Applicable</option></select></div>
+          <div className="form-row"><label style={{width:200}}>Type of Supply</label><span className="colon">:</span><select id="item-supply-type" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.typeOfSupply||'Goods'} onKeyDown={handleGlobalKeyDown}><option>Goods</option><option>Services</option></select></div>
           <b style={{display:'block',margin:'20px 0 10px',textDecoration:'underline',fontSize:13,borderTop:'1px solid #eee',paddingTop:12}}>Costing / Pricing</b>
-          <div className="form-row"><label style={{width:200}}>Costing Method</label><span className="colon">:</span><select className="form-input" style={{width:180}}><option>Average Cost</option><option>FIFO</option><option>LIFO</option><option>Standard Cost</option></select></div>
-          <div className="form-row"><label style={{width:200}}>Market Valuation Method</label><span className="colon">:</span><select className="form-input" style={{width:180}}><option>Average Price</option><option>Last Purchase Price</option><option>Last Sale Price</option></select></div>
+          <div className="form-row"><label style={{width:200}}>Costing Method</label><span className="colon">:</span><select id="item-costing" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.costingMethod||'Average Cost'} onKeyDown={handleGlobalKeyDown}><option>Average Cost</option><option>FIFO</option><option>LIFO</option><option>Standard Cost</option></select></div>
+          <div className="form-row"><label style={{width:200}}>Market Valuation Method</label><span className="colon">:</span><select id="item-market" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.marketValuationMethod||'Average Price'} onKeyDown={handleGlobalKeyDown}><option>Average Price</option><option>Last Purchase Price</option><option>Last Sale Price</option></select></div>
         </div>
       </div>
       <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8'}}>
@@ -3351,8 +3460,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
         </div>
         <div style={{display:'flex',gap:20,alignItems:'center'}}>
           <span style={{width:150,fontSize:12}}>As on 1-Apr-2026</span>
-          <input id="item-oqty" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingQty||'0'} onFocus={()=>setFocus(null)}/>
-          <input id="item-orate" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingRate||'0.00'} onFocus={()=>setFocus(null)}/>
+          <input id="item-oqty" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingQty||'0'} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/>
+          <input id="item-orate" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingRate||'0.00'} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/>
           <span style={{width:60,fontSize:11,textAlign:'center'}}>{typeof currentUnit === 'string' ? currentUnit : (currentUnit as any)?.name || (currentUnit as any)?.symbol || 'Nos'}</span>
           <span style={{width:120,textAlign:'right',fontWeight:'bold',fontSize:13}}>
             ₹ {fmt((activeAlterItem?.openingQty||0)*(activeAlterItem?.openingRate||0))}
@@ -3426,9 +3535,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
             Delete (Alt+D)
           </button>
         )}
-        <button style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+        <button id="btn-save-item" style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
           onClick={()=>{
-            const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
             const name = fv('item-name'); if (!name) { alert('Stock Item Name is required!'); return; }
             const unitName = fv('item-units');
             if (!unitName) { alert('Unit is required!'); document.getElementById('item-units')?.focus(); return; }
@@ -3444,8 +3552,15 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               category: fv('item-cat') || 'Not Applicable', 
               unit: matchedUnit.symbol || matchedUnit.name, 
               unitId: matchedUnit.id,
+              altUnit: fv('item-altunit') || 'Not Applicable',
+              showInclTax,
+              showAmtInclTax,
               gstRate: fv('item-gst') ? parseFloat(fv('item-gst')) : 18, 
               hsnCode: fv('item-hsn'), 
+              gstApplicable: fsv('item-gst-app'),
+              typeOfSupply: fsv('item-supply-type'),
+              costingMethod: fsv('item-costing'),
+              marketValuationMethod: fsv('item-market'),
               openingQty: parseFloat(fv('item-oqty')) || 0, 
               openingRate: parseFloat(fv('item-orate')) || 0 
             };
@@ -3982,7 +4097,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
      if(activeAlterItem) {
        setPartyName(activeAlterItem.partyName);
        setRefNo(activeAlterItem.refNo||'');
-       setRows(activeAlterItem.inventoryEntries?.length>0 ? activeAlterItem.inventoryEntries : [{itemId:0,itemName:'',qty:0,rate:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
+       setRows(activeAlterItem.inventoryEntries?.length>0 
+          ? activeAlterItem.inventoryEntries.map((r:any) => ({
+              ...r,
+              itemId: r.stockItemId,
+              itemName: r.stockItem?.name || '',
+              rateInclTax: r.rateInclTax || (r.rate * (1 + (r.gstRate || 18) / 100)),
+              amountInclTax: r.amountInclTax || (r.amount * (1 + (r.gstRate || 18) / 100))
+            })) 
+          : [{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
        setAccEntries(activeAlterItem.entries?.length>0 ? activeAlterItem.entries : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
        setNarration(activeAlterItem.narration);
        setPartyDetails(activeAlterItem.partyDetails||null);
@@ -3992,7 +4115,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
      } else {
        setPartyName('');
        setRefNo('');
-       setRows([{itemId:0,itemName:'',qty:0,rate:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
+       setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
        setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
        setNarration('');
        setPartyBalance(null);
@@ -4011,6 +4134,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       const { field, rowIdx, newItem } = altCReturnContext;
       if (field === 'party') {
         setPartyName(newItem.name);
+        const bal = getLedgerClosingBalance(newItem, vouchers);
+        setPartyBalance(bal);
         setTimeout(() => document.getElementById('v-ref')?.focus(), 100);
       } else if (field === 'accledger' && rowIdx !== undefined) {
         const ne = [...accEntries];
@@ -4020,13 +4145,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setTimeout(() => document.getElementById(`acc-amt-${rowIdx}-${type}`)?.focus(), 100);
       } else if (field === 'item' && rowIdx !== undefined) {
         const nr = [...rows];
+        const gst = newItem.gstRate || 18;
         nr[rowIdx] = {
           ...nr[rowIdx],
           itemId: newItem.id,
           itemName: newItem.name,
-          unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.name || 'Nos',
-          gstRate: newItem.gstRate || 18,
-          hsnCode: newItem.hsnCode || ''
+          unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.symbol || (newItem.unit as any)?.name || 'Nos',
+          gstRate: gst,
+          hsnCode: newItem.hsnCode || '',
+          rateInclTax: (nr[rowIdx].rate || 0) * (1 + gst / 100),
+          amountInclTax: (nr[rowIdx].amount || 0) * (1 + gst / 100)
         };
         setRows(nr);
         setTimeout(() => document.getElementById(`item-qty-${rowIdx}`)?.focus(), 100);
@@ -4065,13 +4193,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     if(focus?.field==='item'&&focus.rowIdx!==undefined){
       const idx = focus.rowIdx;
       const nr=[...rows];
+      const gst = it.gstRate || 18;
       nr[idx]={
         ...nr[idx],
         itemId:it.id || 0,
         itemName:it.name || '',
-        unit: (typeof it.unit === 'string' ? it.unit : it.unit?.name) || 'Nos',
-        gstRate:it.gstRate || 18,
-        hsnCode:it.hsnCode || ''
+        unit: (typeof it.unit === 'string' ? it.unit : it.unit?.symbol || it.unit?.name) || 'Nos',
+        gstRate: gst,
+        hsnCode:it.hsnCode || '',
+        rateInclTax: (nr[idx].rate || 0) * (1 + gst / 100),
+        amountInclTax: (nr[idx].amount || 0) * (1 + gst / 100)
       };
       setRows(nr);
     }
@@ -4267,19 +4398,34 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               value={partyName} onChange={e=>{setPartyName(e.target.value);setFilter(e.target.value);}}
               onFocus={()=>{setFocus({field:'party'});setListSel(0);}}
               onKeyDown={e=>{
-                if (e.ctrlKey && e.key === 'Enter') {
+                if((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')){
                   e.preventDefault(); e.stopPropagation();
                   const l = ledgers.find(lx => lx.name === partyName);
                   if (l) {
-                    setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'party' });
-                    onNav('LEDGER_CREATION', l);
+                    onAltC({
+                      fieldType: 'ledger',
+                      activeAlterItem: l,
+                      onCreated: (newItem) => {
+                        setPartyName(newItem.name);
+                        const bal = getLedgerClosingBalance(newItem, vouchers);
+                        setPartyBalance(bal);
+                        setTimeout(() => document.getElementById('v-ref')?.focus(), 100);
+                      }
+                    });
                   }
                   return;
                 }
                 if(e.altKey&&e.key.toLowerCase()==='c'){
                   e.preventDefault(); e.stopPropagation();
-                  setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'party' });
-                  onNav('LEDGER_CREATION');
+                  onAltC({
+                    fieldType: 'ledger',
+                    onCreated: (newItem) => {
+                      setPartyName(newItem.name);
+                      const bal = getLedgerClosingBalance(newItem, vouchers);
+                      setPartyBalance(bal);
+                      setTimeout(() => document.getElementById('v-ref')?.focus(), 100);
+                    }
+                  });
                   return;
                 }
                 if(e.key==='Enter'){
@@ -4331,13 +4477,106 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
           <div style={{display:'flex',background:'#e8eef4',padding:'5px 10px',borderBottom:'1px solid #ccc',fontWeight:'bold',fontSize:12}}>
             <div style={{flex:4}}>Name of Item</div>
-            <div style={{width:90,textAlign:'right'}}>Quantity</div>
+            <div style={{width:80,textAlign:'right'}}>Quantity</div>
+            {rows.some(r => stockItems.find(it => it.id === r.itemId)?.showInclTax) && (
+              <div style={{width:100,textAlign:'right'}}>Rate (Incl. Tax)</div>
+            )}
             <div style={{width:90,textAlign:'right'}}>Rate</div>
             <div style={{width:55,textAlign:'center'}}>per</div>
-            <div style={{width:120,textAlign:'right'}}>Amount</div>
+            <div style={{width:110,textAlign:'right'}}>Amount</div>
+            {rows.some(r => stockItems.find(it => it.id === r.itemId)?.showAmtInclTax) && (
+              <div style={{width:110,textAlign:'right'}}>Amount (Incl. Tax)</div>
+            )}
           </div>
           <div style={{flex:1,overflowY:'auto'}}>
-            {rows.map((row,idx)=>(
+            {rows.map((row,idx)=>{
+              const item = stockItems.find(it => it.id === row.itemId);
+              const showIncl = item?.showInclTax || false;
+              const anyShowIncl = rows.some(r => stockItems.find(it => it.id === r.itemId)?.showInclTax);
+              const showAmtIncl = item?.showAmtInclTax || false;
+              const anyShowAmtIncl = rows.some(r => stockItems.find(it => it.id === r.itemId)?.showAmtInclTax);
+
+              const calculateVoucherRow = (row: VoucherRow, field: string, value: number): Partial<VoucherRow> => {
+                const gst = row.gstRate || 18;
+                const factor = 1 + gst / 100;
+                const updates: Partial<VoucherRow> = {};
+
+                if (field === 'qty') {
+                  updates.qty = value;
+                  if (row.rate) {
+                    updates.amount = value * row.rate;
+                    updates.amountInclTax = updates.amount * factor;
+                    updates.rateInclTax = row.rate * factor;
+                  } else if (row.rateInclTax) {
+                    updates.rate = row.rateInclTax / factor;
+                    updates.amount = value * updates.rate;
+                    updates.amountInclTax = value * row.rateInclTax;
+                  } else if (row.amount) {
+                    updates.rate = value > 0 ? row.amount / value : 0;
+                    updates.rateInclTax = updates.rate * factor;
+                    updates.amountInclTax = row.amount * factor;
+                  } else if (row.amountInclTax) {
+                    updates.amount = value > 0 ? row.amountInclTax / factor : 0;
+                    updates.rate = value > 0 ? updates.amount / value : 0;
+                    updates.rateInclTax = updates.rate * factor;
+                  }
+                } else if (field === 'rate') {
+                  updates.rate = value;
+                  updates.rateInclTax = value * factor;
+                  if (row.qty) {
+                    updates.amount = row.qty * value;
+                    updates.amountInclTax = updates.amount * factor;
+                  } else if (row.amount) {
+                    updates.qty = value > 0 ? row.amount / value : 0;
+                    updates.amountInclTax = row.amount * factor;
+                  }
+                } else if (field === 'rateInclTax') {
+                  updates.rateInclTax = value;
+                  updates.rate = value / factor;
+                  if (row.qty) {
+                    updates.amount = row.qty * updates.rate;
+                    updates.amountInclTax = row.qty * value;
+                  } else if (row.amount) {
+                    updates.qty = updates.rate > 0 ? row.amount / updates.rate : 0;
+                    updates.amountInclTax = row.amount * factor;
+                  }
+                } else if (field === 'amount') {
+                  updates.amount = value;
+                  updates.amountInclTax = value * factor;
+                  if (row.qty && row.qty > 0) {
+                    updates.rate = value / row.qty;
+                    updates.rateInclTax = updates.rate * factor;
+                  } else if (row.rate && row.rate > 0) {
+                    updates.qty = value / row.rate;
+                    updates.rateInclTax = row.rate * factor;
+                  } else if (row.rateInclTax && row.rateInclTax > 0) {
+                    updates.rate = row.rateInclTax / factor;
+                    updates.qty = value / updates.rate;
+                  }
+                } else if (field === 'amountInclTax') {
+                  updates.amountInclTax = value;
+                  updates.amount = value / factor;
+                  if (row.qty && row.qty > 0) {
+                    updates.rate = updates.amount / row.qty;
+                    updates.rateInclTax = value / row.qty;
+                  } else if (row.rate && row.rate > 0) {
+                    updates.qty = updates.amount / row.rate;
+                    updates.rateInclTax = row.rate * factor;
+                  } else if (row.rateInclTax && row.rateInclTax > 0) {
+                    updates.qty = value / row.rateInclTax;
+                    updates.rate = updates.amount / updates.qty;
+                  }
+                }
+                return updates;
+              };
+
+              const updateRow = (idx: number, updates: Partial<VoucherRow>) => {
+                const nr = [...rows];
+                nr[idx] = { ...nr[idx], ...updates };
+                setRows(nr);
+              };
+
+              return (
               <div key={idx} style={{display:'flex',padding:'4px 10px',alignItems:'center',borderBottom:'1px solid #f5f5f5',background:idx%2===0?'#fff':'#fafafa'}}>
                 <div style={{flex:4}}>
                   <input id={`item-name-${idx}`} type="text" className="form-input" style={{width:'97%',border:focus?.field==='item'&&focus.rowIdx===idx?'1px solid #ffc436':'1px solid transparent'}}
@@ -4345,19 +4584,55 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     onFocus={()=>{setFocus({field:'item',rowIdx:idx});setFilter(row.itemName);setListSel(99999);}}
                     onChange={e=>{const nr=[...rows];nr[idx].itemName=e.target.value;setRows(nr);setFilter(e.target.value);}}
                     onKeyDown={e=>{
-                      if (e.ctrlKey && e.key === 'Enter') {
+                      if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
                         e.preventDefault(); e.stopPropagation();
                         const it = stockItems.find(x => x.name === row.itemName);
                         if (it) {
-                          setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'item', rowIdx: idx });
-                          onNav('STOCK_ITEM_CREATION', it);
+                          onAltC({
+                            fieldType: 'stockItem',
+                            activeAlterItem: it,
+                            onCreated: (newItem) => {
+                              const nr = [...rows];
+                              const gst = newItem.gstRate || 18;
+                              nr[idx] = {
+                                ...nr[idx],
+                                itemId: newItem.id,
+                                itemName: newItem.name,
+                                unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.symbol || (newItem.unit as any)?.name || 'Nos',
+                                gstRate: gst,
+                                hsnCode: newItem.hsnCode || '',
+                                rateInclTax: (nr[idx].rate || 0) * (1 + gst / 100),
+                                amountInclTax: (nr[idx].amount || 0) * (1 + gst / 100)
+                              };
+                              setRows(nr);
+                              setTimeout(() => document.getElementById(`item-qty-${idx}`)?.focus(), 100);
+                            }
+                          });
                         }
                         return;
                       }
                       if(e.altKey&&e.key.toLowerCase()==='c'){
                         e.preventDefault(); e.stopPropagation();
-                        setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'item', rowIdx: idx });
-                        onNav('STOCK_ITEM_CREATION');
+                        onAltC({
+                          fieldType: 'stockItem',
+                          onCreated: (newItem) => {
+                            const nr = [...rows];
+                            const gst = newItem.gstRate || 18;
+                            nr[idx] = {
+                              ...nr[idx],
+                              itemId: newItem.id,
+                              itemName: newItem.name,
+                              unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.symbol || (newItem.unit as any)?.name || 'Nos',
+                              gstRate: gst,
+                              hsnCode: newItem.hsnCode || '',
+                              rateInclTax: (nr[idx].rate || 0) * (1 + gst / 100),
+                              amountInclTax: (nr[idx].amount || 0) * (1 + gst / 100)
+                            };
+                            setRows(nr);
+                            setTimeout(() => document.getElementById(`item-qty-${idx}`)?.focus(), 100);
+                          }
+                        });
+                        return;
                       }
                       else if(e.key==='Enter'){
                         e.preventDefault(); e.stopPropagation();
@@ -4376,28 +4651,88 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     placeholder="Select item (Alt+C to create)"
                   />
                 </div>
-                <div style={{width:90}}><input id={`item-qty-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right'}} value={row.qty||''}
-                   onChange={e=>{const nr=[...rows];nr[idx].qty=parseFloat(e.target.value)||0;nr[idx].amount=nr[idx].qty*nr[idx].rate;setRows(nr);}}
-                   onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); setTimeout(()=>document.getElementById(`item-rate-${idx}`)?.focus(), 80);}}} /></div>
+                <div style={{width:80}}><input id={`item-qty-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right'}} value={row.qty||''}
+                   onChange={e=>{
+                     const q = parseFloat(e.target.value)||0;
+                     updateRow(idx, calculateVoucherRow(row, 'qty', q));
+                   }}
+                   onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); 
+                     const nextId = showIncl ? `item-rate-incl-${idx}` : `item-rate-${idx}`;
+                     setTimeout(()=>document.getElementById(nextId)?.focus(), 80);
+                   }}} /></div>
+                
+                {anyShowIncl && (
+                  <div style={{width:100}}>
+                    {showIncl ? (
+                      <input id={`item-rate-incl-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right', background:'#fffbe6'}} value={row.rateInclTax||''}
+                        onChange={e=>{
+                          const ri = parseFloat(e.target.value)||0;
+                          updateRow(idx, calculateVoucherRow(row, 'rateInclTax', ri));
+                        }}
+                        onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); setTimeout(()=>document.getElementById(`item-rate-${idx}`)?.focus(), 80);}}}
+                      />
+                    ) : <div style={{width:'88%', textAlign:'right', color:'#ccc'}}>—</div>}
+                  </div>
+                )}
+
                 <div style={{width:90}}><input id={`item-rate-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right'}} value={row.rate||''}
-                   onChange={e=>{const nr=[...rows];nr[idx].rate=parseFloat(e.target.value)||0;nr[idx].amount=nr[idx].qty*nr[idx].rate;setRows(nr);}}
-                   onKeyDown={e=>{
-                     if(e.key==='Enter'){
-                       e.preventDefault(); e.stopPropagation();
-                       if(idx === rows.length - 1){
-                         setRows(p=>[...p,{itemId:0,itemName:'',qty:0,rate:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
-                         setTimeout(()=>document.getElementById(`item-name-${idx+1}`)?.focus(), 80);
-                       } else {
-                         setTimeout(()=>document.getElementById(`item-name-${idx+1}`)?.focus(), 80);
-                       }
-                     }
-                   }} /></div>
+                   onChange={e=>{
+                     const r = parseFloat(e.target.value)||0;
+                     updateRow(idx, calculateVoucherRow(row, 'rate', r));
+                   }}
+                   onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); setTimeout(()=>document.getElementById(`item-amt-${idx}`)?.focus(), 80);}}} /></div>
                 <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{typeof row.unit === 'string' ? row.unit : (row.unit as any)?.name || (row.unit as any)?.symbol || 'Nos'}</div>
-                <div style={{width:120,textAlign:'right',fontWeight:'bold',color:vc}}>{row.amount?fmt(row.amount):''}</div>
+                <div style={{width:110}}>
+                  <input id={`item-amt-${idx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold',color:vc}} value={row.amount||''}
+                    onChange={e=>{
+                      const a = parseFloat(e.target.value)||0;
+                      updateRow(idx, calculateVoucherRow(row, 'amount', a));
+                    }}
+                    onKeyDown={e=>{
+                      if(e.key==='Enter'){
+                        e.preventDefault(); e.stopPropagation();
+                        if (showAmtIncl) {
+                          setTimeout(()=>document.getElementById(`item-amt-incl-${idx}`)?.focus(), 80);
+                        } else {
+                          if(idx === rows.length - 1){
+                            setRows(p=>[...p,{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
+                            setTimeout(()=>document.getElementById(`item-name-${idx+1}`)?.focus(), 80);
+                          } else {
+                            setTimeout(()=>document.getElementById(`item-name-${idx+1}`)?.focus(), 80);
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+
+                {anyShowAmtIncl && (
+                  <div style={{width:110}}>
+                    {showAmtIncl ? (
+                      <input id={`item-amt-incl-${idx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold',color:'#1a7a4a',background:'#e8f5e9'}} value={row.amountInclTax||''}
+                        onChange={e=>{
+                          const ai = parseFloat(e.target.value)||0;
+                          updateRow(idx, calculateVoucherRow(row, 'amountInclTax', ai));
+                        }}
+                        onKeyDown={e=>{
+                          if(e.key==='Enter'){
+                            e.preventDefault(); e.stopPropagation();
+                            if(idx === rows.length - 1){
+                              setRows(p=>[...p,{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
+                              setTimeout(()=>document.getElementById(`item-name-${idx+1}`)?.focus(), 80);
+                            } else {
+                              setTimeout(()=>document.getElementById(`item-name-${idx+1}`)?.focus(), 80);
+                            }
+                          }
+                        }}
+                      />
+                    ) : <div style={{width:'90%', textAlign:'right', color:'#ccc'}}>—</div>}
+                  </div>
+                )}
               </div>
-            ))}
+            );})}
             <div style={{padding:'6px 10px',color:'#888',fontSize:11,cursor:'pointer',borderTop:'1px dashed #ddd'}}
-              onClick={()=>setRows(p=>[...p,{itemId:0,itemName:'',qty:0,rate:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}])}>
+              onClick={()=>setRows(p=>[...p,{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}])}>
               + Add another item
             </div>
           </div>
@@ -4471,19 +4806,35 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   onFocus={()=>{setFocus({field:'accledger',rowIdx:idx});setFilter(entry.ledgerName);setListSel(0);}}
                   onChange={e=>{const ne=[...accEntries];ne[idx].ledgerName=e.target.value;setAccEntries(ne);setFilter(e.target.value);}}
                   onKeyDown={e=>{
-                    if (e.ctrlKey && e.key === 'Enter') {
+                    if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
                       e.preventDefault(); e.stopPropagation();
                       const l = ledgers.find(lx => lx.name === entry.ledgerName);
                       if (l) {
-                        setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx });
-                        onNav('LEDGER_CREATION', l);
+                        onAltC({
+                          fieldType: 'ledger',
+                          activeAlterItem: l,
+                          onCreated: (newItem) => {
+                            const ne = [...accEntries];
+                            ne[idx] = { ...ne[idx], ledgerId: newItem.id, ledgerName: newItem.name };
+                            setAccEntries(ne);
+                            setTimeout(() => document.getElementById(`acc-amt-${idx}-${entry.entryType}`)?.focus(), 100);
+                          }
+                        });
                       }
                       return;
                     }
                     if(e.altKey&&e.key.toLowerCase()==='c'){
                       e.preventDefault(); e.stopPropagation(); 
-                      setAltCReturnContext({ screen: 'VOUCHER_ENTRY', field: 'accledger', rowIdx: idx }); 
-                      onNav('LEDGER_CREATION'); 
+                      onAltC({
+                        fieldType: 'ledger',
+                        onCreated: (newItem) => {
+                          const ne = [...accEntries];
+                          ne[idx] = { ...ne[idx], ledgerId: newItem.id, ledgerName: newItem.name };
+                          setAccEntries(ne);
+                          setTimeout(() => document.getElementById(`acc-amt-${idx}-${entry.entryType}`)?.focus(), 100);
+                        }
+                      }); 
+                      return;
                     } else if (e.key === 'Enter') {
                       e.preventDefault(); e.stopPropagation();
                       if(focus?.field==='accledger') {
@@ -4582,7 +4933,47 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             List of {focus.field==='item'?'Stock Items':'Ledgers'}
           </div>
           <div style={{padding:'4px 15px',color:'#8B4000',fontSize:11,fontWeight:'bold',cursor:'pointer',background:'#fffbe6',borderBottom:'1px solid #f0d060'}}
-            onMouseDown={e=>{e.preventDefault();onAltC({fieldType:focus.field==='item'?'stockItem':'ledger',onCreated:n=>{if(focus.field==='item'){const nr=[...rows];if(focus.rowIdx!==undefined)nr[focus.rowIdx].itemName=n;setRows(nr);}else if(focus.field==='accledger'&&focus.rowIdx!==undefined){const ne=[...accEntries];ne[focus.rowIdx].ledgerName=n;setAccEntries(ne);}else setPartyName(n);}});}}>
+            onMouseDown={e=>{
+              e.preventDefault();
+              const fType = focus.field==='item'?'stockItem':'ledger';
+              onAltC({
+                fieldType: fType,
+                onCreated: (newItem: any) => {
+                  if (typeof newItem === 'string') {
+                    // Fallback if only name is returned
+                    if(focus.field==='item' && focus.rowIdx!==undefined){
+                      const nr=[...rows]; nr[focus.rowIdx].itemName=newItem; setRows(nr);
+                    } else if(focus.field==='accledger'&&focus.rowIdx!==undefined){
+                      const ne=[...accEntries]; ne[focus.rowIdx].ledgerName=newItem; setAccEntries(ne);
+                    } else setPartyName(newItem);
+                    return;
+                  }
+                  
+                  // Proper object return
+                  if(focus.field==='item' && focus.rowIdx!==undefined){
+                    const nr=[...rows];
+                    const gst = newItem.gstRate || 18;
+                    nr[focus.rowIdx] = {
+                      ...nr[focus.rowIdx],
+                      itemId: newItem.id,
+                      itemName: newItem.name,
+                      unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.symbol || (newItem.unit as any)?.name || 'Nos',
+                      gstRate: gst,
+                      hsnCode: newItem.hsnCode || '',
+                      rateInclTax: (nr[focus.rowIdx].rate || 0) * (1 + gst / 100)
+                    };
+                    setRows(nr);
+                  } else if(focus.field==='accledger'&&focus.rowIdx!==undefined){
+                    const ne=[...accEntries];
+                    ne[focus.rowIdx] = { ...ne[focus.rowIdx], ledgerId: newItem.id, ledgerName: newItem.name };
+                    setAccEntries(ne);
+                  } else {
+                    setPartyName(newItem.name);
+                    setPartyBalance(getLedgerClosingBalance(newItem, vouchers));
+                  }
+                }
+              });
+            }}>
             ⚡ Alt+C: Create New {focus.field==='item'?'Stock Item':'Ledger'}
           </div>
           <div ref={listRef} style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
@@ -6188,10 +6579,16 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             <th style={{...tdH,width:30}}>Sl No.</th>
             <th style={{...tdH}}>Description of Goods</th>
             <th style={{...tdH,width:60}}>HSN/SAC</th>
-            <th style={{...tdH,width:90}}>Quantity</th>
+            <th style={{...tdH,width:80}}>Quantity</th>
+            {v.inventoryEntries.some((e:any) => e.stockItem?.showInclTax) && (
+              <th style={{...tdH,width:80,textAlign:'right'}}>Rate (Incl. Tax)</th>
+            )}
             <th style={{...tdH,width:80,textAlign:'right'}}>Rate</th>
             <th style={{...tdH,width:45}}>per</th>
-            <th style={{...tdH,width:110,textAlign:'right'}}>Amount</th>
+            <th style={{...tdH,width:100,textAlign:'right'}}>Amount</th>
+            {v.inventoryEntries.some((e:any) => e.stockItem?.showAmtInclTax) && (
+              <th style={{...tdH,width:100,textAlign:'right'}}>Amount (Incl. Tax)</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -6201,22 +6598,37 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               <td style={{...tdB}}><b>{e.itemName}</b></td>
               <td style={{...tdB,textAlign:'center'}}>{e.hsnCode||'—'}</td>
               <td style={{...tdB,textAlign:'right'}}><b>{e.qty} {typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</b></td>
+              {v.inventoryEntries.some((ex:any) => ex.stockItem?.showInclTax) && (
+                <td style={{...tdB,textAlign:'right'}}>{e.stockItem?.showInclTax ? fmt(e.rateInclTax || (e.rate * (1 + (e.gstRate || 18) / 100))) : '—'}</td>
+              )}
               <td style={{...tdB,textAlign:'right'}}>{fmt(e.rate)}</td>
               <td style={{...tdB,textAlign:'center'}}>{typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</td>
               <td style={{...tdB,textAlign:'right'}}><b>{fmt(e.amount)}</b></td>
+              {v.inventoryEntries.some((ex:any) => ex.stockItem?.showAmtInclTax) && (
+                <td style={{...tdB,textAlign:'right'}}>{e.stockItem?.showAmtInclTax ? <b>{fmt(e.amountInclTax || (e.amount * (1 + (e.gstRate || 18) / 100)))}</b> : '—'}</td>
+              )}
             </tr>
           ))}
           {/* Spacer rows to maintain height */}
-          {[...Array(Math.max(0, 8 - v.inventoryEntries.length))].map((_, i) => (
-            <tr key={'sp-'+i} style={{height:20}}><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/></tr>
-          ))}
+          {[...Array(Math.max(0, 8 - v.inventoryEntries.length))].map((_, i) => {
+            const anyShowIncl = v.inventoryEntries.some((ex:any) => ex.stockItem?.showInclTax);
+            const anyShowAmtIncl = v.inventoryEntries.some((ex:any) => ex.stockItem?.showAmtInclTax);
+            return (
+              <tr key={'sp-'+i} style={{height:20}}>
+                <td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/>
+                {anyShowIncl && <td style={tdB}/>}
+                <td style={tdB}/><td style={tdB}/><td style={tdB}/>
+                {anyShowAmtIncl && <td style={tdB}/>}
+              </tr>
+            );
+          })}
           {/* Tax entries */}
           {isInterState ? (
-            igst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>IGST</div></td><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(igst)}</b></td></tr>
+            igst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>IGST</div></td><td style={tdB}/><td style={tdB}/>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showInclTax) && <td style={tdB}/>}<td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(igst)}</b></td>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showAmtInclTax) && <td style={tdB}/>}</tr>
           ) : (
             <>
-              {cgst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>CGST</div></td><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(cgst)}</b></td></tr>}
-              {sgst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>SGST</div></td><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(sgst)}</b></td></tr>}
+              {cgst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>CGST</div></td><td style={tdB}/><td style={tdB}/>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showInclTax) && <td style={tdB}/>}<td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(cgst)}</b></td>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showAmtInclTax) && <td style={tdB}/>}</tr>}
+              {sgst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>SGST</div></td><td style={tdB}/><td style={tdB}/>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showInclTax) && <td style={tdB}/>}<td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(sgst)}</b></td>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showAmtInclTax) && <td style={tdB}/>}</tr>}
             </>
           )}
         </tbody>
@@ -6224,7 +6636,8 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
           <tr style={{borderTop:'2px solid #555'}}>
             <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Total</div></td>
             <td style={tdB}></td>
-            <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{v.inventoryEntries.reduce((s,e)=>s+e.qty,0)} {typeof v.inventoryEntries[0]?.unit === 'string' ? v.inventoryEntries[0]?.unit : (v.inventoryEntries[0]?.unit as any)?.symbol || ''}</td>
+            <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{v.inventoryEntries.reduce((s:number,e:any)=>s+e.qty,0)} {typeof v.inventoryEntries[0]?.unit === 'string' ? v.inventoryEntries[0]?.unit : (v.inventoryEntries[0]?.unit as any)?.symbol || ''}</td>
+            {v.inventoryEntries.some((ex:any)=>ex.stockItem?.showInclTax) && <td style={tdB}/>}
             <td style={tdB}></td>
             <td style={tdB}></td>
             <td style={{...tdB,fontWeight:'bold',textAlign:'right',fontSize:13}}>₹ {fmt(v.total)}</td>
@@ -6450,93 +6863,117 @@ function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherT
 }
 
 // ==================== ALT+C MODAL ====================
-function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,onClose,onCreated}:{
+function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems,stockCategories,godowns,currencies,onClose,onSaveMaster,onDeleteMaster}:{
   ctx:AltCContext;ledgers:Ledger[];stockGroups:StockGroup[];units:UnitData[];voucherTypes:VoucherTypeData[];groups:StockGroup[];
-  onClose:()=>void;onCreated:(type:string,data:any)=>void;
+  stockItems:StockItem[];stockCategories:StockCategory[];godowns:GodownData[];currencies:CurrencyData[];
+  onClose:()=>void;onSaveMaster:(type:string,data:any,existingItem?:any)=>Promise<any>;onDeleteMaster:(type:string,id:number)=>void;
 }) {
-  const ref=useRef<HTMLInputElement>(null);
-  useEffect(()=>{ref.current?.focus();},[]);
-  const titles:Record<string,string>={ledger:'Ledger Creation',group:'Group Creation',stockItem:'Stock Item Creation',stockGroup:'Stock Group Creation',unit:'Unit Creation',currency:'Currency Creation',voucherType:'Voucher Type Creation',godown:'Godown Creation',stockCategory:'Stock Category Creation'};
-  const [filter,setFilter]=useState('');
-  const [showGroupList,setShowGroupList]=useState(false);
-  const filteredGroups=filter?groups.filter(g=>g.name.toLowerCase().includes(filter.toLowerCase())).map(g=>g.name):groups.map(g=>g.name);
-
-  const accept=()=>{
-    const name=(document.getElementById('altc-name') as HTMLInputElement)?.value?.trim();
-    if(!name){alert('Name cannot be empty');return;}
-    const under=(document.getElementById('altc-under') as HTMLInputElement)?.value||'Primary';
-    const gstRate=parseFloat((document.getElementById('altc-gst') as HTMLInputElement)?.value||'18');
-    const unit=(document.getElementById('altc-units') as HTMLInputElement)?.value||'Nos';
-    const obVal=parseFloat((document.getElementById('altc-ob') as HTMLInputElement)?.value||'0');
-    const obType=((document.getElementById('altc-obtype') as HTMLSelectElement)?.value||'Dr') as 'Dr'|'Cr';
-
-    let data:any={name};
-    if(ctx.fieldType==='ledger') data={...data,groupName:under,openingBalance:obVal,balanceType:obType};
-    else if(ctx.fieldType==='group') data={...data,under,alias:''};
-    else if(ctx.fieldType==='stockGroup') data={...data,under,alias:''};
-    else if(ctx.fieldType==='unit') data={name:name,symbol:name,formalName:name,uqc:name.toUpperCase().slice(0,3),decimalPlaces:2};
-    else if(ctx.fieldType==='stockItem') {
-      const matchedUnit = units.find(u => u.name === unit);
-      data={...data,under,unit,unitId:matchedUnit?.id||null,gstRate,category:'Not Applicable',openingQty:0,openingRate:0};
-    }
-    else if(ctx.fieldType==='voucherType') data={...data,type:name,abbreviation:name.slice(0,3).toUpperCase(),numberingMethod:'Automatic',startNumber:1};
-    else if(ctx.fieldType==='currency') data={...data,symbol:name,isoCode:name.toUpperCase().slice(0,3),decimalPlaces:2};
-    onCreated(ctx.fieldType,data);
-  };
+  const titles:Record<string,string>={ledger:'Ledger',group:'Group',stockItem:'Stock Item',stockGroup:'Stock Group',unit:'Unit',currency:'Currency',voucherType:'Voucher Type',godown:'Godown',stockCategory:'Stock Category'};
+  const isLarge = ['ledger','stockItem','company'].includes(ctx.fieldType);
 
   return (
-    <div className="modal-overlay" style={{zIndex:2000}} onClick={onClose}>
-      <div className="modal-box altc-panel" style={{width:540,zIndex:2001}} onClick={e=>e.stopPropagation()}>
-        <div className="modal-header" style={{background:'#8B4000',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span>⚡ {titles[ctx.fieldType]||'Quick Create'}</span>
-          <span style={{fontSize:11,opacity:0.85}}>Alt+C Quick Create</span>
+    <div className="modal-overlay" style={{zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={onClose}>
+      <div className="modal-box" style={{
+        width: isLarge ? 1000 : 600, 
+        height: '90vh', 
+        maxHeight: 700,
+        display:'flex', 
+        flexDirection:'column',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        border: '2px solid #1c5282',
+        position: 'relative'
+      }} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header" style={{background:'#1c5282', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0}}>
+          <span>⚡ Quick {titles[ctx.fieldType] || 'Master'} {ctx.activeAlterItem ? 'Alteration' : 'Creation'}</span>
+          <button onClick={onClose} style={{background:'transparent', border:'none', color:'white', cursor:'pointer', fontSize:18}}>✕</button>
         </div>
-        <div style={{padding:'15px 20px',position:'relative'}}>
-          <div style={{fontSize:11,color:'#666',marginBottom:12,background:'#fffbe6',padding:'6px 10px',border:'1px solid #f0d060'}}>
-            📌 LedgerX Style: Type name → select group → set balance → Accept
-          </div>
-          <div className="form-row"><label style={{width:140}}>Name</label><span className="colon">:</span>
-            <input id="altc-name" ref={ref} type="text" className="form-input" style={{width:280,fontWeight:'bold'}}/>
-          </div>
-          {['ledger','group','stockGroup','stockItem'].includes(ctx.fieldType)&&(
-            <div className="form-row" style={{position:'relative'}}>
-              <label style={{width:140}}>Under</label><span className="colon">:</span>
-              <input id="altc-under" type="text" className="form-input" style={{width:280,fontWeight:'bold'}}
-                defaultValue={ctx.fieldType==='ledger'?'Sundry Debtors':ctx.fieldType==='stockItem'?'Primary':'Primary'}
-                onFocus={()=>{setShowGroupList(true);setFilter('');}}
-                onChange={e=>setFilter(e.target.value)}
-                onBlur={()=>setTimeout(()=>setShowGroupList(false),200)}
-                autoComplete="off"/>
-              {showGroupList&&(
-                <div style={{position:'absolute',left:148,top:28,width:280,background:'white',border:'2px solid #1c5282',zIndex:100,maxHeight:180,overflowY:'auto'}}>
-                  <div style={{background:'#1c5282',color:'white',padding:'3px 10px',fontSize:11,fontWeight:'bold'}}>List of {ctx.fieldType==='stockGroup'?'Stock Groups':'Groups'}</div>
-                  {(ctx.fieldType==='ledger'||ctx.fieldType==='group'?filteredGroups:stockGroups.map(g=>g.name).filter(g=>!filter||g.toLowerCase().includes(filter.toLowerCase()))).map((g,i)=>(
-                    <div key={i} onMouseDown={()=>{const inp=document.getElementById('altc-under') as HTMLInputElement;if(inp)inp.value=g;setShowGroupList(false);}}
-                      style={{padding:'3px 12px',cursor:'pointer',fontSize:12,background:i===0?'#fffbe6':'transparent'}} className="modal-list-item">{g}</div>
-                  ))}
-                </div>
-              )}
-            </div>
+        
+        <div style={{flex:1, overflowY:'auto', background:'#fff'}}>
+          {ctx.fieldType==='ledger' && (
+            <LedgerCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              onSave={async d => { const ok = await onSaveMaster('ledger', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+              ledgers={ledgers} 
+              groups={groups} 
+              onAltC={() => {}} 
+            />
           )}
-          {ctx.fieldType==='stockItem'&&<>
-            <div className="form-row"><label style={{width:140}}>Units</label><span className="colon">:</span>
-              <select id="altc-units" className="form-input" style={{width:180}}>{units.map((u,i)=><option key={i}>{u.name}</option>)}</select>
-            </div>
-            <div className="form-row"><label style={{width:140}}>GST Rate (%)</label><span className="colon">:</span>
-              <input id="altc-gst" type="text" className="form-input" style={{width:80,textAlign:'right'}} defaultValue="18"/>
-            </div>
-          </>}
-          {ctx.fieldType==='ledger'&&(
-            <div className="form-row"><label style={{width:140}}>Opening Balance</label><span className="colon">:</span>
-              <input id="altc-ob" type="text" className="form-input" style={{width:130,textAlign:'right'}} defaultValue="0.00"/>
-              <select id="altc-obtype" className="form-input" style={{width:50,marginLeft:6}}><option>Dr</option><option>Cr</option></select>
-            </div>
+          {ctx.fieldType==='stockItem' && (
+            <StockItemCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              stockGroups={stockGroups} 
+              stockCategories={stockCategories} 
+              units={units} 
+              stockItems={stockItems} 
+              onSave={async d => { const ok = await onSaveMaster('stockItem', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+              onAltC={() => {}} 
+            />
           )}
-          {ctx.fieldType==='unit'&&<div className="form-row"><label style={{width:140}}>Decimal Places</label><span className="colon">:</span><input type="text" className="form-input" style={{width:60,textAlign:'center'}} defaultValue="2"/></div>}
+          {ctx.fieldType==='group' && (
+            <GroupCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              onSave={async d => { const ok = await onSaveMaster('group', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+              ledgers={ledgers} 
+              groups={groups} 
+              onAltC={() => {}} 
+            />
+          )}
+          {ctx.fieldType==='stockGroup' && (
+            <StockGroupCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              stockGroups={stockGroups} 
+              onSave={async d => { const ok = await onSaveMaster('stockGroup', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+              onAltC={() => {}} 
+            />
+          )}
+          {ctx.fieldType==='unit' && (
+            <UnitCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              units={units} 
+              onSave={async d => { const ok = await onSaveMaster('unit', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+            />
+          )}
+          {ctx.fieldType==='godown' && (
+            <GodownCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              godowns={godowns} 
+              onSave={async d => { const ok = await onSaveMaster('godown', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+            />
+          )}
+          {ctx.fieldType==='voucherType' && (
+            <VoucherTypeCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              voucherTypes={voucherTypes} 
+              onSave={async d => { const ok = await onSaveMaster('voucherType', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+            />
+          )}
+          {ctx.fieldType==='currency' && (
+            <CurrencyCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              currencies={currencies} 
+              onSave={async d => { const ok = await onSaveMaster('currency', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+            />
+          )}
+          {ctx.fieldType==='stockCategory' && (
+            <StockCategoryCreationForm 
+              activeAlterItem={ctx.activeAlterItem} 
+              stockCategories={stockCategories} 
+              onSave={async d => { const ok = await onSaveMaster('stockCategory', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
+              onDelete={onDeleteMaster} 
+            />
+          )}
         </div>
-        <div style={{background:'#f4f8fb',padding:'10px 15px',borderTop:'1px solid #dde',display:'flex',justifyContent:'flex-end',gap:10}}>
-          <button style={{background:'#8B4000',color:'white',border:'none',padding:'6px 22px',cursor:'pointer',fontWeight:'bold',fontSize:13}} onClick={accept}>✓ Accept (Ctrl+A)</button>
-          <button style={{padding:'6px 18px',cursor:'pointer',border:'1px solid #ccc'}} onClick={onClose}>✕ Abandon (Esc)</button>
+        
+        <div style={{background:'#f0f4f8', padding:'5px 15px', fontSize:10, color:'#666', borderTop:'1px solid #ccc', flexShrink:0}}>
+          Press Esc to close modal without saving
         </div>
       </div>
     </div>

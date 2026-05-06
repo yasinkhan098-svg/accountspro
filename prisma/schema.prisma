@@ -52,6 +52,8 @@ model Company {
   financialYearStart DateTime
   booksBeginFrom     DateTime
   securityControl    Boolean  @default(false)
+  registrationType String?
+  pan              String?
   password           String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -80,6 +82,8 @@ model Ledger {
   bankName    String?
   accountNo   String?
   ifsc        String?
+  bankHolderName    String?
+  setAlterGstDetails String?
   openingBal  Float   @default(0.0)
   balanceType String @default("Dr") // Dr or Cr
   companyId Int
@@ -139,9 +143,20 @@ model StockItem {
   openingQty Float    @default(0)
   openingVal Float    @default(0)
   openingRate Float   @default(0)
+  groupName   String?
+  categoryName String?
+  unitName     String?
   gstApplicable String @default("Applicable")
   gstRate     Float   @default(18)
   hsnCode     String?
+  showInclTax Boolean  @default(false)
+  alias       String?
+  category    String?
+  altUnit     String?
+  typeOfSupply String?
+  costingMethod String?
+  marketValuationMethod String?
+  showAmtInclTax Boolean @default(false)
   companyId Int
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   inventoryEntries InventoryEntry[]
@@ -153,8 +168,12 @@ model InventoryEntry {
   stockItemId Int
   qty         Float
   rate        Float
+  rateInclTax Float    @default(0)
+  amountInclTax Float  @default(0)
   unit        String
   amount      Float
+  gstRate     Float    @default(18)
+  hsnCode     String?
   voucher     Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   stockItem   StockItem @relation(fields: [stockItemId], references: [id])
 }

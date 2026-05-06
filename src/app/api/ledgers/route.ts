@@ -6,6 +6,8 @@ const normalizeLedger = (l: any) => ({
   openingBalance: l.openingBal ?? 0,
   balanceType: l.balanceType || 'Dr',
   pan: l.panItNo || '',
+  bankHolderName: l.bankHolderName || '',
+  setAlterGstDetails: l.setAlterGstDetails || 'No',
 });
 
 export async function POST(req: Request) {
@@ -31,6 +33,8 @@ export async function POST(req: Request) {
         accountNo: data.accountNo,
         ifsc: data.ifsc,
         companyId: data.companyId,
+        bankHolderName: data.bankHolderName,
+        setAlterGstDetails: data.setAlterGstDetails || 'No',
         openingBal: data.openingBalance || 0.0,
         balanceType: data.balanceType || 'Dr'
       }
@@ -66,6 +70,8 @@ export async function PUT(req: Request) {
          bankName: data.bankName,
          accountNo: data.accountNo,
          ifsc: data.ifsc,
+         bankHolderName: data.bankHolderName,
+         setAlterGstDetails: data.setAlterGstDetails || 'No',
          openingBal: data.openingBalance || 0.0,
          balanceType: data.balanceType || 'Dr'
        }

@@ -30,12 +30,16 @@ export async function POST(req: Request) {
               stockItemId: parseInt(i.itemId),
               qty: parseFloat(i.qty),
               rate: parseFloat(i.rate),
+              rateInclTax: parseFloat(i.rateInclTax || 0),
+              amountInclTax: parseFloat(i.amountInclTax || 0),
               unit: i.unit,
-              amount: parseFloat(i.amount)
+              amount: parseFloat(i.amount),
+              gstRate: parseFloat(i.gstRate || 18),
+              hsnCode: i.hsnCode
             }))
           }
         },
-        include: { entries: true, inventoryEntries: true }
+        include: { entries: true, inventoryEntries: { include: { stockItem: true } } }
       });
       return voucher;
     });
@@ -78,12 +82,16 @@ export async function PUT(req: Request) {
               stockItemId: parseInt(i.itemId),
               qty: parseFloat(i.qty),
               rate: parseFloat(i.rate),
+              rateInclTax: parseFloat(i.rateInclTax || 0),
+              amountInclTax: parseFloat(i.amountInclTax || 0),
               unit: i.unit,
-              amount: parseFloat(i.amount)
+              amount: parseFloat(i.amount),
+              gstRate: parseFloat(i.gstRate || 18),
+              hsnCode: i.hsnCode
             }))
           }
         },
-        include: { entries: true, inventoryEntries: true }
+        include: { entries: true, inventoryEntries: { include: { stockItem: true } } }
       });
       return voucher;
     });
@@ -101,7 +109,7 @@ export async function GET(req: Request) {
   const companyId = searchParams.get('companyId');
   const vouchers = await prisma.voucher.findMany({
     where: companyId ? { companyId: parseInt(companyId) } : undefined,
-    include: { entries: true, inventoryEntries: true },
+    include: { entries: true, inventoryEntries: { include: { stockItem: true } } },
     orderBy: { createdAt: 'desc' }
   });
   return NextResponse.json({ success: true, vouchers });

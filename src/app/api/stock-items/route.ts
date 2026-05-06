@@ -4,32 +4,28 @@ import { prisma } from '@/lib/prisma';
 export async function POST(req: Request) {
   try {
     const data = await req.json();
-    let finalUnitId = data.unitId ? parseInt(data.unitId) : null;
-    
-    if (data.unit && data.companyId) {
-      const existing = await prisma.unit.findFirst({ where: { companyId: parseInt(data.companyId), name: data.unit } });
-      if (existing) {
-         finalUnitId = existing.id;
-      } else {
-         const nu = await prisma.unit.create({ data: { name: data.unit, formalName: data.unit, companyId: parseInt(data.companyId) }});
-         finalUnitId = nu.id;
-      }
-    }
-
     const item = await prisma.stockItem.create({
-      data: {
-        name: data.name,
-        companyId: parseInt(data.companyId),
-        groupId: data.groupId ? parseInt(data.groupId) : null,
-        unitId: finalUnitId,
-        openingQty: parseFloat(data.openingQty || 0),
-        openingVal: parseFloat(data.openingVal || 0),
-        openingRate: parseFloat(data.openingRate || 0),
-        gstApplicable: data.gstApplicable || "Applicable",
-        gstRate: data.gstRate ? parseFloat(data.gstRate) : 18,
-        hsnCode: data.hsnCode || null
-      },
-      include: { unit: true }
+      data: { 
+        name: data.name, 
+        alias: data.alias, 
+        groupName: data.under || 'Primary',
+        categoryName: data.category || 'Not Applicable',
+        unitName: data.unit || 'Nos',
+        unitId: data.unitId ? parseInt(data.unitId) : undefined,
+        openingQty: parseFloat(data.openingQty || 0), 
+        openingRate: parseFloat(data.openingRate || 0), 
+        openingVal: (parseFloat(data.openingQty || 0)) * (parseFloat(data.openingRate || 0)), 
+        gstRate: parseFloat(data.gstRate || 18), 
+        hsnCode: data.hsnCode, 
+        altUnit: data.altUnit,
+        gstApplicable: data.gstApplicable || 'Applicable',
+        typeOfSupply: data.typeOfSupply || 'Goods',
+        costingMethod: data.costingMethod || 'Average Cost',
+        marketValuationMethod: data.marketValuationMethod || 'Average Price',
+        showInclTax: !!data.showInclTax, 
+        showAmtInclTax: !!data.showAmtInclTax, 
+        companyId: parseInt(data.companyId) 
+      }
     });
     return NextResponse.json({ success: true, item });
   } catch (error: any) {
@@ -39,34 +35,31 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const data = await req.json();
-    if (!data.id) throw new Error("Item ID is required");
+    const { id, ...data } = await req.json();
+    if (!id) throw new Error("Item ID is required");
     
-    let finalUnitId = data.unitId ? parseInt(data.unitId) : null;
-    if (data.unit && data.companyId) {
-      const existing = await prisma.unit.findFirst({ where: { companyId: parseInt(data.companyId), name: data.unit } });
-      if (existing) {
-         finalUnitId = existing.id;
-      } else {
-         const nu = await prisma.unit.create({ data: { name: data.unit, formalName: data.unit, companyId: parseInt(data.companyId) }});
-         finalUnitId = nu.id;
-      }
-    }
-
     const item = await prisma.stockItem.update({
-      where: { id: parseInt(data.id) },
-      data: {
-        name: data.name,
-        groupId: data.groupId ? parseInt(data.groupId) : null,
-        unitId: finalUnitId,
-        openingQty: parseFloat(data.openingQty || 0),
-        openingVal: parseFloat(data.openingVal || 0),
-        openingRate: parseFloat(data.openingRate || 0),
-        gstApplicable: data.gstApplicable || "Applicable",
-        gstRate: data.gstRate ? parseFloat(data.gstRate) : 18,
-        hsnCode: data.hsnCode || null
-      },
-      include: { unit: true }
+      where: { id: parseInt(id) },
+      data: { 
+        name: data.name, 
+        alias: data.alias, 
+        groupName: data.under || 'Primary',
+        categoryName: data.category || 'Not Applicable',
+        unitName: data.unit || 'Nos',
+        unitId: data.unitId ? parseInt(data.unitId) : undefined,
+        openingQty: parseFloat(data.openingQty || 0), 
+        openingRate: parseFloat(data.openingRate || 0), 
+        openingVal: (parseFloat(data.openingQty || 0)) * (parseFloat(data.openingRate || 0)), 
+        gstRate: parseFloat(data.gstRate || 18), 
+        hsnCode: data.hsnCode, 
+        altUnit: data.altUnit,
+        gstApplicable: data.gstApplicable || 'Applicable',
+        typeOfSupply: data.typeOfSupply || 'Goods',
+        costingMethod: data.costingMethod || 'Average Cost',
+        marketValuationMethod: data.marketValuationMethod || 'Average Price',
+        showInclTax: !!data.showInclTax, 
+        showAmtInclTax: !!data.showAmtInclTax 
+      }
     });
     return NextResponse.json({ success: true, item });
   } catch (error: any) {
@@ -78,10 +71,15 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const companyId = searchParams.get('companyId');
-    const items = await prisma.stockItem.findMany({
-      where: companyId ? { companyId: parseInt(companyId) } : undefined,
-      include: { unit: true }
+    const rawItems = await prisma.stockItem.findMany({
+      where: companyId ? { companyId: parseInt(companyId) } : undefined
     });
+    const items = rawItems.map(it => ({
+      ...it,
+      unit: it.unitName, // Map DB field back to frontend field
+      under: it.groupName,
+      category: it.categoryName
+    }));
     return NextResponse.json({ success: true, items });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
