@@ -7191,20 +7191,14 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
           </tr>
         </thead>
         <tbody>
-          {v.inventoryEntries.map((e,i)=>(
-            <tr key={i} style={{minHeight:24}}>
-              <td style={{...tdB,textAlign:'center'}}>{i+1}</td>
-              <td style={{...tdB}}><b>{e.itemName || (e as any).stockItem?.name || '—'}</b></td>
-              <td style={{...tdB,textAlign:'center'}}>{e.hsnCode || (e as any).stockItem?.hsnCode || '—'}</td>
-              <td style={{...tdB,textAlign:'right'}}><b>{e.qty} {typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</b></td>
           {(v?.inventoryEntries || []).map((e: any, idx: number) => (
             <tr key={idx} style={{fontSize:11}}>
               <td style={{...tdB,textAlign:'center'}}>{idx+1}</td>
               <td style={tdB}>
-                <div style={{fontWeight:'bold'}}>{e.itemName}</div>
-                {e.hsnCode && <div style={{fontSize:9,color:'#666'}}>HSN: {e.hsnCode}</div>}
+                <div style={{fontWeight:'bold'}}>{e.itemName || (e as any).stockItem?.name || '—'}</div>
+                {(e.hsnCode || (e as any).stockItem?.hsnCode) && <div style={{fontSize:9,color:'#666'}}>HSN: {e.hsnCode || (e as any).stockItem?.hsnCode}</div>}
               </td>
-              <td style={{...tdB,textAlign:'center'}}>{e.gstRate}%</td>
+              <td style={{...tdB,textAlign:'center'}}>{e.gstRate || (e as any).stockItem?.gstRate || 18}%</td>
               <td style={{...tdB,textAlign:'right'}}>{fmt(e.qty)}</td>
               {anyShowIncl && (
                 <td style={{...tdB,textAlign:'right'}}>{(e.rateInclTax || 0) > 0 ? fmt(e.rateInclTax) : '—'}</td>
