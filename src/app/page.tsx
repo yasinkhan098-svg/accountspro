@@ -7169,6 +7169,19 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   const renderInvoice = (copyIdx: number) => {
     const pd = v.partyDetails;
     const copyLabels = ["ORIGINAL FOR RECIPIENT", "DUPLICATE FOR TRANSPORTER", "TRIPLICATE FOR SUPPLIER", "EXTRA COPY"];
+
+    const stateCode = (s: string) => {
+      const codes: Record<string, string> = {
+        'jammu & kashmir': '01', 'himachal pradesh': '02', 'punjab': '03', 'chandigarh': '04', 'uttarakhand': '05',
+        'haryana': '06', 'delhi': '07', 'rajasthan': '08', 'uttar pradesh': '09', 'bihar': '10', 'sikkim': '11',
+        'arunachal pradesh': '12', 'assam': '13', 'nagaland': '14', 'manipur': '15', 'mizoram': '16', 'tripura': '17',
+        'meghalaya': '18', 'assam_old': '19', 'west bengal': '19', 'jharkhand': '20', 'odisha': '21', 'chhattisgarh': '22',
+        'madhya pradesh': '23', 'gujarat': '24', 'daman & diu': '25', 'dadra & nagar haveli': '26', 'maharashtra': '27',
+        'andhra pradesh_old': '28', 'karnataka': '29', 'goa': '30', 'lakshadweep': '31', 'kerala': '32', 'tamil nadu': '33',
+        'puducherry': '34', 'andaman & nicobar islands': '35', 'telangana': '36', 'andhra pradesh': '37', 'ladakh': '38'
+      };
+      return codes[s.toLowerCase().trim()] || '—';
+    };
     
     // Calculations
     const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
