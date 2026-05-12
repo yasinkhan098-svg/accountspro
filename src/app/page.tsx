@@ -7197,7 +7197,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
             <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}</div>
             <div style={{marginTop:4, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
-            <div style={{fontSize:10}}>State Name : {activeCompany?.state}, Code : {stateCode(activeCompany?.state||'')}</div>
+            <div style={{fontSize:10}}>State Name : {company?.state}, Code : {stateCode(company?.state||'')}</div>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Invoice No.<br/><b>{v.voucherNo}</b></div>
