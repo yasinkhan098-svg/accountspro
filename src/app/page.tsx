@@ -1364,7 +1364,8 @@ export default function App() {
     const token = authClient.getToken();
     const companyId = activeCompany?.id || 0;
 
-    const isEdit = v.id && String(v.id).length < 12; // DB IDs are small, timestamp IDs are large
+    // A voucher is an Edit if it has a numeric ID that's not a temporary timestamp
+    const isEdit = v.id && !isNaN(Number(v.id)) && Number(v.id) < 1000000000000; 
 
     try {
       const res = await fetch('/api/vouchers', {
@@ -4852,24 +4853,43 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   };
 
   const handleSave= async ()=>{
-    if(!partyName){alert('Party name is required');return;}
-    // Validate manual voucher number
+    // 1. Party Name Validation (Required for ALL vouchers)
+    if(!partyName || partyName.trim() === ""){
+      alert('Party A/c Name is required for all vouchers.');
+      return;
+    }
+
+    const voucherData = getVoucherData();
+    
+    // 2. Inventory Validation (For Sales, Purchase, etc.)
+    if (isInventory) {
+      const validItems = voucherData.inventoryEntries.filter((i:any) => i.itemId && i.itemId !== 0);
+      if (validItems.length === 0) {
+        alert("Please select at least one valid Stock Item name.");
+        return;
+      }
+      // Sync back only valid items to data
+      voucherData.inventoryEntries = validItems;
+    } else {
+      // 3. Accounting Validation (For Receipt, Payment, Contra, Journal)
+      // Check if there's at least one ledger other than the party
+      const otherLedgers = voucherData.entries.filter((e:any) => e.ledgerName && e.ledgerName !== partyName);
+      if (otherLedgers.length === 0) {
+        alert("Please select at least one Ledger entry (other than the Party).");
+        return;
+      }
+    }
+
+    // 4. Manual Voucher Number Validation
     if (isManualMode && !manualVoucherNo.trim()) {
       alert('Please enter a Voucher Number in Manual mode.');
       return;
     }
-    const voucherData = getVoucherData();
-    
-    // Sanitize and Validate stock items
-    if (isInventory && (voucherData.inventoryEntries.length === 0 || voucherData.inventoryEntries.some((i:any) => !i.itemId || isNaN(i.itemId)))) {
-       alert("Please select at least one valid stock item.");
-       return;
-    }
 
-    // Duplicate Check
+    // 5. Duplicate Check
     const isDup = vouchers.some(v => v.type === activeVoucher && v.voucherNo === formattedNo && (!activeAlterItem || v.id !== activeAlterItem.id));
     if (isDup) {
-      alert(`Duplicate Error: ${activeVoucher} No. ${formattedNo} already exists!\nPlease enter a different Voucher Number.`);
+      alert(`Duplicate Error: ${activeVoucher} No. ${formattedNo} already exists!`);
       return;
     }
 
@@ -4880,13 +4900,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       setPrintPromptSel('yes');
       setShowPrintPrompt({
         voucher: savedV,
-        msg: `${activeVoucher} No. ${formattedNo} Saved!\n${isInterState ? 'IGST (Inter-State)' : 'CGST+SGST (Intra-State)'} applied.`
+        msg: `${activeVoucher} No. ${formattedNo} ${activeAlterItem ? 'Updated' : 'Saved'} successfully!`
       });
-      // Important: The form reset happens after print prompt selection or close
     } catch (err: any) {
       console.error("Save Error:", err);
       setSaveToast(null);
-      alert("Failed to save voucher: " + (err.message || "Network Error"));
+      alert("Failed to save: " + (err.message || "Network Error"));
     }
   };
 
