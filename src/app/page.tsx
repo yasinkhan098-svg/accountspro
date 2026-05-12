@@ -7187,14 +7187,14 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
           <div style={{padding:'8px 12px',borderRight:'1px solid #555'}}>
             <div style={{fontSize:10, color:'#666'}}>Bill to:</div>
             <div style={{fontWeight:'bold'}}>{v.partyName}</div>
-            <div style={{fontSize:10}}>{pd?.address || '—'}</div>
-            <div style={{marginTop:2}}>GSTIN: {pd?.gstin || '—'}</div>
+            <div style={{fontSize:10}}>{pd?.buyerAddress || '—'}</div>
+            <div style={{marginTop:2}}>GSTIN: {pd?.buyerGstin || '—'}</div>
           </div>
           <div style={{padding:'8px 12px'}}>
             <div style={{fontSize:10, color:'#666'}}>Ship to:</div>
-            <div style={{fontWeight:'bold'}}>{pd?.shippingName || v.partyName}</div>
-            <div style={{fontSize:10}}>{pd?.shippingAddress || pd?.address || '—'}</div>
-            <div style={{marginTop:2}}>GSTIN: {pd?.shippingGstin || pd?.gstin || '—'}</div>
+            <div style={{fontWeight:'bold'}}>{pd?.shipName || v.partyName}</div>
+            <div style={{fontSize:10}}>{pd?.shipAddress || pd?.buyerAddress || '—'}</div>
+            <div style={{marginTop:2}}>GSTIN: {pd?.shipGstin || pd?.buyerGstin || '—'}</div>
           </div>
         </div>
 
