@@ -1385,8 +1385,14 @@ export default function App() {
         }
         setPrintVoucher(savedV);
         return savedV;
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Server failed to save voucher");
       }
-    } catch (e) { console.error("Voucher Cloud Save Failed", e); }
+    } catch (e: any) { 
+      console.error("Voucher Cloud Save Failed", e);
+      throw e; // Important: throw to handleSave
+    }
 
     // Fallback to local if cloud fails
     const id = v.id || Date.now();
@@ -4596,7 +4602,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       
       const currentAmt = additionalLedgers[roundOffIdx].amount;
       const targetAmt = Math.abs(neededRoundOff);
-      const targetType = neededRoundOff >= 0 ? 'Dr' : 'Cr';
+      // Logic Fix: In Sales (partySide=Dr, otherSide=Cr), to ADD (+ve neededRoundOff), we need targetType = otherSide (Cr).
+      const targetType = neededRoundOff >= 0 ? otherSide : partySide;
       
       // Update only if different and NOT currently focused
       if ((Math.abs(currentAmt - targetAmt) > 0.001 || additionalLedgers[roundOffIdx].entryType !== targetType) && focus?.field !== 'addl-ledger') {
@@ -4635,10 +4642,23 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       const ne = [...additionalLedgers];
       const isPurchaseSide = activeVoucher === 'Purchase' || activeVoucher === 'Debit Note';
       
-      // Default entry type based on ledger group (basic logic)
+      // Smart Sign Logic based on Ledger and Voucher Type
+      const isDiscount = l.name.toLowerCase().includes('discount');
       const isExp = l.groupName?.toLowerCase().includes('expense') || l.name.toLowerCase().includes('transport') || l.name.toLowerCase().includes('freight');
-      let eType: 'Dr' | 'Cr' = isExp ? 'Dr' : 'Cr';
-      if (l.name === 'Round Off') eType = 'Dr'; // Will be adjusted by effect
+      
+      // In Sales (otherSide=Cr): Expenses (Dr) subtract, Income (Cr) adds.
+      // In Purchase (otherSide=Dr): Expenses (Dr) adds, Income (Cr) subtracts.
+      // Rule: Default to otherSide (Add) UNLESS it's a Discount Ledger.
+      let eType: 'Dr' | 'Cr' = otherSide;
+      if (isDiscount) {
+        // Discount should always SUBTRACT. So use partySide.
+        eType = partySide;
+      } else if (isExp) {
+        // Expenses in Sales should subtract (partySide), in Purchase should add (otherSide).
+        eType = (activeVoucher === 'Sales' || activeVoucher === 'Debit Note') ? partySide : otherSide;
+      }
+      
+      if (l.name === 'Round Off') eType = 'Dr'; // Will be adjusted by effect logic anyway
 
       ne[idx] = { ...ne[idx], ledgerId: l.id, ledgerName: l.name, entryType: eType };
       
@@ -4805,6 +4825,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     }
     const voucherData = getVoucherData();
     
+    // Sanitize and Validate stock items
+    if (isInventory && (voucherData.inventoryEntries.length === 0 || voucherData.inventoryEntries.some((i:any) => !i.stockItemId || isNaN(i.stockItemId)))) {
+       alert("Please select at least one valid stock item.");
+       return;
+    }
+
     // Duplicate Check
     const isDup = vouchers.some(v => v.type === activeVoucher && v.voucherNo === formattedNo && (!activeAlterItem || v.id !== activeAlterItem.id));
     if (isDup) {
@@ -4812,12 +4838,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       return;
     }
 
-    const savedV = await onSave(voucherData);
-    setPrintPromptSel('yes');
-    setShowPrintPrompt({
-      voucher: savedV,
-      msg: `${activeVoucher} No. ${formattedNo} Saved!\n${isInterState ? 'IGST (Inter-State)' : 'CGST+SGST (Intra-State)'} applied.`
-    });
+    try {
+      setSaveToast("Saving...");
+      const savedV = await onSave(voucherData);
+      setSaveToast(null);
+      setPrintPromptSel('yes');
+      setShowPrintPrompt({
+        voucher: savedV,
+        msg: `${activeVoucher} No. ${formattedNo} Saved!\n${isInterState ? 'IGST (Inter-State)' : 'CGST+SGST (Intra-State)'} applied.`
+      });
+      // Important: The form reset happens after print prompt selection or close
+    } catch (err: any) {
+      console.error("Save Error:", err);
+      setSaveToast(null);
+      alert("Failed to save voucher: " + (err.message || "Network Error"));
+    }
   };
 
   const clearVoucherForm = () => {
