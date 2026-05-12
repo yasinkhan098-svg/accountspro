@@ -7173,6 +7173,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   };
 
   return (
+    <>
     <div className="print-preview-main" style={{display:'flex',height:'100%',overflow:'hidden',background:'#eef2f6'}}>
       <div className="no-print" style={{width:240,borderRight:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fff'}}>
         <div style={{background:'#1c5282',color:'white',padding:'10px 15px',fontWeight:'bold'}}>Print Dashboard</div>
@@ -7190,9 +7191,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
       </div>
     </div>
   );
-}
 
-      </div>
 
       {/* Print Options Modal */}
       {showOptions && (
@@ -7219,7 +7218,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
            </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
