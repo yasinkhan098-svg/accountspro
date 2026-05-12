@@ -7156,9 +7156,13 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   };
 
   const renderInvoice = (copyIdx: number) => {
+    const pd = v.partyDetails;
     const copyLabels = ["ORIGINAL FOR RECIPIENT", "DUPLICATE FOR TRANSPORTER", "TRIPLICATE FOR SUPPLIER", "EXTRA COPY"];
+    
+    // Calculations
     const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
     const taxEntries = (v?.entries || []).filter((e: any) => (e.ledger?.name || e.ledgerName || '').includes('GST Payable'));
+    const totalTax = taxEntries.reduce((s:number, e:any) => s + (e.amount || 0), 0);
     const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
     const roundOffAmt = roundOffEntry?.amount || 0;
 
@@ -7166,8 +7170,85 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
       <div key={copyIdx} className="invoice-copy" style={{width:'100%', maxWidth:800, margin:'0 auto 30px auto', background:'white', border:'1px solid #555', fontFamily:'Arial,sans-serif', fontSize:12, position:'relative', boxSizing:'border-box'}}>
         <div style={{position:'absolute', top:5, right:10, fontSize:10, fontWeight:'bold'}}>{copyLabels[copyIdx] || copyLabels[3]}</div>
         <div style={{textAlign:'center', fontWeight:'bold', fontSize:16, padding:'12px 0 2px', borderBottom:'1px solid #555'}}>Tax Invoice</div>
-        {/* Simplified for Build Check */}
-        <div style={{padding:20}}>Printing Invoice...</div>
+        
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid #555'}}>
+          <div style={{padding:'8px 12px',borderRight:'1px solid #555'}}>
+            <div style={{fontWeight:'bold',fontSize:14}}>{company?.name || 'Company Name'}</div>
+            <div style={{whiteSpace:'pre-wrap', fontSize:10}}>{company?.address}</div>
+            <div style={{marginTop:4}}>GSTIN: <b>{company?.gstin}</b></div>
+          </div>
+          <div style={{padding:'8px 12px'}}>
+            <div>Invoice No: <b>{v.voucherNo}</b></div>
+            <div>Date: <b>{v.date}</b></div>
+          </div>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid #555'}}>
+          <div style={{padding:'8px 12px',borderRight:'1px solid #555'}}>
+            <div style={{fontSize:10, color:'#666'}}>Bill to:</div>
+            <div style={{fontWeight:'bold'}}>{v.partyName}</div>
+            <div style={{fontSize:10}}>{pd?.address || '—'}</div>
+            <div style={{marginTop:2}}>GSTIN: {pd?.gstin || '—'}</div>
+          </div>
+          <div style={{padding:'8px 12px'}}>
+            <div style={{fontSize:10, color:'#666'}}>Ship to:</div>
+            <div style={{fontWeight:'bold'}}>{pd?.shippingName || v.partyName}</div>
+            <div style={{fontSize:10}}>{pd?.shippingAddress || pd?.address || '—'}</div>
+            <div style={{marginTop:2}}>GSTIN: {pd?.shippingGstin || pd?.gstin || '—'}</div>
+          </div>
+        </div>
+
+        <table style={{width:'100%',borderCollapse:'collapse',borderBottom:'1px solid #555'}}>
+          <thead>
+            <tr>
+              <th style={{...tdH,width:30}}>Sl No.</th>
+              <th style={{...tdH}}>Description of Goods</th>
+              <th style={{...tdH,width:60}}>HSN/SAC</th>
+              <th style={{...tdH,width:80,textAlign:'right'}}>Quantity</th>
+              <th style={{...tdH,width:80,textAlign:'right'}}>Rate</th>
+              <th style={{...tdH,width:100,textAlign:'right'}}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(v?.inventoryEntries || []).map((e: any, idx: number) => (
+              <tr key={idx} style={{fontSize:11}}>
+                <td style={{...tdB,textAlign:'center'}}>{idx+1}</td>
+                <td style={tdB}><b>{e.itemName || (e as any).stockItem?.name}</b><div>GST: {e.gstRate}%</div></td>
+                <td style={{...tdB,textAlign:'center'}}>{e.hsnCode}</td>
+                <td style={{...tdB,textAlign:'right'}}>{fmt(e.qty)} {e.unit}</td>
+                <td style={{...tdB,textAlign:'right'}}>{fmt(e.rate)}</td>
+                <td style={{...tdB,textAlign:'right'}}><b>{fmt(e.amount)}</b></td>
+              </tr>
+            ))}
+            {taxEntries.map((e: any, ti: number) => (
+              <tr key={'tax-' + ti}>
+                <td style={tdB}/><td style={{...tdB,textAlign:'right'}}>{e.ledgerName}</td><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}>{fmt(e.amount)}</td>
+              </tr>
+            ))}
+            {roundOffAmt !== 0 && (
+              <tr>
+                <td style={tdB}/><td style={{...tdB,textAlign:'right'}}>Round Off</td><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))}</td>
+              </tr>
+            )}
+          </tbody>
+          <tfoot>
+            <tr style={{borderTop:'2px solid #555'}}>
+              <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Total</div></td>
+              <td style={tdB}/><td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{fmt((v?.inventoryEntries || []).reduce((s,e)=>s+e.qty,0))}</td><td style={tdB}/>
+              <td style={{...tdB,fontWeight:'bold',textAlign:'right',fontSize:13}}>₹ {fmt(v.total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div style={{borderBottom:'1px solid #555',padding:'8px 12px'}}>
+          <div style={{fontSize:10}}>Amount Chargeable (in words)</div>
+          <div style={{fontWeight:'bold'}}>{numberToWords(v.total)}</div>
+        </div>
+
+        <div style={{display:'flex',justifyContent:'space-between',padding:'12px'}}>
+          <div style={{fontSize:10}}>Declaration:<br/>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
+          <div style={{textAlign:'right',fontSize:10}}>for <b>{company?.name}</b><br/><br/><br/><br/>Authorised Signatory</div>
+        </div>
       </div>
     );
   };
