@@ -5024,9 +5024,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 if (field === 'rateInclTax') r = value / factor;
                 if (field === 'amount') {
                    const taxable = value;
-                   const discP = field === 'discountPerc' ? value : (row.discountPerc || 0);
                    // If amount is edited, we calculate rate back
-                   if (q > 0) r = (taxable / (1 - discP/100)) / q;
+                   if (q > 0) r = (taxable / (1 - dP/100)) / q;
                 }
 
                 const gross = round2(q * r);
