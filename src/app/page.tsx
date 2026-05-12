@@ -4263,10 +4263,44 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
   const [partyName, setPartyName] = useState(activeAlterItem?.partyName || '');
   const [partyBalance, setPartyBalance] = useState<number|null>(null);
-  const [refNo, setRefNo] = useState('');
-  const [rows, setRows] = useState<VoucherRow[]>([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
-  const [additionalLedgers, setAdditionalLedgers] = useState<AccountEntry[]>([]);
-  const [accEntries, setAccEntries] = useState<AccountEntry[]>([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+  const [refNo, setRefNo] = useState(activeAlterItem?.refNo || '');
+  const [rows, setRows] = useState<VoucherRow[]>(
+    activeAlterItem?.inventoryEntries?.length > 0 
+    ? activeAlterItem.inventoryEntries.map((ie: any) => ({
+        ...ie,
+        itemId: ie.stockItemId || ie.itemId,
+        itemName: ie.itemName || ie.stockItem?.name || '',
+        unit: ie.unit || ie.stockItem?.unit?.symbol || 'Nos'
+      }))
+    : [{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]
+  );
+  const [additionalLedgers, setAdditionalLedgers] = useState<AccountEntry[]>(() => {
+    if (activeAlterItem?.entries?.length > 0) {
+      const salesPurchaseLedger = isPurchaseSide ? 'Purchase A/c' : 'Sales A/c';
+      return activeAlterItem.entries
+        .filter((e: any) => {
+          const lname = e.ledger?.name || e.ledgerName;
+          return lname !== activeAlterItem.partyName && lname !== salesPurchaseLedger && !lname.includes('GST Payable') && lname !== 'Round Off';
+        })
+        .map((e: any) => ({
+          ledgerId: e.ledgerId,
+          ledgerName: e.ledger?.name || e.ledgerName,
+          amount: e.amount,
+          entryType: e.entryType
+        }));
+    }
+    return [];
+  });
+  const [accEntries, setAccEntries] = useState<AccountEntry[]>(
+    activeAlterItem && !isInventory && activeAlterItem.entries?.length > 0
+    ? activeAlterItem.entries.map((e: any) => ({
+        ledgerId: e.ledgerId,
+        ledgerName: e.ledger?.name || e.ledgerName,
+        amount: e.amount,
+        entryType: e.entryType
+      }))
+    : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]
+  );
   const [narration, setNarration] = useState(activeAlterItem?.narration || '');
   const [focus, setFocus] = useState<{field:string;rowIdx?:number}|null>(null);
   const [filter, setFilter] = useState('');
@@ -7227,22 +7261,30 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               </tr>
             );
           })}
-          {(v?.entries || []).filter((e: any) => 
-            e.ledgerName !== v?.partyName && 
-            e.ledgerName !== 'Sales A/c' && 
-            e.ledgerName !== 'Purchase A/c'
-          ).map((e: any, ei: number) => {
+          {(v?.entries || []).filter((e: any) => {
+            const lname = e.ledger?.name || e.ledgerName || '';
+            const partyN = v?.partyName || '';
+            const vType = v?.type || '';
+            return (
+              lname !== partyN && 
+              lname !== 'Sales A/c' && 
+              lname !== 'Purchase A/c' &&
+              e.amount > 0
+            );
+          }).map((e: any, ei: number) => {
+            const lname = e.ledger?.name || e.ledgerName || 'Unknown Ledger';
+            const isDr = e.entryType === (['Sales', 'Payment', 'Debit Note'].includes(v?.type || '') ? 'Dr' : 'Cr');
             return (
               <tr key={'addl-' + ei}>
                 <td style={tdB}/>
-                <td style={tdB}><div style={{textAlign:'right'}}>{e.ledgerName}</div></td>
+                <td style={tdB}><div style={{textAlign:'right'}}>{lname}</div></td>
                 <td style={tdB}/>
                 <td style={tdB}/>
                 {anyShowIncl && <td style={tdB}/>}
                 <td style={tdB}/>
                 <td style={tdB}/>
                 {showDiscount && <td style={tdB}/>}
-                <td style={{...tdB, textAlign:'right'}}><b>{fmt(e.amount)}</b> {e.entryType === (['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr') ? 'Dr' : 'Cr'}</td>
+                <td style={{...tdB, textAlign:'right'}}><b>{fmt(e.amount)}</b> {isDr ? 'Dr' : 'Cr'}</td>
                 {anyShowAmtIncl && <td style={tdB}/>}
               </tr>
             );
