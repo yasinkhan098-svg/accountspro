@@ -7361,11 +7361,11 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             <tbody>
               {hsnRows.map((hr, idx) => (
                 <tr key={idx}>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.hsn}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.hsnCode}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.taxable)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.igst > 0 ? '' : (hr.igst===0 ? hr.totalTaxRate/2 + '%' : '')) : ''}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.igst > 0 ? '' : (hr.igst===0 ? hr.rate/2 + '%' : '')) : ''}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? hr.totalTaxRate/2 + '%' : ''}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? hr.rate/2 + '%' : ''}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.sgst)}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst + hr.sgst + hr.igst)}</td>
                 </tr>
