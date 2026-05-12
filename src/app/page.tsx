@@ -7185,8 +7185,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
     const roundOffAmt = roundOffEntry?.amount || 0;
 
-    return (
-        <div key={copyIdx} className="invoice-copy" style={{
+    return <div key={copyIdx} className="invoice-copy" style={{
           width:'100%', maxWidth:800, margin:'0 auto 30px auto', background:'white',
           border:'1px solid #555', fontFamily:'Arial,sans-serif', fontSize:12,
           position:'relative', boxSizing:'border-box'
@@ -7479,7 +7478,6 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
           <div style={{marginTop:40}}><div style={{borderTop:'1px solid #555', display:'inline-block', paddingTop:4, width:150, textAlign:'center'}}>Authorised Signatory</div></div>
         </div>
       </div>
-    );
   }
 
   return (
