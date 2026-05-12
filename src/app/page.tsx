@@ -4860,6 +4860,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       companyId: activeCompany?.id || 0,
       type:activeVoucher, date:currentDate, number:vNum, voucherNo:formattedNo, refNo:refNo||`${activeVoucher.slice(0,3).toUpperCase()}/${vNum}`,
       partyName, partyId: findL(partyName),
+      partyDetails,
+      dispatchDetails,
       inventoryEntries: isInventory ? rows.filter(r=>r.itemName).map((r,i)=>({id:i+1,...r})) : [],
       entries: isInventory ? [
         {id:1,ledgerId:findL(partyName),ledgerName:partyName,amount:grandTotal,entryType: partySide},

@@ -23,7 +23,7 @@ const normalizeDate = (d: any): Date => {
 export async function POST(req: Request) {
   try {
     const data = await req.json();
-    const { companyId, type, date, voucherNo, narration, entries = [], inventoryEntries = [] } = data;
+    const { companyId, type, date, voucherNo, narration, partyDetails, dispatchDetails, entries = [], inventoryEntries = [] } = data;
 
     if (!companyId) return NextResponse.json({ success: false, error: "Missing companyId" }, { status: 400 });
 
@@ -36,6 +36,8 @@ export async function POST(req: Request) {
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
+          partyDetails: partyDetails || {},
+          dispatchDetails: dispatchDetails || {},
           entries: {
             create: entries.filter((e:any) => e.ledgerId && !isNaN(parseInt(String(e.ledgerId)))).map((e: any) => ({
               ledgerId: parseInt(String(e.ledgerId)),
@@ -75,7 +77,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const data = await req.json();
-    const { id, companyId, type, date, voucherNo, narration, entries = [], inventoryEntries = [] } = data;
+    const { id, companyId, type, date, voucherNo, narration, partyDetails, dispatchDetails, entries = [], inventoryEntries = [] } = data;
 
     if (!id) return NextResponse.json({ success: false, error: "Missing voucher ID" }, { status: 400 });
 
@@ -92,6 +94,8 @@ export async function PUT(req: Request) {
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
+          partyDetails: partyDetails || {},
+          dispatchDetails: dispatchDetails || {},
           entries: {
             create: entries.filter((e:any) => e.ledgerId && !isNaN(parseInt(String(e.ledgerId)))).map((e: any) => ({
               ledgerId: parseInt(String(e.ledgerId)),

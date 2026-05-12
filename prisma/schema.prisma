@@ -100,6 +100,8 @@ model Voucher {
   date      DateTime
   voucherNo String
   narration String?
+  partyDetails Json?   // Added for ship-to / bill-to
+  dispatchDetails Json? // Added for dispatch info
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   entries   VoucherEntry[]
   inventoryEntries InventoryEntry[]
