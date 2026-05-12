@@ -7173,16 +7173,17 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     }, 100);
   };
 
-      {/* Summary Logic for Print */}
-      const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
-      const addlEntries = (v?.entries || []).filter((e: any) => {
-        const lname = e.ledger?.name || e.ledgerName || '';
-        return lname !== (v?.partyName || '') && lname !== 'Sales A/c' && lname !== 'Purchase A/c' && !lname.includes('GST Payable') && lname !== 'Round Off' && e.amount > 0;
-      });
-      const taxEntries = (v?.entries || []).filter((e: any) => (e.ledger?.name || e.ledgerName || '').includes('GST Payable'));
-      const totalTax = taxEntries.reduce((s:number, e:any) => s + (e.amount || 0), 0);
-      const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
-      const roundOffAmt = roundOffEntry?.amount || 0;
+  const renderInvoice = (copyIdx: number) => {
+    {/* Summary Logic for Print */}
+    const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
+    const addlEntries = (v?.entries || []).filter((e: any) => {
+      const lname = e.ledger?.name || e.ledgerName || '';
+      return lname !== (v?.partyName || '') && lname !== 'Sales A/c' && lname !== 'Purchase A/c' && !lname.includes('GST Payable') && lname !== 'Round Off' && e.amount > 0;
+    });
+    const taxEntries = (v?.entries || []).filter((e: any) => (e.ledger?.name || e.ledgerName || '').includes('GST Payable'));
+    const totalTax = taxEntries.reduce((s:number, e:any) => s + (e.amount || 0), 0);
+    const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
+    const roundOffAmt = roundOffEntry?.amount || 0;
 
       return (
         <div key={copyIdx} className="invoice-copy" style={{
@@ -7478,8 +7479,8 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
           <div style={{marginTop:40}}><div style={{borderTop:'1px solid #555', display:'inline-block', paddingTop:4, width:150, textAlign:'center'}}>Authorised Signatory</div></div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="print-preview-main" style={{display:'flex',height:'100%',overflow:'hidden',background:'#eef2f6'}}>
