@@ -4545,14 +4545,25 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
        setAccEntries(activeAlterItem.entries?.length>0 ? activeAlterItem.entries : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
        
        // Filter additional ledgers: everything that is not Party, Sales/Purchase A/c or GST
-       // Note: 'Round Off' is intentionally included so it appears in Day Book/Register drill-down
-       const addl = activeAlterItem.entries?.filter((e:any) => 
-         e.ledgerName !== pName && 
-         e.ledgerName !== 'Sales A/c' && 
-         e.ledgerName !== 'Purchase A/c' &&
-         !['CGST Payable', 'SGST Payable', 'IGST Payable'].includes(e.ledgerName)
-       ) || [];
-       setAdditionalLedgers(addl.map((a:any, i:number) => ({ ...a, id: i })));
+       const addl = activeAlterItem.entries?.filter((e:any) => {
+          const lname = e.ledgerName || e.ledger?.name || '';
+          return lname !== pName && 
+                 lname !== 'Sales A/c' && 
+                 lname !== 'Purchase A/c' &&
+                 !lname.includes('GST Payable') &&
+                 e.amount > 0;
+        }) || [];
+        // Important: Ensure we have at least one blank row for further additions
+        const initialAddl = addl.map((a:any, i:number) => ({ 
+          ledgerId: a.ledgerId, 
+          ledgerName: a.ledgerName || a.ledger?.name || '', 
+          amount: a.amount, 
+          entryType: a.entryType 
+        }));
+        if (initialAddl.length === 0 || initialAddl[initialAddl.length-1].ledgerName !== '') {
+           initialAddl.push({ledgerId:0, ledgerName:'', amount:0, entryType: otherSide});
+        }
+        setAdditionalLedgers(initialAddl);
        
        setNarration(activeAlterItem.narration || '');
        setPartyDetails(activeAlterItem.partyDetails||null);
@@ -7161,94 +7172,230 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     
     // Calculations
     const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
-    const taxEntries = (v?.entries || []).filter((e: any) => (e.ledger?.name || e.ledgerName || '').includes('GST Payable'));
-    const totalTax = taxEntries.reduce((s:number, e:any) => s + (e.amount || 0), 0);
-    const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
+    const taxEntries = (v?.entries || []).filter((e: any) => {
+      const lname = e.ledgerName || e.ledger?.name || '';
+      return lname.includes('GST Payable');
+    });
+    const addlEntries = (v?.entries || []).filter((e: any) => {
+      const lname = e.ledgerName || e.ledger?.name || '';
+      return lname !== v.partyName && lname !== 'Sales A/c' && lname !== 'Purchase A/c' && !lname.includes('GST Payable') && lname !== 'Round Off' && e.amount > 0;
+    });
+    const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledgerName || e.ledger?.name || '') === 'Round Off');
     const roundOffAmt = roundOffEntry?.amount || 0;
 
     return (
-      <div key={copyIdx} className="invoice-copy" style={{width:'100%', maxWidth:800, margin:'0 auto 30px auto', background:'white', border:'1px solid #555', fontFamily:'Arial,sans-serif', fontSize:12, position:'relative', boxSizing:'border-box'}}>
-        <div style={{position:'absolute', top:5, right:10, fontSize:10, fontWeight:'bold'}}>{copyLabels[copyIdx] || copyLabels[3]}</div>
-        <div style={{textAlign:'center', fontWeight:'bold', fontSize:16, padding:'12px 0 2px', borderBottom:'1px solid #555'}}>Tax Invoice</div>
+      <div key={copyIdx} className="invoice-copy" style={{width:'210mm', minHeight:'297mm', margin:'0 auto 30px auto', background:'white', border:'1.5px solid #000', fontFamily:'"Arial Narrow", Arial, sans-serif', fontSize:11, position:'relative', boxSizing:'border-box', padding:0}}>
+        {/* TOP LABEL */}
+        <div style={{position:'absolute', top:5, right:10, fontSize:9, fontWeight:'bold'}}>{copyLabels[copyIdx] || copyLabels[3]}</div>
         
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid #555'}}>
-          <div style={{padding:'8px 12px',borderRight:'1px solid #555'}}>
-            <div style={{fontWeight:'bold',fontSize:14}}>{company?.name || 'Company Name'}</div>
-            <div style={{whiteSpace:'pre-wrap', fontSize:10}}>{company?.address}</div>
-            <div style={{marginTop:4}}>GSTIN: <b>{company?.gstin}</b></div>
+        {/* TITLE */}
+        <div style={{textAlign:'center', fontWeight:'bold', fontSize:15, padding:'10px 0 5px', borderBottom:'1px solid #000'}}>Tax Invoice</div>
+        
+        {/* HEADER SECTION: Company & Invoice Info */}
+        <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', borderBottom:'1px solid #000'}}>
+          <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>
+            <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
+            <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}</div>
+            <div style={{marginTop:4, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
+            <div style={{fontSize:10}}>State Name : {activeCompany?.state}, Code : {stateCode(activeCompany?.state||'')}</div>
           </div>
-          <div style={{padding:'8px 12px'}}>
-            <div>Invoice No: <b>{v.voucherNo}</b></div>
-            <div>Date: <b>{v.date}</b></div>
-          </div>
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid #555'}}>
-          <div style={{padding:'8px 12px',borderRight:'1px solid #555'}}>
-            <div style={{fontSize:10, color:'#666'}}>Bill to:</div>
-            <div style={{fontWeight:'bold'}}>{v.partyName}</div>
-            <div style={{fontSize:10}}>{pd?.buyerAddress || '—'}</div>
-            <div style={{marginTop:2}}>GSTIN: {pd?.buyerGstin || '—'}</div>
-          </div>
-          <div style={{padding:'8px 12px'}}>
-            <div style={{fontSize:10, color:'#666'}}>Ship to:</div>
-            <div style={{fontWeight:'bold'}}>{pd?.shipName || v.partyName}</div>
-            <div style={{fontSize:10}}>{pd?.shipAddress || pd?.buyerAddress || '—'}</div>
-            <div style={{marginTop:2}}>GSTIN: {pd?.shipGstin || pd?.buyerGstin || '—'}</div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Invoice No.<br/><b>{v.voucherNo}</b></div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{v.date}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Delivery Note<br/>—</div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Mode/Terms of Payment<br/>—</div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>Reference No. & Date.<br/>—</div>
+            <div style={{padding:'5px 10px'}}>Other References<br/>—</div>
           </div>
         </div>
 
-        <table style={{width:'100%',borderCollapse:'collapse',borderBottom:'1px solid #555'}}>
+        {/* PARTY SECTION: Consignee & Buyer */}
+        <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', borderBottom:'1px solid #000'}}>
+          <div style={{display:'flex', flexDirection:'column'}}>
+            <div style={{padding:'4px 10px', borderBottom:'1px solid #000', borderRight:'1px solid #000'}}>
+              <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Consignee (Ship to)</div>
+              <div style={{fontWeight:'bold', fontSize:12}}>{pd?.shipName || v.partyName}</div>
+              <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.shipAddress || pd?.buyerAddress || '—'}</div>
+              <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.shipGstin || pd?.buyerGstin || '—'}</b></div>
+              <div style={{fontSize:10}}>State Name : {pd?.shipState || pd?.buyerState}, Code : {stateCode(pd?.shipState || pd?.buyerState || '')}</div>
+            </div>
+            <div style={{padding:'4px 10px', borderRight:'1px solid #000', flex:1}}>
+              <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Buyer (Bill to)</div>
+              <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
+              <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || '—'}</div>
+              <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || '—'}</b></div>
+              <div style={{fontSize:10}}>State Name : {pd?.buyerState}, Code : {stateCode(pd?.buyerState || '')}</div>
+            </div>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Buyer's Order No.<br/>—</div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/>—</div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatch Doc No.<br/>—</div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Delivery Note Date<br/>—</div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatched through<br/>—</div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Destination<br/>—</div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', gridColumn:'span 2', minHeight:80}}>Terms of Delivery<br/>—</div>
+          </div>
+        </div>
+
+        {/* ITEMS TABLE */}
+        <table style={{width:'100%', borderCollapse:'collapse', borderBottom:'1px solid #000'}}>
           <thead>
             <tr>
-              <th style={{...tdH,width:30}}>Sl No.</th>
-              <th style={{...tdH}}>Description of Goods</th>
-              <th style={{...tdH,width:60}}>HSN/SAC</th>
-              <th style={{...tdH,width:80,textAlign:'right'}}>Quantity</th>
-              <th style={{...tdH,width:80,textAlign:'right'}}>Rate</th>
-              <th style={{...tdH,width:100,textAlign:'right'}}>Amount</th>
+              <th style={{...tdH, width:30}}>Sl No.</th>
+              <th style={{...tdH, textAlign:'left'}}>Description of Goods</th>
+              <th style={{...tdH, width:60}}>HSN/SAC</th>
+              <th style={{...tdH, width:80, textAlign:'right'}}>Quantity</th>
+              <th style={{...tdH, width:70, textAlign:'right'}}>Rate</th>
+              <th style={{...tdH, width:40}}>per</th>
+              <th style={{...tdH, width:100, textAlign:'right'}}>Amount</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody style={{minHeight:'400px'}}>
             {(v?.inventoryEntries || []).map((e: any, idx: number) => (
               <tr key={idx} style={{fontSize:11}}>
-                <td style={{...tdB,textAlign:'center'}}>{idx+1}</td>
-                <td style={tdB}><b>{e.itemName || (e as any).stockItem?.name}</b><div>GST: {e.gstRate}%</div></td>
-                <td style={{...tdB,textAlign:'center'}}>{e.hsnCode}</td>
-                <td style={{...tdB,textAlign:'right'}}>{fmt(e.qty)} {e.unit}</td>
-                <td style={{...tdB,textAlign:'right'}}>{fmt(e.rate)}</td>
-                <td style={{...tdB,textAlign:'right'}}><b>{fmt(e.amount)}</b></td>
+                <td style={{...tdB, textAlign:'center', borderTop:'none', borderBottom:'none'}}>{idx+1}</td>
+                <td style={{...tdB, borderTop:'none', borderBottom:'none'}}>
+                  <div style={{fontWeight:'bold'}}>{e.itemName || (e as any).stockItem?.name}</div>
+                </td>
+                <td style={{...tdB, textAlign:'center', borderTop:'none', borderBottom:'none'}}>{e.hsnCode}</td>
+                <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none', fontWeight:'bold'}}>{fmt(e.qty)} {e.unit}</td>
+                <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{fmt(e.rate)}</td>
+                <td style={{...tdB, textAlign:'center', borderTop:'none', borderBottom:'none'}}>{e.unit}</td>
+                <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none', fontWeight:'bold'}}>{fmt(e.amount)}</td>
               </tr>
             ))}
-            {taxEntries.map((e: any, ti: number) => (
-              <tr key={'tax-' + ti}>
-                <td style={tdB}/><td style={{...tdB,textAlign:'right'}}>{e.ledgerName}</td><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}>{fmt(e.amount)}</td>
-              </tr>
+            {/* Blank Space filling */}
+            {Array.from({length: Math.max(0, 10 - (v?.inventoryEntries?.length || 0))}).map((_, i) => (
+              <tr key={'blank-'+i} style={{height:20}}><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none'}}/></tr>
             ))}
+            
+            {/* Additional Ledgers in Table */}
+            {addlEntries.map((ae, idx) => (
+               <tr key={'addl-'+idx} style={{fontSize:11}}>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>{ae.ledgerName}</td>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', textAlign:'right', fontWeight:'bold'}}>{fmt(ae.amount)}</td>
+               </tr>
+            ))}
+
+            {/* GST Breakdown in Table */}
+            {taxEntries.map((te, idx) => (
+               <tr key={'tax-'+idx} style={{fontSize:11, fontStyle:'italic'}}>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right', paddingRight:20}}>{te.ledgerName}</td>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', textAlign:'right'}}>{fmt(te.amount)}</td>
+               </tr>
+            ))}
+
+            {/* Round Off in Table */}
             {roundOffAmt !== 0 && (
-              <tr>
-                <td style={tdB}/><td style={{...tdB,textAlign:'right'}}>Round Off</td><td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))}</td>
-              </tr>
+               <tr style={{fontSize:11}}>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>Round Off</td>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 <td style={{...tdB, border:'none', textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))}</td>
+               </tr>
             )}
           </tbody>
           <tfoot>
-            <tr style={{borderTop:'2px solid #555'}}>
-              <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Total</div></td>
-              <td style={tdB}/><td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{fmt((v?.inventoryEntries || []).reduce((s,e)=>s+e.qty,0))}</td><td style={tdB}/>
-              <td style={{...tdB,fontWeight:'bold',textAlign:'right',fontSize:13}}>₹ {fmt(v.total)}</td>
+            <tr style={{borderTop:'1px solid #000', fontWeight:'bold'}}>
+              <td style={{...tdB, textAlign:'right'}} colSpan={2}>Total</td>
+              <td style={tdB}/>
+              <td style={{...tdB, textAlign:'right'}}>{fmt((v?.inventoryEntries || []).reduce((s,e)=>s+e.qty,0))}</td>
+              <td style={tdB}/>
+              <td style={tdB}/>
+              <td style={{...tdB, textAlign:'right', fontSize:13}}>₹ {fmt(v.total)}</td>
             </tr>
           </tfoot>
         </table>
 
-        <div style={{borderBottom:'1px solid #555',padding:'8px 12px'}}>
-          <div style={{fontSize:10}}>Amount Chargeable (in words)</div>
-          <div style={{fontWeight:'bold'}}>{numberToWords(v.total)}</div>
+        {/* FOOTER SECTION */}
+        <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>
+          <div style={{fontSize:9}}>Amount Chargeable (in words)</div>
+          <div style={{fontWeight:'bold', fontSize:11}}>INR {numberToWords(v.total)} Only</div>
         </div>
 
-        <div style={{display:'flex',justifyContent:'space-between',padding:'12px'}}>
-          <div style={{fontSize:10}}>Declaration:<br/>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
-          <div style={{textAlign:'right',fontSize:10}}>for <b>{company?.name}</b><br/><br/><br/><br/>Authorised Signatory</div>
+        {/* HSN SUMMARY TABLE (Professional Logic) */}
+        <div style={{borderBottom:'1px solid #000'}}>
+          <table style={{width:'100%', borderCollapse:'collapse', fontSize:9}}>
+            <thead>
+              <tr>
+                <th style={{...tdH, fontSize:9}} rowSpan={2}>HSN/SAC</th>
+                <th style={{...tdH, fontSize:9}} rowSpan={2}>Taxable<br/>Value</th>
+                <th style={{...tdH, fontSize:9}} colSpan={2}>Central Tax</th>
+                <th style={{...tdH, fontSize:9}} colSpan={2}>State Tax</th>
+                <th style={{...tdH, fontSize:9}} rowSpan={2}>Total<br/>Tax Amount</th>
+              </tr>
+              <tr>
+                <th style={{...tdH, fontSize:9}}>Rate</th>
+                <th style={{...tdH, fontSize:9}}>Amount</th>
+                <th style={{...tdH, fontSize:9}}>Rate</th>
+                <th style={{...tdH, fontSize:9}}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hsnRows.map((hr, idx) => (
+                <tr key={idx}>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.hsn}</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.taxable)}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.igst > 0 ? '' : (hr.igst===0 ? hr.totalTaxRate/2 + '%' : '')) : ''}</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst)}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? hr.totalTaxRate/2 + '%' : ''}</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.sgst)}</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst + hr.sgst + hr.igst)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{fontWeight:'bold'}}>
+                <td style={{...tdB, textAlign:'right'}}>Total</td>
+                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.taxable,0))}</td>
+                <td style={tdB}/>
+                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.cgst,0))}</td>
+                <td style={tdB}/>
+                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.sgst,0))}</td>
+                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.cgst+r.sgst+r.igst,0))}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
+
+        <div style={{padding:'5px 10px', borderBottom:'1px solid #000', fontSize:9}}>
+          Tax Amount (in words) : <b>INR {numberToWords(hsnRows.reduce((s,r)=>s+r.cgst+r.sgst+r.igst,0))} Only</b>
+        </div>
+
+        {/* BANK DETAILS & SIGNATURE */}
+        <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', minHeight:120}}>
+          <div style={{padding:'10px', borderRight:'1px solid #000', display:'flex', flexDirection:'column', justifyContent:'space-between'}}>
+             <div style={{fontSize:9}}>
+                <b>Company's Bank Details</b><br/>
+                Bank Name : <b>{company?.bankName || 'PUNJAB NATIONAL BANK'}</b><br/>
+                A/c No. : <b>{company?.accountNo || '06764011000155'}</b><br/>
+                Branch & IFS Code : <b>{company?.ifsc || 'KICHHA & PUNB0067610'}</b>
+             </div>
+             <div style={{fontSize:8, marginTop:10}}>
+                <u>Declaration:</u><br/>
+                We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
+             </div>
+          </div>
+          <div style={{padding:'10px', textAlign:'right', display:'flex', flexDirection:'column', justifyContent:'space-between'}}>
+             <div style={{fontSize:9}}>for <b>{company?.name}</b></div>
+             <div style={{fontSize:9, marginBottom:10}}>Authorised Signatory</div>
+          </div>
+        </div>
+        <div style={{textAlign:'center', fontSize:8, borderTop:'1px solid #000', padding:'2px 0'}}>This is a Computer Generated Invoice</div>
       </div>
     );
   };
