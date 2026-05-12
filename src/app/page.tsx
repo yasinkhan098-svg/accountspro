@@ -7197,6 +7197,15 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               <td style={{...tdB}}><b>{e.itemName || (e as any).stockItem?.name || '—'}</b></td>
               <td style={{...tdB,textAlign:'center'}}>{e.hsnCode || (e as any).stockItem?.hsnCode || '—'}</td>
               <td style={{...tdB,textAlign:'right'}}><b>{e.qty} {typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</b></td>
+          {(v?.inventoryEntries || []).map((e: any, idx: number) => (
+            <tr key={idx} style={{fontSize:11}}>
+              <td style={{...tdB,textAlign:'center'}}>{idx+1}</td>
+              <td style={tdB}>
+                <div style={{fontWeight:'bold'}}>{e.itemName}</div>
+                {e.hsnCode && <div style={{fontSize:9,color:'#666'}}>HSN: {e.hsnCode}</div>}
+              </td>
+              <td style={{...tdB,textAlign:'center'}}>{e.gstRate}%</td>
+              <td style={{...tdB,textAlign:'right'}}>{fmt(e.qty)}</td>
               {anyShowIncl && (
                 <td style={{...tdB,textAlign:'right'}}>{(e.rateInclTax || 0) > 0 ? fmt(e.rateInclTax) : '—'}</td>
               )}
@@ -7212,7 +7221,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             </tr>
           ))}
           {/* Spacer rows to maintain height */}
-          {[...Array(Math.max(0, 8 - v.inventoryEntries.length))].map((_, i) => {
+          {[...Array(Math.max(0, 8 - (v?.inventoryEntries?.length || 0)))].map((_, i) => {
             return (
               <tr key={'sp-'+i} style={{height:20}}>
                 <td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/>
@@ -7224,11 +7233,11 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               </tr>
             );
           })}
-          {v.entries.filter(e => 
-            e.ledgerName !== v.partyName && 
+          {(v?.entries || []).filter((e: any) => 
+            e.ledgerName !== v?.partyName && 
             e.ledgerName !== 'Sales A/c' && 
             e.ledgerName !== 'Purchase A/c'
-          ).map((e, ei) => {
+          ).map((e: any, ei: number) => {
             return (
               <tr key={'addl-' + ei}>
                 <td style={tdB}/>
@@ -7249,12 +7258,12 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
           <tr style={{borderTop:'2px solid #555'}}>
             <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Total</div></td>
             <td style={tdB}></td>
-            <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{v.inventoryEntries.reduce((s:number,e:any)=>s+(e.qty||0),0)} {typeof v.inventoryEntries[0]?.unit === 'string' ? v.inventoryEntries[0]?.unit : (v.inventoryEntries[0]?.unit as any)?.symbol || ''}</td>
+            <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{(v?.inventoryEntries || []).reduce((s:number,e:any)=>s+(e.qty||0),0)} {typeof (v?.inventoryEntries || [])[0]?.unit === 'string' ? (v?.inventoryEntries || [])[0]?.unit : ((v?.inventoryEntries || [])[0]?.unit as any)?.symbol || ''}</td>
             {anyShowIncl && <td style={tdB}/>}
             <td style={tdB}></td>
             <td style={tdB}></td>
             {showDiscount && <td style={tdB}/>}
-            <td style={{...tdB,fontWeight:'bold',textAlign:'right',fontSize:13}}>₹ {fmt(v.total)}</td>
+            <td style={{...tdB,fontWeight:'bold',textAlign:'right',fontSize:13}}>₹ {fmt(v?.total || 0)}</td>
             {anyShowAmtIncl && <td style={tdB}/>}
           </tr>
         </tfoot>
@@ -7263,7 +7272,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
       {/* ===== Amount in words ===== */}
       <div style={{borderBottom:'1px solid #555',padding:'8px 12px'}}>
         <div style={{fontSize:10}}>Amount Chargeable (in words)</div>
-        <div style={{fontWeight:'bold',fontSize:12}}><b>{numberToWords(v.total)}</b></div>
+        <div style={{fontWeight:'bold',fontSize:12}}><b>{numberToWords(v?.total || 0)}</b></div>
       </div>
 
       {/* ===== HSN Summary ===== */}
