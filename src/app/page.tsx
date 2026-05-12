@@ -7173,13 +7173,24 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     }, 100);
   };
 
-  const renderInvoice = (copyIdx: number) => (
-    <div key={copyIdx} className="invoice-copy" style={{
-      width:'100%', maxWidth:800, margin:'0 auto 30px auto', background:'white',
-      border:'1px solid #555', fontFamily:'Arial,sans-serif', fontSize:12,
-      position:'relative', boxSizing:'border-box'
-    }}>
-      {/* ===== COPY LABEL ===== */}
+      {/* Summary Logic for Print */}
+      const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
+      const addlEntries = (v?.entries || []).filter((e: any) => {
+        const lname = e.ledger?.name || e.ledgerName || '';
+        return lname !== (v?.partyName || '') && lname !== 'Sales A/c' && lname !== 'Purchase A/c' && !lname.includes('GST Payable') && lname !== 'Round Off' && e.amount > 0;
+      });
+      const taxEntries = (v?.entries || []).filter((e: any) => (e.ledger?.name || e.ledgerName || '').includes('GST Payable'));
+      const totalTax = taxEntries.reduce((s:number, e:any) => s + (e.amount || 0), 0);
+      const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
+      const roundOffAmt = roundOffEntry?.amount || 0;
+
+      return (
+        <div key={copyIdx} className="invoice-copy" style={{
+          width:'100%', maxWidth:800, margin:'0 auto 30px auto', background:'white',
+          border:'1px solid #555', fontFamily:'Arial,sans-serif', fontSize:12,
+          position:'relative', boxSizing:'border-box'
+        }}>
+          {/* ===== COPY LABEL ===== */}
       <div style={{position:'absolute', top:5, right:10, fontSize:10, fontWeight:'bold', color:'#333'}}>
         {copyLabels[copyIdx] || copyLabels[3]}
       </div>
@@ -7314,17 +7325,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               </tr>
             );
           })}
-          {(v?.entries || []).filter((e: any) => {
-            const lname = e.ledger?.name || e.ledgerName || '';
-            const partyN = v?.partyName || '';
-            const vType = v?.type || '';
-            return (
-              lname !== partyN && 
-              lname !== 'Sales A/c' && 
-              lname !== 'Purchase A/c' &&
-              e.amount > 0
-            );
-          }).map((e: any, ei: number) => {
+          {addlEntries.map((e: any, ei: number) => {
             const lname = e.ledger?.name || e.ledgerName || 'Unknown Ledger';
             const isDr = e.entryType === (['Sales', 'Payment', 'Debit Note'].includes(v?.type || '') ? 'Dr' : 'Cr');
             return (
@@ -7342,8 +7343,63 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               </tr>
             );
           })}
+          {taxEntries.map((e: any, ti: number) => (
+            <tr key={'tax-' + ti}>
+              <td style={tdB}/>
+              <td style={tdB}><div style={{textAlign:'right'}}>{e.ledger?.name || e.ledgerName}</div></td>
+              <td style={tdB}/>
+              <td style={tdB}/>
+              {anyShowIncl && <td style={tdB}/>}
+              <td style={tdB}/>
+              <td style={tdB}/>
+              {showDiscount && <td style={tdB}/>}
+              <td style={{...tdB, textAlign:'right'}}>{fmt(e.amount)}</td>
+              {anyShowAmtIncl && <td style={tdB}/>}
+            </tr>
+          ))}
+          {roundOffAmt !== 0 && (
+            <tr>
+              <td style={tdB}/>
+              <td style={tdB}><div style={{textAlign:'right'}}>Round Off</div></td>
+              <td style={tdB}/>
+              <td style={tdB}/>
+              {anyShowIncl && <td style={tdB}/>}
+              <td style={tdB}/>
+              <td style={tdB}/>
+              {showDiscount && <td style={tdB}/>}
+              <td style={{...tdB, textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))} {roundOffEntry?.entryType}</td>
+              {anyShowAmtIncl && <td style={tdB}/>}
+            </tr>
+          )}
         </tbody>
         <tfoot>
+          {/* Sub Total Row */}
+          <tr style={{borderTop:'1px solid #999'}}>
+            <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Sub Total</div></td>
+            <td style={tdB}></td>
+            <td style={tdB}></td>
+            {anyShowIncl && <td style={tdB}/>}
+            <td style={tdB}></td>
+            <td style={tdB}></td>
+            {showDiscount && <td style={tdB}/>}
+            <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>₹ {fmt(subTotal)}</td>
+            {anyShowAmtIncl && <td style={tdB}/>}
+          </tr>
+          {/* Tax Total Row (if taxes exist) */}
+          {totalTax > 0 && (
+            <tr>
+              <td style={{...tdB}} colSpan={2}><div style={{textAlign:'right'}}>Total Tax</div></td>
+              <td style={tdB}></td>
+              <td style={tdB}></td>
+              {anyShowIncl && <td style={tdB}/>}
+              <td style={tdB}></td>
+              <td style={tdB}></td>
+              {showDiscount && <td style={tdB}/>}
+              <td style={{...tdB,textAlign:'right'}}>₹ {fmt(totalTax)}</td>
+              {anyShowAmtIncl && <td style={tdB}/>}
+            </tr>
+          )}
+          {/* Grand Total Row */}
           <tr style={{borderTop:'2px solid #555'}}>
             <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Total</div></td>
             <td style={tdB}></td>
