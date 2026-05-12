@@ -4544,7 +4544,6 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
        setAccEntries(activeAlterItem.entries?.length>0 ? activeAlterItem.entries : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
        
-       // Filter additional ledgers: everything that is not Party, Sales/Purchase A/c or GST
        const addl = activeAlterItem.entries?.filter((e:any) => {
           const lname = e.ledgerName || e.ledger?.name || '';
           return lname !== pName && 
@@ -4552,35 +4551,32 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                  lname !== 'Purchase A/c' &&
                  !lname.includes('GST Payable') &&
                  e.amount > 0;
-        }) || [];
-        // Important: Ensure we have at least one blank row for further additions
-        const initialAddl = addl.map((a:any, i:number) => ({ 
-          ledgerId: a.ledgerId, 
+        }).map((a:any) => ({ 
+          ledgerId: a.ledgerId || a.ledger?.id || 0, 
           ledgerName: a.ledgerName || a.ledger?.name || '', 
-          amount: a.amount, 
+          amount: Math.abs(a.amount), 
           entryType: a.entryType 
-        }));
-        if (initialAddl.length === 0 || initialAddl[initialAddl.length-1].ledgerName !== '') {
-           initialAddl.push({ledgerId:0, ledgerName:'', amount:0, entryType: otherSide});
-        }
-        setAdditionalLedgers(initialAddl);
-       
-       setNarration(activeAlterItem.narration || '');
-       setPartyDetails(activeAlterItem.partyDetails||null);
-       setDispatchDetails(activeAlterItem.dispatchDetails||null);
-       const l = ledgers.find(lx=>lx.id===activeAlterItem.partyId);
-       if(l) setPartyBalance(getLedgerClosingBalance(l,vouchers));
-     } else {
-       setPartyName('');
-       setRefNo('');
-       setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
-       setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
-       setAdditionalLedgers([]);
-       setNarration('');
-       setPartyBalance(null);
-       setPartyDetails(null);
-       setDispatchDetails(null);
-     }
+        })) || [];
+
+        // Always end with a blank row for new entries
+        setAdditionalLedgers([...addl, {ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}]);
+        
+        setNarration(activeAlterItem.narration || '');
+        setPartyDetails(activeAlterItem.partyDetails||null);
+        setDispatchDetails(activeAlterItem.dispatchDetails||null);
+        const l = ledgers.find(lx=>lx.id===activeAlterItem.partyId);
+        if(l) setPartyBalance(getLedgerClosingBalance(l,vouchers));
+      } else {
+        setPartyName('');
+        setRefNo('');
+        setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
+        setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+        setAdditionalLedgers([{ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}]);
+        setNarration('');
+        setPartyBalance(null);
+        setPartyDetails(null);
+        setDispatchDetails(null);
+      }
      // Reset localNumberingMode when switching voucher type
      setLocalNumberingMode(numberingMethod === 'Manual' ? 'Manual' : 'Auto');
      if (!activeAlterItem) {
