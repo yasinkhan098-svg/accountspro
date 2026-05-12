@@ -866,10 +866,15 @@ export default function App() {
           setAllVouchers(prev => {
             const others = prev.filter(v => Number(v.companyId) !== Number(cid));
             const localOnly = prev.filter(v => Number(v.companyId) === Number(cid) && String(v.id).length >= 12);
-            const mapped = vData.vouchers.map((v: any) => ({
-              ...v,
-              date: new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
-            }));
+            const mapped = vData.vouchers.map((v: any) => {
+              const partySide = ['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr';
+              const partyEntry = v.entries?.find((e: any) => e.entryType === partySide);
+              return {
+                ...v,
+                partyName: v.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party',
+                date: new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+              };
+            });
             return [...others, ...localOnly, ...mapped];
           });
         }
@@ -1375,9 +1380,17 @@ export default function App() {
       });
       if (res.ok) {
         const resData = await res.json();
+        const vRaw = resData.voucher || resData;
+        
+        // Dynamic Party Name Mapping
+        const partySide = ['Sales', 'Payment', 'Debit Note'].includes(vRaw.type) ? 'Dr' : 'Cr';
+        const partyEntry = vRaw.entries?.find((e: any) => e.entryType === partySide);
+        const pName = vRaw.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party';
+
         const savedV = {
-          ...resData.voucher,
-          date: new Date(resData.voucher.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+          ...vRaw,
+          partyName: pName,
+          date: new Date(vRaw.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
         };
         if (isEdit) {
           setAllVouchers(p => p.map(x => x.id === v.id ? savedV : x));

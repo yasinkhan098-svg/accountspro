@@ -33,7 +33,6 @@ export async function POST(req: Request) {
         data: {
           companyId: parseInt(String(companyId)),
           type,
-          partyName: partyName || "",
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
@@ -61,7 +60,7 @@ export async function POST(req: Request) {
             }))
           }
         },
-        include: { entries: true, inventoryEntries: { include: { stockItem: true } } }
+        include: { entries: { include: { ledger: true } }, inventoryEntries: { include: { stockItem: true } } }
       });
       return voucher;
     });
@@ -90,7 +89,6 @@ export async function PUT(req: Request) {
         data: {
           companyId: parseInt(String(companyId)),
           type,
-          partyName: partyName || "",
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
@@ -118,7 +116,7 @@ export async function PUT(req: Request) {
             }))
           }
         },
-        include: { entries: true, inventoryEntries: { include: { stockItem: true } } }
+        include: { entries: { include: { ledger: true } }, inventoryEntries: { include: { stockItem: true } } }
       });
       return voucher;
     });
@@ -136,7 +134,7 @@ export async function GET(req: Request) {
   const companyId = searchParams.get('companyId');
   const vouchers = await prisma.voucher.findMany({
     where: companyId ? { companyId: parseInt(companyId) } : undefined,
-    include: { entries: true, inventoryEntries: { include: { stockItem: true } } },
+    include: { entries: { include: { ledger: true } }, inventoryEntries: { include: { stockItem: true } } },
     orderBy: { createdAt: 'desc' }
   });
   return NextResponse.json({ success: true, vouchers });
