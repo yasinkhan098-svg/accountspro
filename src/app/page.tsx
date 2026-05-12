@@ -7174,7 +7174,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   };
 
   const renderInvoice = (copyIdx: number) => {
-    {/* Summary Logic for Print */}
+    // Summary Logic for Print
     const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
     const addlEntries = (v?.entries || []).filter((e: any) => {
       const lname = e.ledger?.name || e.ledgerName || '';
