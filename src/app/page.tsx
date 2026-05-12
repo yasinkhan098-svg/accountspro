@@ -7157,6 +7157,54 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     const map:Record<string,string>={'Uttarakhand':'05','Uttar Pradesh':'09','Delhi':'07','Maharashtra':'27','Gujarat':'24','Rajasthan':'08','Punjab':'03','Haryana':'06','Karnataka':'29','Tamil Nadu':'33','West Bengal':'19','Bihar':'10','Madhya Pradesh':'23','Andhra Pradesh':'28','Telangana':'36','Odisha':'21','Kerala':'32','Assam':'18','Jharkhand':'20','Chhattisgarh':'22','Himachal Pradesh':'02','Jammu and Kashmir':'01','Goa':'30'};
     return map[s]||'00';
   };
+
+  const tdB:React.CSSProperties = {border:'1px solid #555',padding:'4px 6px',fontSize:11,verticalAlign:'top'};
+  const tdH:React.CSSProperties = {...tdB,fontWeight:'bold',background:'#f2f2f2',textAlign:'center'};
+
+  const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
+  const addlEntries = (v?.entries || []).filter((e: any) => {
+    const lname = e.ledger?.name || e.ledgerName || '';
+    return lname !== (v?.partyName || '') && lname !== 'Sales A/c' && lname !== 'Purchase A/c' && !lname.includes('GST Payable') && lname !== 'Round Off' && e.amount > 0;
+  });
+  const taxEntries = (v?.entries || []).filter((e: any) => (e.ledger?.name || e.ledgerName || '').includes('GST Payable'));
+  const totalTax = taxEntries.reduce((s:number, e:any) => s + (e.amount || 0), 0);
+  const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
+  const roundOffAmt = roundOffEntry?.amount || 0;
+
+  const anyShowIncl = (v?.inventoryEntries || []).some((e:any) => (e.rateInclTax || 0) > 0);
+  const anyShowAmtIncl = (v?.inventoryEntries || []).some((e:any) => (e.amountInclTax || 0) > 0);
+  const showDiscount = (v?.inventoryEntries || []).some((e:any) => (e.discountPerc || 0) > 0);
+  const hsnRows:any[] = [];
+  (v?.inventoryEntries || []).forEach((e:any)=>{
+    const h = e.hsnCode || '—';
+    const rate = e.gstRate || 0;
+    const taxable = e.amount || 0;
+    const igst = isInterState ? (taxable * rate / 100) : 0;
+    const cgst = !isInterState ? (taxable * (rate/2) / 100) : 0;
+    const sgst = !isInterState ? (taxable * (rate/2) / 100) : 0;
+    const existing = hsnRows.find(r=>r.hsnCode===h && r.rate===rate);
+    if(existing){ existing.taxable+=taxable; existing.igst+=igst; existing.cgst+=cgst; existing.sgst+=sgst; existing.total+=(igst+cgst+sgst); }
+    else hsnRows.push({hsnCode:h, rate, taxable, igst, cgst, sgst, total:(igst+cgst+sgst)});
+  });
+
+  const copyLabels = ["ORIGINAL FOR RECIPIENT", "DUPLICATE FOR TRANSPORTER", "TRIPLICATE FOR SUPPLIER", "EXTRA COPY"];
+
+  return (
+    <div key={copyIdx} className="invoice-copy" style={{
+      width:'100%', maxWidth:800, margin:'0 auto 30px auto', background:'white',
+      border:'1px solid #555', fontFamily:'Arial,sans-serif', fontSize:12,
+      position:'relative', boxSizing:'border-box'
+    }}>
+      {/* ===== COPY LABEL ===== */}
+      <div style={{position:'absolute', top:5, right:10, fontSize:10, fontWeight:'bold', color:'#333'}}>
+        {copyLabels[copyIdx] || copyLabels[3]}
+      </div>
+
+      {/* ===== TITLE ===== */}
+      <div style={{textAlign:'center', fontWeight:'bold', fontSize:16, padding:'12px 0 2px', borderBottom:'1px solid #555'}}>
+        Tax Invoice
+      </div>
+      {/* ... (rest of invoice logic) ... */}
   const companyState = company?.state||'';
   const buyerState = pd?.buyerState||v.partyName;
 
@@ -7511,7 +7559,145 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         </div>
         
         {/* Render for printing - hidden on screen if showOptions, but actually we use CSS to hide everything else */}
-        {Array.from({length: numCopies}).map((_, i) => renderInvoice(i))}
+        {Array.from({length: numCopies}).map((_, copyIdx) => {
+          const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
+          const addlEntries = (v?.entries || []).filter((e: any) => {
+            const lname = e.ledger?.name || e.ledgerName || '';
+            return lname !== (v?.partyName || '') && lname !== 'Sales A/c' && lname !== 'Purchase A/c' && !lname.includes('GST Payable') && lname !== 'Round Off' && e.amount > 0;
+          });
+          const taxEntries = (v?.entries || []).filter((e: any) => (e.ledger?.name || e.ledgerName || '').includes('GST Payable'));
+          const totalTax = taxEntries.reduce((s:number, e:any) => s + (e.amount || 0), 0);
+          const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
+          const roundOffAmt = roundOffEntry?.amount || 0;
+
+          return (
+            <div key={copyIdx} className="invoice-copy" style={{
+              width:'100%', maxWidth:800, margin:'0 auto 30px auto', background:'white',
+              border:'1px solid #555', fontFamily:'Arial,sans-serif', fontSize:12,
+              position:'relative', boxSizing:'border-box'
+            }}>
+              {/* ===== COPY LABEL ===== */}
+              <div style={{position:'absolute', top:5, right:10, fontSize:10, fontWeight:'bold', color:'#333'}}>
+                {copyLabels[copyIdx] || copyLabels[3]}
+              </div>
+
+              {/* ===== TITLE ===== */}
+              <div style={{textAlign:'center', fontWeight:'bold', fontSize:16, padding:'12px 0 2px', borderBottom:'1px solid #555'}}>
+                Tax Invoice
+              </div>
+              {/* ... Rest of Invoice Table, Footer, etc ... */}
+              <table style={{width:'100%',borderCollapse:'collapse',borderBottom:'1px solid #555'}}>
+                <thead>
+                  <tr>
+                    <th style={{...tdH,width:30}}>Sl No.</th>
+                    <th style={{...tdH}}>Description of Goods</th>
+                    <th style={{...tdH,width:60}}>HSN/SAC</th>
+                    <th style={{...tdH,width:80,textAlign:'right'}}>Quantity</th>
+                    {anyShowIncl && <th style={{...tdH,width:80,textAlign:'right'}}>Rate (Incl. Tax)</th>}
+                    <th style={{...tdH,width:80,textAlign:'right'}}>Rate</th>
+                    <th style={{...tdH,width:45}}>per</th>
+                    {showDiscount && <th style={{...tdH,width:50,textAlign:'right'}}>Disc %</th>}
+                    <th style={{...tdH,width:100,textAlign:'right'}}>Amount</th>
+                    {anyShowAmtIncl && <th style={{...tdH,width:100,textAlign:'right'}}>Amount (Incl. Tax)</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(v?.inventoryEntries || []).map((e: any, idx: number) => (
+                    <tr key={idx} style={{fontSize:11, minHeight:25}}>
+                      <td style={{...tdB,textAlign:'center'}}>{idx+1}</td>
+                      <td style={tdB}>
+                        <div style={{fontWeight:'bold'}}>{e.itemName || (e as any).stockItem?.name || '—'}</div>
+                        <div style={{fontSize:9,color:'#666'}}>GST: {e.gstRate || (e as any).stockItem?.gstRate || 0}%</div>
+                      </td>
+                      <td style={{...tdB,textAlign:'center'}}>{e.hsnCode || (e as any).stockItem?.hsnCode || '—'}</td>
+                      <td style={{...tdB,textAlign:'right'}}>{fmt(e.qty)}</td>
+                      {anyShowIncl && <td style={{...tdB,textAlign:'right'}}>{(e.rateInclTax || 0) > 0 ? fmt(e.rateInclTax) : '—'}</td>}
+                      <td style={{...tdB,textAlign:'right'}}>{fmt(e.rate)}</td>
+                      <td style={{...tdB,textAlign:'center'}}>{typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</td>
+                      {showDiscount && <td style={{...tdB,textAlign:'right'}}>{(e.discountPerc || 0) > 0 ? `${e.discountPerc}%` : '—'}</td>}
+                      <td style={{...tdB,textAlign:'right'}}><b>{fmt(e.amount)}</b></td>
+                      {anyShowAmtIncl && <td style={{...tdB,textAlign:'right'}}>{(e.amountInclTax || 0) > 0 ? <b>{fmt(e.amountInclTax)}</b> : '—'}</td>}
+                    </tr>
+                  ))}
+                  {/* Additional Entries ... */}
+                  {addlEntries.map((e: any, ei: number) => (
+                    <tr key={'addl-' + ei}>
+                      <td style={tdB}/>
+                      <td style={tdB}><div style={{textAlign:'right'}}>{e.ledger?.name || e.ledgerName}</div></td>
+                      <td style={tdB}/>
+                      <td style={tdB}/>
+                      {anyShowIncl && <td style={tdB}/>}
+                      <td style={tdB}/>
+                      <td style={tdB}/>
+                      {showDiscount && <td style={tdB}/>}
+                      <td style={{...tdB, textAlign:'right'}}><b>{fmt(e.amount)}</b></td>
+                      {anyShowAmtIncl && <td style={tdB}/>}
+                    </tr>
+                  ))}
+                  {taxEntries.map((e: any, ti: number) => (
+                    <tr key={'tax-' + ti}>
+                      <td style={tdB}/>
+                      <td style={tdB}><div style={{textAlign:'right'}}>{e.ledger?.name || e.ledgerName}</div></td>
+                      <td style={tdB}/>
+                      <td style={tdB}/>
+                      {anyShowIncl && <td style={tdB}/>}
+                      <td style={tdB}/>
+                      <td style={tdB}/>
+                      {showDiscount && <td style={tdB}/>}
+                      <td style={{...tdB, textAlign:'right'}}>{fmt(e.amount)}</td>
+                      {anyShowAmtIncl && <td style={tdB}/>}
+                    </tr>
+                  ))}
+                  {roundOffAmt !== 0 && (
+                    <tr>
+                      <td style={tdB}/>
+                      <td style={tdB}><div style={{textAlign:'right'}}>Round Off</div></td>
+                      <td style={tdB}/>
+                      <td style={tdB}/>
+                      {anyShowIncl && <td style={tdB}/>}
+                      <td style={tdB}/>
+                      <td style={tdB}/>
+                      {showDiscount && <td style={tdB}/>}
+                      <td style={{...tdB, textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))}</td>
+                      {anyShowAmtIncl && <td style={tdB}/>}
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{borderTop:'1px solid #999'}}>
+                    <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Sub Total</div></td>
+                    <td style={tdB}></td>
+                    <td style={tdB}></td>
+                    {anyShowIncl && <td style={tdB}/>}
+                    <td style={tdB}></td>
+                    <td style={tdB}></td>
+                    {showDiscount && <td style={tdB}/>}
+                    <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>₹ {fmt(subTotal)}</td>
+                    {anyShowAmtIncl && <td style={tdB}/>}
+                  </tr>
+                  <tr style={{borderTop:'2px solid #555'}}>
+                    <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Total</div></td>
+                    <td style={tdB}></td>
+                    <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{(v?.inventoryEntries || []).reduce((s:number,e:any)=>s+(e.qty||0),0)}</td>
+                    {anyShowIncl && <td style={tdB}/>}
+                    <td style={tdB}></td>
+                    <td style={tdB}></td>
+                    {showDiscount && <td style={tdB}/>}
+                    <td style={{...tdB,fontWeight:'bold',textAlign:'right',fontSize:13}}>₹ {fmt(v?.total || 0)}</td>
+                    {anyShowAmtIncl && <td style={tdB}/>}
+                  </tr>
+                </tfoot>
+              </table>
+              {/* Additional Details (Party, etc.) */}
+              <div style={{padding:'8px 12px',borderBottom:'1px solid #555'}}>
+                <div style={{fontSize:10}}>Party Details:</div>
+                <div style={{fontWeight:'bold'}}>{v.partyName}</div>
+                <div>{pd?.address || '—'}</div>
+                <div>GSTIN: {pd?.gstin || '—'}</div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Print Options Modal */}
