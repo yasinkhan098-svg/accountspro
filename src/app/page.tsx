@@ -59,7 +59,15 @@ interface Company {
 type UserRole = 'Admin' | 'Accountant' | 'Data Entry' | 'Viewer';
 interface AppUser { id: number; username: string; role: UserRole; email?: string; }
 
-interface VoucherEntry { id: number; ledgerId: number; ledgerName: string; amount: number; entryType: 'Dr' | 'Cr'; narration?: string; }
+interface VoucherEntry { 
+  id: number; 
+  ledgerId: number; 
+  ledgerName: string; 
+  amount: number; 
+  entryType: 'Dr' | 'Cr'; 
+  narration?: string; 
+}
+
 interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; discountPerc?: number; discountAmt?: number; taxableAmount?: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; }
 
 interface VoucherRow {
@@ -1388,7 +1396,8 @@ export default function App() {
         const pName = vRaw.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party';
 
         const savedV = {
-          ...vRaw,
+          ...v, // Preserve local fields like partyDetails, dispatchDetails that aren't in DB
+          ...vRaw, // Overwrite with server data (id, date, entries)
           partyName: pName,
           date: new Date(vRaw.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
         };
@@ -4856,9 +4865,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         {id:1,ledgerId:findL(partyName),ledgerName:partyName,amount:grandTotal,entryType: partySide},
         ...rows.filter(r=>r.itemName).map((r,i)=>({id:i+2,ledgerId:findL(salesPurchaseLedger),ledgerName:salesPurchaseLedger,amount:r.amount,entryType: otherSide} as VoucherEntry)),
         ...taxEntries,
-        ...additionalLedgers.filter(al=>al.ledgerName && al.amount > 0).map((al, i) => ({id: entryId++, ...al} as VoucherEntry)),
+        ...additionalLedgers.filter(al=>al.ledgerName && al.amount > 0).map((al, i) => ({
+          id: entryId++, 
+          ledgerId: al.ledgerId || findL(al.ledgerName), 
+          ledgerName: al.ledgerName, 
+          amount: al.amount, 
+          entryType: al.entryType
+        } as VoucherEntry)),
         ...(Math.abs(roundOff) > 0.001 && !hasManualRoundOff ? [{id: entryId++, ledgerId: findL('Round Off'), ledgerName: 'Round Off', amount: Math.abs(roundOff), entryType: roundOff > 0 ? otherSide : partySide} as VoucherEntry] : []),
-      ] : accEntries.filter(e=>e.ledgerName).map((e,i)=>({id:i+1,...e})),
+      ] : accEntries.filter(e=>e.ledgerName).map((e,i)=>({
+        id:i+1, 
+        ledgerId: e.ledgerId || findL(e.ledgerName), 
+        ledgerName: e.ledgerName, 
+        amount: e.amount, 
+        entryType: e.entryType
+      })),
       narration, total: isInventory ? grandTotal : accDr,
       partyDetails: partyDetails||undefined,
       dispatchDetails: dispatchDetails||undefined,
