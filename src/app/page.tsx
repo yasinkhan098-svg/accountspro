@@ -7173,7 +7173,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     }, 100);
   };
 
-  const renderInvoice = (copyIdx: number) => {
+  function renderInvoice(copyIdx: number) {
     // Summary Logic for Print
     const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
     const addlEntries = (v?.entries || []).filter((e: any) => {
@@ -7185,7 +7185,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledger?.name || e.ledgerName || '') === 'Round Off');
     const roundOffAmt = roundOffEntry?.amount || 0;
 
-      return (
+    return (
         <div key={copyIdx} className="invoice-copy" style={{
           width:'100%', maxWidth:800, margin:'0 auto 30px auto', background:'white',
           border:'1px solid #555', fontFamily:'Arial,sans-serif', fontSize:12,
@@ -7480,7 +7480,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         </div>
       </div>
     );
-  };
+  }
 
   return (
     <div className="print-preview-main" style={{display:'flex',height:'100%',overflow:'hidden',background:'#eef2f6'}}>
