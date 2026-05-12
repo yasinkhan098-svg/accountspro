@@ -4827,7 +4827,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     const voucherData = getVoucherData();
     
     // Sanitize and Validate stock items
-    if (isInventory && (voucherData.inventoryEntries.length === 0 || voucherData.inventoryEntries.some((i:any) => !i.stockItemId || isNaN(i.stockItemId)))) {
+    if (isInventory && (voucherData.inventoryEntries.length === 0 || voucherData.inventoryEntries.some((i:any) => !i.itemId || isNaN(i.itemId)))) {
        alert("Please select at least one valid stock item.");
        return;
     }
