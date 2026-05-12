@@ -1,17 +1,27 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+const normalizeStockItem = (it: any) => ({
+  ...it,
+  unit: it.unitName,
+  under: it.groupName,
+  category: it.categoryName
+});
+
 export async function POST(req: Request) {
   try {
     const data = await req.json();
+    const cid = data.companyId ? parseInt(data.companyId) : 0;
+    const uId = data.unitId ? parseInt(data.unitId) : 0;
+    
     const item = await prisma.stockItem.create({
       data: { 
         name: data.name, 
         alias: data.alias, 
-        groupName: data.under || 'Primary',
-        categoryName: data.category || 'Not Applicable',
-        unitName: data.unit || 'Nos',
-        unitId: data.unitId ? parseInt(data.unitId) : undefined,
+        groupName: data.under !== undefined ? String(data.under) : 'Primary',
+        categoryName: data.category !== undefined ? String(data.category) : 'Not Applicable',
+        unitName: data.unit !== undefined ? String(data.unit) : 'Nos',
+        ...(uId > 0 ? { unit: { connect: { id: uId } } } : {}),
         openingQty: parseFloat(data.openingQty || 0), 
         openingRate: parseFloat(data.openingRate || 0), 
         openingVal: (parseFloat(data.openingQty || 0)) * (parseFloat(data.openingRate || 0)), 
@@ -23,11 +33,12 @@ export async function POST(req: Request) {
         costingMethod: data.costingMethod || 'Average Cost',
         marketValuationMethod: data.marketValuationMethod || 'Average Price',
         showInclTax: !!data.showInclTax, 
-        showAmtInclTax: !!data.showAmtInclTax, 
-        companyId: parseInt(data.companyId) 
+        // showAmtInclTax: !!data.showAmtInclTax, 
+        // defaultDiscount: parseFloat(data.defaultDiscount || 0),
+        company: { connect: { id: cid } }
       }
     });
-    return NextResponse.json({ success: true, item });
+    return NextResponse.json({ success: true, item: normalizeStockItem(item) });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -38,30 +49,39 @@ export async function PUT(req: Request) {
     const { id, ...data } = await req.json();
     if (!id) throw new Error("Item ID is required");
     
+    const cid = data.companyId ? parseInt(data.companyId) : undefined;
+    const uId = data.unitId !== undefined ? parseInt(data.unitId) : undefined;
+
     const item = await prisma.stockItem.update({
-      where: { id: parseInt(id) },
+      where: { 
+        id: parseInt(id),
+        ...(cid ? { companyId: cid } : {})
+      },
       data: { 
         name: data.name, 
         alias: data.alias, 
-        groupName: data.under || 'Primary',
-        categoryName: data.category || 'Not Applicable',
-        unitName: data.unit || 'Nos',
-        unitId: data.unitId ? parseInt(data.unitId) : undefined,
-        openingQty: parseFloat(data.openingQty || 0), 
-        openingRate: parseFloat(data.openingRate || 0), 
-        openingVal: (parseFloat(data.openingQty || 0)) * (parseFloat(data.openingRate || 0)), 
-        gstRate: parseFloat(data.gstRate || 18), 
-        hsnCode: data.hsnCode, 
-        altUnit: data.altUnit,
-        gstApplicable: data.gstApplicable || 'Applicable',
-        typeOfSupply: data.typeOfSupply || 'Goods',
-        costingMethod: data.costingMethod || 'Average Cost',
-        marketValuationMethod: data.marketValuationMethod || 'Average Price',
-        showInclTax: !!data.showInclTax, 
-        showAmtInclTax: !!data.showAmtInclTax 
+        groupName: data.under !== undefined ? String(data.under) : undefined,
+        categoryName: data.category !== undefined ? String(data.category) : undefined,
+        unitName: data.unit !== undefined ? String(data.unit) : undefined,
+        ...(uId !== undefined ? (uId > 0 ? { unit: { connect: { id: uId } } } : { unit: { disconnect: true } }) : {}),
+        openingQty: data.openingQty !== undefined ? (parseFloat(data.openingQty) || 0) : undefined, 
+        openingRate: data.openingRate !== undefined ? (parseFloat(data.openingRate) || 0) : undefined, 
+        openingVal: (data.openingQty !== undefined || data.openingRate !== undefined) 
+          ? (parseFloat(data.openingQty || 0) * parseFloat(data.openingRate || 0)) 
+          : undefined,
+        gstRate: data.gstRate !== undefined ? (parseFloat(data.gstRate) || 0) : undefined, 
+        hsnCode: data.hsnCode !== undefined ? String(data.hsnCode) : undefined, 
+        altUnit: data.altUnit !== undefined ? String(data.altUnit) : undefined,
+        gstApplicable: data.gstApplicable !== undefined ? String(data.gstApplicable) : undefined,
+        typeOfSupply: data.typeOfSupply !== undefined ? String(data.typeOfSupply) : undefined,
+        costingMethod: data.costingMethod !== undefined ? String(data.costingMethod) : undefined,
+        marketValuationMethod: data.marketValuationMethod !== undefined ? String(data.marketValuationMethod) : undefined,
+        showInclTax: data.showInclTax !== undefined ? !!data.showInclTax : undefined, 
+        // showAmtInclTax: data.showAmtInclTax !== undefined ? !!data.showAmtInclTax : undefined,
+        // defaultDiscount: data.defaultDiscount !== undefined ? (parseFloat(data.defaultDiscount) || 0) : undefined
       }
     });
-    return NextResponse.json({ success: true, item });
+    return NextResponse.json({ success: true, item: normalizeStockItem(item) });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

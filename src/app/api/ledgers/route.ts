@@ -52,7 +52,7 @@ export async function PUT(req: Request) {
      if (!data.id) throw new Error("Ledger ID is required for update.");
  
      const ledger = await prisma.ledger.update({
-       where: { id: data.id },
+       where: { id: parseInt(data.id) },
        data: {
          name: data.name,
          groupName: data.groupName || 'Primary',
@@ -89,7 +89,7 @@ export async function PUT(req: Request) {
      if (!data.id) throw new Error("Ledger ID is required for deletion.");
  
      await prisma.ledger.delete({
-       where: { id: data.id }
+       where: { id: parseInt(data.id) }
      });
  
      return NextResponse.json({ success: true });

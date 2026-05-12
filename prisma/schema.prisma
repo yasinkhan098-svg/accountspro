@@ -55,6 +55,7 @@ model Company {
   registrationType String?
   pan              String?
   password           String?
+  showDiscount       Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   vouchers  Voucher[]
@@ -157,6 +158,7 @@ model StockItem {
   costingMethod String?
   marketValuationMethod String?
   showAmtInclTax Boolean @default(false)
+  defaultDiscount Float @default(0.0)
   companyId Int
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   inventoryEntries InventoryEntry[]
@@ -172,6 +174,9 @@ model InventoryEntry {
   amountInclTax Float  @default(0)
   unit        String
   amount      Float
+  discountPerc Float   @default(0.0)
+  discountAmt  Float   @default(0.0)
+  taxableAmount Float  @default(0.0)
   gstRate     Float    @default(18)
   hsnCode     String?
   voucher     Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)

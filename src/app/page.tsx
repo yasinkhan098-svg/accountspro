@@ -41,6 +41,7 @@ interface StockItem {
   typeOfSupply?: string;
   costingMethod?: string;
   marketValuationMethod?: string;
+  defaultDiscount?: number;
 }
 interface UnitData { id: number; companyId: number; name: string; symbol: string; formalName: string; uqc: string; decimalPlaces: number; }
 interface GodownData { id: number; companyId: number; name: string; alias?: string; under: string; address?: string; }
@@ -53,12 +54,13 @@ interface Company {
   financialYearStart?: string; booksBeginFrom?: string; securityControl?: boolean; password?: string;
   showMobile?: boolean; showEmail?: boolean; showWebsite?: boolean;
   logo?: string; showLogo?: boolean; pinCode?: string;
+  showDiscount?: boolean;
 }
 type UserRole = 'Admin' | 'Accountant' | 'Data Entry' | 'Viewer';
 interface AppUser { id: number; username: string; role: UserRole; email?: string; }
 
 interface VoucherEntry { id: number; ledgerId: number; ledgerName: string; amount: number; entryType: 'Dr' | 'Cr'; narration?: string; }
-interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; }
+interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; discountPerc?: number; discountAmt?: number; taxableAmount?: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; }
 
 interface VoucherRow {
   itemId: number;
@@ -69,6 +71,9 @@ interface VoucherRow {
   amountInclTax: number;
   unit: string;
   amount: number;
+  discountPerc?: number;
+  discountAmt?: number;
+  taxableAmount?: number;
   gstRate: number;
   hsnCode?: string;
 }
@@ -326,9 +331,9 @@ const INIT_STOCK_ITEMS: StockItem[] = [];
 const INIT_UNITS: UnitData[] = [
   { id:-1, companyId:-1, name:"Nos",   symbol:"Nos",   formalName:"Numbers",     uqc:"NOS", decimalPlaces:0 },
   { id:-2, companyId:-1, name:"Pcs",   symbol:"Pcs",   formalName:"Pieces",      uqc:"PCS", decimalPlaces:0 },
-  { id:-3, companyId:-1, name:"Kg",    symbol:"Kg",    formalName:"Kilogram",    uqc:"KGS", decimalPlaces:3 },
+  { id:-3, companyId:-1, name:"Kg",    symbol:"Kg",    formalName:"Kilogram",    uqc:"KGS", decimalPlaces:2 },
   { id:-4, companyId:-1, name:"Gms",   symbol:"Gms",   formalName:"Grams",       uqc:"GMS", decimalPlaces:0 },
-  { id:-5, companyId:-1, name:"Ltr",   symbol:"Ltr",   formalName:"Litre",       uqc:"LTR", decimalPlaces:3 },
+  { id:-5, companyId:-1, name:"Ltr",   symbol:"Ltr",   formalName:"Litre",       uqc:"LTR", decimalPlaces:2 },
   { id:-6, companyId:-1, name:"Mtr",   symbol:"Mtr",   formalName:"Meter",       uqc:"MTR", decimalPlaces:2 },
   { id:-7, companyId:-1, name:"Set",   symbol:"Set",   formalName:"Set",         uqc:"SET", decimalPlaces:0 },
   { id:-8, companyId:-1, name:"Bdl",   symbol:"Bdl",   formalName:"Bundle",      uqc:"BDL", decimalPlaces:0 },
@@ -338,7 +343,7 @@ const INIT_UNITS: UnitData[] = [
   { id:-12, companyId:-1, name:"Dzn",  symbol:"Dzn",   formalName:"Dozen",       uqc:"DZN", decimalPlaces:0 },
   { id:-13, companyId:-1, name:"Btl",  symbol:"Btl",   formalName:"Bottles",     uqc:"BTL", decimalPlaces:0 },
   { id:-14, companyId:-1, name:"Bag",  symbol:"Bag",   formalName:"Bags",        uqc:"BAG", decimalPlaces:0 },
-  { id:-15, companyId:-1, name:"Tons", symbol:"Tons",  formalName:"Metric Tons", uqc:"MTS", decimalPlaces:3 },
+  { id:-15, companyId:-1, name:"Tons", symbol:"Tons",  formalName:"Metric Tons", uqc:"MTS", decimalPlaces:2 },
   { id:-16, companyId:-1, name:"Kits", symbol:"Kits",  formalName:"Kits",        uqc:"KIT", decimalPlaces:0 },
   { id:-17, companyId:-1, name:"Pack", symbol:"Pack",  formalName:"Packs",       uqc:"PAC", decimalPlaces:0 },
   { id:-18, companyId:-1, name:"Rol",  symbol:"Rol",   formalName:"Rolls",       uqc:"ROL", decimalPlaces:0 },
@@ -362,9 +367,14 @@ const INIT_COMPANIES: Company[] = [];
 const INIT_VOUCHERS: Voucher[] = [];
 
 // ==================== UTILITY FUNCTIONS ====================
+function round2(n: number) {
+  if (n === null || n === undefined || isNaN(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
 function fmt(n: number) {
   if (n === null || n === undefined || isNaN(n)) return '0.00';
-  return Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return Math.abs(round2(n)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
@@ -965,15 +975,19 @@ export default function App() {
   }, [isAuthenticated]);
 
   // DERIVED DATA FOR ACTIVE COMPANY
-  const ledgers        = useMemo(() => activeCompany ? allLedgers.filter(l => Number(l.companyId) === Number(activeCompany.id)) : [], [allLedgers, activeCompany]);
+  const ledgers        = useMemo(() => {
+    if (!activeCompany) return [];
+    return allLedgers.filter(l => 
+      Number(l.companyId) === Number(activeCompany.id) && 
+      !TALLY_GROUPS.includes(l.name)
+    );
+  }, [allLedgers, activeCompany]);
   const groups         = useMemo(() => {
     if (!activeCompany) return [];
-    const filtered = allGroups.filter(g => Number(g.companyId) === Number(activeCompany.id));
-    if (filtered.length === 0) {
-      // Fallback to default groups if none found for company
-      return allGroups.filter(g => Number(g.companyId) === -1 || g.companyId === 1);
-    }
-    return filtered;
+    // Always include standard groups
+    const standard = allGroups.filter(g => Number(g.companyId) === -1 || Number(g.companyId) === 1);
+    // User requested that in 'Under' list, only standard groups should be selectable, not user-created ones.
+    return standard;
   }, [allGroups, activeCompany]);
   const stockGroups    = useMemo(() => activeCompany ? allStockGroups.filter(sg => Number(sg.companyId) === Number(activeCompany.id)) : [], [allStockGroups, activeCompany]);
   const stockCategories = useMemo(() => activeCompany ? allStockCategories.filter(sc => Number(sc.companyId) === Number(activeCompany.id)) : [], [allStockCategories, activeCompany]);
@@ -993,6 +1007,43 @@ export default function App() {
   }, [allUnits, activeCompany]);
   const godowns        = useMemo(() => activeCompany ? allGodowns.filter(g => Number(g.companyId) === Number(activeCompany.id)) : [], [allGodowns, activeCompany]);
   const voucherTypes   = useMemo(() => activeCompany ? allVoucherTypes.filter(vt => Number(vt.companyId) === Number(activeCompany.id)) : [], [allVoucherTypes, activeCompany]);
+  
+  const prevCompanyIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (activeCompany && activeCompany.id !== prevCompanyIdRef.current) {
+      // Force return to Gateway whenever active company changes (selection, opening, creation)
+      setScreen('GATEWAY_MAIN');
+      setHistory([]);
+      setAlterItem(null);
+      setAlterListType('');
+      setReportLedgerId(null);
+      setReportGroupName('');
+      setShowCompanySelect(false);
+      setPwdPrompt(null);
+      setSelectedIdx(1); 
+      prevCompanyIdRef.current = activeCompany.id;
+    }
+  }, [activeCompany?.id]);
+
+  // Ensure Cash and Profit & Loss A/c exist for active company
+  useEffect(() => {
+    if (!isAuthenticated || !activeCompany) return;
+    const cid = activeCompany.id;
+    const hasCash = allLedgers.some(l => Number(l.companyId) === Number(cid) && l.name === 'Cash');
+    if (!hasCash && allLedgers.length > 0) {
+      // Auto-create Cash ledger if company has other ledgers but no Cash
+      const newCash: Ledger = {
+        id: Date.now(),
+        companyId: cid,
+        name: 'Cash',
+        groupName: 'Cash-in-hand',
+        openingBalance: 0,
+        balanceType: 'Dr'
+      };
+      setAllLedgers(prev => [...prev, newCash]);
+      saveMaster('ledger', newCash);
+    }
+  }, [activeCompany, allLedgers.length]);
   const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => Number(c.companyId) === Number(activeCompany.id)) : [], [allCurrencies, activeCompany]);
   const vouchers       = useMemo(() => activeCompany ? allVouchers.filter(v => Number(v.companyId) === Number(activeCompany.id)) : [], [allVouchers, activeCompany]);
   const filteredVouchers = useMemo(() => {
@@ -1014,10 +1065,16 @@ export default function App() {
   };
 
   const nav = (s: ScreenType, item?: any, typeName?: string) => {
+    lastFocusRef.current = document.activeElement as HTMLElement;
     setHistory(h => [...h, screen]);
     setScreen(s);
     setAlterItem(item || null);
     if (typeName) setAlterListType(typeName);
+  };
+
+  const handleOpenAltC = (ctx: AltCContext | null) => {
+    if (ctx) lastFocusRef.current = document.activeElement as HTMLElement;
+    setAltCCtx(ctx);
   };
 
   const goBack = useCallback(() => {
@@ -1075,17 +1132,22 @@ export default function App() {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ id: targetItem.id, companyId: cid, ...data })
           });
-          if (res.ok) {
-            const resData = await res.json();
-            setAllStockItems(p => p.map(x => x.id === targetItem.id ? resData.item : x));
-            return resData.item;
-          } else throw new Error(await res.text());
-        } catch (e) { 
-          const updatedItem = { ...targetItem, ...data };
-          setAllStockItems(p => p.map(x => x.id === targetItem.id ? updatedItem : x)); 
-          return updatedItem;
+            if (res.ok) {
+              const resData = await res.json();
+              setAllStockItems(p => p.map(x => x.id === targetItem.id ? resData.item : x));
+              return resData.item;
+            } else {
+              const errText = await res.text();
+              console.error('Save failed:', errText);
+              alert('Failed to save changes to server: ' + errText);
+              return null;
+            }
+          } catch (e: any) {
+            console.error('Save error:', e);
+            alert('Error connecting to server: ' + e.message);
+            return null;
+          }
         }
-      }
       else if (type === 'group') setAllGroups(p => p.map(x => x.id === targetItem.id ? { ...x, ...data } : x));
       else if (type === 'stockGroup') {
         try {
@@ -1338,6 +1400,34 @@ export default function App() {
     return newV;
   };
 
+  const initStandardLedgers = async () => {
+    if (!activeCompany) return;
+    const cid = activeCompany.id;
+    const standardLedgers = [
+      { name: 'Cash', groupName: 'Cash-in-hand', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'Profit & Loss A/c', groupName: 'Primary', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'Round Off', groupName: 'Indirect Expenses', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'Discount Given', groupName: 'Indirect Expenses', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'Discount Received', groupName: 'Indirect Incomes', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'Transportation Charges', groupName: 'Direct Expenses', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'Freight Charges', groupName: 'Direct Expenses', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'CGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'SGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'IGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'Sales A/c', groupName: 'Sales Accounts', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'Purchase A/c', groupName: 'Purchase Accounts', openingBalance: 0, balanceType: 'Dr' },
+    ];
+
+    let createdCount = 0;
+    for (const l of standardLedgers) {
+      if (!ledgers.find(lx => lx.name === l.name)) {
+        await saveMaster('ledger', l);
+        createdCount++;
+      }
+    }
+    alert(`${createdCount} Standard Ledgers initialized! (Round Off, Discount, GST, etc.)`);
+  };
+
   const deleteVoucher = async (id: number) => {
     try {
       await fetch('/api/vouchers', {
@@ -1447,20 +1537,29 @@ export default function App() {
         const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
         const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
         let type = '', data: any = null;
+        const cid = activeCompany?.id || 0;
         if (screen === 'GROUP_CREATION') {
           const name = fv('g-name'); if (!name) { alert('Group Name is required!'); document.getElementById('g-name')?.focus(); return; }
+          if (allGroups.some(g => (g.companyId === cid || g.companyId === -1) && g.name.toLowerCase() === name.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Group "${name}" already exists!`); return; }
           type = 'group'; data = { name, alias: fv('g-alias'), under: fv('g-under') || 'Primary' };
         } else if (screen === 'LEDGER_CREATION') {
           const name = fv('l-name'); if (!name) { alert('Ledger Name is required!'); document.getElementById('l-name')?.focus(); return; }
-          type = 'ledger'; data = { name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors', address: fv('l-addr'), state: fv('l-state'), country: fv('l-country'), gstin: fv('l-gst'), pan: fv('l-pan'), registrationType: fsv('l-reg'), ifsc: fv('l-ifsc'), bankName: fv('l-bank'), accountNo: fv('l-acc'), phone: fv('l-phone'), email: fv('l-email'), pinCode: fv('l-pin'), openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' };
+          if (ledgers.some(l => l.name.toLowerCase() === name.toLowerCase() && (!alterItem || l.id !== alterItem.id))) { alert(`Ledger "${name}" already exists!`); return; }
+          type = 'ledger'; data = { name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors', address: fv('l-addr'), state: fv('l-state'), country: fv('l-country'), gstin: fv('l-gst'), pan: fv('l-pan'), registrationType: fsv('l-reg'), ifsc: fv('l-ifsc'), bankName: fv('l-bank'), accountNo: fv('l-acc'), phone: fv('l-phone'), email: fv('l-email'), pinCode: fv('l-pin'), openingBalance: round2(parseFloat(fv('l-ob')) || 0), balanceType: fsv('l-ob-type') || 'Dr' };
         } else if (screen === 'STOCK_GROUP_CREATION') {
           const name = fv('sg-name'); if (!name) { alert('Stock Group Name is required!'); return; }
+          if (allStockGroups.some(g => Number(g.companyId) === Number(cid) && g.name.toLowerCase() === name.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Stock Group "${name}" already exists!`); return; }
           type = 'stockGroup'; data = { name, alias: fv('sg-alias'), under: fv('sg-under') || 'Primary' };
         } else if (screen === 'STOCK_CATEGORY_CREATION') {
           const name = fv('sc-name'); if (!name) { alert('Stock Category Name is required!'); return; }
+          if (allStockCategories.some(c => Number(c.companyId) === Number(cid) && c.name.toLowerCase() === name.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Stock Category "${name}" already exists!`); return; }
           type = 'stockCategory'; data = { name, under: 'Primary' };
         } else if (screen === 'STOCK_ITEM_CREATION') {
           const name = fv('item-name'); if (!name) { alert('Stock Item Name is required!'); return; }
+          // Duplicate Check
+          if (stockItems.some(it => it.name.toLowerCase() === name.toLowerCase() && (!alterItem || it.id !== alterItem.id))) {
+            alert(`Stock Item "${name}" already exists!`); return;
+          }
           const unitName = fv('item-units');
           if (!unitName) { alert('Unit is required!'); document.getElementById('item-units')?.focus(); return; }
           const matchedUnit = allUnits.find(u => (u.symbol || u.name || '').toLowerCase() === unitName.toLowerCase());
@@ -1470,27 +1569,39 @@ export default function App() {
             return;
           }
           type = 'stockItem'; data = { 
-            name, alias: '', 
+            name, alias: fv('item-alias'), 
             under: fv('item-under') || 'Primary', 
             category: fv('item-cat') || 'Not Applicable', 
-            unit: matchedUnit.name, 
+            unit: matchedUnit.symbol || matchedUnit.name, 
             unitId: matchedUnit.id,
-            gstRate: fv('item-gst') ? parseFloat(fv('item-gst')) : 18, 
+            altUnit: fv('item-altunit') || 'Not Applicable',
+            showInclTax: (document.getElementById('item-show-incl-tax') as HTMLSelectElement)?.value === 'Yes',
+            showAmtInclTax: (document.getElementById('item-show-amt-incl-tax') as HTMLSelectElement)?.value === 'Yes',
+            gstRate: fv('item-gst') ? round2(parseFloat(fv('item-gst'))) : 18, 
             hsnCode: fv('item-hsn'), 
-            openingQty: parseFloat(fv('item-oqty')) || 0, 
-            openingRate: parseFloat(fv('item-orate')) || 0 
+            gstApplicable: fsv('item-gst-app'),
+            typeOfSupply: fsv('item-supply-type'),
+            costingMethod: fsv('item-costing'),
+            marketValuationMethod: fsv('item-market'),
+            openingQty: round2(parseFloat(fv('item-oqty')) || 0), 
+            openingRate: round2(parseFloat(fv('item-orate')) || 0),
+            defaultDiscount: round2(parseFloat(fv('item-disc')) || 0)
           };
         } else if (screen === 'UNIT_CREATION') {
           const sym = fv('unit-sym'); if (!sym) { alert('Unit Symbol is required!'); return; }
+          if (allUnits.some(u => Number(u.companyId) === Number(cid) && u.symbol.toLowerCase() === sym.toLowerCase() && (!alterItem || u.id !== alterItem.id))) { alert(`Unit "${sym}" already exists!`); return; }
           type = 'unit'; data = { name: sym, symbol: sym, formalName: fv('unit-name') || sym, uqc: fv('unit-uqc') || 'NOS', decimalPlaces: parseInt(fv('unit-decimal')) || 0 };
         } else if (screen === 'GODOWN_CREATION') {
           const name = fv('gd-name'); if (!name) { alert('Godown Name is required!'); return; }
+          if (godowns.some(g => g.name.toLowerCase() === name.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Godown "${name}" already exists!`); return; }
           type = 'godown'; data = { name, alias: fv('gd-alias'), under: fsv('gd-under') || 'Primary' };
         } else if (screen === 'CURRENCY_CREATION') {
           const sym = fv('cur-sym'); if (!sym) { alert('Currency Symbol is required!'); return; }
+          if (currencies.some(c => c.symbol.toLowerCase() === sym.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Currency "${sym}" already exists!`); return; }
           type = 'currency'; data = { name: fv('cur-name') || sym, symbol: sym, isoCode: fv('cur-iso'), decimalPlaces: 2 };
         } else if (screen === 'VOUCHER_TYPE_CREATION') {
           const name = fv('vt-name'); if (!name) { alert('Voucher Type Name is required!'); return; }
+          if (voucherTypes.some(v => v.name.toLowerCase() === name.toLowerCase() && (!alterItem || v.id !== alterItem.id))) { alert(`Voucher Type "${name}" already exists!`); return; }
           type = 'voucherType'; data = { 
             name, 
             type: fsv('vt-type') || 'Sales', 
@@ -1504,6 +1615,7 @@ export default function App() {
           };
         } else if (screen === 'COMPANY_CREATION') {
           const name = fv('c-name'); if (!name) { alert('Company Name is required!'); return; }
+          if (companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Company "${name}" already exists!`); return; }
           const logoEl = document.querySelector('img[alt="Preview"]') as HTMLImageElement;
           type = 'company'; data = { 
             name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'),
@@ -1540,7 +1652,11 @@ export default function App() {
 
       if (e.key === 'Escape') {
         if (pwdPrompt) { setPwdPrompt(null); return; }
-        if (altCCtx) { setAltCCtx(null); return; }
+        if (altCCtx) { 
+          setAltCCtx(null); 
+          setTimeout(() => lastFocusRef.current?.focus(), 80);
+          return; 
+        }
         if (showExportModal) { setShowExportModal(false); return; }
         if (showEmailModal) { setShowEmailModal(false); return; }
         if (showGST) { setShowGST(false); return; }
@@ -1612,6 +1728,21 @@ export default function App() {
         if (e.key === 'Enter') {
           if (e.defaultPrevented) return;
           const activeId = (document.activeElement as HTMLElement)?.id || '';
+          const activeVal = (document.activeElement as HTMLInputElement)?.value?.trim() || '';
+          const cid = activeCompany?.id || 0;
+
+          // Real-time duplicate validation on Enter
+          if (activeId === 'g-name' && allGroups.some(g => (g.companyId === cid || g.companyId === -1) && g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Group "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'l-name' && ledgers.some(l => l.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || l.id !== alterItem.id))) { alert(`Ledger "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'sg-name' && allStockGroups.some(g => Number(g.companyId) === Number(cid) && g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Stock Group "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'sc-name' && allStockCategories.some(c => Number(c.companyId) === Number(cid) && c.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Stock Category "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'item-name' && stockItems.some(it => it.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || it.id !== alterItem.id))) { alert(`Stock Item "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'unit-sym' && allUnits.some(u => Number(u.companyId) === Number(cid) && u.symbol.toLowerCase() === activeVal.toLowerCase() && (!alterItem || u.id !== alterItem.id))) { alert(`Unit "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'gd-name' && godowns.some(g => g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Godown "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'cur-sym' && currencies.some(c => c.symbol.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Currency "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'vt-name' && voucherTypes.some(v => v.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || v.id !== alterItem.id))) { alert(`Voucher Type "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'c-name' && companies.some(c => c.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Company "${activeVal}" already exists!`); e.preventDefault(); return; }
+
           const dropdowns = ['l-under','g-under','c-state','c-country','l-state','l-country','item-under','item-units','item-cat','sg-under','sc-under','vt-parent','gd-under'];
           if (dropdowns.includes(activeId)) return;
           e.preventDefault();
@@ -1650,7 +1781,7 @@ export default function App() {
     };
     document.addEventListener('input', onInput);
     return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('input', onInput); };
-  }, [screen, history, altCCtx, showGST, showFeatures, showCompanySelect, showDate, activeVoucher, showExportModal, showEmailModal, allUnits, activeCompany, alterItem]);
+  }, [screen, history, altCCtx, showGST, showFeatures, showCompanySelect, showDate, activeVoucher, showExportModal, showEmailModal, allUnits, activeCompany, alterItem, allLedgers, allStockItems, companies, allGroups, allStockGroups, allStockCategories, allGodowns, allVoucherTypes, allCurrencies, ledgers, stockItems, godowns, voucherTypes, currencies]);
 
   // Menu keyboard navigation
   useEffect(() => {
@@ -1668,7 +1799,7 @@ export default function App() {
             if (c.securityControl && c.password) {
               setPwdPrompt({ company: c, action: 'open' });
             } else {
-              setActiveCompany(c); setShowCompanySelect(false); 
+              setActiveCompany(c);
             }
           } }))
         ];
@@ -1695,7 +1826,11 @@ export default function App() {
       }
       if (e.key==='ArrowDown'){e.preventDefault();let n=(selectedIdx+1)%menu.length;while(menu[n]?.category==='header')n=(n+1)%menu.length;setSelectedIdx(n);}
       else if (e.key==='ArrowUp'){e.preventDefault();let n=(selectedIdx-1+menu.length)%menu.length;while(menu[n]?.category==='header')n=(n-1+menu.length)%menu.length;setSelectedIdx(n);}
-      else if (e.key==='Enter'){e.preventDefault();if(menu[selectedIdx]?.category!=='header')menu[selectedIdx].action?.();}
+      else if (e.key==='Enter'){
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        if(menu[selectedIdx]?.category!=='header') menu[selectedIdx].action?.();
+      }
       else {
         const ch=e.key.toLowerCase();
         const fi=menu.findIndex(x=>x.highlight.toLowerCase()===ch&&x.category!=='header');
@@ -1930,17 +2065,17 @@ export default function App() {
         {/* FORM SCREENS */}
         {isFormScreen && (
           <div className="form-workspace">
-            {screen==='COMPANY_CREATION'    && <CompanyCreationForm    key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('company',d); if(ok){alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='GROUP_CREATION'      && <GroupCreationForm      key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('group',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
-            {screen==='LEDGER_CREATION'     && <LedgerCreationForm     key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('ledger',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} ledgers={ledgers} groups={groups} />}
+            {screen==='COMPANY_CREATION'    && <CompanyCreationForm    key={formKey} activeAlterItem={alterItem} companies={companies} onSave={async d=>{const ok=await saveMaster('company',d); if(ok){setScreen('GATEWAY_MAIN'); setHistory([]);}}} onDelete={deleteMaster} />}
+            {screen==='GROUP_CREATION'      && <GroupCreationForm      key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('group',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} ledgers={ledgers} groups={groups} />}
+            {screen==='LEDGER_CREATION'     && <LedgerCreationForm     key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('ledger',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} ledgers={ledgers} groups={groups} />}
             {screen==='CURRENCY_CREATION'   && <CurrencyCreationForm   key={formKey} activeAlterItem={alterItem} currencies={currencies} onSave={async d=>{const ok=await saveMaster('currency',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
             {screen==='VOUCHER_TYPE_CREATION'&& <VoucherTypeCreationForm key={formKey} activeAlterItem={alterItem} voucherTypes={voucherTypes} onSave={async d=>{const ok=await saveMaster('voucherType',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='STOCK_GROUP_CREATION' && <StockGroupCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} onSave={async d=>{const ok=await saveMaster('stockGroup',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} />}
+            {screen==='STOCK_GROUP_CREATION' && <StockGroupCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} onSave={async d=>{const ok=await saveMaster('stockGroup',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} />}
             {screen==='STOCK_CATEGORY_CREATION'&&<StockCategoryCreationForm key={formKey} activeAlterItem={alterItem} stockCategories={stockCategories} onSave={async d=>{const ok=await saveMaster('stockCategory',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={setAltCCtx} />}
+            {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} activeCompany={activeCompany} setActiveCompany={setActiveCompany} setCompanies={setCompanies} />}
             {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={setAltCCtx} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} />}
+            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} />}
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
             {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
@@ -2021,9 +2156,15 @@ export default function App() {
           stockCategories={stockCategories}
           godowns={godowns}
           currencies={currencies}
-          onClose={() => setAltCCtx(null)}
+          onClose={() => {
+            setAltCCtx(null);
+            setTimeout(() => lastFocusRef.current?.focus(), 80);
+          }}
           onSaveMaster={saveMaster}
           onDeleteMaster={deleteMaster}
+          activeCompany={activeCompany}
+          setActiveCompany={setActiveCompany}
+          setCompanies={setCompanies}
         />
       )}
 
@@ -2042,7 +2183,7 @@ export default function App() {
                   if (c.securityControl && c.password) {
                     setPwdPrompt({ company: c, action: 'open' });
                   } else {
-                    setActiveCompany(c); setShowCompanySelect(false); 
+                    setActiveCompany(c);
                   }
                 } }))
               ].map((m,i)=>{
@@ -2108,31 +2249,87 @@ export default function App() {
         </div>
       )}
 
-      {showFeatures && (
+      {showFeatures && activeCompany && (
         <div className="modal-overlay" onClick={()=>setShowFeatures(false)}>
           <div className="modal-box" style={{width:820}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">Company Features (F11)</div>
             <div style={{padding:20,display:'flex',gap:20}}>
               {[
                 {title:'Accounting Features', rows:[['Maintain Accounts Only','No'],['Enable Bill-wise entry','Yes'],['Activate Interest Calculation','No'],['Enable Cost Centres','No'],['Maintain Multiple Currencies','No']]},
-                {title:'Inventory Features', rows:[['Maintain Stock Categories','No'],['Maintain Multiple Godowns','No'],['Use Tracking Numbers','No'],['Integrate Accounts & Inventory','Yes'],['Use Multiple Units of Measure','No']]},
-                {title:'Taxation', rows:[['Enable GST','Yes'],['Enable TDS','No'],['Enable TCS','No']]},
+                {title:'Inventory Features', rows:[
+                  ['Maintain Stock Categories','No'],
+                  ['Maintain Multiple Godowns','No'],
+                  ['Show Discount in Invoices', activeCompany.showDiscount ? 'Yes' : 'No', 'showDiscount'],
+                  ['Integrate Accounts & Inventory','Yes'],
+                ]},
+                {title:'Taxation & Setup', rows:[
+                  ['Enable GST','Yes'],
+                  ['Enable TDS','No'],
+                  ['Setup Standard Ledgers', 'Setup', 'initStandardLedgers']
+                ]},
               ].map((sec,si)=>(
                 <div key={si} style={{flex:1}}>
-                  <div className="feature-section">{sec.title}</div>
-                  {sec.rows.map(([label,val],ri)=>(
-                    <div key={ri} className="feature-row">
-                      {label}
-                      <select className="form-input" style={{width:60,float:'right'}}>
-                        <option selected={val==='Yes'}>Yes</option>
-                        <option selected={val==='No'}>No</option>
-                      </select>
+                  <div className="feature-section" style={{fontWeight:'bold', color:'#1c5282', borderBottom:'1px solid #ccc', marginBottom:10, fontSize:12}}>{sec.title}</div>
+                  {sec.rows.map(([label,val,key],ri)=>(
+                    <div key={ri} className="feature-row" style={{fontSize:12, marginBottom:8, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                      <span>{label}</span>
+                      {key === 'initStandardLedgers' ? (
+                        <button 
+                          className="tally-btn" 
+                          style={{fontSize:10, padding:'2px 8px', background:'#e8f5e9', color:'#2e7d32', border:'1px solid #4caf50'}}
+                          onClick={initStandardLedgers}
+                        >
+                          Initialize
+                        </button>
+                      ) : (
+                        <select 
+                          className="form-input" 
+                          style={{width:60}} 
+                          value={val}
+                          onChange={async (e) => {
+                            if (key) {
+                              const newVal = e.target.value === 'Yes';
+                              // Optimistic update
+                              const updatedCo = { ...activeCompany, [key]: newVal };
+                              setActiveCompany(updatedCo);
+                              setCompanies(prev => prev.map(c => c.id === activeCompany.id ? updatedCo : c));
+                            }
+                          }}
+                        >
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </select>
+                      )}
                     </div>
                   ))}
                 </div>
               ))}
             </div>
-            <div style={{background:'#f4f8fb',padding:'6px 15px',borderTop:'1px solid #dde',fontSize:11}}>Ctrl+A: Accept | Esc: Abandon</div>
+            <div style={{background:'#f4f8fb',padding:'12px 15px',borderTop:'1px solid #dde',display:'flex',justifyContent:'flex-end',gap:15}}>
+              <button 
+                className="tally-btn" 
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/companies?id=${activeCompany.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(activeCompany)
+                    });
+                    if (res.ok) {
+                      setSaveToast('Features updated successfully!');
+                      setTimeout(() => setSaveToast(null), 3000);
+                      setShowFeatures(false);
+                    }
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
+              >
+                Accept (Ctrl+A)
+              </button>
+              <button className="tally-btn" style={{background:'#eee', color:'#333', border:'1px solid #ccc'}} onClick={()=>setShowFeatures(false)}>Abandon</button>
+            </div>
+            <div style={{background:'#f4f8fb',padding:'4px 15px',fontSize:10,color:'#666'}}>Ctrl+A: Accept | Esc: Abandon</div>
           </div>
         </div>
       )}
@@ -2319,17 +2516,22 @@ export default function App() {
 
       {pwdPrompt && (
         <div className="modal-overlay" onKeyDown={e => {
-          if (e.key === 'Escape') setPwdPrompt(null);
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPwdPrompt(null); }
           if (e.key === 'Enter') {
+            e.preventDefault(); e.stopPropagation();
             const p = (document.getElementById('prompt-pwd') as HTMLInputElement)?.value;
             if (p === pwdPrompt.company.password) {
-               if (pwdPrompt.action === 'open') {
-                 setActiveCompany(pwdPrompt.company);
-                 setShowCompanySelect(false);
-               } else if (pwdPrompt.action === 'alter') {
-                 nav('COMPANY_CREATION', pwdPrompt.company);
-               }
+               const comp = pwdPrompt.company;
+               const action = pwdPrompt.action;
                setPwdPrompt(null);
+               if (action === 'open') {
+                 setActiveCompany(comp);
+                 setShowCompanySelect(false);
+                 setScreen('GATEWAY_MAIN');
+                 setHistory([]);
+               } else {
+                 nav('COMPANY_CREATION', comp);
+               }
             } else {
                alert('Wrong Password!');
             }
@@ -2346,13 +2548,17 @@ export default function App() {
                 <button className="tally-btn" onClick={()=>{
                   const p = (document.getElementById('prompt-pwd') as HTMLInputElement)?.value;
                   if (p === pwdPrompt.company.password) {
-                     if (pwdPrompt.action === 'open') {
-                       setActiveCompany(pwdPrompt.company);
-                       setShowCompanySelect(false);
-                     } else if (pwdPrompt.action === 'alter') {
-                       nav('COMPANY_CREATION', pwdPrompt.company);
-                     }
+                     const comp = pwdPrompt.company;
+                     const action = pwdPrompt.action;
                      setPwdPrompt(null);
+                     if (action === 'open') {
+                       setActiveCompany(comp);
+                       setShowCompanySelect(false);
+                       setScreen('GATEWAY_MAIN');
+                       setHistory([]);
+                     } else {
+                       nav('COMPANY_CREATION', comp);
+                     }
                   } else {
                      alert('Wrong Password!');
                   }
@@ -2455,7 +2661,7 @@ function ListPanel({ title, items, selectedName, onSelect, onAltC, fieldKey }: {
   );
 }
 
-function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlterItem?: any; onSave: (d:any)=>void; onDelete: (type:string, id:number)=>void }) {
+function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: { activeAlterItem?: any; onSave: (d:any)=>void; onDelete: (type:string, id:number)=>void; companies: Company[]; }) {
   const ref = useRef<HTMLInputElement>(null);
   const [focusedField, setFocusFld] = useState<string|null>(null);
   const [secCtrl, setSecCtrl] = useState(activeAlterItem?.securityControl ? 'Yes' : 'No');
@@ -2567,6 +2773,12 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlte
                 }
               }}
               onKeyDown={e=>{
+                if (e.key === 'Enter' && id === 'c-name') {
+                  const val = e.currentTarget.value.trim();
+                  if (companies.some(c => c.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || c.id !== activeAlterItem.id))) {
+                    alert(`Company "${val}" already exists!`); e.preventDefault(); return;
+                  }
+                }
                 if(i===1 && !['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key)){
                    (e.currentTarget as any).dataset.edited='1';
                 }
@@ -2686,8 +2898,13 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete }: { activeAlte
           )}
           <button 
             onClick={() => {
+              const name = ((document.getElementById('c-name') as HTMLInputElement)?.value || '').trim();
+              if (!name) { alert('Company Name is required!'); document.getElementById('c-name')?.focus(); return; }
+              if (companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || c.id !== activeAlterItem.id))) {
+                alert(`Company "${name}" already exists!`); document.getElementById('c-name')?.focus(); return;
+              }
               const d = {
-                name: (document.getElementById('c-name') as HTMLInputElement).value,
+                name,
                 mailingName: (document.getElementById('c-mail') as HTMLInputElement).value,
                 address: (document.getElementById('c-addr') as HTMLTextAreaElement).value,
                 state: (document.getElementById('c-state') as HTMLInputElement).value,
@@ -2775,6 +2992,14 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
         </div>
         <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span>
           <input id="g-name" ref={ref} autoFocus type="text" className="form-input" style={{width:360,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const val = e.currentTarget.value.trim();
+                if (groups.some(g => g.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || g.id !== activeAlterItem.id))) {
+                  alert(`Group "${val}" already exists!`); e.preventDefault(); return;
+                }
+              }
+            }}
             onInput={e=>{const al=document.getElementById('g-alias') as HTMLInputElement;if(al&&!al.dataset.edited)al.value=e.currentTarget.value;}}/>
         </div>
         <div className="form-row"><label style={{width:100}}>(alias)</label><span className="colon">:</span>
@@ -2941,6 +3166,12 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const handleGlobalKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       const target = e.target as HTMLElement;
+      if (target.id === 'l-name') {
+        const val = (target as HTMLInputElement).value.trim();
+        if (ledgers.some(l => l.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || l.id !== activeAlterItem.id))) {
+          alert(`Ledger "${val}" already exists!`); e.preventDefault(); return;
+        }
+      }
       if (target.id === 'btn-save-ledger') return; // Let button handle its own click
       if (['l-under', 'l-state', 'l-country'].includes(target.id) && list.length > 0) return;
       e.preventDefault();
@@ -3070,6 +3301,10 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
         <button id="btn-save-ledger" style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
           onClick={()=>{
             const name = fv('l-name'); if (!name) { alert('Ledger Name is required!'); document.getElementById('l-name')?.focus(); return; }
+            // Duplicate Check
+            if (ledgers.some(l => l.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || l.id !== activeAlterItem.id))) {
+              alert(`Ledger "${name}" already exists!`); return;
+            }
             const data = { 
               name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors', 
               address: (document.getElementById('l-addr') as HTMLTextAreaElement)?.value || '', state: fv('l-state'), country: fv('l-country'), 
@@ -3102,7 +3337,16 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDel
     <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
       <div style={{flex:1,padding:20}}>
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Stock Group {activeAlterItem?'Alteration':'Creation'}</div>
-        <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span><input id="sg-name" ref={ref} autoFocus type="text" className="form-input" style={{width:360,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}/></div>
+        <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span><input id="sg-name" ref={ref} autoFocus type="text" className="form-input" style={{width:360,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              const val = e.currentTarget.value.trim();
+              if (stockGroups.some(g => g.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || g.id !== activeAlterItem.id))) {
+                alert(`Stock Group "${val}" already exists!`); e.preventDefault(); return;
+              }
+            }
+          }}
+        /></div>
         <div className="form-row"><label style={{width:100}}>(alias)</label><span className="colon">:</span><input id="sg-alias" type="text" className="form-input" style={{width:360}}/></div>
         <div className="form-row" style={{marginTop:20}}>
           <label style={{width:100}}>Under</label><span className="colon">:</span>
@@ -3159,7 +3403,16 @@ function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave,onDel
     <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
       <div style={{flex:1,padding:20}}>
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Stock Category {activeAlterItem?'Alteration':'Creation'}</div>
-        <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span><input id="sc-name" ref={ref} autoFocus type="text" className="form-input" style={{width:360,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}/></div>
+        <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span><input id="sc-name" ref={ref} autoFocus type="text" className="form-input" style={{width:360,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              const val = e.currentTarget.value.trim();
+              if (stockCategories.some(c => c.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || c.id !== activeAlterItem.id))) {
+                alert(`Stock Category "${val}" already exists!`); e.preventDefault(); return;
+              }
+            }
+          }}
+        /></div>
         <div className="form-row"><label style={{width:100}}>(alias)</label><span className="colon">:</span><input type="text" className="form-input" style={{width:360}}/></div>
         <div className="form-row" style={{marginTop:20}}><label style={{width:100}}>Under</label><span className="colon">:</span><input type="text" className="form-input" style={{width:280,fontWeight:'bold'}} defaultValue="Primary"/></div>
         <div style={{marginTop:25,padding:12,background:'#fffbe6',border:'1px solid #f0d060',fontSize:12,borderRadius:2}}>
@@ -3193,7 +3446,7 @@ function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave,onDel
   );
 }
 
-function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,units,stockItems,onSave,onAltC,onDelete}:{activeAlterItem?:any;stockGroups:StockGroup[];stockCategories:StockCategory[];units:UnitData[];stockItems:StockItem[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;}) {
+function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,units,stockItems,onSave,onAltC,onDelete,activeCompany,setActiveCompany,setCompanies}:{activeAlterItem?:any;stockGroups:StockGroup[];stockCategories:StockCategory[];units:UnitData[];stockItems:StockItem[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;activeCompany:Company|null;setActiveCompany:React.Dispatch<React.SetStateAction<Company|null>>;setCompanies:React.Dispatch<React.SetStateAction<Company[]>>;}) {
   const ref=useRef<HTMLInputElement>(null);
   const [focus,setFocus]=useState<string|null>(null);
   const [filter,setFilter]=useState('');
@@ -3334,12 +3587,22 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   };
 
   const handleNameKeyDown=(e:React.KeyboardEvent<HTMLInputElement>)=>{
-    if(e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();setNameSel(p=>Math.min(p+1,filteredStockItems.length-1));}
-    else if(e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();setNameSel(p=>Math.max(p-1,0));}
-    else if(e.key==='Enter'&&filteredStockItems.length>0&&nameFilter&&!activeAlterItem){e.preventDefault();e.stopPropagation();pickStockItem(filteredStockItems[nameSel]);}
-    else if(e.key==='Enter'){
-      e.preventDefault();
-      moveToNext(e.currentTarget.id);
+    if(e.key === 'ArrowDown'){e.preventDefault();e.stopPropagation();setNameSel(p=>Math.min(p+1,filteredStockItems.length-1));}
+    else if(e.key === 'ArrowUp'){e.preventDefault();e.stopPropagation();setNameSel(p=>Math.max(p-1,0));}
+    else if(e.key === 'Enter'){
+      const val = e.currentTarget.value.trim();
+      // 1. Check for duplicate first
+      if (stockItems.some(it => it.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || it.id !== activeAlterItem.id))) {
+        alert(`Stock Item "${val}" already exists!`); e.preventDefault(); return;
+      }
+      // 2. If no duplicate, then allow picking from list if searching
+      if (filteredStockItems.length > 0 && nameFilter && !activeAlterItem) {
+        e.preventDefault(); e.stopPropagation(); pickStockItem(filteredStockItems[nameSel]);
+      } else {
+        // 3. Otherwise move to next field
+        e.preventDefault();
+        moveToNext(e.currentTarget.id);
+      }
     }
   };
 
@@ -3451,7 +3714,32 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
           <div className="form-row"><label style={{width:200}}>Type of Supply</label><span className="colon">:</span><select id="item-supply-type" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.typeOfSupply||'Goods'} onKeyDown={handleGlobalKeyDown}><option>Goods</option><option>Services</option></select></div>
           <b style={{display:'block',margin:'20px 0 10px',textDecoration:'underline',fontSize:13,borderTop:'1px solid #eee',paddingTop:12}}>Costing / Pricing</b>
           <div className="form-row"><label style={{width:200}}>Costing Method</label><span className="colon">:</span><select id="item-costing" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.costingMethod||'Average Cost'} onKeyDown={handleGlobalKeyDown}><option>Average Cost</option><option>FIFO</option><option>LIFO</option><option>Standard Cost</option></select></div>
-          <div className="form-row"><label style={{width:200}}>Market Valuation Method</label><span className="colon">:</span><select id="item-market" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.marketValuationMethod||'Average Price'} onKeyDown={handleGlobalKeyDown}><option>Average Price</option><option>Last Purchase Price</option><option>Last Sale Price</option></select></div>
+           <div className="form-row"><label style={{width:200}}>Market Valuation Method</label><span className="colon">:</span><select id="item-market" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.marketValuationMethod||'Average Price'} onKeyDown={handleGlobalKeyDown}><option>Average Price</option><option>Last Purchase Price</option><option>Last Sale Price</option></select></div>
+          <div className="form-row"><label style={{width:200}}>Standard Discount (%)</label><span className="colon">:</span><input id="item-disc" type="text" className="form-input" style={{width:80,textAlign:'center',fontWeight:'bold'}} defaultValue={activeAlterItem?.defaultDiscount||'0.00'} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row">
+            <label style={{width:200}}>Show Discount in Invoices</label><span className="colon">:</span>
+            <select id="item-enable-discount" className="form-input" style={{width:80}} value={activeCompany?.showDiscount ? 'Yes' : 'No'} 
+              onChange={async (e) => {
+                const newVal = e.target.value === 'Yes';
+                if (activeCompany) {
+                  const updatedCo = { ...activeCompany, showDiscount: newVal };
+                  setActiveCompany(updatedCo);
+                  setCompanies(prev => prev.map(c => c.id === activeCompany.id ? updatedCo : c));
+                  // Save to DB
+                  fetch('/api/companies', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authClient.getToken()}` },
+                    body: JSON.stringify(updatedCo)
+                  });
+                }
+              }}
+              onKeyDown={handleGlobalKeyDown}
+            >
+              <option>No</option>
+              <option>Yes</option>
+            </select>
+            <span style={{marginLeft:10,fontSize:11,color:'#666'}}>(Global Setting)</span>
+          </div>
         </div>
       </div>
       <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8'}}>
@@ -3538,6 +3826,10 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
         <button id="btn-save-item" style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
           onClick={()=>{
             const name = fv('item-name'); if (!name) { alert('Stock Item Name is required!'); return; }
+            // Duplicate Check
+            if (stockItems.some(it => it.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || it.id !== activeAlterItem.id))) {
+              alert(`Stock Item "${name}" already exists!`); return;
+            }
             const unitName = fv('item-units');
             if (!unitName) { alert('Unit is required!'); document.getElementById('item-units')?.focus(); return; }
             const matchedUnit = units.find(u => (u.symbol || u.name || '').toLowerCase() === unitName.toLowerCase());
@@ -3562,7 +3854,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               costingMethod: fsv('item-costing'),
               marketValuationMethod: fsv('item-market'),
               openingQty: parseFloat(fv('item-oqty')) || 0, 
-              openingRate: parseFloat(fv('item-orate')) || 0 
+              openingRate: parseFloat(fv('item-orate')) || 0,
+              defaultDiscount: parseFloat(fv('item-disc')) || 0
             };
             onSave(data);
           }}>
@@ -3588,7 +3881,16 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
           ].map(([label, id, w, ph, val], i) => (
             <div key={i} className="form-row">
               <label style={{width:200}}>{label}</label><span className="colon">:</span>
-              <input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:i===0?'bold':'normal'}} defaultValue={val as string || ''} placeholder={ph as string}/>
+              <input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:i===0?'bold':'normal'}} defaultValue={val as string || ''} placeholder={ph as string}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && id === 'unit-sym') {
+                    const val = e.currentTarget.value.trim();
+                    if (units.some(u => u.symbol.toLowerCase() === val.toLowerCase() && (!activeAlterItem || u.id !== activeAlterItem.id))) {
+                      alert(`Unit "${val}" already exists!`); e.preventDefault(); return;
+                    }
+                  }
+                }}
+              />
             </div>
           ))}
           <div className="form-row"><label style={{width:200}}>Number of Decimal Places</label><span className="colon">:</span><input id="unit-decimal" type="text" className="form-input" style={{width:60,textAlign:'center',fontWeight:'bold'}} defaultValue={activeAlterItem?.decimalPlaces || '0'}/></div>
@@ -3646,7 +3948,16 @@ function GodownCreationForm({activeAlterItem,godowns,onSave,onDelete}:{activeAlt
       <div style={{flex:1,padding:20}}>
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Godown {activeAlterItem?'Alteration':'Creation'}</div>
         {[['Name','gd-name',360,true],['(alias)','gd-alias',360,false]].map(([label,id,w,bold],i)=>(
-          <div key={i} className="form-row"><label style={{width:120}}>{label}</label><span className="colon">:</span><input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:bold?'bold':'normal'}} defaultValue={activeAlterItem?.name||''}/></div>
+          <div key={i} className="form-row"><label style={{width:120}}>{label}</label><span className="colon">:</span><input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:bold?'bold':'normal'}} defaultValue={activeAlterItem?.name||''}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && id === 'gd-name') {
+                const val = e.currentTarget.value.trim();
+                if (godowns.some(g => g.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || g.id !== activeAlterItem.id))) {
+                  alert(`Godown "${val}" already exists!`); e.preventDefault(); return;
+                }
+              }
+            }}
+          /></div>
         ))}
         <div className="form-row" style={{marginTop:15}}><label style={{width:120}}>Under</label><span className="colon">:</span>
           <select id="gd-under" className="form-input" style={{width:280,fontWeight:'bold'}}>
@@ -3774,7 +4085,15 @@ function CurrencyCreationForm({activeAlterItem,currencies,onSave,onDelete}:{acti
             placeholder="₹"
             onFocus={()=>setShowList(true)}
             onChange={(e)=>{setFilterText(e.target.value); setShowList(true);}}
-            onKeyDown={handleSymbolKeyDown}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const val = e.currentTarget.value.trim();
+                if (currencies.some(c => c.symbol.toLowerCase() === val.toLowerCase() && (!activeAlterItem || c.id !== activeAlterItem.id))) {
+                  alert(`Currency "${val}" already exists!`); e.preventDefault(); return;
+                }
+              }
+              handleSymbolKeyDown(e);
+            }}
           />
         </div>
         <div className="form-row">
@@ -3858,7 +4177,16 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave,onDelete}:
     <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
       <div style={{flex:1,padding:20,overflowY:'auto'}}>
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Voucher Type {activeAlterItem?'Alteration':'Creation'}</div>
-        <div className="form-row"><label style={{width:200}}>Name</label><span className="colon">:</span><input id="vt-name" ref={ref} autoFocus type="text" className="form-input" style={{width:260,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}/></div>
+        <div className="form-row"><label style={{width:200}}>Name</label><span className="colon">:</span><input id="vt-name" ref={ref} autoFocus type="text" className="form-input" style={{width:260,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              const val = e.currentTarget.value.trim();
+              if (voucherTypes.some(v => v.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || v.id !== activeAlterItem.id))) {
+                alert(`Voucher Type "${val}" already exists!`); e.preventDefault(); return;
+              }
+            }
+          }}
+        /></div>
         <div className="form-row"><label style={{width:200}}>(alias)</label><span className="colon">:</span><input type="text" className="form-input" style={{width:260}}/></div>
         <div className="form-row" style={{marginTop:10}}>
           <label style={{width:200}}>Type of Voucher</label><span className="colon">:</span>
@@ -3920,17 +4248,27 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   altCReturnContext?: any; onAltCReturnHandled:()=>void; setAltCReturnContext:(ctx:any)=>void; onNav:(s:any,item?:any,type?:string)=>void;
 }) {
   const isInventory = ['Sales','Purchase','Credit Note','Debit Note'].includes(activeVoucher);
-  const isPurchaseSide = ['Purchase','Debit Note'].includes(activeVoucher);
+  // Party side: Sales, Payment, and Debit Note (Purchase Return) debit the party.
+  // Purchase, Receipt, and Credit Note (Sales Return) credit the party.
+  const partySide: 'Dr' | 'Cr' = ['Sales', 'Payment', 'Debit Note'].includes(activeVoucher) ? 'Dr' : 'Cr';
+  const otherSide: 'Dr' | 'Cr' = partySide === 'Dr' ? 'Cr' : 'Dr';
+  const isPurchaseSide = activeVoucher === 'Purchase' || activeVoucher === 'Debit Note'; // Used for some legacy checks
 
   const [partyName, setPartyName] = useState(activeAlterItem?.partyName || '');
   const [partyBalance, setPartyBalance] = useState<number|null>(null);
-  const [refNo, setRefNo] = useState(activeAlterItem?.refNo || '');
-  const [rows, setRows] = useState<VoucherRow[]>(activeAlterItem?.inventoryEntries?.length ? activeAlterItem.inventoryEntries : [{itemId:0,itemName:'',qty:0,rate:0,unit:'Nos',amount:0,gstRate:18}]);
-  const [accEntries, setAccEntries] = useState<AccountEntry[]>(activeAlterItem?.entries?.length ? activeAlterItem.entries : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+  const [refNo, setRefNo] = useState('');
+  const [rows, setRows] = useState<VoucherRow[]>([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
+  const [additionalLedgers, setAdditionalLedgers] = useState<AccountEntry[]>([]);
+  const [accEntries, setAccEntries] = useState<AccountEntry[]>([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
   const [narration, setNarration] = useState(activeAlterItem?.narration || '');
   const [focus, setFocus] = useState<{field:string;rowIdx?:number}|null>(null);
   const [filter, setFilter] = useState('');
   const [listSel, setListSel] = useState(0);
+
+  // Reset list selection when filter changes (typing)
+  useEffect(() => {
+    if (filter) setListSel(0);
+  }, [filter]);
   const ref = useRef<HTMLInputElement>(null);
 
   // Party Details & Dispatch Details modals
@@ -3946,6 +4284,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const vt = voucherTypes.find(v => v.name === activeVoucher) || voucherTypes.find(v => v.type === activeVoucher);
   const numberingMethod = vt?.numberingMethod || 'Automatic';
   const [manualVoucherNo, setManualVoucherNo] = useState('');
+  // Per-session numbering mode: defaults from VoucherType setting, user can override inline
+  const [localNumberingMode, setLocalNumberingMode] = useState<'Auto'|'Manual'>(
+    numberingMethod === 'Manual' ? 'Manual' : 'Auto'
+  );
 
   const formatVoucherNo = useCallback((num: number, vtData?: VoucherTypeData) => {
     if (!vtData) return String(num);
@@ -3966,22 +4308,32 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   useEffect(() => {
     if (!focus) return;
     const list = getList();
-    // For item field: default to End of Item (99999) unless a matching item is found
-    if (focus.field === 'item') {
-      const currentVal = focus.rowIdx !== undefined ? (rows[focus.rowIdx]?.itemName || '') : '';
+    // For item/addl-ledger fields: default to End of List (99999)
+    if (focus.field === 'item' || focus.field === 'addl-ledger') {
+      let currentVal = '';
+      if (focus.field === 'item') currentVal = focus.rowIdx !== undefined ? (rows[focus.rowIdx]?.itemName || '') : '';
+      else if (focus.field === 'addl-ledger') currentVal = focus.rowIdx !== undefined ? (additionalLedgers[focus.rowIdx]?.ledgerName || '') : '';
+      
       if (currentVal) {
         const idx = list.findIndex(it => it && 'name' in (it as any) && (it as any).name.toLowerCase() === currentVal.toLowerCase());
-        if (idx >= 0) setListSel(idx);
-        else setListSel(99999); // Not matched → default to End of Item
+        if (idx >= 0) {
+          setListSel(idx);
+        } else if (filter) {
+          // While typing (filtering), highlight the first matching item instead of End of List
+          setListSel(0);
+        } else {
+          setListSel(99999);
+        }
       } else {
-        setListSel(99999); // Empty field → default to End of Item
+        setListSel(99999);
       }
       return;
     }
-    // For party/ledger fields: default to 0
+    // For party/accledger fields: default to 0
     let currentVal = '';
     if (focus.field === 'party') currentVal = partyName;
     else if (focus.field === 'accledger' && focus.rowIdx !== undefined) currentVal = accEntries[focus.rowIdx]?.ledgerName || '';
+    
     if (currentVal) {
       const idx = list.findIndex(it => {
         const name = it && 'name' in (it as any) ? (it as any).name : '';
@@ -4088,26 +4440,57 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     return () => window.removeEventListener('keydown', onDelKey);
   }, [activeAlterItem, showPrintPrompt, showDeleteConfirm]);
 
+  const lastAlterId = useRef<number | string | null>(null);
+
   const focusRefAfterModal = () => {
     setTimeout(()=>{ (document.getElementById('v-ref') as HTMLInputElement)?.focus(); }, 80);
   };
 
   useEffect(()=>{
      ref.current?.focus();
+     // Unique key for initialization: Type + ID (or 'new' for creation)
+     const currentKey = activeAlterItem ? `${activeVoucher}-${activeAlterItem.id}` : `new-${activeVoucher}`;
+     if(currentKey === lastAlterId.current) return;
+     lastAlterId.current = currentKey;
+
      if(activeAlterItem) {
-       setPartyName(activeAlterItem.partyName);
+       const pName = activeAlterItem.partyName;
+       setPartyName(pName);
        setRefNo(activeAlterItem.refNo||'');
-       setRows(activeAlterItem.inventoryEntries?.length>0 
-          ? activeAlterItem.inventoryEntries.map((r:any) => ({
-              ...r,
-              itemId: r.stockItemId,
-              itemName: r.stockItem?.name || '',
-              rateInclTax: r.rateInclTax || (r.rate * (1 + (r.gstRate || 18) / 100)),
-              amountInclTax: r.amountInclTax || (r.amount * (1 + (r.gstRate || 18) / 100))
-            })) 
-          : [{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
+       
+       if (activeAlterItem.inventoryEntries && activeAlterItem.inventoryEntries.length > 0) {
+         const mappedRows = activeAlterItem.inventoryEntries.map((r:any) => {
+           const itemId = r.stockItemId || r.itemId || 0;
+           const it = stockItems.find(s => s.id === itemId);
+           return {
+             ...r,
+             itemId,
+             itemName: r.itemName || r.stockItem?.name || it?.name || '',
+             discountPerc: r.discountPerc || 0,
+             discountAmt: r.discountAmt || 0,
+             taxableAmount: round2(r.taxableAmount || r.amount),
+             rateInclTax: round2(r.rateInclTax || (r.rate * (1 + (r.gstRate || 18) / 100))),
+             amountInclTax: round2(r.amountInclTax || (r.amount * (1 + (r.gstRate || 18) / 100)))
+           };
+         });
+         setRows(mappedRows);
+       } else {
+         setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
+       }
+
        setAccEntries(activeAlterItem.entries?.length>0 ? activeAlterItem.entries : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
-       setNarration(activeAlterItem.narration);
+       
+       // Filter additional ledgers: everything that is not Party, Sales/Purchase A/c or GST
+       // Note: 'Round Off' is intentionally included so it appears in Day Book/Register drill-down
+       const addl = activeAlterItem.entries?.filter((e:any) => 
+         e.ledgerName !== pName && 
+         e.ledgerName !== 'Sales A/c' && 
+         e.ledgerName !== 'Purchase A/c' &&
+         !['CGST Payable', 'SGST Payable', 'IGST Payable'].includes(e.ledgerName)
+       ) || [];
+       setAdditionalLedgers(addl.map((a:any, i:number) => ({ ...a, id: i })));
+       
+       setNarration(activeAlterItem.narration || '');
        setPartyDetails(activeAlterItem.partyDetails||null);
        setDispatchDetails(activeAlterItem.dispatchDetails||null);
        const l = ledgers.find(lx=>lx.id===activeAlterItem.partyId);
@@ -4115,18 +4498,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
      } else {
        setPartyName('');
        setRefNo('');
-       setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
+       setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
        setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+       setAdditionalLedgers([]);
        setNarration('');
        setPartyBalance(null);
        setPartyDetails(null);
        setDispatchDetails(null);
      }
-     if (!activeAlterItem && numberingMethod === 'Manual') {
+     // Reset localNumberingMode when switching voucher type
+     setLocalNumberingMode(numberingMethod === 'Manual' ? 'Manual' : 'Auto');
+     if (!activeAlterItem) {
         const nextAuto = vouchers.filter(v => v.type === activeVoucher).length + 1;
         setManualVoucherNo(String(nextAuto));
      }
-  },[activeVoucher, activeAlterItem, numberingMethod, vouchers.length]);
+  },[activeVoucher, activeAlterItem, numberingMethod]);
 
   // Handle Alt+C return context
   useEffect(() => {
@@ -4162,53 +4548,6 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       onAltCReturnHandled(); // Tell App we've handled it
     }
   }, [altCReturnContext]);
-
-  const vNum = activeAlterItem ? activeAlterItem.number : (numberingMethod === 'Manual' ? (parseInt(manualVoucherNo) || 1) : (vouchers.filter(v=>v.type===activeVoucher).length + (vt?.startNumber||1)));
-  const formattedNo = activeAlterItem ? activeAlterItem.voucherNo : formatVoucherNo(vNum, vt);
-
-  const getList=()=>{
-    if(focus?.field==='party'||focus?.field==='accledger') {
-      const l=ledgers.filter(l=>!filter||l.name.toLowerCase().includes(filter.toLowerCase()));
-      return l;
-    }
-    if(focus?.field==='item') return stockItems.filter(it=>it && it.name && (!filter || it.name.toLowerCase().includes(filter.toLowerCase())));
-    return [];
-  };
-  const currentList = getList();
-
-  const pickLedger=(l:Ledger)=>{
-    if(focus?.field==='party'){
-      setPartyName(l.name);
-      const bal=getLedgerClosingBalance(l,vouchers);
-      setPartyBalance(bal);
-    } else if(focus?.field==='accledger'&&focus.rowIdx!==undefined){
-      const idx = focus.rowIdx;
-      const ne=[...accEntries];ne[idx]={...ne[idx],ledgerId:l.id,ledgerName:l.name};
-      setAccEntries(ne);
-    }
-    setFocus(null);setFilter('');setListSel(0);
-  };
-  const pickItem=(it:StockItem)=>{
-    if(!it) return;
-    if(focus?.field==='item'&&focus.rowIdx!==undefined){
-      const idx = focus.rowIdx;
-      const nr=[...rows];
-      const gst = it.gstRate || 18;
-      nr[idx]={
-        ...nr[idx],
-        itemId:it.id || 0,
-        itemName:it.name || '',
-        unit: (typeof it.unit === 'string' ? it.unit : it.unit?.symbol || it.unit?.name) || 'Nos',
-        gstRate: gst,
-        hsnCode:it.hsnCode || '',
-        rateInclTax: (nr[idx].rate || 0) * (1 + gst / 100),
-        amountInclTax: (nr[idx].amount || 0) * (1 + gst / 100)
-      };
-      setRows(nr);
-    }
-    setFocus(null);setFilter('');setListSel(99999);
-  };
-
   const itemSubtotal = rows.reduce((s: number, r: any) => s + r.amount, 0);
 
   // ===== TALLY PRIME GST LOGIC: CGST+SGST (same state) vs IGST (different state) =====
@@ -4227,9 +4566,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     });
     return Array.from(map.values()).map(g => ({
       ...g,
-      cgst: isInterState ? 0 : Math.round(g.taxableAmt * g.gstRate / 200 * 100) / 100,
-      sgst: isInterState ? 0 : Math.round(g.taxableAmt * g.gstRate / 200 * 100) / 100,
-      igst: isInterState ? Math.round(g.taxableAmt * g.gstRate / 100 * 100) / 100 : 0,
+      cgst: isInterState ? 0 : round2(g.taxableAmt * g.gstRate / 200),
+      sgst: isInterState ? 0 : round2(g.taxableAmt * g.gstRate / 200),
+      igst: isInterState ? round2(g.taxableAmt * g.gstRate / 100) : 0,
     }));
   }, [rows, isInterState]);
 
@@ -4237,7 +4576,126 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const totalSgst = gstBreakdown.reduce((s: number, g: any) => s + g.sgst, 0);
   const totalIgst = gstBreakdown.reduce((s: number, g: any) => s + g.igst, 0);
   const totalTax = totalCgst + totalSgst + totalIgst;
-  const grandTotal = itemSubtotal + totalTax;
+
+  // Dynamic Round Off sync: If "Round Off" ledger is in additionalLedgers, keep it updated
+  useEffect(() => {
+    const roundOffIdx = additionalLedgers.findIndex(al => al.ledgerName === 'Round Off');
+    if (roundOffIdx >= 0) {
+      // Calculate total BEFORE round off
+      // Calculate total BEFORE round off using the new logical rule:
+      // In Tally, additional ledgers on the 'otherSide' (income/recovery in Sales, cost in Purchase) ADD to the total.
+      // Ledgers on the 'partySide' (expense/discount in Sales, income/discount in Purchase) SUBTRACT from the total.
+      const otherAddlTotal = additionalLedgers.filter((_, i) => i !== roundOffIdx).reduce((s, l) => {
+        const factor = l.entryType === otherSide ? 1 : -1;
+        return s + (l.amount * factor);
+      }, 0);
+      
+      const currentRawTotal = round2(itemSubtotal + totalTax + otherAddlTotal);
+      const currentRounded = Math.round(currentRawTotal);
+      const neededRoundOff = round2(currentRounded - currentRawTotal);
+      
+      const currentAmt = additionalLedgers[roundOffIdx].amount;
+      const targetAmt = Math.abs(neededRoundOff);
+      const targetType = neededRoundOff >= 0 ? 'Dr' : 'Cr';
+      
+      // Update only if different and NOT currently focused
+      if ((Math.abs(currentAmt - targetAmt) > 0.001 || additionalLedgers[roundOffIdx].entryType !== targetType) && focus?.field !== 'addl-ledger') {
+        const ne = [...additionalLedgers];
+        ne[roundOffIdx] = { ...ne[roundOffIdx], amount: targetAmt, entryType: targetType };
+        setAdditionalLedgers(ne);
+      }
+    }
+  }, [itemSubtotal, totalTax, additionalLedgers, focus, ledgers]);
+
+  const isManualMode = !activeAlterItem && localNumberingMode === 'Manual';
+  const vNum = activeAlterItem ? activeAlterItem.number : (isManualMode ? (parseInt(manualVoucherNo) || 1) : (vouchers.filter(v=>v.type===activeVoucher).length + (vt?.startNumber||1)));
+  const formattedNo = activeAlterItem ? activeAlterItem.voucherNo : (isManualMode ? manualVoucherNo : formatVoucherNo(vNum, vt));
+
+  const getList=()=>{
+    if(focus?.field==='party'||focus?.field==='accledger'||focus?.field==='addl-ledger') {
+      const l=ledgers.filter(l=>!filter||l.name.toLowerCase().includes(filter.toLowerCase()));
+      return l;
+    }
+    if(focus?.field==='item') return stockItems.filter(it=>it && it.name && (!filter || it.name.toLowerCase().includes(filter.toLowerCase())));
+    return [];
+  };
+  const currentList = getList();
+
+  const pickLedger=(l:Ledger)=>{
+    if(focus?.field==='party'){
+      setPartyName(l.name);
+      const bal=getLedgerClosingBalance(l,vouchers);
+      setPartyBalance(bal);
+    } else if(focus?.field==='accledger'&&focus.rowIdx!==undefined){
+      const idx = focus.rowIdx;
+      const ne=[...accEntries];ne[idx]={...ne[idx],ledgerId:l.id,ledgerName:l.name};
+      setAccEntries(ne);
+    } else if(focus?.field==='addl-ledger' && focus.rowIdx!==undefined){
+      const idx = focus.rowIdx;
+      const ne = [...additionalLedgers];
+      const isPurchaseSide = activeVoucher === 'Purchase' || activeVoucher === 'Debit Note';
+      
+      // Default entry type based on ledger group (basic logic)
+      const isExp = l.groupName?.toLowerCase().includes('expense') || l.name.toLowerCase().includes('transport') || l.name.toLowerCase().includes('freight');
+      let eType: 'Dr' | 'Cr' = isExp ? 'Dr' : 'Cr';
+      if (l.name === 'Round Off') eType = 'Dr'; // Will be adjusted by effect
+
+      ne[idx] = { ...ne[idx], ledgerId: l.id, ledgerName: l.name, entryType: eType };
+      
+      // If it's the last row and we just picked a ledger, add a new blank row for next selection
+      if (idx === ne.length - 1) {
+        // Default the new row to the 'otherSide' (adding side)
+        ne.push({ ledgerId: 0, ledgerName: '', amount: 0, entryType: otherSide });
+      }
+      
+      setAdditionalLedgers(ne);
+
+      // Auto-calculate Round Off if selected
+      if (l.name === 'Round Off') {
+        // The useEffect will handle the amount. Just skip to the next row or narration.
+        setTimeout(() => {
+           if (idx < ne.length - 1) document.getElementById(`addl-ledger-${idx+1}`)?.focus();
+           else document.getElementById('v-narration')?.focus();
+        }, 150);
+      } else {
+        setTimeout(() => document.getElementById(`addl-amt-${idx}`)?.focus(), 80);
+      }
+    }
+    if (focus?.field !== 'addl-ledger' && focus?.field !== 'accledger') {
+      setFocus(null);
+    }
+    setFilter('');setListSel(0);
+  };
+  const pickItem=(it:StockItem)=>{
+    if(!it) return;
+    if(focus?.field==='item'&&focus.rowIdx!==undefined){
+      const idx = focus.rowIdx;
+      const nr=[...rows];
+      const gst = it.gstRate || 18;
+      nr[idx]={
+        ...nr[idx],
+        itemId:it.id || 0,
+        itemName:it.name || '',
+        unit: (typeof it.unit === 'string' ? it.unit : it.unit?.symbol || it.unit?.name) || 'Nos',
+        discountPerc: round2(it.defaultDiscount || 0),
+        gstRate: round2(gst),
+        hsnCode:it.hsnCode || '',
+        rateInclTax: round2((nr[idx].rate || 0) * (1 + gst / 100)),
+        amountInclTax: round2((nr[idx].amount || 0) * (1 + gst / 100))
+      };
+      setRows(nr);
+    }
+    setFocus(null);setFilter('');setListSel(99999);
+  };
+
+  
+  const addlLedgerTotal = round2(additionalLedgers.reduce((s: number, l: any) => {
+    // Logic: If ledger is on 'otherSide', it adds. If on 'partySide', it subtracts.
+    const factor = l.entryType === otherSide ? 1 : -1;
+    return s + (l.amount * factor);
+  }, 0));
+  
+  const grandTotal = round2(itemSubtotal + totalTax + addlLedgerTotal);
 
   const accDr = accEntries.filter(e=>e.entryType==='Dr').reduce((s: number, e: any) => s + e.amount, 0);
   const accCr = accEntries.filter(e=>e.entryType==='Cr').reduce((s: number, e: any) => s + e.amount, 0);
@@ -4247,7 +4705,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const vc=vColors[activeVoucher]||'#1c5282';
 
   // For item list: End of Item is default (listSel=99999 means End of Item)
-  const isEndOfItem = focus?.field==='item' && listSel >= currentList.length;
+  const isEndOfItem = (focus?.field==='item' || focus?.field==='addl-ledger') && listSel >= currentList.length;
+
+  const goToAdditionalLedgers = () => {
+    setAdditionalLedgers(prev => prev.length === 0 ? [{ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}] : prev);
+    setFocus({field:'addl-ledger', rowIdx: additionalLedgers.length === 0 ? 0 : additionalLedgers.length - 1});
+    setFilter(''); setListSel(99999);
+    setTimeout(() => document.getElementById(`addl-ledger-0`)?.focus(), 80);
+  };
 
   const goToNarration = () => {
     setFocus(null); setFilter(''); setListSel(0);
@@ -4256,52 +4721,74 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
   const listKeyDown=(e:React.KeyboardEvent)=>{
     if(e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();
-      if(focus?.field==='item'){
-        // End of Item → wrap to first real item
+      if(focus?.field==='item' || focus?.field==='addl-ledger'){
+        // End of List → wrap to first real item
         if(isEndOfItem) setListSel(0);
-        // Last real item → End of Item
+        // Last real item → End of List
         else if(listSel >= currentList.length - 1) setListSel(currentList.length);
         else setListSel(p=>p+1);
       } else setListSel(p=>(p+1)%Math.max(1,currentList.length));
     }
     else if(e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();
-      if(focus?.field==='item'){
-        // First real item → End of Item
+      if(focus?.field==='item' || focus?.field==='addl-ledger'){
+        // First real item → End of List
         if(listSel === 0) setListSel(currentList.length);
-        // End of Item → last real item
+        // End of List → last real item
         else if(isEndOfItem) setListSel(Math.max(0, currentList.length - 1));
         else setListSel(p=>p-1);
       } else setListSel(p=>(p-1+Math.max(1,currentList.length))%Math.max(1,currentList.length));
     }
     else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();
       if(focus?.field==='item'){
-        if(isEndOfItem) goToNarration();
+        if(isEndOfItem) goToAdditionalLedgers();
         else if(currentList.length>0) pickItem(currentList[listSel] as StockItem);
+      } else if(focus?.field==='addl-ledger'){
+        if(isEndOfItem || currentList.length === 0) goToNarration();
+        else if(currentList.length>0) {
+          const ridx = focus.rowIdx;
+          pickLedger(currentList[listSel] as Ledger);
+          setTimeout(() => {
+            const el = document.getElementById(`addl-amt-${ridx}`);
+            if (el) el.focus();
+          }, 150);
+        }
       } else if(currentList.length>0) pickLedger(currentList[listSel] as Ledger);
     }
   };
 
   const getVoucherData = () => {
     const taxEntries: VoucherEntry[] = [];
+    const findL = (name: string) => ledgers.find(lx => lx.name === name)?.id || 0;
+    
     let entryId = rows.filter(r=>r.itemName).length + 2;
     if (isInterState) {
-      if (totalIgst > 0) taxEntries.push({id: entryId++, ledgerId:16, ledgerName:'IGST Payable', amount: totalIgst, entryType: isPurchaseSide?'Dr':'Cr'});
+      if (totalIgst > 0) taxEntries.push({id: entryId++, ledgerId: findL('IGST Payable'), ledgerName:'IGST Payable', amount: totalIgst, entryType: otherSide});
     } else {
       if (totalCgst > 0) {
-        taxEntries.push({id: entryId++, ledgerId:14, ledgerName:'CGST Payable', amount: totalCgst, entryType: isPurchaseSide?'Dr':'Cr'});
-        taxEntries.push({id: entryId++, ledgerId:15, ledgerName:'SGST Payable', amount: totalSgst, entryType: isPurchaseSide?'Dr':'Cr'});
+        taxEntries.push({id: entryId++, ledgerId: findL('CGST Payable'), ledgerName:'CGST Payable', amount: totalCgst, entryType: otherSide});
+        taxEntries.push({id: entryId++, ledgerId: findL('SGST Payable'), ledgerName:'SGST Payable', amount: totalSgst, entryType: otherSide});
       }
     }
+
+    const hasManualRoundOff = additionalLedgers.some(al => al.ledgerName === 'Round Off');
+    const currentRawTotal = round2(itemSubtotal + totalTax + addlLedgerTotal);
+    const currentRounded = Math.round(currentRawTotal);
+    const roundOff = round2(currentRounded - currentRawTotal);
+    
+    const salesPurchaseLedger = isPurchaseSide ? 'Purchase A/c' : 'Sales A/c';
+
     return {
       ...(activeAlterItem ? {id: activeAlterItem.id} : {}),
       companyId: activeCompany?.id || 0,
       type:activeVoucher, date:currentDate, number:vNum, voucherNo:formattedNo, refNo:refNo||`${activeVoucher.slice(0,3).toUpperCase()}/${vNum}`,
-      partyName, partyId: ledgers.find(l=>l.name===partyName)?.id||0,
+      partyName, partyId: findL(partyName),
       inventoryEntries: isInventory ? rows.filter(r=>r.itemName).map((r,i)=>({id:i+1,...r})) : [],
       entries: isInventory ? [
-        {id:1,ledgerId:ledgers.find(l=>l.name===partyName)?.id||0,ledgerName:partyName,amount:grandTotal,entryType:isPurchaseSide?'Cr':'Dr'},
-        ...rows.filter(r=>r.itemName).map((r,i)=>({id:i+2,ledgerId:isPurchaseSide?13:11,ledgerName:isPurchaseSide?'Purchase A/c':'Sales A/c',amount:r.amount,entryType:isPurchaseSide?'Dr':'Cr'} as VoucherEntry)),
+        {id:1,ledgerId:findL(partyName),ledgerName:partyName,amount:grandTotal,entryType: partySide},
+        ...rows.filter(r=>r.itemName).map((r,i)=>({id:i+2,ledgerId:findL(salesPurchaseLedger),ledgerName:salesPurchaseLedger,amount:r.amount,entryType: otherSide} as VoucherEntry)),
         ...taxEntries,
+        ...additionalLedgers.filter(al=>al.ledgerName && al.amount > 0).map((al, i) => ({id: entryId++, ...al} as VoucherEntry)),
+        ...(Math.abs(roundOff) > 0.001 && !hasManualRoundOff ? [{id: entryId++, ledgerId: findL('Round Off'), ledgerName: 'Round Off', amount: Math.abs(roundOff), entryType: roundOff > 0 ? otherSide : partySide} as VoucherEntry] : []),
       ] : accEntries.filter(e=>e.ledgerName).map((e,i)=>({id:i+1,...e})),
       narration, total: isInventory ? grandTotal : accDr,
       partyDetails: partyDetails||undefined,
@@ -4311,12 +4798,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
   const handleSave= async ()=>{
     if(!partyName){alert('Party name is required');return;}
+    // Validate manual voucher number
+    if (isManualMode && !manualVoucherNo.trim()) {
+      alert('Please enter a Voucher Number in Manual mode.');
+      return;
+    }
     const voucherData = getVoucherData();
     
     // Duplicate Check
     const isDup = vouchers.some(v => v.type === activeVoucher && v.voucherNo === formattedNo && (!activeAlterItem || v.id !== activeAlterItem.id));
     if (isDup) {
-      alert(`Duplicate Error: ${activeVoucher} No. ${formattedNo} already exists!`);
+      alert(`Duplicate Error: ${activeVoucher} No. ${formattedNo} already exists!\nPlease enter a different Voucher Number.`);
       return;
     }
 
@@ -4331,8 +4823,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const clearVoucherForm = () => {
     if(activeAlterItem) { onCancel(); return; }
     setPartyName('');
-    setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}]);
+    setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
     setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+    setAdditionalLedgers([]);
     setNarration('');
     setPartyBalance(null);
     setPartyDetails(null);
@@ -4367,25 +4860,48 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       {/* Header */}
       <div style={{background:'#fafafa',padding:'10px 15px',borderBottom:`2px solid ${vc}`}}>
         <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
-          <div>
+          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
             <span style={{background:vc,color:'white',padding:'3px 14px',fontWeight:'bold',fontSize:14}}>{activeVoucher}</span>
-            <span style={{marginLeft:15,color:'#444'}}>No. 
-              {numberingMethod === 'Manual' && !activeAlterItem ? (
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  style={{width:120, color:vc, fontWeight:'bold', marginLeft:5, padding: '2px 5px', height: 24}} 
-                  value={manualVoucherNo} 
-                  onChange={e => setManualVoucherNo(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault(); e.stopPropagation();
-                      ref.current?.focus();
+            <span style={{color:'#444',display:'flex',alignItems:'center',gap:6}}>
+              No.
+              {/* Numbering Mode Toggle */}
+              {!activeAlterItem && (
+                <select
+                  value={localNumberingMode}
+                  onChange={e => {
+                    const mode = e.target.value as 'Auto'|'Manual';
+                    setLocalNumberingMode(mode);
+                    if (mode === 'Manual') {
+                      // Pre-fill with next auto number as suggestion
+                      const nextAuto = vouchers.filter(v=>v.type===activeVoucher).length + (vt?.startNumber||1);
+                      setManualVoucherNo(formatVoucherNo(nextAuto, vt));
                     }
                   }}
+                  style={{
+                    fontSize:11, padding:'1px 4px', border:`1px solid ${vc}`, borderRadius:3,
+                    background:'#fff', color:vc, fontWeight:'bold', cursor:'pointer', outline:'none'
+                  }}
+                  title="Voucher Numbering Mode"
+                >
+                  <option value="Auto">Auto</option>
+                  <option value="Manual">Manual</option>
+                </select>
+              )}
+              {isManualMode ? (
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{width:130, color:vc, fontWeight:'bold', padding:'2px 6px', height:24, border:`2px solid ${vc}`, borderRadius:3}}
+                  value={manualVoucherNo}
+                  onChange={e => setManualVoucherNo(e.target.value)}
+                  placeholder="Enter Voucher No."
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); ref.current?.focus(); }
+                  }}
+                  title="Manual Voucher Number"
                 />
               ) : (
-                <b style={{fontSize:15,color:vc, marginLeft:5}}>{formattedNo}</b>
+                <b style={{fontSize:15, color:vc}}>{formattedNo}</b>
               )}
             </span>
           </div>
@@ -4396,7 +4912,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             <label style={{width:130}}>Party A/c Name</label><span className="colon">:</span>
             <input ref={ref} type="text" className="form-input" style={{width:350,fontWeight:'bold'}}
               value={partyName} onChange={e=>{setPartyName(e.target.value);setFilter(e.target.value);}}
-              onFocus={()=>{setFocus({field:'party'});setListSel(0);}}
+              onFocus={()=>{setFocus({field:'party'});setFilter('');setListSel(0);}}
               onKeyDown={e=>{
                 if((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')){
                   e.preventDefault(); e.stopPropagation();
@@ -4483,6 +4999,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             )}
             <div style={{width:90,textAlign:'right'}}>Rate</div>
             <div style={{width:55,textAlign:'center'}}>per</div>
+            {activeCompany?.showDiscount && <div style={{width:65,textAlign:'right'}}>Disc %</div>}
             <div style={{width:110,textAlign:'right'}}>Amount</div>
             {rows.some(r => stockItems.find(it => it.id === r.itemId)?.showAmtInclTax) && (
               <div style={{width:110,textAlign:'right'}}>Amount (Incl. Tax)</div>
@@ -4500,73 +5017,33 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 const gst = row.gstRate || 18;
                 const factor = 1 + gst / 100;
                 const updates: Partial<VoucherRow> = {};
-
-                if (field === 'qty') {
-                  updates.qty = value;
-                  if (row.rate) {
-                    updates.amount = value * row.rate;
-                    updates.amountInclTax = updates.amount * factor;
-                    updates.rateInclTax = row.rate * factor;
-                  } else if (row.rateInclTax) {
-                    updates.rate = row.rateInclTax / factor;
-                    updates.amount = value * updates.rate;
-                    updates.amountInclTax = value * row.rateInclTax;
-                  } else if (row.amount) {
-                    updates.rate = value > 0 ? row.amount / value : 0;
-                    updates.rateInclTax = updates.rate * factor;
-                    updates.amountInclTax = row.amount * factor;
-                  } else if (row.amountInclTax) {
-                    updates.amount = value > 0 ? row.amountInclTax / factor : 0;
-                    updates.rate = value > 0 ? updates.amount / value : 0;
-                    updates.rateInclTax = updates.rate * factor;
-                  }
-                } else if (field === 'rate') {
-                  updates.rate = value;
-                  updates.rateInclTax = value * factor;
-                  if (row.qty) {
-                    updates.amount = row.qty * value;
-                    updates.amountInclTax = updates.amount * factor;
-                  } else if (row.amount) {
-                    updates.qty = value > 0 ? row.amount / value : 0;
-                    updates.amountInclTax = row.amount * factor;
-                  }
-                } else if (field === 'rateInclTax') {
-                  updates.rateInclTax = value;
-                  updates.rate = value / factor;
-                  if (row.qty) {
-                    updates.amount = row.qty * updates.rate;
-                    updates.amountInclTax = row.qty * value;
-                  } else if (row.amount) {
-                    updates.qty = updates.rate > 0 ? row.amount / updates.rate : 0;
-                    updates.amountInclTax = row.amount * factor;
-                  }
-                } else if (field === 'amount') {
-                  updates.amount = value;
-                  updates.amountInclTax = value * factor;
-                  if (row.qty && row.qty > 0) {
-                    updates.rate = value / row.qty;
-                    updates.rateInclTax = updates.rate * factor;
-                  } else if (row.rate && row.rate > 0) {
-                    updates.qty = value / row.rate;
-                    updates.rateInclTax = row.rate * factor;
-                  } else if (row.rateInclTax && row.rateInclTax > 0) {
-                    updates.rate = row.rateInclTax / factor;
-                    updates.qty = value / updates.rate;
-                  }
-                } else if (field === 'amountInclTax') {
-                  updates.amountInclTax = value;
-                  updates.amount = value / factor;
-                  if (row.qty && row.qty > 0) {
-                    updates.rate = updates.amount / row.qty;
-                    updates.rateInclTax = value / row.qty;
-                  } else if (row.rate && row.rate > 0) {
-                    updates.qty = updates.amount / row.rate;
-                    updates.rateInclTax = row.rate * factor;
-                  } else if (row.rateInclTax && row.rateInclTax > 0) {
-                    updates.qty = value / row.rateInclTax;
-                    updates.rate = updates.amount / updates.qty;
-                  }
+                let q = field === 'qty' ? value : (row.qty || 0);
+                let r = field === 'rate' ? value : (row.rate || 0);
+                let dP = field === 'discountPerc' ? value : (row.discountPerc || 0);
+                
+                if (field === 'rateInclTax') r = value / factor;
+                if (field === 'amount') {
+                   const taxable = value;
+                   const discP = field === 'discountPerc' ? value : (row.discountPerc || 0);
+                   // If amount is edited, we calculate rate back
+                   if (q > 0) r = (taxable / (1 - discP/100)) / q;
                 }
+
+                const gross = round2(q * r);
+                const discAmt = round2(gross * (dP / 100));
+                const taxable = round2(gross - discAmt);
+                const amtInclTax = round2(taxable * factor);
+                const rateInclTax = round2(r * factor);
+
+                updates.qty = round2(q);
+                updates.rate = round2(r);
+                updates.discountPerc = round2(dP);
+                updates.discountAmt = round2(discAmt);
+                updates.taxableAmount = round2(taxable);
+                updates.amount = round2(taxable);
+                updates.amountInclTax = round2(amtInclTax);
+                updates.rateInclTax = round2(rateInclTax);
+
                 return updates;
               };
 
@@ -4581,7 +5058,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 <div style={{flex:4}}>
                   <input id={`item-name-${idx}`} type="text" className="form-input" style={{width:'97%',border:focus?.field==='item'&&focus.rowIdx===idx?'1px solid #ffc436':'1px solid transparent'}}
                     value={row.itemName}
-                    onFocus={()=>{setFocus({field:'item',rowIdx:idx});setFilter(row.itemName);setListSel(99999);}}
+                    onFocus={()=>{setFocus({field:'item',rowIdx:idx});setFilter('');setListSel(99999);}}
                     onChange={e=>{const nr=[...rows];nr[idx].itemName=e.target.value;setRows(nr);setFilter(e.target.value);}}
                     onKeyDown={e=>{
                       if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
@@ -4639,9 +5116,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         if(focus?.field==='item') {
                           listKeyDown(e);
                         } else {
-                          if(isEndOfItem) goToNarration();
-                          else if(row.itemName) setTimeout(()=>document.getElementById(`item-qty-${idx}`)?.focus(), 50);
-                          else goToNarration();
+                          if(isEndOfItem || !row.itemName) goToAdditionalLedgers();
+                          else setTimeout(()=>document.getElementById(`item-qty-${idx}`)?.focus(), 50);
                         }
                       } else {
                         listKeyDown(e);
@@ -4651,7 +5127,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     placeholder="Select item (Alt+C to create)"
                   />
                 </div>
-                <div style={{width:80}}><input id={`item-qty-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right'}} value={row.qty||''}
+                <div style={{width:80}}>{row.itemName ? <input id={`item-qty-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right'}} value={row.qty||''}
                    onChange={e=>{
                      const q = parseFloat(e.target.value)||0;
                      updateRow(idx, calculateVoucherRow(row, 'qty', q));
@@ -4659,11 +5135,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                    onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); 
                      const nextId = showIncl ? `item-rate-incl-${idx}` : `item-rate-${idx}`;
                      setTimeout(()=>document.getElementById(nextId)?.focus(), 80);
-                   }}} /></div>
+                   }}} /> : null}</div>
                 
                 {anyShowIncl && (
                   <div style={{width:100}}>
-                    {showIncl ? (
+                    {row.itemName && showIncl ? (
                       <input id={`item-rate-incl-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right', background:'#fffbe6'}} value={row.rateInclTax||''}
                         onChange={e=>{
                           const ri = parseFloat(e.target.value)||0;
@@ -4671,19 +5147,36 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         }}
                         onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); setTimeout(()=>document.getElementById(`item-rate-${idx}`)?.focus(), 80);}}}
                       />
-                    ) : <div style={{width:'88%', textAlign:'right', color:'#ccc'}}>—</div>}
+                    ) : (row.itemName ? <div style={{width:'88%', textAlign:'right', color:'#ccc'}}>—</div> : null)}
                   </div>
                 )}
 
-                <div style={{width:90}}><input id={`item-rate-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right'}} value={row.rate||''}
+                <div style={{width:90}}>{row.itemName ? <input id={`item-rate-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right'}} value={row.rate||''}
                    onChange={e=>{
                      const r = parseFloat(e.target.value)||0;
                      updateRow(idx, calculateVoucherRow(row, 'rate', r));
                    }}
-                   onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); setTimeout(()=>document.getElementById(`item-amt-${idx}`)?.focus(), 80);}}} /></div>
-                <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{typeof row.unit === 'string' ? row.unit : (row.unit as any)?.name || (row.unit as any)?.symbol || 'Nos'}</div>
+                   onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); 
+                     const nextId = activeCompany?.showDiscount ? `item-disc-${idx}` : `item-amt-${idx}`;
+                     setTimeout(()=>document.getElementById(nextId)?.focus(), 80);
+                   }}} /> : null}</div>
+                <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{row.itemName ? (typeof row.unit === 'string' ? row.unit : (row.unit as any)?.name || (row.unit as any)?.symbol || 'Nos') : ''}</div>
+                {activeCompany?.showDiscount && (
+                  <div style={{width:65}}>
+                    {row.itemName ? <input id={`item-disc-${idx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold'}}
+                      value={row.discountPerc||''}
+                      onChange={e=>updateRow(idx, calculateVoucherRow(row, 'discountPerc', parseFloat(e.target.value)||0))}
+                      onKeyDown={e=>{
+                        if(e.key==='Enter'){
+                          e.preventDefault(); e.stopPropagation();
+                          document.getElementById(`item-amt-${idx}`)?.focus();
+                        }
+                      }}
+                    /> : null}
+                  </div>
+                )}
                 <div style={{width:110}}>
-                  <input id={`item-amt-${idx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold',color:vc}} value={row.amount||''}
+                  {row.itemName ? <input id={`item-amt-${idx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold',color:vc}} value={row.amount||''}
                     onChange={e=>{
                       const a = parseFloat(e.target.value)||0;
                       updateRow(idx, calculateVoucherRow(row, 'amount', a));
@@ -4703,12 +5196,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         }
                       }
                     }}
-                  />
+                  /> : null}
                 </div>
 
                 {anyShowAmtIncl && (
                   <div style={{width:110}}>
-                    {showAmtIncl ? (
+                    {row.itemName && showAmtIncl ? (
                       <input id={`item-amt-incl-${idx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold',color:'#1a7a4a',background:'#e8f5e9'}} value={row.amountInclTax||''}
                         onChange={e=>{
                           const ai = parseFloat(e.target.value)||0;
@@ -4726,7 +5219,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           }
                         }}
                       />
-                    ) : <div style={{width:'90%', textAlign:'right', color:'#ccc'}}>—</div>}
+                    ) : (row.itemName ? <div style={{width:'90%', textAlign:'right', color:'#ccc'}}>—</div> : null)}
                   </div>
                 )}
               </div>
@@ -4735,6 +5228,66 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               onClick={()=>setRows(p=>[...p,{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,gstRate:18,hsnCode:''}])}>
               + Add another item
             </div>
+
+            {/* Professional Additional Ledgers Grid Continuation */}
+            {additionalLedgers.map((al, alIdx) => (
+              <div key={alIdx} style={{display:'flex',padding:'4px 10px',alignItems:'center',borderBottom:'1px solid #f5f5f5',background:alIdx%2===0?'#fff':'#fafafa'}}>
+                <div style={{flex:4}}>
+                  <input id={`addl-ledger-${alIdx}`} type="text" className="form-input" style={{width:'97%',border:focus?.field==='addl-ledger'&&focus.rowIdx===alIdx?'1px solid #ffc436':'1px solid transparent'}}
+                    value={al.ledgerName}
+                    onFocus={()=>{setFocus({field:'addl-ledger',rowIdx:alIdx});setFilter('');setListSel(99999);}}
+                    onChange={e=>{
+                      const ne = [...additionalLedgers];
+                      ne[alIdx].ledgerName = e.target.value;
+                      setAdditionalLedgers(ne);
+                      setFilter(e.target.value);
+                    }}
+                    onKeyDown={e=>{
+                      if(e.key==='Enter'){
+                        e.preventDefault(); e.stopPropagation();
+                        listKeyDown(e);
+                      } else {
+                        listKeyDown(e);
+                      }
+                    }}
+                    onBlur={()=>setTimeout(()=>setFocus(f=>f?.field==='addl-ledger'&&f.rowIdx===alIdx?null:f),200)}
+                    placeholder="Select Particulars (Transportation, Discount, etc.)"
+                  />
+                </div>
+                {/* Empty columns to match item grid layout */}
+                <div style={{width:80}}></div>
+                {rows.some(r => stockItems.find(it => it.id === r.itemId)?.showInclTax) && <div style={{width:100}}></div>}
+                <div style={{width:90}}></div>
+                <div style={{width:55}}></div>
+                {activeCompany?.showDiscount && <div style={{width:65}}></div>}
+                
+                <div style={{width:110}}>
+                  {al.ledgerName ? (
+                    <input id={`addl-amt-${alIdx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold',color:'#1c5282'}}
+                      value={al.amount||''}
+                      onChange={e=>{
+                        const ne = [...additionalLedgers];
+                        ne[alIdx].amount = parseFloat(e.target.value)||0;
+                        setAdditionalLedgers(ne);
+                      }}
+                      onKeyDown={e=>{
+                        if(e.key==='Enter'){
+                          e.preventDefault(); e.stopPropagation();
+                          // Move to next row: add it to state if not exists
+                          if(alIdx === additionalLedgers.length - 1) {
+                             setAdditionalLedgers(p => [...p, {ledgerId:0, ledgerName:'', amount:0, entryType: isPurchaseSide ? 'Dr' : 'Cr'}]);
+                             setTimeout(() => document.getElementById(`addl-ledger-${alIdx+1}`)?.focus(), 80);
+                          } else {
+                             document.getElementById(`addl-ledger-${alIdx+1}`)?.focus();
+                          }
+                        }
+                      }}
+                    />
+                  ) : <div style={{width:'90%'}} />}
+                </div>
+                {rows.some(r => stockItems.find(it => it.id === r.itemId)?.showAmtInclTax) && <div style={{width:110}}></div>}
+              </div>
+            ))}
           </div>
           {/* Tax lines - TALLY PRIME STYLE with item-wise GST breakdown */}
           <div style={{borderTop:`2px solid ${vc}`,background:'#f8f8f8',padding:'8px 15px'}}>
@@ -4742,6 +5295,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <span style={{fontSize:13,color:'#555'}}>Sub Total:</span>
               <span style={{width:130,textAlign:'right',fontWeight:'bold'}}>₹ {fmt(itemSubtotal)}</span>
             </div>
+
             {/* State indicator */}
             {partyName && partyLedger?.state && (
               <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:6,fontSize:11}}>
@@ -4778,6 +5332,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold'}}>₹ {fmt(totalTax)}</span>
               </div>
             )}
+            {/* Round Off and other ledgers are now in the main grid list */}
             <div style={{display:'flex',justifyContent:'flex-end',gap:20,borderTop:`1px solid ${vc}`,paddingTop:6}}>
               <span style={{fontSize:15,fontWeight:'bold',color:vc}}>Grand Total:</span>
               <span style={{width:130,textAlign:'right',fontSize:18,fontWeight:'bold',color:vc}}>₹ {fmt(grandTotal)}</span>
@@ -4803,7 +5358,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 <input id={`acc-ledger-${idx}`} type="text" className="form-input" style={{width:'96%'}}
                   value={entry.ledgerName}
                   placeholder={idx===0?`${activeVoucher==='Payment'||activeVoucher==='Contra'?'Account Dr (who pays)':'Account Dr'}...`:`Account Cr...`}
-                  onFocus={()=>{setFocus({field:'accledger',rowIdx:idx});setFilter(entry.ledgerName);setListSel(0);}}
+                  onFocus={()=>{setFocus({field:'accledger',rowIdx:idx});setFilter('');setListSel(0);}}
                   onChange={e=>{const ne=[...accEntries];ne[idx].ledgerName=e.target.value;setAccEntries(ne);setFilter(e.target.value);}}
                   onKeyDown={e=>{
                     if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
@@ -4927,7 +5482,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       )}
 
       {/* Side list panel */}
-      {focus && (currentList.length>0 || focus.field==='item') && (
+      {focus && ['party','item','accledger','addl-ledger'].includes(focus.field) && (
         <div style={{position:'absolute',top:0,right:0,bottom:0,width:320,background:'#dde4f0',zIndex:100,borderLeft:`2px solid ${vc}`,display:'flex',flexDirection:'column'}}>
           <div style={{background:vc,color:'white',padding:'8px 15px',fontWeight:'bold',fontSize:13}}>
             List of {focus.field==='item'?'Stock Items':'Ledgers'}
@@ -4977,10 +5532,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             ⚡ Alt+C: Create New {focus.field==='item'?'Stock Item':'Ledger'}
           </div>
           <div ref={listRef} style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
-            {/* End of Item — ALWAYS FIRST, highlighted by default */}
-            {focus.field==='item' && (
+            {/* End of List — ALWAYS FIRST, highlighted by default */}
+            {(focus.field==='item' || focus.field==='addl-ledger') && (
               <div
-                onMouseDown={e=>{e.preventDefault();goToNarration();}}
+                onMouseDown={e=>{e.preventDefault(); focus.field==='item' ? goToAdditionalLedgers() : goToNarration();}}
                 style={{
                   padding:'5px 18px',cursor:'pointer',
                   background:isEndOfItem?'#ffc436':'transparent',
@@ -4989,7 +5544,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   borderBottom:'1px solid #ddd',
                 }}
               >
-                End of Item
+                End of List
               </div>
             )}
             {(currentList as any[]).map((it,i)=>(
@@ -6439,7 +6994,6 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
 
   const salesVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note'].includes(v.type));
   const v = printVoucher || salesVouchers[0] || null;
-
   if (!v) return (
     <div style={{padding:40,textAlign:'center',color:'#888',fontSize:15}}>
       <div style={{fontSize:40,marginBottom:15}}>🖨️</div>
@@ -6447,6 +7001,9 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
       <div style={{fontSize:12,marginTop:8}}>Create a Sales voucher first, then click P: Print</div>
     </div>
   );
+
+  const partySide: 'Dr' | 'Cr' = ['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr';
+  const otherSide: 'Dr' | 'Cr' = partySide === 'Dr' ? 'Cr' : 'Dr';
 
   const itemSubtotal = v.inventoryEntries.reduce((s: number, e: any) => s + e.amount, 0);
   const cgst = v.entries.find(e=>e.ledgerName==='CGST Payable')?.amount||0;
@@ -6466,6 +7023,10 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     hsnMap.set(hsnKey,{...existing,taxable:existing.taxable+taxable,cgst:existing.cgst+c,sgst:existing.sgst+s,igst:existing.igst+ig,total:existing.total+c+s+ig});
   });
   const hsnRows = Array.from(hsnMap.values());
+
+  const anyShowIncl = v.inventoryEntries.some((e:any) => e.stockItem?.showInclTax || (e.rateInclTax > 0 && Math.abs(e.rateInclTax - e.rate) > 0.1));
+  const anyShowAmtIncl = v.inventoryEntries.some((e:any) => e.stockItem?.showAmtInclTax || (e.amountInclTax > 0 && Math.abs(e.amountInclTax - e.amount) > 0.1));
+  const showDiscount = company?.showDiscount || v.inventoryEntries.some((e:any) => (e.discountPerc || 0) > 0);
 
   const pd = v.partyDetails;
   const dd = v.dispatchDetails;
@@ -6580,13 +7141,16 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             <th style={{...tdH}}>Description of Goods</th>
             <th style={{...tdH,width:60}}>HSN/SAC</th>
             <th style={{...tdH,width:80}}>Quantity</th>
-            {v.inventoryEntries.some((e:any) => e.stockItem?.showInclTax) && (
+            {anyShowIncl && (
               <th style={{...tdH,width:80,textAlign:'right'}}>Rate (Incl. Tax)</th>
             )}
             <th style={{...tdH,width:80,textAlign:'right'}}>Rate</th>
             <th style={{...tdH,width:45}}>per</th>
+            {showDiscount && (
+              <th style={{...tdH,width:50,textAlign:'right'}}>Disc %</th>
+            )}
             <th style={{...tdH,width:100,textAlign:'right'}}>Amount</th>
-            {v.inventoryEntries.some((e:any) => e.stockItem?.showAmtInclTax) && (
+            {anyShowAmtIncl && (
               <th style={{...tdH,width:100,textAlign:'right'}}>Amount (Incl. Tax)</th>
             )}
           </tr>
@@ -6595,52 +7159,68 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
           {v.inventoryEntries.map((e,i)=>(
             <tr key={i} style={{minHeight:24}}>
               <td style={{...tdB,textAlign:'center'}}>{i+1}</td>
-              <td style={{...tdB}}><b>{e.itemName}</b></td>
-              <td style={{...tdB,textAlign:'center'}}>{e.hsnCode||'—'}</td>
+              <td style={{...tdB}}><b>{e.itemName || (e as any).stockItem?.name || '—'}</b></td>
+              <td style={{...tdB,textAlign:'center'}}>{e.hsnCode || (e as any).stockItem?.hsnCode || '—'}</td>
               <td style={{...tdB,textAlign:'right'}}><b>{e.qty} {typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</b></td>
-              {v.inventoryEntries.some((ex:any) => ex.stockItem?.showInclTax) && (
-                <td style={{...tdB,textAlign:'right'}}>{e.stockItem?.showInclTax ? fmt(e.rateInclTax || (e.rate * (1 + (e.gstRate || 18) / 100))) : '—'}</td>
+              {anyShowIncl && (
+                <td style={{...tdB,textAlign:'right'}}>{(e.rateInclTax || 0) > 0 ? fmt(e.rateInclTax) : '—'}</td>
               )}
               <td style={{...tdB,textAlign:'right'}}>{fmt(e.rate)}</td>
               <td style={{...tdB,textAlign:'center'}}>{typeof e.unit === 'string' ? e.unit : (e.unit as any)?.symbol || (e.unit as any)?.name || 'Nos'}</td>
+              {showDiscount && (
+                <td style={{...tdB,textAlign:'right'}}>{(e.discountPerc || 0) > 0 ? `${e.discountPerc}%` : '—'}</td>
+              )}
               <td style={{...tdB,textAlign:'right'}}><b>{fmt(e.amount)}</b></td>
-              {v.inventoryEntries.some((ex:any) => ex.stockItem?.showAmtInclTax) && (
-                <td style={{...tdB,textAlign:'right'}}>{e.stockItem?.showAmtInclTax ? <b>{fmt(e.amountInclTax || (e.amount * (1 + (e.gstRate || 18) / 100)))}</b> : '—'}</td>
+              {anyShowAmtIncl && (
+                <td style={{...tdB,textAlign:'right'}}>{(e.amountInclTax || 0) > 0 ? <b>{fmt(e.amountInclTax)}</b> : '—'}</td>
               )}
             </tr>
           ))}
           {/* Spacer rows to maintain height */}
           {[...Array(Math.max(0, 8 - v.inventoryEntries.length))].map((_, i) => {
-            const anyShowIncl = v.inventoryEntries.some((ex:any) => ex.stockItem?.showInclTax);
-            const anyShowAmtIncl = v.inventoryEntries.some((ex:any) => ex.stockItem?.showAmtInclTax);
             return (
               <tr key={'sp-'+i} style={{height:20}}>
                 <td style={tdB}/><td style={tdB}/><td style={tdB}/><td style={tdB}/>
                 {anyShowIncl && <td style={tdB}/>}
-                <td style={tdB}/><td style={tdB}/><td style={tdB}/>
+                <td style={tdB}/><td style={tdB}/>
+                {showDiscount && <td style={tdB}/>}
+                <td style={tdB}/>
                 {anyShowAmtIncl && <td style={tdB}/>}
               </tr>
             );
           })}
-          {/* Tax entries */}
-          {isInterState ? (
-            igst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>IGST</div></td><td style={tdB}/><td style={tdB}/>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showInclTax) && <td style={tdB}/>}<td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(igst)}</b></td>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showAmtInclTax) && <td style={tdB}/>}</tr>
-          ) : (
-            <>
-              {cgst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>CGST</div></td><td style={tdB}/><td style={tdB}/>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showInclTax) && <td style={tdB}/>}<td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(cgst)}</b></td>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showAmtInclTax) && <td style={tdB}/>}</tr>}
-              {sgst > 0 && <tr><td style={tdB}/><td style={tdB}><div style={{textAlign:'right'}}>SGST</div></td><td style={tdB}/><td style={tdB}/>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showInclTax) && <td style={tdB}/>}<td style={tdB}/><td style={tdB}/><td style={{...tdB,textAlign:'right'}}><b>{fmt(sgst)}</b></td>{v.inventoryEntries.some((ex:any)=>ex.stockItem?.showAmtInclTax) && <td style={tdB}/>}</tr>}
-            </>
-          )}
+          {v.entries.filter(e => 
+            e.ledgerName !== v.partyName && 
+            e.ledgerName !== 'Sales A/c' && 
+            e.ledgerName !== 'Purchase A/c'
+          ).map((e, ei) => {
+            return (
+              <tr key={'addl-' + ei}>
+                <td style={tdB}/>
+                <td style={tdB}><div style={{textAlign:'right'}}>{e.ledgerName}</div></td>
+                <td style={tdB}/>
+                <td style={tdB}/>
+                {anyShowIncl && <td style={tdB}/>}
+                <td style={tdB}/>
+                <td style={tdB}/>
+                {showDiscount && <td style={tdB}/>}
+                <td style={{...tdB, textAlign:'right'}}><b>{fmt(e.amount)}</b> {e.entryType === (['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr') ? 'Dr' : 'Cr'}</td>
+                {anyShowAmtIncl && <td style={tdB}/>}
+              </tr>
+            );
+          })}
         </tbody>
         <tfoot>
           <tr style={{borderTop:'2px solid #555'}}>
             <td style={{...tdB,fontWeight:'bold'}} colSpan={2}><div style={{textAlign:'right'}}>Total</div></td>
             <td style={tdB}></td>
-            <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{v.inventoryEntries.reduce((s:number,e:any)=>s+e.qty,0)} {typeof v.inventoryEntries[0]?.unit === 'string' ? v.inventoryEntries[0]?.unit : (v.inventoryEntries[0]?.unit as any)?.symbol || ''}</td>
-            {v.inventoryEntries.some((ex:any)=>ex.stockItem?.showInclTax) && <td style={tdB}/>}
+            <td style={{...tdB,fontWeight:'bold',textAlign:'right'}}>{v.inventoryEntries.reduce((s:number,e:any)=>s+(e.qty||0),0)} {typeof v.inventoryEntries[0]?.unit === 'string' ? v.inventoryEntries[0]?.unit : (v.inventoryEntries[0]?.unit as any)?.symbol || ''}</td>
+            {anyShowIncl && <td style={tdB}/>}
             <td style={tdB}></td>
             <td style={tdB}></td>
+            {showDiscount && <td style={tdB}/>}
             <td style={{...tdB,fontWeight:'bold',textAlign:'right',fontSize:13}}>₹ {fmt(v.total)}</td>
+            {anyShowAmtIncl && <td style={tdB}/>}
           </tr>
         </tfoot>
       </table>
@@ -6863,10 +7443,11 @@ function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherT
 }
 
 // ==================== ALT+C MODAL ====================
-function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems,stockCategories,godowns,currencies,onClose,onSaveMaster,onDeleteMaster}:{
+function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems,stockCategories,godowns,currencies,onClose,onSaveMaster,onDeleteMaster,activeCompany,setActiveCompany,setCompanies}:{
   ctx:AltCContext;ledgers:Ledger[];stockGroups:StockGroup[];units:UnitData[];voucherTypes:VoucherTypeData[];groups:StockGroup[];
   stockItems:StockItem[];stockCategories:StockCategory[];godowns:GodownData[];currencies:CurrencyData[];
   onClose:()=>void;onSaveMaster:(type:string,data:any,existingItem?:any)=>Promise<any>;onDeleteMaster:(type:string,id:number)=>void;
+  activeCompany:Company|null;setActiveCompany:React.Dispatch<React.SetStateAction<Company|null>>;setCompanies:React.Dispatch<React.SetStateAction<Company[]>>;
 }) {
   const titles:Record<string,string>={ledger:'Ledger',group:'Group',stockItem:'Stock Item',stockGroup:'Stock Group',unit:'Unit',currency:'Currency',voucherType:'Voucher Type',godown:'Godown',stockCategory:'Stock Category'};
   const isLarge = ['ledger','stockItem','company'].includes(ctx.fieldType);
@@ -6909,6 +7490,9 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               onSave={async d => { const ok = await onSaveMaster('stockItem', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
               onDelete={onDeleteMaster} 
               onAltC={() => {}} 
+              activeCompany={activeCompany}
+              setActiveCompany={setActiveCompany}
+              setCompanies={setCompanies}
             />
           )}
           {ctx.fieldType==='group' && (

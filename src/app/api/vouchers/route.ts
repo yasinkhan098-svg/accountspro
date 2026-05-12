@@ -34,6 +34,9 @@ export async function POST(req: Request) {
               amountInclTax: parseFloat(i.amountInclTax || 0),
               unit: i.unit,
               amount: parseFloat(i.amount),
+              discountPerc: parseFloat(i.discountPerc || 0),
+              discountAmt: parseFloat(i.discountAmt || 0),
+              taxableAmount: parseFloat(i.taxableAmount || i.amount),
               gstRate: parseFloat(i.gstRate || 18),
               hsnCode: i.hsnCode
             }))
@@ -86,6 +89,9 @@ export async function PUT(req: Request) {
               amountInclTax: parseFloat(i.amountInclTax || 0),
               unit: i.unit,
               amount: parseFloat(i.amount),
+              discountPerc: parseFloat(i.discountPerc || 0),
+              discountAmt: parseFloat(i.discountAmt || 0),
+              taxableAmount: parseFloat(i.taxableAmount || i.amount),
               gstRate: parseFloat(i.gstRate || 18),
               hsnCode: i.hsnCode
             }))

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+const normalizeUnit = (u: any) => ({
+  ...u,
+  symbol: u.name
+});
+
 export async function POST(req: Request) {
   try {
     const data = await req.json();
@@ -12,7 +17,7 @@ export async function POST(req: Request) {
         companyId: parseInt(data.companyId)
       }
     });
-    return NextResponse.json({ success: true, unit });
+    return NextResponse.json({ success: true, unit: normalizeUnit(unit) });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -22,9 +27,10 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const companyId = searchParams.get('companyId');
-    const units = await prisma.unit.findMany({
+    const rawUnits = await prisma.unit.findMany({
       where: companyId ? { companyId: parseInt(companyId) } : undefined
     });
+    const units = rawUnits.map(normalizeUnit);
     return NextResponse.json({ success: true, units });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -40,10 +46,10 @@ export async function PUT(req: Request) {
       data: {
         name: data.name,
         formalName: data.formalName,
-        decimalPlaces: parseInt(data.decimalPlaces || 0)
+        decimalPlaces: data.decimalPlaces !== undefined ? parseInt(data.decimalPlaces || 0) : undefined
       }
     });
-    return NextResponse.json({ success: true, unit });
+    return NextResponse.json({ success: true, unit: normalizeUnit(unit) });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
