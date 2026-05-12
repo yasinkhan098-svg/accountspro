@@ -7245,13 +7245,13 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         </thead>
         <tbody>
           {(v?.inventoryEntries || []).map((e: any, idx: number) => (
-            <tr key={idx} style={{fontSize:11}}>
+            <tr key={idx} style={{fontSize:11, minHeight:25}}>
               <td style={{...tdB,textAlign:'center'}}>{idx+1}</td>
               <td style={tdB}>
                 <div style={{fontWeight:'bold'}}>{e.itemName || (e as any).stockItem?.name || '—'}</div>
-                {(e.hsnCode || (e as any).stockItem?.hsnCode) && <div style={{fontSize:9,color:'#666'}}>HSN: {e.hsnCode || (e as any).stockItem?.hsnCode}</div>}
+                <div style={{fontSize:9,color:'#666'}}>GST: {e.gstRate || (e as any).stockItem?.gstRate || 0}%</div>
               </td>
-              <td style={{...tdB,textAlign:'center'}}>{e.gstRate || (e as any).stockItem?.gstRate || 18}%</td>
+              <td style={{...tdB,textAlign:'center'}}>{e.hsnCode || (e as any).stockItem?.hsnCode || '—'}</td>
               <td style={{...tdB,textAlign:'right'}}>{fmt(e.qty)}</td>
               {anyShowIncl && (
                 <td style={{...tdB,textAlign:'right'}}>{(e.rateInclTax || 0) > 0 ? fmt(e.rateInclTax) : '—'}</td>

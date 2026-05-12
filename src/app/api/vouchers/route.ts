@@ -33,6 +33,7 @@ export async function POST(req: Request) {
         data: {
           companyId: parseInt(String(companyId)),
           type,
+          partyName: partyName || "",
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
@@ -87,7 +88,9 @@ export async function PUT(req: Request) {
       const voucher = await tx.voucher.update({
         where: { id: parseInt(id) },
         data: {
+          companyId: parseInt(String(companyId)),
           type,
+          partyName: partyName || "",
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
