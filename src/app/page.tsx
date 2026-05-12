@@ -4883,8 +4883,6 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         entryType: e.entryType
       })),
       narration, total: isInventory ? grandTotal : accDr,
-      partyDetails: partyDetails||undefined,
-      dispatchDetails: dispatchDetails||undefined,
     };
   };
 
