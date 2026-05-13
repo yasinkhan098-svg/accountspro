@@ -7131,12 +7131,6 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     </div>
   );
 
-  const partySide: 'Dr' | 'Cr' = ['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr';
-  const otherSide: 'Dr' | 'Cr' = partySide === 'Dr' ? 'Cr' : 'Dr';
-
-  const itemSubtotal = v.inventoryEntries.reduce((s: number, e: any) => s + e.amount, 0);
-  const cgst = v.entries.find(e=>e.ledgerName==='CGST Payable')?.amount||0;
-  const sgst = v.entries.find(e=>e.ledgerName==='SGST Payable')?.amount||0;
   const igst = v.entries.find(e=>e.ledgerName==='IGST Payable')?.amount||0;
   const isInterState = igst > 0;
 
@@ -7153,7 +7147,6 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   });
   const hsnRows = Array.from(hsnMap.values());
 
-  const anyShowIncl = v.inventoryEntries.some((e:any) => e.stockItem?.showInclTax || (e.rateInclTax > 0 && Math.abs(e.rateInclTax - e.rate) > 0.1));
   const tdB:React.CSSProperties = {border:'1px solid #555',padding:'4px 6px',fontSize:11,verticalAlign:'top'};
   const tdH:React.CSSProperties = {...tdB,fontWeight:'bold',background:'#f2f2f2',textAlign:'center'};
 
@@ -7164,7 +7157,13 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
 
   const renderInvoice = (copyIdx: number) => {
     const pd = v.partyDetails;
+    const dd = v.dispatchDetails;
     const copyLabels = ["ORIGINAL FOR RECIPIENT", "DUPLICATE FOR TRANSPORTER", "TRIPLICATE FOR SUPPLIER", "EXTRA COPY"];
+
+    // Column visibility - matches voucher entry screen
+    const showDiscount = !!company?.showDiscount;
+    const showInclRate = v.inventoryEntries.some((e: any) => e.rateInclTax && Math.abs(e.rateInclTax - e.rate) > 0.01);
+    const showAmtIncl = v.inventoryEntries.some((e: any) => e.amountInclTax && Math.abs(e.amountInclTax - e.amount) > 0.5);
 
     const stateCode = (s: string) => {
       const codes: Record<string, string> = {
@@ -7180,7 +7179,6 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     };
     
     // Calculations
-    const subTotal = (v?.inventoryEntries || []).reduce((s:number, e:any) => s + (e.amount || 0), 0);
     const taxEntries = (v?.entries || []).filter((e: any) => {
       const lname = e.ledgerName || e.ledger?.name || '';
       return lname.includes('GST Payable');
@@ -7211,10 +7209,10 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Invoice No.<br/><b>{v.voucherNo}</b></div>
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{v.date}</b></div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Delivery Note<br/>—</div>
-            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Mode/Terms of Payment<br/>—</div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>Reference No. & Date.<br/>—</div>
-            <div style={{padding:'5px 10px'}}>Other References<br/>—</div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Delivery Note<br/><b>{dd?.deliveryNoteNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Mode/Terms of Payment<br/><b>{pd?.termsOfDelivery || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>Reference No. & Date.<br/><b>{v.refNo || '—'}</b></div>
+            <div style={{padding:'5px 10px'}}>Bill of Lading/LR-RR No.<br/><b>{dd?.billOfLadingNo || '—'}</b></div>
           </div>
         </div>
 
@@ -7237,13 +7235,13 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             </div>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Buyer's Order No.<br/>—</div>
-            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/>—</div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatch Doc No.<br/>—</div>
-            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Delivery Note Date<br/>—</div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatched through<br/>—</div>
-            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Destination<br/>—</div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', gridColumn:'span 2', minHeight:80}}>Terms of Delivery<br/>—</div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Buyer's Order No.<br/><b>{pd?.buyerOrderNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{pd?.buyerOrderDate || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatch Doc No.<br/><b>{dd?.dispatchDocNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Motor Vehicle No.<br/><b>{dd?.motorVehicleNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatched through<br/><b>{dd?.dispatchedThrough || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Destination<br/><b>{dd?.destination || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', gridColumn:'span 2', minHeight:60}}>Carrier Name/Agent<br/><b>{dd?.carrierNameAgent || '—'}</b> &nbsp;&nbsp; Terms of Delivery: <b>{pd?.termsOfDelivery || '—'}</b></div>
           </div>
         </div>
 
@@ -7255,9 +7253,12 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               <th style={{...tdH, textAlign:'left'}}>Description of Goods</th>
               <th style={{...tdH, width:60}}>HSN/SAC</th>
               <th style={{...tdH, width:80, textAlign:'right'}}>Quantity</th>
+              {showInclRate && <th style={{...tdH, width:80, textAlign:'right'}}>Rate (Incl.)</th>}
               <th style={{...tdH, width:70, textAlign:'right'}}>Rate</th>
               <th style={{...tdH, width:40}}>per</th>
+              {showDiscount && <th style={{...tdH, width:50, textAlign:'right'}}>Disc%</th>}
               <th style={{...tdH, width:100, textAlign:'right'}}>Amount</th>
+              {showAmtIncl && <th style={{...tdH, width:100, textAlign:'right'}}>Amt (Incl.)</th>}
             </tr>
           </thead>
           <tbody style={{minHeight:'400px'}}>
@@ -7269,14 +7270,17 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                 </td>
                 <td style={{...tdB, textAlign:'center', borderTop:'none', borderBottom:'none'}}>{e.hsnCode}</td>
                 <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none', fontWeight:'bold'}}>{fmt(e.qty)} {e.unit}</td>
+                {showInclRate && <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{fmt(e.rateInclTax)}</td>}
                 <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{fmt(e.rate)}</td>
                 <td style={{...tdB, textAlign:'center', borderTop:'none', borderBottom:'none'}}>{e.unit}</td>
+                {showDiscount && <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{e.discountPerc > 0 ? e.discountPerc + '%' : '—'}</td>}
                 <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none', fontWeight:'bold'}}>{fmt(e.amount)}</td>
+                {showAmtIncl && <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{fmt(e.amountInclTax)}</td>}
               </tr>
             ))}
             {/* Blank Space filling */}
             {Array.from({length: Math.max(0, 10 - (v?.inventoryEntries?.length || 0))}).map((_, i) => (
-              <tr key={'blank-'+i} style={{height:20}}><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none'}}/></tr>
+              <tr key={'blank-'+i} style={{height:20}}><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>{showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>{showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}<td style={{...tdB, border:'none'}}/>{showAmtIncl&&<td style={{...tdB, border:'none'}}/>}</tr>
             ))}
             
             {/* Additional Ledgers in Table */}
@@ -7286,9 +7290,12 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>{ae.ledgerName}</td>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 {showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 {showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
                  <td style={{...tdB, border:'none', textAlign:'right', fontWeight:'bold'}}>{fmt(ae.amount)}</td>
+                 {showAmtIncl&&<td style={{...tdB, border:'none'}}/>}
                </tr>
             ))}
 
@@ -7299,9 +7306,12 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right', paddingRight:20}}>{te.ledgerName}</td>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 {showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 {showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
                  <td style={{...tdB, border:'none', textAlign:'right'}}>{fmt(te.amount)}</td>
+                 {showAmtIncl&&<td style={{...tdB, border:'none'}}/>}
                </tr>
             ))}
 
@@ -7312,9 +7322,12 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>Round Off</td>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 {showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
+                 {showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
                  <td style={{...tdB, border:'none', textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))}</td>
+                 {showAmtIncl&&<td style={{...tdB, border:'none'}}/>}
                </tr>
             )}
           </tbody>
@@ -7323,9 +7336,12 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               <td style={{...tdB, textAlign:'right'}} colSpan={2}>Total</td>
               <td style={tdB}/>
               <td style={{...tdB, textAlign:'right'}}>{fmt((v?.inventoryEntries || []).reduce((s,e)=>s+e.qty,0))}</td>
+              {showInclRate&&<td style={tdB}/>}
               <td style={tdB}/>
               <td style={tdB}/>
+              {showDiscount&&<td style={tdB}/>}
               <td style={{...tdB, textAlign:'right', fontSize:13}}>₹ {fmt(v.total)}</td>
+              {showAmtIncl&&<td style={{...tdB, textAlign:'right', fontSize:13}}>₹ {fmt((v?.inventoryEntries||[]).reduce((s:number,e:any)=>s+(e.amountInclTax||0),0))}</td>}
             </tr>
           </tfoot>
         </table>
@@ -7388,12 +7404,17 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         {/* BANK DETAILS & SIGNATURE */}
         <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', minHeight:120}}>
           <div style={{padding:'10px', borderRight:'1px solid #000', display:'flex', flexDirection:'column', justifyContent:'space-between'}}>
-             <div style={{fontSize:9}}>
-                <b>Company's Bank Details</b><br/>
-                Bank Name : <b>{company?.bankName || 'PUNJAB NATIONAL BANK'}</b><br/>
-                A/c No. : <b>{company?.accountNo || '06764011000155'}</b><br/>
-                Branch & IFS Code : <b>{company?.ifsc || 'KICHHA & PUNB0067610'}</b>
-             </div>
+             {(company?.bankName || company?.accountNo || company?.ifsc) ? (
+               <div style={{fontSize:9}}>
+                 <b>Company's Bank Details</b><br/>
+                 {company?.bankName && <span>Bank Name : <b>{company.bankName}</b><br/></span>}
+                 {company?.bankHolderName && <span>A/c Holder : <b>{company.bankHolderName}</b><br/></span>}
+                 {company?.accountNo && <span>A/c No. : <b>{company.accountNo}</b><br/></span>}
+                 {company?.ifsc && <span>IFS Code : <b>{company.ifsc}</b><br/></span>}
+               </div>
+             ) : (
+               <div style={{fontSize:9, color:'#888', fontStyle:'italic'}}>Bank details not configured in company.</div>
+             )}
              <div style={{fontSize:8, marginTop:10}}>
                 <u>Declaration:</u><br/>
                 We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
