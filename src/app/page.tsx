@@ -2835,9 +2835,10 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
             onKeyDown={handleKeyDown}
             defaultValue={selCo} autoComplete="off"/>
         </div>
-        {([['Pincode','c-pin',100],['Telephone','c-telephone',200]] as const).map(([label,id,w],i)=>(
-          <div key={i} className="form-row"><label style={{width:160}}>{label}</label><span className="colon">:</span><input id={id} type="text" className="form-input" style={{width:w}} defaultValue={activeAlterItem?.[(id as string).replace('c-','')]||''}/></div>
+        {([['Telephone','c-telephone',200]] as const).map(([label,id,w],i)=>(
+          <div key={i} className="form-row"><label style={{width:160}}>{label}</label><span className="colon">:</span><input id={id} type="text" className="form-input" style={{width:w}} defaultValue={activeAlterItem?.telephone||''}/></div>
         ))}
+        <div className="form-row"><label style={{width:160}}>Pincode</label><span className="colon">:</span><input id="c-pin" type="text" className="form-input" style={{width:100}} defaultValue={activeAlterItem?.pinCode||''}/></div>
         <div className="form-row">
           <label style={{width:160}}>Mobile</label><span className="colon">:</span>
           <input id="c-mob" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.mobile||''}/>
@@ -7211,9 +7212,11 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         {/* HEADER SECTION: Company & Invoice Info */}
         <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', borderBottom:'1px solid #000'}}>
           <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>
-            {/* Company Logo */}
+            {/* Company Logo - Left aligned, before company name */}
             {company?.showLogo && company?.logo && (
-              <img src={company.logo} alt="Logo" style={{height:50, maxWidth:120, objectFit:'contain', float:'right', marginLeft:8}} />
+              <div style={{marginBottom:4}}>
+                <img src={company.logo} alt="Logo" style={{height:55, maxWidth:130, objectFit:'contain', display:'block'}} />
+              </div>
             )}
             <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
             <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode ? ' - ' + company.pinCode : ''}</div>
