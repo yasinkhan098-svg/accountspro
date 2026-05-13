@@ -7211,21 +7211,24 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         
         {/* HEADER SECTION: Company & Invoice Info */}
         <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', borderBottom:'1px solid #000'}}>
-          <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>
-            {/* Company Logo - Left aligned, before company name */}
+          <div style={{padding:'5px 10px', borderRight:'1px solid #000', display:'flex', flexDirection:'row', alignItems:'flex-start', gap:8}}>
+            {/* Company Logo - 1 inch x 1 inch on the LEFT */}
             {company?.showLogo && company?.logo && (
-              <div style={{marginBottom:4}}>
-                <img src={company.logo} alt="Logo" style={{height:55, maxWidth:130, objectFit:'contain', display:'block'}} />
+              <div style={{flexShrink:0, width:'1in', height:'1in', display:'flex', alignItems:'center', justifyContent:'center', marginRight:6}}>
+                <img src={company.logo} alt="Logo" style={{width:'1in', height:'1in', objectFit:'contain'}} />
               </div>
             )}
-            <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
-            <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode ? ' - ' + company.pinCode : ''}</div>
-            <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
-            <div style={{fontSize:10}}>State Name : {company?.state}, Code : {stateCode(company?.state||'')}</div>
-            {company?.telephone && <div style={{fontSize:10}}>Ph: <b>{company.telephone}</b></div>}
-            {company?.showMobile && company?.mobile && <div style={{fontSize:10}}>Mob: <b>{company.mobile}</b></div>}
-            {company?.showEmail && company?.email && <div style={{fontSize:10}}>Email: <b>{company.email}</b></div>}
-            {company?.showWebsite && company?.website && <div style={{fontSize:10}}>Web: <b>{company.website}</b></div>}
+            {/* Company Details on the RIGHT of logo */}
+            <div style={{flex:1}}>
+              <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
+              <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode ? ' - ' + company.pinCode : ''}</div>
+              <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
+              <div style={{fontSize:10}}>State Name : {company?.state}, Code : {stateCode(company?.state||'')}</div>
+              {company?.telephone && <div style={{fontSize:10}}>Ph: <b>{company.telephone}</b></div>}
+              {company?.showMobile && company?.mobile && <div style={{fontSize:10}}>Mob: <b>{company.mobile}</b></div>}
+              {company?.showEmail && company?.email && <div style={{fontSize:10}}>Email: <b>{company.email}</b></div>}
+              {company?.showWebsite && company?.website && <div style={{fontSize:10}}>Web: <b>{company.website}</b></div>}
+            </div>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Invoice No.<br/><b>{v.voucherNo}</b></div>
