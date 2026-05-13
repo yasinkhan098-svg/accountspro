@@ -7280,7 +7280,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             ))}
             {/* Blank Space filling */}
             {Array.from({length: Math.max(0, 10 - (v?.inventoryEntries?.length || 0))}).map((_, i) => (
-              <tr key={'blank-'+i} style={{height:20}}><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>{showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>{showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}<td style={{...tdB, border:'none'}}/>{showAmtIncl&&<td style={{...tdB, border:'none'}}/>}</tr>
+              <tr key={'blank-'+i} style={{height:20}}><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>{showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/><td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>{showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}<td style={{...tdB, border:'none', borderLeft:'1px solid #000', ...(showAmtIncl?{borderRight:'1px solid #000'}:{})}}/>{showAmtIncl&&<td style={{...tdB, border:'none'}}/>}</tr>
             ))}
             
             {/* Additional Ledgers in Table */}
@@ -7294,7 +7294,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
-                 <td style={{...tdB, border:'none', textAlign:'right', fontWeight:'bold'}}>{fmt(ae.amount)}</td>
+                 <td style={{...tdB, border:'none', borderLeft:'1px solid #000', ...(showAmtIncl?{borderRight:'1px solid #000'}:{}), textAlign:'right', fontWeight:'bold'}}>{fmt(ae.amount)}</td>
                  {showAmtIncl&&<td style={{...tdB, border:'none'}}/>}
                </tr>
             ))}
@@ -7310,7 +7310,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
-                 <td style={{...tdB, border:'none', textAlign:'right'}}>{fmt(te.amount)}</td>
+                 <td style={{...tdB, border:'none', borderLeft:'1px solid #000', ...(showAmtIncl?{borderRight:'1px solid #000'}:{}), textAlign:'right'}}>{fmt(te.amount)}</td>
                  {showAmtIncl&&<td style={{...tdB, border:'none'}}/>}
                </tr>
             ))}
@@ -7326,7 +7326,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
-                 <td style={{...tdB, border:'none', textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))}</td>
+                 <td style={{...tdB, border:'none', borderLeft:'1px solid #000', ...(showAmtIncl?{borderRight:'1px solid #000'}:{}), textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))}</td>
                  {showAmtIncl&&<td style={{...tdB, border:'none'}}/>}
                </tr>
             )}
