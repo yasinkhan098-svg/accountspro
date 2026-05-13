@@ -7448,7 +7448,6 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         {Array.from({length: numCopies}).map((_, i) => renderInvoice(i))}
       </div>
     </div>
-  );
 
 
       {/* Print Options Modal */}
