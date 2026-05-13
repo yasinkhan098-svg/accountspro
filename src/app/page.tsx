@@ -1647,13 +1647,14 @@ export default function App() {
           if (companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Company "${name}" already exists!`); return; }
           const logoEl = document.querySelector('img[alt="Preview"]') as HTMLImageElement;
           type = 'company'; data = { 
-            name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'),
+            name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
             registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'),
             financialYearStart: fv('c-fy-start'), booksBeginFrom: fv('c-books-start'),
             securityControl: fsv('c-sec-ctrl') === 'Yes', password: fv('c-pwd'),
-            showMobile: (document.querySelector('input[type="checkbox"][id*="mob"]') as HTMLInputElement)?.checked ?? true,
-            showEmail: (document.querySelector('input[type="checkbox"][id*="email"]') as HTMLInputElement)?.checked ?? true,
-            showWebsite: (document.querySelector('input[type="checkbox"][id*="web"]') as HTMLInputElement)?.checked ?? true,
+            showMobile: (document.getElementById('chk-print-mob') as HTMLInputElement)?.checked ?? true,
+            showEmail: (document.getElementById('chk-print-email') as HTMLInputElement)?.checked ?? true,
+            showWebsite: (document.getElementById('chk-print-web') as HTMLInputElement)?.checked ?? true,
+            showLogo: (document.getElementById('chk-print-Logo') as HTMLInputElement)?.checked ?? false,
             logo: logoEl?.src || null,
           };
         }
@@ -2882,7 +2883,16 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
         <div className="form-row"><label style={{width:220}}>Books beginning from</label><span className="colon">:</span><input id="c-books-start" type="text" className="form-input" style={{width:120}} defaultValue={activeAlterItem?.booksBeginFrom||"1-Apr-2026"}/></div>
         <div className="form-section-title">Statutory Information</div>
         <div className="form-row"><label style={{width:220}}>Registration Type</label><span className="colon">:</span><select id="c-reg-type" className="form-input" style={{width:160}} defaultValue={activeAlterItem?.registrationType||'Regular'}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
-        <div className="form-row"><label style={{width:220}}>GSTIN</label><span className="colon">:</span><input id="c-gstin" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.gstin||''} onInput={e => e.currentTarget.value = e.currentTarget.value.toUpperCase()}/></div>
+        <div className="form-row"><label style={{width:220}}>GSTIN</label><span className="colon">:</span><input id="c-gstin" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.gstin||''} onInput={e => e.currentTarget.value = e.currentTarget.value.toUpperCase()} onKeyDown={e => {
+          if (e.key === 'Enter') {
+            const gst = (e.currentTarget.value || '').trim();
+            if (gst.length >= 12) {
+              const pan = gst.substring(2, 12); // chars 3 to 12 (0-indexed: 2 to 11)
+              const panEl = document.getElementById('c-pan') as HTMLInputElement;
+              if (panEl && !panEl.value) panEl.value = pan.toUpperCase();
+            }
+          }
+        }}/></div>
         <div className="form-row"><label style={{width:220}}>PAN No.</label><span className="colon">:</span><input id="c-pan" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.pan||''}/></div>
         <div className="form-section-title">Banking Details</div>
         <div className="form-row"><label style={{width:220}}>Bank Name</label><span className="colon">:</span><input id="c-bank-name" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankName||''}/></div>
@@ -7201,10 +7211,18 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         {/* HEADER SECTION: Company & Invoice Info */}
         <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', borderBottom:'1px solid #000'}}>
           <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>
+            {/* Company Logo */}
+            {company?.showLogo && company?.logo && (
+              <img src={company.logo} alt="Logo" style={{height:50, maxWidth:120, objectFit:'contain', float:'right', marginLeft:8}} />
+            )}
             <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
-            <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}</div>
-            <div style={{marginTop:4, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
+            <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode ? ' - ' + company.pinCode : ''}</div>
+            <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
             <div style={{fontSize:10}}>State Name : {company?.state}, Code : {stateCode(company?.state||'')}</div>
+            {company?.telephone && <div style={{fontSize:10}}>Ph: <b>{company.telephone}</b></div>}
+            {company?.showMobile && company?.mobile && <div style={{fontSize:10}}>Mob: <b>{company.mobile}</b></div>}
+            {company?.showEmail && company?.email && <div style={{fontSize:10}}>Email: <b>{company.email}</b></div>}
+            {company?.showWebsite && company?.website && <div style={{fontSize:10}}>Web: <b>{company.website}</b></div>}
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Invoice No.<br/><b>{v.voucherNo}</b></div>
