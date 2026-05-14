@@ -7445,6 +7445,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                   <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Supplier (Bill from)</div>
                   <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
                   {partyLedger?.address && <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{partyLedger.address}</div>}
+                  {partyLedger?.gstin && <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{partyLedger.gstin}</b></div>}
                   {partyLedger?.state && <div style={{fontSize:10}}>State Name : {partyLedger.state}, Code : {stateCode(partyLedger.state||'')}</div>}
                 </>
               ) : (
@@ -7630,16 +7631,32 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         {/* BANK DETAILS & SIGNATURE */}
         <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', minHeight:120}}>
           <div style={{padding:'10px', borderRight:'1px solid #000', display:'flex', flexDirection:'column', justifyContent:'space-between'}}>
-             {(company?.bankName || company?.accountNo || company?.ifsc) ? (
-               <div style={{fontSize:9}}>
-                 <b>Company's Bank Details</b><br/>
-                 {company?.bankName && <span>Bank Name : <b>{company.bankName}</b><br/></span>}
-                 {company?.bankHolderName && <span>A/c Holder : <b>{company.bankHolderName}</b><br/></span>}
-                 {company?.accountNo && <span>A/c No. : <b>{company.accountNo}</b><br/></span>}
-                 {company?.ifsc && <span>IFS Code : <b>{company.ifsc}</b><br/></span>}
-               </div>
+             {isPurchaseType ? (
+               // Purchase: Show Supplier (party ledger) bank details
+               (partyLedger?.bankName || partyLedger?.accountNo || partyLedger?.ifsc) ? (
+                 <div style={{fontSize:9}}>
+                   <b>Supplier's Bank Details</b><br/>
+                   {partyLedger?.bankName && <span>Bank Name : <b>{partyLedger.bankName}</b><br/></span>}
+                   {partyLedger?.bankHolderName && <span>A/c Holder : <b>{partyLedger.bankHolderName}</b><br/></span>}
+                   {partyLedger?.accountNo && <span>A/c No. : <b>{partyLedger.accountNo}</b><br/></span>}
+                   {partyLedger?.ifsc && <span>IFS Code : <b>{partyLedger.ifsc}</b><br/></span>}
+                 </div>
+               ) : (
+                 <div style={{fontSize:9, color:'#888', fontStyle:'italic'}}>Supplier bank details not available in ledger.</div>
+               )
              ) : (
-               <div style={{fontSize:9, color:'#888', fontStyle:'italic'}}>Bank details not configured in company.</div>
+               // Sales: Show Company bank details
+               (company?.bankName || company?.accountNo || company?.ifsc) ? (
+                 <div style={{fontSize:9}}>
+                   <b>Company's Bank Details</b><br/>
+                   {company?.bankName && <span>Bank Name : <b>{company.bankName}</b><br/></span>}
+                   {company?.bankHolderName && <span>A/c Holder : <b>{company.bankHolderName}</b><br/></span>}
+                   {company?.accountNo && <span>A/c No. : <b>{company.accountNo}</b><br/></span>}
+                   {company?.ifsc && <span>IFS Code : <b>{company.ifsc}</b><br/></span>}
+                 </div>
+               ) : (
+                 <div style={{fontSize:9, color:'#888', fontStyle:'italic'}}>Bank details not configured in company.</div>
+               )
              )}
              <div style={{fontSize:8, marginTop:10}}>
                 <u>Declaration:</u><br/>
