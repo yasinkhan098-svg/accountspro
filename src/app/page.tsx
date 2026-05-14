@@ -98,6 +98,7 @@ interface PartyDetails {
   shipName: string; shipMailingName: string; shipAddress: string;
   shipState: string; shipCountry: string; shipGstin: string; shipPlace: string;
   buyerOrderNo: string; buyerOrderDate: string; termsOfDelivery: string;
+  supplierInvNo?: string; supplierInvDate?: string;
 }
 interface DispatchDetails {
   deliveryNoteNo: string; dispatchDocNo: string; dispatchedThrough: string;
@@ -4298,6 +4299,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const [partyName, setPartyName] = useState(activeAlterItem?.partyName || '');
   const [partyBalance, setPartyBalance] = useState<number|null>(null);
   const [refNo, setRefNo] = useState(activeAlterItem?.refNo || '');
+  const [supplierInvNo, setSupplierInvNo] = useState(activeAlterItem?.partyDetails?.supplierInvNo || '');
+  const [supplierInvDate, setSupplierInvDate] = useState(activeAlterItem?.partyDetails?.supplierInvDate || '');
   const [rows, setRows] = useState<VoucherRow[]>(
     activeAlterItem?.inventoryEntries?.length > 0 
     ? activeAlterItem.inventoryEntries.map((ie: any) => ({
@@ -4575,11 +4578,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setNarration(activeAlterItem.narration || '');
         setPartyDetails(activeAlterItem.partyDetails||null);
         setDispatchDetails(activeAlterItem.dispatchDetails||null);
+        setSupplierInvNo(activeAlterItem.partyDetails?.supplierInvNo || '');
+        setSupplierInvDate(activeAlterItem.partyDetails?.supplierInvDate || '');
         const l = ledgers.find(lx=>lx.id===activeAlterItem.partyId);
         if(l) setPartyBalance(getLedgerClosingBalance(l,vouchers));
       } else {
         setPartyName('');
         setRefNo('');
+        setSupplierInvNo('');
+        setSupplierInvDate('');
         setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
         setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
         setAdditionalLedgers([{ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}]);
@@ -4878,7 +4885,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       companyId: activeCompany?.id || 0,
       type:activeVoucher, date:currentDate, number:vNum, voucherNo:formattedNo, refNo:refNo||`${activeVoucher.slice(0,3).toUpperCase()}/${vNum}`,
       partyName, partyId: findL(partyName),
-      partyDetails,
+      partyDetails: (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note')
+        ? { ...(partyDetails as any || {}), supplierInvNo, supplierInvDate } as PartyDetails
+        : partyDetails,
       dispatchDetails,
       inventoryEntries: isInventory ? rows.filter(r=>r.itemName).map((r,i)=>({id:i+1,...r})) : [],
       entries: isInventory ? [
@@ -4972,6 +4981,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     setPartyDetails(null);
     setDispatchDetails(null);
     setRefNo('');
+    setSupplierInvNo('');
+    setSupplierInvDate('');
     setShowPrintPrompt(null);
     setTimeout(() => ref.current?.focus(), 80);
   };
@@ -5122,10 +5133,33 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             <label style={{width:80}}>Ref No.</label><span className="colon">:</span>
             <input id="v-ref" type="text" className="form-input" style={{width:160}} value={refNo} onChange={e=>setRefNo(e.target.value)} placeholder="Auto"
               onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation();
-                const target = isInventory ? 'item-name-0' : 'acc-ledger-0';
-                setTimeout(()=>document.getElementById(target)?.focus(), 50);
+                if (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') {
+                  setTimeout(()=>document.getElementById('v-supplier-inv-no')?.focus(), 50);
+                } else {
+                  const target = isInventory ? 'item-name-0' : 'acc-ledger-0';
+                  setTimeout(()=>document.getElementById(target)?.focus(), 50);
+                }
               }}}/>
           </div>
+          {(activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') && (
+            <>
+              <div className="form-row" style={{marginBottom:0}}>
+                <label style={{width:150}}>Supplier Invoice No.</label><span className="colon">:</span>
+                <input id="v-supplier-inv-no" type="text" className="form-input" style={{width:160}} value={supplierInvNo} onChange={e=>setSupplierInvNo(e.target.value)} placeholder="Supplier's Inv No."
+                  onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation();
+                    setTimeout(()=>document.getElementById('v-supplier-inv-date')?.focus(), 50);
+                  }}}/>
+              </div>
+              <div className="form-row" style={{marginBottom:0}}>
+                <label style={{width:150}}>Supplier Invoice Date</label><span className="colon">:</span>
+                <input id="v-supplier-inv-date" type="text" className="form-input" style={{width:130}} value={supplierInvDate} onChange={e=>setSupplierInvDate(e.target.value)} placeholder="e.g. 14-May-2026"
+                  onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation();
+                    const target = isInventory ? 'item-name-0' : 'acc-ledger-0';
+                    setTimeout(()=>document.getElementById(target)?.focus(), 50);
+                  }}}/>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -7132,13 +7166,13 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     return () => window.removeEventListener('keydown', onKey);
   }, [showOptions, tempCopies]);
 
-  const salesVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note'].includes(v.type));
-  const v = printVoucher || salesVouchers[0] || null;
+  const allPrintableVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note','Payment','Receipt','Contra','Journal'].includes(v.type));
+  const v = printVoucher || allPrintableVouchers[0] || null;
   if (!v) return (
     <div style={{padding:40,textAlign:'center',color:'#888',fontSize:15}}>
       <div style={{fontSize:40,marginBottom:15}}>🖨️</div>
-      <div>No Sales/Purchase voucher found.</div>
-      <div style={{fontSize:12,marginTop:8}}>Create a Sales voucher first, then click P: Print</div>
+      <div>No voucher found to print.</div>
+      <div style={{fontSize:12,marginTop:8}}>Create a voucher first, then click P: Print</div>
     </div>
   );
 
@@ -7164,6 +7198,119 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   const handlePrint = () => {
     setNumCopies(tempCopies);
     setTimeout(() => { window.print(); setShowOptions(false); }, 100);
+  };
+
+  // ===== ACCOUNTING VOUCHER PRINT (Payment, Receipt, Contra, Journal) =====
+  const renderAccountingVoucher = (copyIdx: number) => {
+    const copyLabels = ["ORIGINAL", "DUPLICATE", "TRIPLICATE", "EXTRA COPY"];
+    const vColors: Record<string, string> = {
+      'Payment': '#8B0000', 'Receipt': '#1a7a4a', 'Contra': '#4a4a00', 'Journal': '#1c5282'
+    };
+    const vc = vColors[v.type] || '#1c5282';
+    const partyLedger = ledgers.find(l => l.name === v.partyName);
+    const totalDr = v.entries.filter(e => e.entryType === 'Dr').reduce((s,e) => s + e.amount, 0);
+    const totalCr = v.entries.filter(e => e.entryType === 'Cr').reduce((s,e) => s + e.amount, 0);
+    const printTotal = Math.max(totalDr, totalCr);
+
+    const tdB: React.CSSProperties = {border:'1px solid #555',padding:'5px 8px',fontSize:11};
+    const tdH: React.CSSProperties = {...tdB,fontWeight:'bold',background:'#f2f2f2',textAlign:'center'};
+
+    return (
+      <div key={copyIdx} className="invoice-copy" style={{width:'210mm',minHeight:'297mm',margin:'0 auto 30px auto',background:'white',border:'1.5px solid #000',fontFamily:'"Arial Narrow",Arial,sans-serif',fontSize:11,position:'relative',boxSizing:'border-box',padding:0}}>
+        {/* Top Label */}
+        <div style={{position:'absolute',top:5,right:10,fontSize:9,fontWeight:'bold'}}>{copyLabels[copyIdx]||copyLabels[3]}</div>
+        {/* Title */}
+        <div style={{textAlign:'center',fontWeight:'bold',fontSize:16,padding:'10px 0 5px',borderBottom:`2px solid ${vc}`,color:vc}}>{v.type.toUpperCase()} VOUCHER</div>
+        {/* Company Header */}
+        <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr',borderBottom:'1px solid #000'}}>
+          <div style={{padding:'8px 10px',borderRight:'1px solid #000'}}>
+            {company?.showLogo && company?.logo && (
+              <img src={company.logo} alt="Logo" style={{height:48,objectFit:'contain',display:'block',marginBottom:4}}/>
+            )}
+            <div style={{fontWeight:'bold',fontSize:14}}>{company?.name}</div>
+            <div style={{fontSize:10,whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode?' - '+company.pinCode:''}</div>
+            <div style={{fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
+            <div style={{fontSize:10}}>State : {company?.state}</div>
+            {company?.telephone && <div style={{fontSize:10}}>Ph: <b>{company.telephone}</b></div>}
+          </div>
+          <div style={{display:'grid',gridTemplateRows:'1fr 1fr',padding:0}}>
+            <div style={{padding:'6px 10px',borderBottom:'1px solid #000'}}>
+              <div style={{fontSize:9}}>Voucher No.</div>
+              <div style={{fontWeight:'bold',fontSize:13}}>{v.voucherNo}</div>
+            </div>
+            <div style={{padding:'6px 10px'}}>
+              <div style={{fontSize:9}}>Dated</div>
+              <div style={{fontWeight:'bold',fontSize:13}}>{v.date}</div>
+            </div>
+          </div>
+        </div>
+        {/* Party Info */}
+        {v.partyName && (
+          <div style={{padding:'6px 10px',borderBottom:'1px solid #000',background:'#fafafa'}}>
+            <span style={{fontSize:9,color:'#555'}}>{v.type==='Payment'?'To (Payee)':v.type==='Receipt'?'Received From':'Party A/c'} :</span>
+            <span style={{fontWeight:'bold',fontSize:13,marginLeft:8}}>{v.partyName}</span>
+            {partyLedger?.address && <span style={{fontSize:10,color:'#444',marginLeft:10}}>{partyLedger.address}</span>}
+            {partyLedger?.gstin && <span style={{fontSize:10,color:'#444',marginLeft:10}}>GSTIN: <b>{partyLedger.gstin}</b></span>}
+          </div>
+        )}
+        {/* Ledger Entries Table */}
+        <table style={{width:'100%',borderCollapse:'collapse',borderBottom:'1px solid #000'}}>
+          <thead>
+            <tr>
+              <th style={{...tdH,textAlign:'left'}}>Account</th>
+              <th style={{...tdH,width:120,textAlign:'right'}}>Dr Amount (₹)</th>
+              <th style={{...tdH,width:120,textAlign:'right'}}>Cr Amount (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {v.entries.filter(e=>e.ledgerName).map((e,i)=>(
+              <tr key={i}>
+                <td style={tdB}>{e.ledgerName}</td>
+                <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Dr'?fmt(e.amount):'—'}</td>
+                <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Cr'?fmt(e.amount):'—'}</td>
+              </tr>
+            ))}
+            {Array.from({length:Math.max(0,5-v.entries.length)}).map((_,i)=>(
+              <tr key={'b'+i} style={{height:22}}><td style={{...tdB,borderTop:'none',borderBottom:'none'}}/><td style={{...tdB,borderTop:'none',borderBottom:'none'}}/><td style={{...tdB,borderTop:'none',borderBottom:'none'}}/></tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{fontWeight:'bold',borderTop:'1px solid #000'}}>
+              <td style={{...tdB,textAlign:'right'}}>Total</td>
+              <td style={{...tdB,textAlign:'right',fontSize:13}}>₹ {fmt(totalDr)}</td>
+              <td style={{...tdB,textAlign:'right',fontSize:13}}>₹ {fmt(totalCr)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        {/* Amount in Words */}
+        <div style={{padding:'6px 10px',borderBottom:'1px solid #000'}}>
+          <div style={{fontSize:9}}>Amount (in words)</div>
+          <div style={{fontWeight:'bold',fontSize:11}}>{numberToWords(printTotal)}</div>
+        </div>
+        {/* Narration */}
+        {v.narration && (
+          <div style={{padding:'6px 10px',borderBottom:'1px solid #000',fontSize:10}}>
+            <b>Narration:</b> {v.narration}
+          </div>
+        )}
+        {/* Signature */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',minHeight:80,marginTop:'auto'}}>
+          <div style={{padding:'10px',borderRight:'1px solid #000',fontSize:9}}>
+            {(company?.bankName||company?.accountNo) && (
+              <><b>Bank Details</b><br/>
+              {company?.bankName && <span>Bank: <b>{company.bankName}</b><br/></span>}
+              {company?.accountNo && <span>A/c No: <b>{company.accountNo}</b><br/></span>}
+              {company?.ifsc && <span>IFSC: <b>{company.ifsc}</b></span>}</>
+            )}
+          </div>
+          <div style={{padding:'10px',textAlign:'right',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
+            <div style={{fontSize:9}}>for <b>{company?.name}</b></div>
+            <div style={{fontSize:9}}>Authorised Signatory</div>
+          </div>
+        </div>
+        <div style={{textAlign:'center',fontSize:8,borderTop:'1px solid #000',padding:'2px 0'}}>This is a Computer Generated Voucher</div>
+      </div>
+    );
   };
 
   const renderInvoice = (copyIdx: number) => {
@@ -7200,6 +7347,12 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     });
     const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledgerName || e.ledger?.name || '') === 'Round Off');
     const roundOffAmt = roundOffEntry?.amount || 0;
+    // Purchase-specific: lookup party ledger for supplier info
+    const isPurchaseType = v.type === 'Purchase' || v.type === 'Debit Note';
+    const partyLedger = ledgers.find(l => l.name === v.partyName);
+    const invoiceTitle = v.type === 'Credit Note' ? 'CREDIT NOTE' : v.type === 'Debit Note' ? 'DEBIT NOTE' : 'TAX INVOICE';
+    const supplierInvNo = pd?.supplierInvNo || '';
+    const supplierInvDate = pd?.supplierInvDate || '';
 
     return (
       <div key={copyIdx} className="invoice-copy" style={{width:'210mm', minHeight:'297mm', margin:'0 auto 30px auto', background:'white', border:'1.5px solid #000', fontFamily:'"Arial Narrow", Arial, sans-serif', fontSize:11, position:'relative', boxSizing:'border-box', padding:0}}>
@@ -7207,59 +7360,107 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         <div style={{position:'absolute', top:5, right:10, fontSize:9, fontWeight:'bold'}}>{copyLabels[copyIdx] || copyLabels[3]}</div>
         
         {/* TITLE */}
-        <div style={{textAlign:'center', fontWeight:'bold', fontSize:15, padding:'10px 0 5px', borderBottom:'1px solid #000'}}>Tax Invoice</div>
+        <div style={{textAlign:'center', fontWeight:'bold', fontSize:15, padding:'10px 0 5px', borderBottom:'1px solid #000'}}>{invoiceTitle}</div>
         
-        {/* HEADER SECTION: Company & Invoice Info */}
+        {/* HEADER SECTION: Company/Supplier Info & Invoice Info */}
         <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', borderBottom:'1px solid #000'}}>
           <div style={{padding:'5px 10px', borderRight:'1px solid #000', display:'flex', flexDirection:'row', alignItems:'flex-start', gap:8}}>
-            {/* Company Logo - 1 inch x 1 inch on the LEFT */}
-            {company?.showLogo && company?.logo && (
+            {/* For Purchase: show Supplier (Party Ledger) info; For Sales: show Company info */}
+            {!isPurchaseType && company?.showLogo && company?.logo && (
               <div style={{flexShrink:0, width:'1in', height:'1in', display:'flex', alignItems:'center', justifyContent:'center', marginRight:6}}>
                 <img src={company.logo} alt="Logo" style={{width:'1in', height:'1in', objectFit:'contain'}} />
               </div>
             )}
-            {/* Company Details on the RIGHT of logo */}
             <div style={{flex:1}}>
-              <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
-              <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode ? ' - ' + company.pinCode : ''}</div>
-              <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
-              <div style={{fontSize:10}}>State Name : {company?.state}, Code : {stateCode(company?.state||'')}</div>
-              {company?.telephone && <div style={{fontSize:10}}>Ph: <b>{company.telephone}</b></div>}
-              {company?.showMobile && company?.mobile && <div style={{fontSize:10}}>Mob: <b>{company.mobile}</b></div>}
-              {company?.showEmail && company?.email && <div style={{fontSize:10}}>Email: <b>{company.email}</b></div>}
-              {company?.showWebsite && company?.website && <div style={{fontSize:10}}>Web: <b>{company.website}</b></div>}
+              {isPurchaseType ? (
+                // Purchase: Supplier info at top-left
+                <>
+                  <div style={{fontWeight:'bold', fontSize:14}}>{v.partyName}</div>
+                  {partyLedger?.address && <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{partyLedger.address}</div>}
+                  {partyLedger?.gstin && <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{partyLedger.gstin}</b></div>}
+                  {partyLedger?.state && <div style={{fontSize:10}}>State Name : {partyLedger.state}, Code : {stateCode(partyLedger.state)}</div>}
+                  {partyLedger?.phone && <div style={{fontSize:10}}>Ph: <b>{partyLedger.phone}</b></div>}
+                </>
+              ) : (
+                // Sales: Our Company info at top-left
+                <>
+                  <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode ? ' - ' + company.pinCode : ''}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
+                  <div style={{fontSize:10}}>State Name : {company?.state}, Code : {stateCode(company?.state||'')}</div>
+                  {company?.telephone && <div style={{fontSize:10}}>Ph: <b>{company.telephone}</b></div>}
+                  {company?.showMobile && company?.mobile && <div style={{fontSize:10}}>Mob: <b>{company.mobile}</b></div>}
+                  {company?.showEmail && company?.email && <div style={{fontSize:10}}>Email: <b>{company.email}</b></div>}
+                  {company?.showWebsite && company?.website && <div style={{fontSize:10}}>Web: <b>{company.website}</b></div>}
+                </>
+              )}
             </div>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Invoice No.<br/><b>{v.voucherNo}</b></div>
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{v.date}</b></div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Delivery Note<br/><b>{dd?.deliveryNoteNo || '—'}</b></div>
-            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Mode/Terms of Payment<br/><b>{pd?.termsOfDelivery || '—'}</b></div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>Reference No. & Date.<br/><b>{v.refNo || '—'}</b></div>
-            <div style={{padding:'5px 10px'}}>Bill of Lading/LR-RR No.<br/><b>{dd?.billOfLadingNo || '—'}</b></div>
+            {isPurchaseType ? (
+              <>
+                <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Supplier Invoice No. &amp; Date<br/><b>{supplierInvNo||'—'}</b>{supplierInvDate?<span style={{fontSize:9}}> dt. {supplierInvDate}</span>:''}</div>
+                <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Other References<br/><b>{v.refNo||'—'}</b></div>
+              </>
+            ) : (
+              <>
+                <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Delivery Note<br/><b>{dd?.deliveryNoteNo||'—'}</b></div>
+                <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Mode/Terms of Payment<br/><b>{pd?.termsOfDelivery||'—'}</b></div>
+              </>
+            )}
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>Reference No. &amp; Date.<br/><b>{v.refNo||'—'}</b></div>
+            <div style={{padding:'5px 10px'}}>Bill of Lading/LR-RR No.<br/><b>{dd?.billOfLadingNo||'—'}</b></div>
           </div>
         </div>
 
-        {/* PARTY SECTION: Consignee & Buyer */}
+        {/* PARTY SECTION: Consignee & Buyer (Sales) / Consignee & Supplier (Purchase) */}
         <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', borderBottom:'1px solid #000'}}>
           <div style={{display:'flex', flexDirection:'column'}}>
             <div style={{padding:'4px 10px', borderBottom:'1px solid #000', borderRight:'1px solid #000'}}>
               <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Consignee (Ship to)</div>
-              <div style={{fontWeight:'bold', fontSize:12}}>{pd?.shipName || v.partyName}</div>
-              <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.shipAddress || pd?.buyerAddress || '—'}</div>
-              <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.shipGstin || pd?.buyerGstin || '—'}</b></div>
-              <div style={{fontSize:10}}>State Name : {pd?.shipState || pd?.buyerState}, Code : {stateCode(pd?.shipState || pd?.buyerState || '')}</div>
+              {isPurchaseType ? (
+                // Purchase: Consignee = Our Company
+                <>
+                  <div style={{fontWeight:'bold', fontSize:12}}>{company?.name}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode?' - '+company.pinCode:''}</div>
+                  {company?.gstin && <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{company.gstin}</b></div>}
+                  {company?.state && <div style={{fontSize:10}}>State Name : {company.state}, Code : {stateCode(company.state||'')}</div>}
+                </>
+              ) : (
+                // Sales: Consignee = Ship-to party
+                <>
+                  <div style={{fontWeight:'bold', fontSize:12}}>{pd?.shipName || v.partyName}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.shipAddress || pd?.buyerAddress || '—'}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.shipGstin || pd?.buyerGstin || '—'}</b></div>
+                  <div style={{fontSize:10}}>State Name : {pd?.shipState || pd?.buyerState}, Code : {stateCode(pd?.shipState || pd?.buyerState || '')}</div>
+                </>
+              )}
             </div>
             <div style={{padding:'4px 10px', borderRight:'1px solid #000', flex:1}}>
-              <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Buyer (Bill to)</div>
-              <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
-              <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || '—'}</div>
-              <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || '—'}</b></div>
-              <div style={{fontSize:10}}>State Name : {pd?.buyerState}, Code : {stateCode(pd?.buyerState || '')}</div>
+              {isPurchaseType ? (
+                // Purchase: Supplier (Bill from) = Party Ledger
+                <>
+                  <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Supplier (Bill from)</div>
+                  <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
+                  {partyLedger?.address && <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{partyLedger.address}</div>}
+                  {partyLedger?.state && <div style={{fontSize:10}}>State Name : {partyLedger.state}, Code : {stateCode(partyLedger.state||'')}</div>}
+                </>
+              ) : (
+                // Sales: Buyer (Bill to) = Party
+                <>
+                  <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Buyer (Bill to)</div>
+                  <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || '—'}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || '—'}</b></div>
+                  <div style={{fontSize:10}}>State Name : {pd?.buyerState}, Code : {stateCode(pd?.buyerState || '')}</div>
+                </>
+              )}
             </div>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Buyer's Order No.<br/><b>{pd?.buyerOrderNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>{isPurchaseType?'Purchase Order No.':'Buyer\'s Order No.'}<br/><b>{pd?.buyerOrderNo || '—'}</b></div>
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{pd?.buyerOrderDate || '—'}</b></div>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatch Doc No.<br/><b>{dd?.dispatchDocNo || '—'}</b></div>
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Motor Vehicle No.<br/><b>{dd?.motorVehicleNo || '—'}</b></div>
@@ -7267,6 +7468,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Destination<br/><b>{dd?.destination || '—'}</b></div>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', gridColumn:'span 2', minHeight:60}}>Carrier Name/Agent<br/><b>{dd?.carrierNameAgent || '—'}</b> &nbsp;&nbsp; Terms of Delivery: <b>{pd?.termsOfDelivery || '—'}</b></div>
           </div>
+
         </div>
 
         {/* ITEMS TABLE */}
@@ -7445,7 +7647,10 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
              </div>
           </div>
           <div style={{padding:'10px', textAlign:'right', display:'flex', flexDirection:'column', justifyContent:'space-between'}}>
-             <div style={{fontSize:9}}>for <b>{company?.name}</b></div>
+             {isPurchaseType && company?.gstin && (
+               <div style={{fontSize:9, textAlign:'left'}}>Company's GSTIN/UIN : <b>{company.gstin}</b></div>
+             )}
+             <div style={{fontSize:9}}>for <b>{isPurchaseType ? v.partyName : company?.name}</b></div>
              <div style={{fontSize:9, marginBottom:10}}>Authorised Signatory</div>
           </div>
         </div>
@@ -7461,15 +7666,20 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         <div style={{background:'#1c5282',color:'white',padding:'10px 15px',fontWeight:'bold'}}>Print Dashboard</div>
         <div style={{padding:'10px'}}><button onClick={()=>setShowOptions(true)} style={{width:'100%',background:'#1a7a4a',color:'white',padding:'10px',cursor:'pointer'}}>🖨️ Print Invoice (P)</button></div>
         <div style={{flex:1,overflowY:'auto'}}>
-          {salesVouchers.map((sv,i)=>(
+          {allPrintableVouchers.map((sv,i)=>(
             <div key={i} onClick={()=>onSelectVoucher(sv)} style={{padding:'10px',cursor:'pointer',borderBottom:'1px solid #eee',background:v.id===sv.id?'#e3efff':'transparent'}}>
-              <div style={{fontWeight:'bold'}}>{sv.type} #{sv.number}</div>
+              <div style={{fontWeight:'bold',fontSize:12}}>{sv.type} #{sv.voucherNo}</div>
+              <div style={{fontSize:11,color:'#888'}}>{sv.date}</div>
             </div>
           ))}
         </div>
       </div>
       <div className="print-invoice-container" style={{flex:1,overflowY:'auto',padding:'20px',background:'#e2eaf2'}}>
-        {Array.from({length: numCopies}).map((_, i) => renderInvoice(i))}
+        {Array.from({length: numCopies}).map((_, i) =>
+          ['Payment','Receipt','Contra','Journal'].includes(v.type)
+            ? renderAccountingVoucher(i)
+            : renderInvoice(i)
+        )}
       </div>
     </div>
 
