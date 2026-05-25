@@ -9,6 +9,11 @@ export async function POST(req: Request) {
 
     const data = await req.json();
 
+    // Admin ke liye company create nahi hoti (ya aap chahein to allow kar sakte ho)
+    if (user.id === -1) {
+      return NextResponse.json({ error: "Admin cannot create companies" }, { status: 403 });
+    }
+
     const company = await prisma.company.create({
       data: {
         user: { connect: { id: user.id } },
@@ -58,9 +63,11 @@ export async function PUT(req: Request) {
     const data = await req.json();
     if (!data.id) throw new Error("Company ID is required for update.");
 
-    // Verify company belongs to user
-    const existingCompany = await prisma.company.findFirst({ where: { id: data.id, userId: user.id } });
-    if (!existingCompany) return NextResponse.json({ error: "Company not found or unauthorized" }, { status: 404 });
+    // Admin ke liye direct update (ownership check skip)
+    if (user.id !== -1) {
+      const existingCompany = await prisma.company.findFirst({ where: { id: data.id, userId: user.id } });
+      if (!existingCompany) return NextResponse.json({ error: "Company not found or unauthorized" }, { status: 404 });
+    }
 
     const company = await prisma.company.update({
       where: { id: data.id },
@@ -109,9 +116,11 @@ export async function DELETE(req: Request) {
     const data = await req.json();
     if (!data.id) throw new Error("Company ID is required for deletion.");
 
-    // Verify company belongs to user
-    const existingCompany = await prisma.company.findFirst({ where: { id: data.id, userId: user.id } });
-    if (!existingCompany) return NextResponse.json({ error: "Company not found or unauthorized" }, { status: 404 });
+    // Admin ke liye direct delete (ownership check skip)
+    if (user.id !== -1) {
+      const existingCompany = await prisma.company.findFirst({ where: { id: data.id, userId: user.id } });
+      if (!existingCompany) return NextResponse.json({ error: "Company not found or unauthorized" }, { status: 404 });
+    }
 
     await prisma.company.delete({
       where: { id: data.id }
@@ -127,9 +136,11 @@ export async function GET(req: Request) {
     const user = await getAuthenticatedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const companies = await prisma.company.findMany({
-      where: { userId: user.id }
-    });
+    // Admin ke liye saari companies
+    const companies = user.id === -1
+      ? await prisma.company.findMany()
+      : await prisma.company.findMany({ where: { userId: user.id } });
+
     return NextResponse.json({ companies });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
