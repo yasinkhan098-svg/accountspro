@@ -306,7 +306,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                 <div className={`plan-card ${selectedPlan === 'YEARLY' ? 'active' : ''}`} onClick={() => setSelectedPlan('YEARLY')}>
                   <div className="badge">Best Value</div>
                   <h3>Yearly</h3>
-                  <div className="price">₹999<span>/yr</span></div>
+                  <div className="price">₹1999<span>/yr</span></div>
                   <p>Save massive amounts with annual billing.</p>
                 </div>
               </div>

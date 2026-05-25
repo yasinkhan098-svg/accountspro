@@ -7,7 +7,7 @@ export async function POST(req: Request) {
 
     let amount = 0;
     if (plan === 'MONTHLY') amount = 299 * 100; // in paise
-    else if (plan === 'YEARLY') amount = 999 * 100;
+    else if (plan === 'YEARLY') amount = 1999 * 100;
     else {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
     }
