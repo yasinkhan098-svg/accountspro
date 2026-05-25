@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import AuthUI from '@/components/AuthUI';
+import SubscriptionRenewalUI from '@/components/SubscriptionRenewalUI';
 import { authClient } from '@/lib/auth-client';
-
 
 // ==================== SCREEN TYPES ====================
 type ScreenType =
@@ -466,6 +466,7 @@ export default function App() {
   const [pendingDelete, setPendingDelete] = useState<{type:string, id:number, name:string}|null>(null);
   const [pwdPrompt, setPwdPrompt] = useState<{company: Company, action: 'open' | 'alter'} | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [subscriptionExpired, setSubscriptionExpired] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
@@ -473,7 +474,13 @@ export default function App() {
     const authStatus = authClient.isAuthenticated();
     setIsAuthenticated(authStatus);
     if (authStatus) {
-      setCurrentUser(authClient.getUser());
+      const user = authClient.getUser();
+      setCurrentUser(user);
+      if (user && user.subscriptionExpiry) {
+        if (new Date(user.subscriptionExpiry) < new Date()) {
+          setSubscriptionExpired(true);
+        }
+      }
     }
   }, []);
 
@@ -1886,6 +1893,10 @@ export default function App() {
 
   if (!isAuthenticated) {
     return <AuthUI onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  if (subscriptionExpired) {
+    return <SubscriptionRenewalUI currentUser={currentUser} onRenewSuccess={() => { setSubscriptionExpired(false); window.location.reload(); }} onLogout={handleLogout} />;
   }
 
   return (

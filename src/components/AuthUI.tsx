@@ -53,29 +53,117 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const [step, setStep] = useState(1);
+  const [selectedPlan, setSelectedPlan] = useState('TRIAL'); // TRIAL, MONTHLY, YEARLY
+
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleSignupStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     if (signupData.password !== signupData.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
+    setStep(2);
+    setError('');
+  };
+
+  const handleSignupStep2 = async () => {
     setLoading(true);
     setError('');
+    
     try {
+      // 1. Submit Registration (User gets created as PENDING or TRIAL)
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signupData)
+        body: JSON.stringify({ ...signupData, plan: selectedPlan })
       });
       const data = await res.json();
-      if (res.ok) {
-        alert('Registration successful! You can now login.');
-        setIsLogin(true);
-      } else {
-        setError(data.error || 'Registration failed');
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Registration failed');
       }
-    } catch (err) {
-      setError('Something went wrong. Please try again.');
+
+      const userId = data.userId;
+
+      if (selectedPlan === 'TRIAL') {
+        alert('Registration successful! Your 3-Day Free Trial starts now.');
+        setStep(1);
+        setIsLogin(true);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Paid Plan: Load Razorpay
+      const resRazorpay = await loadRazorpay();
+      if (!resRazorpay) throw new Error('Razorpay SDK failed to load. Are you online?');
+
+      // 3. Create Order
+      const orderRes = await fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: selectedPlan })
+      });
+      const orderData = await orderRes.json();
+      if (!orderRes.ok) throw new Error(orderData.error || 'Failed to create order');
+
+      // 4. Open Razorpay Modal
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'LedgerX ERP',
+        description: `${selectedPlan} Subscription`,
+        order_id: orderData.id,
+        handler: async function (response: any) {
+          try {
+            const verifyRes = await fetch('/api/payment/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                userId,
+                plan: selectedPlan
+              })
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok) {
+              alert('Payment Successful! Registration Complete.');
+              setStep(1);
+              setIsLogin(true);
+            } else {
+              setError(verifyData.error || 'Payment verification failed');
+            }
+          } catch (err) {
+            setError('Payment verification failed');
+          }
+        },
+        prefill: {
+          name: signupData.name,
+          email: signupData.email,
+          contact: signupData.mobile
+        },
+        theme: {
+          color: '#1c5282'
+        }
+      };
+
+      const paymentObject = new (window as any).Razorpay(options);
+      paymentObject.open();
+
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -159,8 +247,8 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                 Don't have an account? <button type="button" onClick={() => setIsLogin(false)}>Register Organization</button>
               </div>
             </form>
-          ) : (
-            <form onSubmit={handleSignup} className="premium-form signup-grid">
+          ) : step === 1 ? (
+            <form onSubmit={handleSignupStep1} className="premium-form signup-grid">
               <div className="input-field">
                 <label>FULL NAME <span className="req">*</span></label>
                 <input type="text" required autoFocus onKeyDown={handleKeyDown} value={signupData.name} onChange={(e) => setSignupData({...signupData, name: e.target.value})} />
@@ -194,14 +282,43 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                 <input type="password" required onKeyDown={handleKeyDown} value={signupData.confirmPassword} onChange={(e) => setSignupData({...signupData, confirmPassword: e.target.value})} />
               </div>
               <div className="form-actions full-width">
-                <button type="submit" disabled={loading} className="btn-primary">
-                  {loading ? <span className="loader"></span> : 'SUBMIT REGISTRATION'}
+                <button type="submit" className="btn-primary">
+                  CONTINUE TO PLANS
                 </button>
                 <div className="form-footer">
                   Already registered? <button type="button" onClick={() => setIsLogin(true)}>Back to Login</button>
                 </div>
               </div>
             </form>
+          ) : (
+            <div className="plan-selection">
+              <div className="plan-cards">
+                <div className={`plan-card ${selectedPlan === 'TRIAL' ? 'active' : ''}`} onClick={() => setSelectedPlan('TRIAL')}>
+                  <h3>3-Day Trial</h3>
+                  <div className="price">₹0</div>
+                  <p>Full access for 3 days to test the platform.</p>
+                </div>
+                <div className={`plan-card ${selectedPlan === 'MONTHLY' ? 'active' : ''}`} onClick={() => setSelectedPlan('MONTHLY')}>
+                  <h3>Monthly</h3>
+                  <div className="price">₹299<span>/mo</span></div>
+                  <p>Flexible monthly billing.</p>
+                </div>
+                <div className={`plan-card ${selectedPlan === 'YEARLY' ? 'active' : ''}`} onClick={() => setSelectedPlan('YEARLY')}>
+                  <div className="badge">Best Value</div>
+                  <h3>Yearly</h3>
+                  <div className="price">₹999<span>/yr</span></div>
+                  <p>Save massive amounts with annual billing.</p>
+                </div>
+              </div>
+              <div className="form-actions" style={{ marginTop: 30, display: 'flex', gap: 10 }}>
+                <button type="button" className="btn-secondary" onClick={() => setStep(1)} disabled={loading}>
+                  Back
+                </button>
+                <button type="button" className="btn-primary" style={{ flex: 1, marginTop: 0 }} onClick={handleSignupStep2} disabled={loading}>
+                  {loading ? <span className="loader"></span> : (selectedPlan === 'TRIAL' ? 'START FREE TRIAL' : 'PAY & REGISTER')}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -302,7 +419,39 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
           .auth-form-section { padding: 30px; }
           .signup-grid { grid-template-columns: 1fr; }
           .input-field.full-width { grid-column: span 1; }
+          .plan-cards { flex-direction: column; }
         }
+
+        .plan-selection {
+          display: flex; flex-direction: column; height: 100%; justify-content: center;
+        }
+        .plan-cards {
+          display: flex; gap: 20px;
+        }
+        .plan-card {
+          flex: 1; border: 2px solid #e2e8f0; border-radius: 12px; padding: 24px;
+          cursor: pointer; transition: all 0.2s; position: relative; background: #f8fafc;
+        }
+        .plan-card:hover { border-color: #94a3b8; transform: translateY(-2px); }
+        .plan-card.active {
+          border-color: #1c5282; background: #f0f7ff;
+          box-shadow: 0 10px 25px -5px rgba(28, 82, 130, 0.2);
+        }
+        .plan-card h3 { margin: 0 0 10px; font-size: 18px; color: #0f172a; }
+        .plan-card .price { font-size: 28px; font-weight: 800; color: #1c5282; margin-bottom: 12px; }
+        .plan-card .price span { font-size: 14px; font-weight: 600; color: #64748b; }
+        .plan-card p { font-size: 13px; color: #475569; margin: 0; line-height: 1.5; }
+        .plan-card .badge {
+          position: absolute; top: -10px; right: 10px; background: #f59e0b;
+          color: #fff; font-size: 11px; font-weight: 800; padding: 4px 8px;
+          border-radius: 12px; letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .btn-secondary {
+          background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;
+          padding: 14px 24px; border-radius: 8px; font-size: 14px; font-weight: 700;
+          cursor: pointer; transition: all 0.2s;
+        }
+        .btn-secondary:hover { background: #e2e8f0; }
       `}</style>
     </div>
   );

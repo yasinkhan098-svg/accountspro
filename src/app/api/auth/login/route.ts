@@ -37,7 +37,9 @@ export async function POST(req: Request) {
         id: user.id,
         name: user.name,
         email: user.email,
-        organizationName: user.organizationName
+        organizationName: user.organizationName,
+        plan: user.plan,
+        subscriptionExpiry: user.subscriptionExpiry
       }
     });
   } catch (error) {

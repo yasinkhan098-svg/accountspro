@@ -5,9 +5,9 @@ import bcrypt from "bcryptjs";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, organizationName, mobile, address, profession, email, password } = body;
+    const { name, organizationName, mobile, address, profession, email, password, plan } = body;
 
-    if (!name || !organizationName || !email || !password) {
+    if (!name || !organizationName || !email || !password || !plan) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -18,6 +18,16 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    let subscriptionExpiry = null;
+    let paymentStatus = 'PENDING';
+
+    if (plan === 'TRIAL') {
+      const now = new Date();
+      now.setDate(now.getDate() + 3); // 3 days free trial
+      subscriptionExpiry = now;
+      paymentStatus = 'SUCCESS';
+    }
+
     const user = await prisma.user.create({
       data: {
         name,
@@ -27,6 +37,9 @@ export async function POST(req: Request) {
         profession,
         email,
         password: hashedPassword,
+        plan,
+        paymentStatus,
+        subscriptionExpiry,
       },
     });
 
