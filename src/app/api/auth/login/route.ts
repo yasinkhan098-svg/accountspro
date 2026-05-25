@@ -11,6 +11,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
+    // ✅ ADMIN BYPASS: Check if credentials match env variables
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (adminEmail && adminPassword && email === adminEmail && password === adminPassword) {
+      // Admin login - no database registration needed
+      const adminToken = "admin_" + crypto.randomBytes(32).toString("hex");
+
+      // Admin ki expiry 100 saal baad set karo
+      const farFuture = new Date();
+      farFuture.setFullYear(farFuture.getFullYear() + 100);
+
+      return NextResponse.json({
+        message: "Admin login successful",
+        token: adminToken,
+        user: {
+          id: "admin",
+          name: "Administrator",
+          email: adminEmail,
+          organizationName: "Admin Panel",
+          plan: "YEARLY",
+          subscriptionExpiry: farFuture.toISOString(),
+          isAdmin: true,
+        }
+      });
+    }
+
+    // Normal user login
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
