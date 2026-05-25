@@ -36,8 +36,8 @@ export async function POST(req: Request) {
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
-          partyDetails: partyDetails || {},
-          dispatchDetails: dispatchDetails || {},
+          partyDetails: partyDetails ? JSON.stringify(partyDetails) : null,
+          dispatchDetails: dispatchDetails ? JSON.stringify(dispatchDetails) : null,
           entries: {
             create: entries.filter((e:any) => e.ledgerId && !isNaN(parseInt(String(e.ledgerId)))).map((e: any) => ({
               ledgerId: parseInt(String(e.ledgerId)),
@@ -94,8 +94,8 @@ export async function PUT(req: Request) {
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
-          partyDetails: partyDetails || {},
-          dispatchDetails: dispatchDetails || {},
+          partyDetails: partyDetails ? JSON.stringify(partyDetails) : null,
+          dispatchDetails: dispatchDetails ? JSON.stringify(dispatchDetails) : null,
           entries: {
             create: entries.filter((e:any) => e.ledgerId && !isNaN(parseInt(String(e.ledgerId)))).map((e: any) => ({
               ledgerId: parseInt(String(e.ledgerId)),
@@ -141,7 +141,12 @@ export async function GET(req: Request) {
     include: { entries: { include: { ledger: true } }, inventoryEntries: { include: { stockItem: true } } },
     orderBy: { createdAt: 'desc' }
   });
-  return NextResponse.json({ success: true, vouchers });
+  const parsedVouchers = vouchers.map(v => ({
+    ...v,
+    partyDetails: v.partyDetails ? JSON.parse(v.partyDetails) : null,
+    dispatchDetails: v.dispatchDetails ? JSON.parse(v.dispatchDetails) : null,
+  }));
+  return NextResponse.json({ success: true, vouchers: parsedVouchers });
 }
 export async function DELETE(req: Request) {
   try {
