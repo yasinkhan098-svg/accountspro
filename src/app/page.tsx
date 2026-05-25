@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import AuthUI from '@/components/AuthUI';
 import SubscriptionRenewalUI from '@/components/SubscriptionRenewalUI';
+import PlanUpgradeModal from '@/components/PlanUpgradeModal';
 import { authClient } from '@/lib/auth-client';
 
 // ==================== SCREEN TYPES ====================
@@ -468,6 +469,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [subscriptionExpired, setSubscriptionExpired] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -1937,7 +1939,23 @@ export default function App() {
            <div style={{textAlign:'right'}}>
              <div style={{fontSize:11, fontWeight:'bold', color:'#f1c40f'}}>{currentUser?.name}</div>
              <div style={{fontSize:9, color:'#fff', opacity:0.8}}>{currentUser?.organizationName}</div>
+             <div style={{fontSize:9, color:'#a3e635', fontWeight:'bold', opacity:0.9}}>
+               {currentUser?.plan === 'LIFETIME' ? '💎 Lifetime' : currentUser?.plan === 'YEARLY' ? '⭐ Yearly' : currentUser?.plan === 'MONTHLY' ? '📅 Monthly' : currentUser?.plan}
+             </div>
            </div>
+           {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && (
+             <button
+               onClick={() => setShowUpgradeModal(true)}
+               style={{
+                 background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                 color: 'white', border: 'none',
+                 padding: '4px 10px', fontSize: '10px',
+                 fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px'
+               }}
+             >
+               ⬆ UPGRADE
+             </button>
+           )}
            <button 
              onClick={handleLogout}
              style={{
@@ -2672,6 +2690,16 @@ export default function App() {
         </div>
         );
       })()}
+      {showUpgradeModal && currentUser && (
+        <PlanUpgradeModal
+          currentUser={currentUser}
+          onUpgradeSuccess={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setShowUpgradeModal(false);
+          }}
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 }

@@ -27,6 +27,8 @@ export async function POST(req: Request) {
       expiry.setMonth(expiry.getMonth() + 1);
     } else if (plan === 'YEARLY') {
       expiry.setFullYear(expiry.getFullYear() + 1);
+    } else if (plan === 'LIFETIME') {
+      expiry.setFullYear(expiry.getFullYear() + 100); // Effectively permanent
     }
 
     // Update user in DB

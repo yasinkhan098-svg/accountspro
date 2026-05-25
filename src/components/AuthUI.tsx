@@ -119,14 +119,22 @@ const AUTH_CSS = `
     border-color: #1c5282; background: #f0f7ff;
     box-shadow: 0 10px 25px -5px rgba(28, 82, 130, 0.2);
   }
+  .plan-card.active.lifetime {
+    border-color: #7c3aed; background: #f5f3ff;
+    box-shadow: 0 10px 25px -5px rgba(124, 58, 237, 0.2);
+  }
   .plan-card h3 { margin: 0 0 10px; font-size: 18px; color: #0f172a; }
   .plan-card .price { font-size: 28px; font-weight: 800; color: #1c5282; margin-bottom: 12px; }
+  .plan-card.lifetime .price { color: #7c3aed; }
   .plan-card .price span { font-size: 14px; font-weight: 600; color: #64748b; }
   .plan-card p { font-size: 13px; color: #475569; margin: 0; line-height: 1.5; }
   .plan-card .badge {
     position: absolute; top: -10px; right: 10px; background: #f59e0b;
     color: #fff; font-size: 11px; font-weight: 800; padding: 4px 8px;
     border-radius: 12px; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .plan-card .badge.badge-lifetime {
+    background: #7c3aed;
   }
   .btn-secondary {
     background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;
@@ -485,6 +493,12 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                   <h3>Yearly</h3>
                   <div className="price">₹1999<span>/yr</span></div>
                   <p>Save massive amounts with annual billing.</p>
+                </div>
+                <div className={`plan-card lifetime ${selectedPlan === 'LIFETIME' ? 'active' : ''}`} onClick={() => setSelectedPlan('LIFETIME')}>
+                  <div className="badge badge-lifetime">Lifetime</div>
+                  <h3>Lifetime</h3>
+                  <div className="price">₹11,999<span> one-time</span></div>
+                  <p>Pay once, use forever. No renewals.</p>
                 </div>
               </div>
               <div className="form-actions" style={{ marginTop: 30 }}>

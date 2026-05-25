@@ -6,8 +6,9 @@ export async function POST(req: Request) {
     const { plan } = await req.json();
 
     let amount = 0;
-    if (plan === 'MONTHLY') amount = 299 * 100; // in paise
-    else if (plan === 'YEARLY') amount = 1999 * 100;
+    if (plan === 'MONTHLY') amount = 299 * 100;       // ₹299/month
+    else if (plan === 'YEARLY') amount = 1999 * 100;  // ₹1999/year
+    else if (plan === 'LIFETIME') amount = 11999 * 100; // ₹11,999 one-time
     else {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
     }
