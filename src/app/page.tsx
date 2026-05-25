@@ -387,6 +387,17 @@ function fmt(n: number) {
   return Math.abs(round2(n)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function getDaysRemainingText(expiryStr: string | Date | null | undefined) {
+  if (!expiryStr) return '';
+  const expiry = new Date(expiryStr);
+  const now = new Date();
+  const diffTime = expiry.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return 'Expired';
+  if (diffDays === 1) return '1 day left';
+  return `${diffDays} days left`;
+}
+
 function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
   let bal = ledger.balanceType === 'Dr' ? ledger.openingBalance : -ledger.openingBalance;
   for (const v of vouchers) {
@@ -1940,7 +1951,12 @@ export default function App() {
              <div style={{fontSize:11, fontWeight:'bold', color:'#f1c40f'}}>{currentUser?.name}</div>
              <div style={{fontSize:9, color:'#fff', opacity:0.8}}>{currentUser?.organizationName}</div>
              <div style={{fontSize:9, color:'#a3e635', fontWeight:'bold', opacity:0.9}}>
-               {currentUser?.plan === 'LIFETIME' ? '💎 Lifetime' : currentUser?.plan === 'YEARLY' ? '⭐ Yearly' : currentUser?.plan === 'MONTHLY' ? '📅 Monthly' : currentUser?.plan}
+                {currentUser?.plan === 'LIFETIME' ? '💎 Lifetime' : currentUser?.plan === 'YEARLY' ? '⭐ Yearly' : currentUser?.plan === 'MONTHLY' ? '📅 Monthly' : currentUser?.plan === 'TRIAL' ? '🆓 Trial' : currentUser?.plan}
+                {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && currentUser?.subscriptionExpiry && (
+                  <span style={{color: '#f87171', marginLeft: 6}}>
+                    ({getDaysRemainingText(currentUser.subscriptionExpiry)})
+                  </span>
+                )}
              </div>
            </div>
            {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && (
