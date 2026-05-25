@@ -1568,6 +1568,7 @@ export default function App() {
 
   // KEYBOARD
   useEffect(() => {
+    if (!isAuthenticated) return;
     const onKey = (e: KeyboardEvent) => {
       // Tally Prime: Collect form data from DOM and save
       const doFormSave = async () => {
@@ -1772,14 +1773,14 @@ export default function App() {
           // Real-time duplicate validation on Enter
           if (activeId === 'g-name' && allGroups.some(g => (g.companyId === cid || g.companyId === -1) && g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Group "${activeVal}" already exists!`); e.preventDefault(); return; }
           if (activeId === 'l-name' && ledgers.some(l => l.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || l.id !== alterItem.id))) { alert(`Ledger "${activeVal}" already exists!`); e.preventDefault(); return; }
-          if (activeId === 'sg-name' && allStockGroups.some(g => Number(g.companyId) === Number(cid) && g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Stock Group "${activeVal}" already exists!`); e.preventDefault(); return; }
-          if (activeId === 'sc-name' && allStockCategories.some(c => Number(c.companyId) === Number(cid) && c.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Stock Category "${activeVal}" already exists!`); e.preventDefault(); return; }
-          if (activeId === 'item-name' && stockItems.some(it => it.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || it.id !== alterItem.id))) { alert(`Stock Item "${activeVal}" already exists!`); e.preventDefault(); return; }
-          if (activeId === 'unit-sym' && allUnits.some(u => Number(u.companyId) === Number(cid) && u.symbol.toLowerCase() === activeVal.toLowerCase() && (!alterItem || u.id !== alterItem.id))) { alert(`Unit "${activeVal}" already exists!`); e.preventDefault(); return; }
-          if (activeId === 'gd-name' && godowns.some(g => g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Godown "${activeVal}" already exists!`); e.preventDefault(); return; }
-          if (activeId === 'cur-sym' && currencies.some(c => c.symbol.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Currency "${activeVal}" already exists!`); e.preventDefault(); return; }
-          if (activeId === 'vt-name' && voucherTypes.some(v => v.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || v.id !== alterItem.id))) { alert(`Voucher Type "${activeVal}" already exists!`); e.preventDefault(); return; }
-          if (activeId === 'c-name' && companies.some(c => c.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Company "${activeVal}" already exists!`); e.preventDefault(); return; }
+          if (activeId === 'sg-name' && allStockGroups.some(g => Number(g.companyId) === Number(cid) && g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Stock Group "${activeVal}" already exists!`); return; }
+          if (activeId === 'sc-name' && allStockCategories.some(c => Number(c.companyId) === Number(cid) && c.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Stock Category "${activeVal}" already exists!`); return; }
+          if (activeId === 'item-name' && stockItems.some(it => it.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || it.id !== alterItem.id))) { alert(`Stock Item "${activeVal}" already exists!`); return; }
+          if (activeId === 'unit-sym' && allUnits.some(u => Number(u.companyId) === Number(cid) && u.symbol.toLowerCase() === activeVal.toLowerCase() && (!alterItem || u.id !== alterItem.id))) { alert(`Unit "${activeVal}" already exists!`); return; }
+          if (activeId === 'gd-name' && godowns.some(g => g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Godown "${activeVal}" already exists!`); return; }
+          if (activeId === 'cur-sym' && currencies.some(c => c.symbol.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Currency "${activeVal}" already exists!`); return; }
+          if (activeId === 'vt-name' && voucherTypes.some(v => v.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || v.id !== alterItem.id))) { alert(`Voucher Type "${activeVal}" already exists!`); return; }
+          if (activeId === 'c-name' && companies.some(c => c.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Company "${activeVal}" already exists!`); return; }
 
           const dropdowns = ['l-under','g-under','c-state','c-country','l-state','l-country','item-under','item-units','item-cat','sg-under','sc-under','vt-parent','gd-under'];
           if (dropdowns.includes(activeId)) return;
@@ -1819,10 +1820,11 @@ export default function App() {
     };
     document.addEventListener('input', onInput);
     return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('input', onInput); };
-  }, [screen, history, altCCtx, showGST, showFeatures, showCompanySelect, showDate, activeVoucher, showExportModal, showEmailModal, allUnits, activeCompany, alterItem, allLedgers, allStockItems, companies, allGroups, allStockGroups, allStockCategories, allGodowns, allVoucherTypes, allCurrencies, ledgers, stockItems, godowns, voucherTypes, currencies]);
+  }, [screen, history, altCCtx, showGST, showFeatures, showCompanySelect, showDate, activeVoucher, showExportModal, showEmailModal, allUnits, activeCompany, alterItem, allLedgers, allStockItems, companies, allGroups, allStockGroups, allStockCategories, allGodowns, allVoucherTypes, allCurrencies, ledgers, stockItems, godowns, voucherTypes, currencies, isAuthenticated]);
 
   // Menu keyboard navigation
   useEffect(() => {
+    if (!isAuthenticated) return;
     const isMenu = ['GATEWAY_MAIN','MASTER_MENU','ALTER_MENU','DISPLAY_REPORTS_MENU','ACCOUNT_BOOKS_MENU'].includes(screen);
     if (!isMenu && !showCompanySelect) return;
     const menu = getActiveMenu();
