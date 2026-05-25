@@ -12,11 +12,20 @@ export async function POST(req: Request) {
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
     if (existingUser) {
+      // If payment was incomplete, allow them to retry with the same email
+      if (existingUser.paymentStatus === 'PENDING') {
+        const updatedUser = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { plan, password: hashedPassword }
+        });
+        return NextResponse.json({ message: "Resuming registration", userId: updatedUser.id }, { status: 200 });
+      }
+      
       return NextResponse.json({ error: "User with this email already exists" }, { status: 400 });
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
 
     let subscriptionExpiry = null;
     let paymentStatus = 'PENDING';
