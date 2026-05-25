@@ -14,7 +14,10 @@ export async function GET(req: Request) {
         id: user.id,
         name: user.name,
         email: user.email,
-        organizationName: user.organizationName
+        organizationName: user.organizationName,
+        plan: user.plan,
+        subscriptionExpiry: user.subscriptionExpiry,
+        isAdmin: (user as any).isAdmin || false,
       } 
     });
   } catch (error) {
