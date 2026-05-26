@@ -474,6 +474,7 @@ export default function App() {
   const [exportDirHandle, setExportDirHandle] = useState<any>(null);
   const [exportDirPath, setExportDirPath] = useState('C:\\Downloads');
   const lastFocusRef = useRef<HTMLElement|null>(null);
+  const isInitializingRef = useRef(false);
   const [isMounted, setIsMounted] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{type:string, id:number, name:string}|null>(null);
   const [pwdPrompt, setPwdPrompt] = useState<{company: Company, action: 'open' | 'alter'} | null>(null);
@@ -1064,6 +1065,7 @@ export default function App() {
     if (!isAuthenticated || !activeCompany) return;
     const cid = activeCompany.id;
     if (allLedgers.length === 0) return;
+    if (isInitializingRef.current) return;
 
     const standardLedgers = [
       { name: 'Cash', groupName: 'Cash-in-hand', openingBalance: 0, balanceType: 'Dr' },
@@ -1084,15 +1086,20 @@ export default function App() {
     const missingLedgers = standardLedgers.filter(sl => !companyLedgers.some(cl => cl.name === sl.name));
 
     if (missingLedgers.length > 0) {
+      isInitializingRef.current = true;
       const initMissing = async () => {
-        for (const l of missingLedgers) {
-          const newLedger = {
-            name: l.name,
-            groupName: l.groupName,
-            openingBalance: l.openingBalance,
-            balanceType: l.balanceType
-          };
-          await saveMaster('ledger', newLedger);
+        try {
+          for (const l of missingLedgers) {
+            const newLedger = {
+              name: l.name,
+              groupName: l.groupName,
+              openingBalance: l.openingBalance,
+              balanceType: l.balanceType
+            };
+            await saveMaster('ledger', newLedger);
+          }
+        } finally {
+          isInitializingRef.current = false;
         }
       };
       initMissing();
