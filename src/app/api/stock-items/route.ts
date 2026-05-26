@@ -13,6 +13,20 @@ export async function POST(req: Request) {
     const data = await req.json();
     const cid = data.companyId ? parseInt(data.companyId) : 0;
     const uId = data.unitId ? parseInt(data.unitId) : 0;
+
+    if (!data.name || String(data.name).trim() === "") {
+      return NextResponse.json({ success: false, error: "Stock Item Name is required" }, { status: 400 });
+    }
+
+    // Case-insensitive duplicate check
+    const existingItems = await prisma.stockItem.findMany({
+      where: { companyId: cid }
+    });
+    const nameLower = data.name.trim().toLowerCase();
+    const isDuplicate = existingItems.some(it => it.name.trim().toLowerCase() === nameLower);
+    if (isDuplicate) {
+      return NextResponse.json({ success: false, error: `Stock Item "${data.name}" already exists!` }, { status: 400 });
+    }
     
     const item = await prisma.stockItem.create({
       data: { 
@@ -51,6 +65,32 @@ export async function PUT(req: Request) {
     
     const cid = data.companyId ? parseInt(data.companyId) : undefined;
     const uId = data.unitId !== undefined ? parseInt(data.unitId) : undefined;
+
+    if (data.name !== undefined && String(data.name).trim() === "") {
+      return NextResponse.json({ success: false, error: "Stock Item Name cannot be empty" }, { status: 400 });
+    }
+
+    // Case-insensitive duplicate check on rename
+    if (data.name !== undefined) {
+      let finalCid = cid;
+      if (!finalCid) {
+        const itemObj = await prisma.stockItem.findUnique({ where: { id: parseInt(id) } });
+        if (itemObj) finalCid = itemObj.companyId;
+      }
+      if (finalCid) {
+        const existingItems = await prisma.stockItem.findMany({
+          where: { companyId: finalCid }
+        });
+        const nameLower = data.name.trim().toLowerCase();
+        const isDuplicate = existingItems.some(it => 
+          it.id !== parseInt(id) && 
+          it.name.trim().toLowerCase() === nameLower
+        );
+        if (isDuplicate) {
+          return NextResponse.json({ success: false, error: `Stock Item "${data.name}" already exists!` }, { status: 400 });
+        }
+      }
+    }
 
     const item = await prisma.stockItem.update({
       where: { 

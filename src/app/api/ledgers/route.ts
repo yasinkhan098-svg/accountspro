@@ -13,6 +13,21 @@ const normalizeLedger = (l: any) => ({
 export async function POST(req: Request) {
   try {
     const data = await req.json();
+    const cid = data.companyId ? parseInt(data.companyId) : 0;
+
+    if (!data.name || String(data.name).trim() === "") {
+      return NextResponse.json({ success: false, error: "Ledger Name is required" }, { status: 400 });
+    }
+
+    // Case-insensitive duplicate check
+    const existingLedgers = await prisma.ledger.findMany({
+      where: { companyId: cid }
+    });
+    const nameLower = data.name.trim().toLowerCase();
+    const isDuplicate = existingLedgers.some(l => l.name.trim().toLowerCase() === nameLower);
+    if (isDuplicate) {
+      return NextResponse.json({ success: false, error: `Ledger "${data.name}" already exists!` }, { status: 400 });
+    }
 
     const ledger = await prisma.ledger.create({
       data: {
@@ -51,6 +66,29 @@ export async function PUT(req: Request) {
      const data = await req.json();
      if (!data.id) throw new Error("Ledger ID is required for update.");
  
+     if (data.name !== undefined && String(data.name).trim() === "") {
+       return NextResponse.json({ success: false, error: "Ledger Name cannot be empty" }, { status: 400 });
+     }
+
+     // Case-insensitive duplicate check on rename
+     if (data.name !== undefined) {
+       const existingLedger = await prisma.ledger.findUnique({ where: { id: parseInt(data.id) } });
+       if (existingLedger) {
+         const cid = existingLedger.companyId;
+         const existingLedgers = await prisma.ledger.findMany({
+           where: { companyId: cid }
+         });
+         const nameLower = data.name.trim().toLowerCase();
+         const isDuplicate = existingLedgers.some(l => 
+           l.id !== parseInt(data.id) && 
+           l.name.trim().toLowerCase() === nameLower
+         );
+         if (isDuplicate) {
+           return NextResponse.json({ success: false, error: `Ledger "${data.name}" already exists!` }, { status: 400 });
+         }
+       }
+     }
+
      const ledger = await prisma.ledger.update({
        where: { id: parseInt(data.id) },
        data: {

@@ -1185,14 +1185,15 @@ export default function App() {
             setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
             return updated;
           } else {
-            const updated = { ...targetItem, ...data, id: targetItem.id };
-            setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
-            return updated;
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error || `Failed to update ledger on server`;
+            alert(errMsg);
+            return null;
           }
-        } catch (e) {
-          const updated = { ...targetItem, ...data, id: targetItem.id };
-          setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
-          return updated;
+        } catch (e: any) {
+          console.error("Ledger update failed", e);
+          alert("Error connecting to server to update ledger: " + e.message);
+          return null;
         }
       }
       else if (type === 'stockItem') {
@@ -1202,22 +1203,22 @@ export default function App() {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ id: targetItem.id, companyId: cid, ...data })
           });
-            if (res.ok) {
-              const resData = await res.json();
-              setAllStockItems(p => p.map(x => x.id === targetItem.id ? resData.item : x));
-              return resData.item;
-            } else {
-              const errText = await res.text();
-              console.error('Save failed:', errText);
-              alert('Failed to save changes to server: ' + errText);
-              return null;
-            }
-          } catch (e: any) {
-            console.error('Save error:', e);
-            alert('Error connecting to server: ' + e.message);
+          if (res.ok) {
+            const resData = await res.json();
+            setAllStockItems(p => p.map(x => x.id === targetItem.id ? resData.item : x));
+            return resData.item;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error || `Failed to update stock item on server`;
+            alert(errMsg);
             return null;
           }
+        } catch (e: any) {
+          console.error('Stock Item update error:', e);
+          alert('Error connecting to server to update stock item: ' + e.message);
+          return null;
         }
+      }
       else if (type === 'group') setAllGroups(p => p.map(x => x.id === targetItem.id ? { ...x, ...data } : x));
       else if (type === 'stockGroup') {
         try {
@@ -1230,8 +1231,16 @@ export default function App() {
             const resData = await res.json();
             setAllStockGroups(p => p.map(x => x.id === targetItem.id ? resData.group : x));
             return resData.group;
-          } else throw new Error(await res.text());
-        } catch (e) { console.error("Stock Group update failed", e); }
+          } else {
+            const errText = await res.text();
+            alert("Failed to update stock group: " + errText);
+            return null;
+          }
+        } catch (e: any) {
+          console.error("Stock Group update failed", e);
+          alert("Error connecting to server to update stock group: " + e.message);
+          return null;
+        }
       }
       else if (type === 'unit') {
         try {
@@ -1244,8 +1253,16 @@ export default function App() {
             const resData = await res.json();
             setAllUnits(p => p.map(x => x.id === targetItem.id ? resData.unit : x));
             return resData.unit;
-          } else throw new Error(await res.text());
-        } catch (e) { console.error("Unit update failed", e); }
+          } else {
+            const errText = await res.text();
+            alert("Failed to update unit: " + errText);
+            return null;
+          }
+        } catch (e: any) {
+          console.error("Unit update failed", e);
+          alert("Error connecting to server to update unit: " + e.message);
+          return null;
+        }
       }
       else if (type === 'company') {
         setCompanies(p => p.map(x => x.id === targetItem.id ? { ...x, ...data } : x));
@@ -1284,8 +1301,17 @@ export default function App() {
             const resData = await res.json();
             setAllLedgers(p => [...p, resData.ledger]);
             return resData.ledger;
-          } else throw new Error(await res.text());
-        } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllLedgers(p => [...p, newItem]); return newItem; }
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error || `Failed to save ledger on server`;
+            alert(errMsg);
+            return null;
+          }
+        } catch (e: any) {
+          console.error("Ledger save failed", e);
+          alert("Error connecting to server to save ledger: " + e.message);
+          return null;
+        }
       }
       else if (type === 'stockItem') {
         try {
@@ -1298,8 +1324,17 @@ export default function App() {
             const resData = await res.json();
             setAllStockItems(p => [...p, resData.item]);
             return resData.item;
-          } else throw new Error(await res.text());
-        } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllStockItems(p => [...p, newItem]); return newItem; }
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error || `Failed to save stock item on server`;
+            alert(errMsg);
+            return null;
+          }
+        } catch (e: any) {
+          console.error("Stock Item save failed", e);
+          alert("Error connecting to server to save stock item: " + e.message);
+          return null;
+        }
       }
       else if (type === 'unit') {
         try {
@@ -1312,8 +1347,17 @@ export default function App() {
             const resData = await res.json();
             setAllUnits(p => [...p, resData.unit]);
             return resData.unit;
-          } else throw new Error(await res.text());
-        } catch (e) { const newItem = { id, companyId: cid, ...data }; setAllUnits(p => [...p, newItem]); return newItem; }
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error || `Failed to save unit on server`;
+            alert(errMsg);
+            return null;
+          }
+        } catch (e: any) {
+          console.error("Unit save failed", e);
+          alert("Error connecting to server to save unit: " + e.message);
+          return null;
+        }
       }
       else if (type === 'stockGroup') {
         try {
@@ -1326,8 +1370,16 @@ export default function App() {
             const resData = await res.json();
             setAllStockGroups(p => [...p, resData.group]);
             return resData.group;
-          } else throw new Error(await res.text());
-        } catch (e) { setAllStockGroups(p => [...p, { id, companyId: cid, ...data }]); }
+          } else {
+            const errText = await res.text();
+            alert("Failed to save stock group on server: " + errText);
+            return null;
+          }
+        } catch (e: any) {
+          console.error("Stock Group save failed", e);
+          alert("Error connecting to server to save stock group: " + e.message);
+          return null;
+        }
       }
       else if (type === 'company') {
         try {
@@ -3620,6 +3672,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   const [nameSel, setNameSel]=useState(0);
   const [showInclTax, setShowInclTax] = useState(activeAlterItem?.showInclTax ?? false);
   const [showAmtInclTax, setShowAmtInclTax] = useState(activeAlterItem?.showAmtInclTax ?? false);
+  const [isSaving, setIsSaving] = useState(false);
   const listRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
 
@@ -3988,8 +4041,9 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
             Delete (Alt+D)
           </button>
         )}
-        <button id="btn-save-item" style={{background:'#1c5282',color:'white',border:'none',padding:'8px 35px',cursor:'pointer',fontWeight:'bold',fontSize:13}}
+        <button id="btn-save-item" disabled={isSaving} style={{background: isSaving ? '#557fa3' : '#1c5282',color:'white',border:'none',padding:'8px 35px',cursor: isSaving ? 'default' : 'pointer',fontWeight:'bold',fontSize:13}}
           onClick={()=>{
+            if (isSaving) return;
             const name = fv('item-name'); if (!name) { alert('Stock Item Name is required!'); return; }
             // Duplicate Check
             if (stockItems.some(it => it.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || it.id !== activeAlterItem.id))) {
@@ -4022,9 +4076,18 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               openingRate: parseFloat(fv('item-orate')) || 0,
               defaultDiscount: parseFloat(fv('item-disc')) || 0
             };
-            onSave(data);
+            setIsSaving(true);
+            (async () => {
+              try {
+                await onSave(data);
+              } catch (err) {
+                console.error(err);
+              } finally {
+                setIsSaving(false);
+              }
+            })();
           }}>
-          ✓ Accept (Ctrl+A)
+          {isSaving ? '✓ Saving...' : '✓ Accept (Ctrl+A)'}
         </button>
       </div>
     </div>
