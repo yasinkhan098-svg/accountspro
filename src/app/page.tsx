@@ -901,6 +901,14 @@ export default function App() {
               const partyEntry = v.entries?.find((e: any) => e.entryType === partySide);
               return {
                 ...v,
+                entries: (v.entries || []).map((e: any) => ({
+                  ...e,
+                  ledgerName: e.ledgerName || e.ledger?.name || '',
+                })),
+                inventoryEntries: (v.inventoryEntries || []).map((ie: any) => ({
+                  ...ie,
+                  itemName: ie.itemName || ie.stockItem?.name || '',
+                })),
                 partyName: v.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party',
                 date: new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
               };
@@ -1462,6 +1470,16 @@ export default function App() {
         const savedV = {
           ...v, // Preserve local fields like partyDetails, dispatchDetails that aren't in DB
           ...vRaw, // Overwrite with server data (id, date, entries)
+          entries: (vRaw.entries || []).map((e: any) => ({
+            ...e,
+            ledgerName: e.ledgerName || e.ledger?.name || '',
+          })),
+          inventoryEntries: (vRaw.inventoryEntries || []).map((ie: any) => ({
+            ...ie,
+            itemName: ie.itemName || ie.stockItem?.name || '',
+          })),
+          partyDetails: typeof vRaw.partyDetails === 'string' ? JSON.parse(vRaw.partyDetails) : (vRaw.partyDetails || v.partyDetails),
+          dispatchDetails: typeof vRaw.dispatchDetails === 'string' ? JSON.parse(vRaw.dispatchDetails) : (vRaw.dispatchDetails || v.dispatchDetails),
           partyName: pName,
           date: new Date(vRaw.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
         };
@@ -4816,6 +4834,20 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       setPartyName(l.name);
       const bal=getLedgerClosingBalance(l,vouchers);
       setPartyBalance(bal);
+      setFocus(null);
+      if (isInventory) {
+        const pd:PartyDetails={
+          buyerName:l.name, buyerMailingName:l.name, buyerAddress:l.address||'',
+          buyerState:l.state||'', buyerCountry:l.country||'India', buyerGstin:l.gstin||'', buyerPlace:l.state||'',
+          shipName:l.name, shipMailingName:l.name, shipAddress:l.address||'',
+          shipState:l.state||'', shipCountry:l.country||'India', shipGstin:l.gstin||'', shipPlace:l.state||'',
+          buyerOrderNo:'', buyerOrderDate:'', termsOfDelivery:'',
+        };
+        setPartyDetails(pd);
+        setShowPartyDetails(true);
+      } else {
+        setTimeout(() => document.getElementById('v-ref')?.focus(), 50);
+      }
     } else if(focus?.field==='accledger'&&focus.rowIdx!==undefined){
       const idx = focus.rowIdx;
       const ne=[...accEntries];ne[idx]={...ne[idx],ledgerId:l.id,ledgerName:l.name};
@@ -7276,7 +7308,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     </div>
   );
 
-  const igst = v.entries.find(e=>e.ledgerName==='IGST Payable')?.amount||0;
+  const igst = v.entries.find(e=>(e.ledgerName || (e as any).ledger?.name) === 'IGST Payable')?.amount||0;
   const isInterState = igst > 0;
 
   const hsnMap = new Map<string,{hsnCode:string;taxable:number;cgst:number;sgst:number;igst:number;total:number;rate:number}>();
@@ -7363,9 +7395,9 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             </tr>
           </thead>
           <tbody>
-            {v.entries.filter(e=>e.ledgerName).map((e,i)=>(
+            {v.entries.filter(e=>e.ledgerName || (e as any).ledger?.name).map((e,i)=>(
               <tr key={i}>
-                <td style={tdB}>{e.ledgerName}</td>
+                <td style={tdB}>{e.ledgerName || (e as any).ledger?.name}</td>
                 <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Dr'?fmt(e.amount):'—'}</td>
                 <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Cr'?fmt(e.amount):'—'}</td>
               </tr>
@@ -7532,9 +7564,9 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                 // Sales: Consignee = Ship-to party
                 <>
                   <div style={{fontWeight:'bold', fontSize:12}}>{pd?.shipName || v.partyName}</div>
-                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.shipAddress || pd?.buyerAddress || '—'}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.shipGstin || pd?.buyerGstin || '—'}</b></div>
-                  <div style={{fontSize:10}}>State Name : {pd?.shipState || pd?.buyerState}, Code : {stateCode(pd?.shipState || pd?.buyerState || '')}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.shipAddress || pd?.buyerAddress || partyLedger?.address || '—'}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.shipGstin || pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{fontSize:10}}>State Name : {pd?.shipState || pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.shipState || pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               )}
             </div>
@@ -7544,18 +7576,18 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                 <>
                   <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Supplier (Bill from)</div>
                   <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
-                  {partyLedger?.address && <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{partyLedger.address}</div>}
-                  {partyLedger?.gstin && <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{partyLedger.gstin}</b></div>}
-                  {partyLedger?.state && <div style={{fontSize:10}}>State Name : {partyLedger.state}, Code : {stateCode(partyLedger.state||'')}</div>}
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || partyLedger?.address || '—'}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{fontSize:10}}>State Name : {pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               ) : (
                 // Sales: Buyer (Bill to) = Party
                 <>
                   <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Buyer (Bill to)</div>
                   <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
-                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || '—'}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || '—'}</b></div>
-                  <div style={{fontSize:10}}>State Name : {pd?.buyerState}, Code : {stateCode(pd?.buyerState || '')}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || partyLedger?.address || '—'}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{fontSize:10}}>State Name : {pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               )}
             </div>
@@ -7614,7 +7646,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             {addlEntries.map((ae, idx) => (
                <tr key={'addl-'+idx} style={{fontSize:11}}>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
-                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>{ae.ledgerName}</td>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>{ae.ledgerName || (ae as any).ledger?.name}</td>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
@@ -7630,7 +7662,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             {taxEntries.map((te, idx) => (
                <tr key={'tax-'+idx} style={{fontSize:11, fontStyle:'italic'}}>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
-                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right', paddingRight:20}}>{te.ledgerName}</td>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right', paddingRight:20}}>{te.ledgerName || (te as any).ledger?.name}</td>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}

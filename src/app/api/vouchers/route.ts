@@ -67,7 +67,12 @@ export async function POST(req: Request) {
       return voucher;
     });
 
-    return NextResponse.json({ success: true, voucher: result });
+    const parsedVoucher = {
+      ...result,
+      partyDetails: result.partyDetails ? JSON.parse(result.partyDetails) : null,
+      dispatchDetails: result.dispatchDetails ? JSON.parse(result.dispatchDetails) : null,
+    };
+    return NextResponse.json({ success: true, voucher: parsedVoucher });
   } catch (error: any) {
     console.error("Voucher Save Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -125,7 +130,12 @@ export async function PUT(req: Request) {
       return voucher;
     });
 
-    return NextResponse.json({ success: true, voucher: result });
+    const parsedVoucher = {
+      ...result,
+      partyDetails: result.partyDetails ? JSON.parse(result.partyDetails) : null,
+      dispatchDetails: result.dispatchDetails ? JSON.parse(result.dispatchDetails) : null,
+    };
+    return NextResponse.json({ success: true, voucher: parsedVoucher });
   } catch (error: any) {
     console.error("Voucher Update Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
