@@ -7300,6 +7300,14 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
 
   const allPrintableVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note','Payment','Receipt','Contra','Journal'].includes(v.type));
   const v = printVoucher || allPrintableVouchers[0] || null;
+  const getEntryLedgerName = (e: any) => {
+    if (!e) return '';
+    return e.ledgerName || e.ledger?.name || ledgers.find(l => Number(l.id) === Number(e.ledgerId))?.name || '';
+  };
+
+  const igst = v ? v.entries.find(e => getEntryLedgerName(e) === 'IGST Payable')?.amount || 0 : 0;
+  const isInterState = igst > 0;
+
   if (!v) return (
     <div style={{padding:40,textAlign:'center',color:'#888',fontSize:15}}>
       <div style={{fontSize:40,marginBottom:15}}>🖨️</div>
@@ -7308,8 +7316,6 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     </div>
   );
 
-  const igst = v.entries.find(e=>(e.ledgerName || (e as any).ledger?.name) === 'IGST Payable')?.amount||0;
-  const isInterState = igst > 0;
 
   const hsnMap = new Map<string,{hsnCode:string;taxable:number;cgst:number;sgst:number;igst:number;total:number;rate:number}>();
   v.inventoryEntries.forEach(e=>{
@@ -7395,9 +7401,9 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             </tr>
           </thead>
           <tbody>
-            {v.entries.filter(e=>e.ledgerName || (e as any).ledger?.name).map((e,i)=>(
+            {v.entries.filter(e => getEntryLedgerName(e)).map((e,i)=>(
               <tr key={i}>
-                <td style={tdB}>{e.ledgerName || (e as any).ledger?.name}</td>
+                <td style={tdB}>{getEntryLedgerName(e)}</td>
                 <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Dr'?fmt(e.amount):'—'}</td>
                 <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Cr'?fmt(e.amount):'—'}</td>
               </tr>
@@ -7470,14 +7476,14 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     
     // Calculations
     const taxEntries = (v?.entries || []).filter((e: any) => {
-      const lname = e.ledgerName || e.ledger?.name || '';
+      const lname = getEntryLedgerName(e);
       return lname.includes('GST Payable');
     });
     const addlEntries = (v?.entries || []).filter((e: any) => {
-      const lname = e.ledgerName || e.ledger?.name || '';
+      const lname = getEntryLedgerName(e);
       return lname !== v.partyName && lname !== 'Sales A/c' && lname !== 'Purchase A/c' && !lname.includes('GST Payable') && lname !== 'Round Off' && e.amount > 0;
     });
-    const roundOffEntry = (v?.entries || []).find((e: any) => (e.ledgerName || e.ledger?.name || '') === 'Round Off');
+    const roundOffEntry = (v?.entries || []).find((e: any) => getEntryLedgerName(e) === 'Round Off');
     const roundOffAmt = roundOffEntry?.amount || 0;
     // Purchase-specific: lookup party ledger for supplier info
     const isPurchaseType = v.type === 'Purchase' || v.type === 'Debit Note';
@@ -7646,7 +7652,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             {addlEntries.map((ae, idx) => (
                <tr key={'addl-'+idx} style={{fontSize:11}}>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
-                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>{ae.ledgerName || (ae as any).ledger?.name}</td>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>{getEntryLedgerName(ae)}</td>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
@@ -7662,7 +7668,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             {taxEntries.map((te, idx) => (
                <tr key={'tax-'+idx} style={{fontSize:11, fontStyle:'italic'}}>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
-                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right', paddingRight:20}}>{te.ledgerName || (te as any).ledger?.name}</td>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right', paddingRight:20}}>{getEntryLedgerName(te)}</td>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
