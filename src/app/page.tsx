@@ -1470,14 +1470,20 @@ export default function App() {
         const savedV = {
           ...v, // Preserve local fields like partyDetails, dispatchDetails that aren't in DB
           ...vRaw, // Overwrite with server data (id, date, entries)
-          entries: (vRaw.entries || []).map((e: any) => ({
-            ...e,
-            ledgerName: e.ledgerName || e.ledger?.name || '',
-          })),
-          inventoryEntries: (vRaw.inventoryEntries || []).map((ie: any) => ({
-            ...ie,
-            itemName: ie.itemName || ie.stockItem?.name || '',
-          })),
+          entries: (vRaw.entries || []).map((e: any, idx: number) => {
+            const localEntry = v.entries?.find((le: any) => le.ledgerId === e.ledgerId && le.amount === e.amount) || v.entries?.[idx];
+            return {
+              ...e,
+              ledgerName: e.ledgerName || e.ledger?.name || localEntry?.ledgerName || '',
+            };
+          }),
+          inventoryEntries: (vRaw.inventoryEntries || []).map((ie: any, idx: number) => {
+            const localItem = v.inventoryEntries?.find((li: any) => (li.itemId || li.stockItemId) === ie.stockItemId) || v.inventoryEntries?.[idx];
+            return {
+              ...ie,
+              itemName: ie.itemName || ie.stockItem?.name || localItem?.itemName || '',
+            };
+          }),
           partyDetails: typeof vRaw.partyDetails === 'string' ? JSON.parse(vRaw.partyDetails) : (vRaw.partyDetails || v.partyDetails),
           dispatchDetails: typeof vRaw.dispatchDetails === 'string' ? JSON.parse(vRaw.dispatchDetails) : (vRaw.dispatchDetails || v.dispatchDetails),
           partyName: pName,
