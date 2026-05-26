@@ -9,14 +9,9 @@ export async function POST(req: Request) {
 
     const data = await req.json();
 
-    // Admin ke liye company create nahi hoti (ya aap chahein to allow kar sakte ho)
-    if (user.id === -1) {
-      return NextResponse.json({ error: "Admin cannot create companies" }, { status: 403 });
-    }
-
     const company = await prisma.company.create({
       data: {
-        user: { connect: { id: user.id } },
+        ...(user.id !== -1 ? { user: { connect: { id: user.id } } } : {}),
         name: data.name || 'New Company',
         mailingName: data.mailingName || data.name || '',
         address: data.address || '',

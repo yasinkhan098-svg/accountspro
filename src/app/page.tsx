@@ -1222,8 +1222,17 @@ export default function App() {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ id: targetItem.id, ...data })
           });
-          if (!res.ok) return false;
-        } catch (e) { return false; }
+          if (res.ok) {
+            return true;
+          } else {
+            const resData = await res.json();
+            alert("Failed to update company: " + (resData.error || "Unknown error"));
+            return false;
+          }
+        } catch (e: any) {
+          alert("Error updating company: " + e.message);
+          return false;
+        }
       }
       return true;
     } else {
@@ -1305,8 +1314,14 @@ export default function App() {
             setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id }))]);
             setActiveCompany(newCo);
             return newCo;
+          } else {
+            alert("Failed to create company: " + (resData.error || "Unknown error"));
+            return false;
           }
-        } catch (e) { return false; }
+        } catch (e: any) {
+          alert("Error creating company: " + e.message);
+          return false;
+        }
       }
       else if (type === 'group') setAllGroups(p => [...p, { id, companyId: cid, ...data }]);
       else if (type === 'stockCategory') setAllStockCategories(p => [...p, { id, companyId: cid, ...data }]);
