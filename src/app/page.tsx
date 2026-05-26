@@ -1059,25 +1059,46 @@ export default function App() {
     }
   }, [activeCompany?.id]);
 
-  // Ensure Cash and Profit & Loss A/c exist for active company
+  // Ensure all standard ledgers exist for the active company
   useEffect(() => {
     if (!isAuthenticated || !activeCompany) return;
     const cid = activeCompany.id;
-    const hasCash = allLedgers.some(l => Number(l.companyId) === Number(cid) && l.name === 'Cash');
-    if (!hasCash && allLedgers.length > 0) {
-      // Auto-create Cash ledger if company has other ledgers but no Cash
-      const newCash: Ledger = {
-        id: Date.now(),
-        companyId: cid,
-        name: 'Cash',
-        groupName: 'Cash-in-hand',
-        openingBalance: 0,
-        balanceType: 'Dr'
+    if (allLedgers.length === 0) return;
+
+    const standardLedgers = [
+      { name: 'Cash', groupName: 'Cash-in-hand', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'Profit & Loss A/c', groupName: 'Primary', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'Round Off', groupName: 'Indirect Expenses', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'Discount Given', groupName: 'Indirect Expenses', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'Discount Received', groupName: 'Indirect Incomes', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'Transportation Charges', groupName: 'Direct Expenses', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'Freight Charges', groupName: 'Direct Expenses', openingBalance: 0, balanceType: 'Dr' },
+      { name: 'CGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'SGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'IGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'Sales A/c', groupName: 'Sales Accounts', openingBalance: 0, balanceType: 'Cr' },
+      { name: 'Purchase A/c', groupName: 'Purchase Accounts', openingBalance: 0, balanceType: 'Dr' },
+    ];
+
+    const companyLedgers = allLedgers.filter(l => Number(l.companyId) === Number(cid));
+    const missingLedgers = standardLedgers.filter(sl => !companyLedgers.some(cl => cl.name === sl.name));
+
+    if (missingLedgers.length > 0) {
+      const initMissing = async () => {
+        for (const l of missingLedgers) {
+          const newLedger = {
+            name: l.name,
+            groupName: l.groupName,
+            openingBalance: l.openingBalance,
+            balanceType: l.balanceType
+          };
+          await saveMaster('ledger', newLedger);
+        }
       };
-      setAllLedgers(prev => [...prev, newCash]);
-      saveMaster('ledger', newCash);
+      initMissing();
     }
-  }, [activeCompany, allLedgers.length]);
+  }, [activeCompany?.id, allLedgers.length, isAuthenticated]);
+
   const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => Number(c.companyId) === Number(activeCompany.id)) : [], [allCurrencies, activeCompany]);
   const vouchers       = useMemo(() => activeCompany ? allVouchers.filter(v => Number(v.companyId) === Number(activeCompany.id)) : [], [allVouchers, activeCompany]);
   const filteredVouchers = useMemo(() => {

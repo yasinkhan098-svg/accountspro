@@ -43,6 +43,65 @@ export async function POST(req: Request) {
       }
     });
 
+    // Auto-create standard ledgers in the database for the new company
+    const standardLedgers = [
+      { name: 'Cash', groupName: 'Cash-in-hand', openingBal: 0, balanceType: 'Dr' },
+      { name: 'Profit & Loss A/c', groupName: 'Primary', openingBal: 0, balanceType: 'Cr' },
+      { name: 'Round Off', groupName: 'Indirect Expenses', openingBal: 0, balanceType: 'Dr' },
+      { name: 'Discount Given', groupName: 'Indirect Expenses', openingBal: 0, balanceType: 'Dr' },
+      { name: 'Discount Received', groupName: 'Indirect Incomes', openingBal: 0, balanceType: 'Cr' },
+      { name: 'Transportation Charges', groupName: 'Direct Expenses', openingBal: 0, balanceType: 'Dr' },
+      { name: 'Freight Charges', groupName: 'Direct Expenses', openingBal: 0, balanceType: 'Dr' },
+      { name: 'CGST Payable', groupName: 'Duties & Taxes', openingBal: 0, balanceType: 'Cr' },
+      { name: 'SGST Payable', groupName: 'Duties & Taxes', openingBal: 0, balanceType: 'Cr' },
+      { name: 'IGST Payable', groupName: 'Duties & Taxes', openingBal: 0, balanceType: 'Cr' },
+      { name: 'Sales A/c', groupName: 'Sales Accounts', openingBal: 0, balanceType: 'Cr' },
+      { name: 'Purchase A/c', groupName: 'Purchase Accounts', openingBal: 0, balanceType: 'Dr' },
+    ];
+
+    await prisma.ledger.createMany({
+      data: standardLedgers.map(l => ({
+        companyId: company.id,
+        name: l.name,
+        groupName: l.groupName,
+        openingBal: l.openingBal,
+        balanceType: l.balanceType
+      }))
+    });
+
+    // Auto-create default units in the database for the new company
+    const initUnits = [
+      { name: "Nos", symbol: "Nos", formalName: "Numbers", decimalPlaces: 0 },
+      { name: "Pcs", symbol: "Pcs", formalName: "Pieces", decimalPlaces: 0 },
+      { name: "Kg", symbol: "Kg", formalName: "Kilogram", decimalPlaces: 2 },
+      { name: "Gms", symbol: "Gms", formalName: "Grams", decimalPlaces: 0 },
+      { name: "Ltr", symbol: "Ltr", formalName: "Litre", decimalPlaces: 2 },
+      { name: "Mtr", symbol: "Mtr", formalName: "Meter", decimalPlaces: 2 },
+      { name: "Set", symbol: "Set", formalName: "Set", decimalPlaces: 0 },
+      { name: "Bdl", symbol: "Bdl", formalName: "Bundle", decimalPlaces: 0 },
+      { name: "Cft", symbol: "Cft", formalName: "Cubic Feet", decimalPlaces: 2 },
+      { name: "Sqft", symbol: "Sqft", formalName: "Square Feet", decimalPlaces: 2 },
+      { name: "Box", symbol: "Box", formalName: "Boxes", decimalPlaces: 0 },
+      { name: "Dzn", symbol: "Dzn", formalName: "Dozen", decimalPlaces: 0 },
+      { name: "Btl", symbol: "Btl", formalName: "Bottles", decimalPlaces: 0 },
+      { name: "Bag", symbol: "Bag", formalName: "Bags", decimalPlaces: 0 },
+      { name: "Tons", symbol: "Tons", formalName: "Metric Tons", decimalPlaces: 2 },
+      { name: "Kits", symbol: "Kits", formalName: "Kits", decimalPlaces: 0 },
+      { name: "Pack", symbol: "Pack", formalName: "Packs", decimalPlaces: 0 },
+      { name: "Rol", symbol: "Rol", formalName: "Rolls", decimalPlaces: 0 },
+      { name: "Ctn", symbol: "Ctn", formalName: "Cartons", decimalPlaces: 0 },
+      { name: "Pair", symbol: "Pair", formalName: "Pairs", decimalPlaces: 0 }
+    ];
+
+    await prisma.unit.createMany({
+      data: initUnits.map(u => ({
+        companyId: company.id,
+        name: u.name,
+        formalName: u.formalName,
+        decimalPlaces: u.decimalPlaces
+      }))
+    });
+
     return NextResponse.json({ success: true, company });
   } catch (error: any) {
     console.error("Company Creation Error:", error);
