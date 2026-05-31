@@ -899,6 +899,12 @@ export default function App() {
             const mapped = vData.vouchers.map((v: any) => {
               const partySide = ['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr';
               const partyEntry = v.entries?.find((e: any) => e.entryType === partySide);
+              // Compute total: party entry amount is the invoice total (includes tax + all charges)
+              const computedTotal = partyEntry?.amount || (v.entries || []).reduce((max: number, e: any) => Math.max(max, e.amount || 0), 0) || 0;
+              // Parse number from voucherNo (e.g. "SAL/001" -> 1, "1" -> 1)
+              const vNoStr = String(v.voucherNo || '');
+              const numMatch = vNoStr.match(/(\d+)\s*$/);
+              const computedNumber = numMatch ? parseInt(numMatch[1]) : (v.id || 0);
               return {
                 ...v,
                 entries: (v.entries || []).map((e: any) => ({
@@ -913,6 +919,9 @@ export default function App() {
                     showAmtInclTax: ie.stockItem?.showAmtInclTax ?? false,
                   })),
                 partyName: v.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party',
+                partyId: v.partyId || partyEntry?.ledgerId || partyEntry?.ledger?.id || 0,
+                number: v.number || computedNumber,
+                total: v.total || computedTotal,
                 date: new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
               };
             });
@@ -8191,12 +8200,14 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
     let taxable = 0, igst = 0, cgst = 0, sgst = 0, totalTax = 0;
     v.inventoryEntries.forEach(item => {
       const rate = item.gstRate || 18;
-      const txVal = item.amount / (1 + (rate / 100));
-      const tax = item.amount - txVal;
+      // item.amount is already the TAXABLE value (exclusive of GST)
+      const txVal = item.taxableAmount || item.amount;
+      const tax = txVal * rate / 100;
       taxable += txVal; totalTax += tax;
       if (isInterState) igst += tax; else { cgst += tax / 2; sgst += tax / 2; }
     });
-    return { taxable, igst, cgst, sgst, totalTax };
+    const invoiceTotal = taxable + totalTax;
+    return { taxable, igst, cgst, sgst, totalTax, invoiceTotal };
   };
 
   // Basic Logic: Get Sales and Credit/Debit Notes
@@ -8247,7 +8258,7 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
   const partyGroups = useMemo(() => {
     const groups: Record<number, {id:number, name:string, gstin:string, count:number, taxable:number, igst:number, cgst:number, sgst:number, total:number, vouchers:Voucher[]}> = {};
     b2bList.forEach(v => {
-      const {taxable, igst, cgst, sgst} = getTaxBreakdown(v);
+      const {taxable, igst, cgst, sgst, invoiceTotal} = getTaxBreakdown(v);
       const gstin = getVchGstin(v);
       if (!groups[v.partyId]) groups[v.partyId] = {id:v.partyId, name: v.partyName, gstin: gstin, count:0, taxable:0, igst:0, cgst:0, sgst:0, total:0, vouchers:[]};
       groups[v.partyId].count++;
@@ -8255,7 +8266,7 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
       groups[v.partyId].igst += igst;
       groups[v.partyId].cgst += cgst;
       groups[v.partyId].sgst += sgst;
-      groups[v.partyId].total += v.total;
+      groups[v.partyId].total += invoiceTotal;
       groups[v.partyId].vouchers.push(v);
     });
     return Object.values(groups);
@@ -8263,6 +8274,15 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
 
   const partyRows = partyGroups;
   const currentPartyVouchers = drillDownParty ? (partyGroups.find(p=>p.id===drillDownParty)?.vouchers || []) : [];
+
+  // Generic voucher list for non-B2B drill-downs (B2CL, B2CS, CDNR, CDNUR)
+  const currentDrillVouchers = useMemo(() => {
+    if (drillDown === 'b2cl') return b2cLarge;
+    if (drillDown === 'b2cs') return b2cSmall;
+    if (drillDown === 'cdnr') return cdnrList;
+    if (drillDown === 'cdnur') return cdnurList;
+    return [];
+  }, [drillDown, b2cLarge, b2cSmall, cdnrList, cdnurList]);
 
   // KEYBOARD HANDLING
   useEffect(() => {
@@ -8273,22 +8293,29 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
         else if (drillDown) setDrillDown(null);
         else goBack();
       } else if (drillDownParty) {
+        // B2B Party -> Invoice level
         if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedVchIdx(p => Math.min(p+1, currentPartyVouchers.length-1)); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedVchIdx(p => Math.max(p-1, 0)); }
-        else if (e.key === 'Enter') { e.preventDefault(); onDrillDownVoucher(currentPartyVouchers[selectedVchIdx]); }
+        else if (e.key === 'Enter') { e.preventDefault(); if (currentPartyVouchers[selectedVchIdx]) onDrillDownVoucher(currentPartyVouchers[selectedVchIdx]); }
       } else if (drillDown === 'b2b') {
+        // B2B Party list
         if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedRow(p => Math.min(p+1, partyRows.length-1)); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedRow(p => Math.max(p-1, 0)); }
         else if (e.key === 'Enter') { e.preventDefault(); setDrillDownParty(partyRows[selectedRow].id); setSelectedVchIdx(0); }
+      } else if (['b2cl','b2cs','cdnr','cdnur'].includes(drillDown || '')) {
+        // Voucher list drill-downs
+        if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedVchIdx(p => Math.min(p+1, currentDrillVouchers.length-1)); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedVchIdx(p => Math.max(p-1, 0)); }
+        else if (e.key === 'Enter') { e.preventDefault(); if (currentDrillVouchers[selectedVchIdx]) onDrillDownVoucher(currentDrillVouchers[selectedVchIdx]); }
       } else if (!drillDown) {
         if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedRow(p => Math.min(p+1, sections.length-1)); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedRow(p => Math.max(p-1, 0)); }
-        else if (e.key === 'Enter') { e.preventDefault(); setDrillDown(sections[selectedRow].id); setSelectedRow(0); }
+        else if (e.key === 'Enter') { e.preventDefault(); setDrillDown(sections[selectedRow].id); setSelectedRow(0); setSelectedVchIdx(0); }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [drillDown, drillDownParty, selectedRow, selectedVchIdx, sections, partyRows, currentPartyVouchers, goBack]);
+  }, [drillDown, drillDownParty, selectedRow, selectedVchIdx, sections, partyRows, currentPartyVouchers, currentDrillVouchers, goBack]);
 
   // EXPORT HANDLERS
   const [showExportGstModal, setShowExportGstModal] = useState(false);
@@ -8335,9 +8362,9 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
         const uqc = (unitObj?.uqc || 'NOS').toUpperCase();
         if(!hsnMap[key]) hsnMap[key] = { hsn_sc: hsn, uqc: uqc, qty: 0, txval: 0, iamt: 0, camt: 0, samt: 0, rt: rate, csamt: 0 };
         
-        // Fix: Tally-like app stores inclusive amount, so calculate taxable (txval) and tax
-        const txval = item.amount / (1 + (rate / 100));
-        const tax = item.amount - txval;
+        // item.amount is already exclusive (taxable)
+        const txval = item.taxableAmount || item.amount;
+        const tax = txval * rate / 100;
         
         hsnMap[key].qty += item.qty; 
         hsnMap[key].txval += txval;
@@ -8360,8 +8387,8 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
          const rate = item.gstRate || 18;
          if (!itemsByRate[rate]) itemsByRate[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
          
-         const txval = item.amount / (1 + (rate / 100));
-         const tax = item.amount - txval;
+         const txval = item.taxableAmount || item.amount;
+         const tax = txval * rate / 100;
          
          itemsByRate[rate].txval += txval;
          if (isInterState) itemsByRate[rate].iamt += tax;
@@ -8379,7 +8406,7 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
       b2bGrouped[ctin].inv.push({
         inum: v.voucherNo || v.number.toString(), 
         idt: formatGstDate(v.date), 
-        val: v.total,
+        val: getTaxBreakdown(v).invoiceTotal,
         pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05', 
         rchrg: "N", 
         itms: itms, 
@@ -8481,7 +8508,7 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
     sections.forEach(s => {
       const tx = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).taxable, 0);
       const tax = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).totalTax, 0);
-      const tot = s.vouchers.reduce((sum, v) => sum + v.total, 0);
+      const tot = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).invoiceTotal, 0);
       html += `<tr><td>${s.label}</td><td>${s.vouchers.length}</td><td>${tx.toFixed(2)}</td><td>${tax.toFixed(2)}</td><td>${tot.toFixed(2)}</td></tr>`;
     });
     html += `</table></body></html>`;
@@ -8495,7 +8522,7 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
     sections.forEach(s => {
       const tx = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).taxable, 0);
       const tax = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).totalTax, 0);
-      const tot = s.vouchers.reduce((sum, v) => sum + v.total, 0);
+      const tot = s.vouchers.reduce((sum, v) => sum + getTaxBreakdown(v).invoiceTotal, 0);
       csv += `"${s.label}",${s.vouchers.length},${tx.toFixed(2)},${tax.toFixed(2)},${tot.toFixed(2)}\n`;
     });
     const blob = new Blob([csv], {type: 'text/csv'});
@@ -8531,7 +8558,7 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
                   <td style={{padding:8}}>{v.voucherNo}</td>
                   <td style={{padding:8,textAlign:'right'}}>{fmt(getTaxBreakdown(v).taxable)}</td>
                   <td style={{padding:8,textAlign:'right'}}>{fmt(getTaxBreakdown(v).totalTax)}</td>
-                  <td style={{padding:8,textAlign:'right',fontWeight:'bold'}}>{fmt(v.total)}</td>
+                  <td style={{padding:8,textAlign:'right',fontWeight:'bold'}}>{fmt(getTaxBreakdown(v).invoiceTotal)}</td>
                 </tr>
               ))}
             </tbody>
@@ -8584,6 +8611,70 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
     );
   }
 
+  // GENERIC VOUCHER DRILL-DOWN for B2CL, B2CS, CDNR, CDNUR
+  if (['b2cl','b2cs','cdnr','cdnur'].includes(drillDown || '')) {
+    const sectionLabels: Record<string,string> = {
+      'b2cl': 'B2C (Large) Invoices - Unregistered Inter-State > ₹2.5L',
+      'b2cs': 'B2C (Small) Invoices - Unregistered Intra-State / ≤ ₹2.5L',
+      'cdnr': 'Credit/Debit Notes (Registered)',
+      'cdnur': 'Credit/Debit Notes (Unregistered)',
+    };
+    const vcList = currentDrillVouchers;
+    return (
+      <div className="report-workspace" style={{background:'#fff',height:'100%',display:'flex',flexDirection:'column'}}>
+        <div style={{background:'#1c5282',color:'white',padding:'8px 15px',fontWeight:'bold',display:'flex',justifyContent:'space-between'}}>
+          <span>GSTR-1 - {sectionLabels[drillDown!] || drillDown}</span>
+          <button onClick={()=>setDrillDown(null)} className="tally-btn-sm">Esc: Back</button>
+        </div>
+        <div style={{flex:1, overflowY:'auto'}}>
+          {vcList.length === 0 ? (
+            <div style={{padding:40,textAlign:'center',color:'#888',fontSize:14}}>
+              <div style={{fontSize:36,marginBottom:10}}>📋</div>
+              No vouchers found in this category.
+            </div>
+          ) : (
+          <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead style={{position:'sticky',top:0,background:'#e8eef4'}}>
+              <tr>
+                <th style={{padding:8,textAlign:'left'}}>Date</th>
+                <th style={{padding:8,textAlign:'left'}}>Voucher No.</th>
+                <th style={{padding:8,textAlign:'left'}}>Party Name</th>
+                <th style={{padding:8,textAlign:'right'}}>Taxable Value</th>
+                <th style={{padding:8,textAlign:'right'}}>Tax Amount</th>
+                <th style={{padding:8,textAlign:'right'}}>Invoice Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vcList.map((v,i)=>{
+                const tb = getTaxBreakdown(v);
+                return (
+                <tr key={i} onClick={()=>onDrillDownVoucher(v)} onMouseEnter={()=>setSelectedVchIdx(i)}
+                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedVchIdx?'#fffbe6':'transparent'}}>
+                  <td style={{padding:8}}>{v.date}</td>
+                  <td style={{padding:8}}>{v.voucherNo}</td>
+                  <td style={{padding:8,fontWeight:'bold',color:'#1c5282'}}>{v.partyName}</td>
+                  <td style={{padding:8,textAlign:'right'}}>{fmt(tb.taxable)}</td>
+                  <td style={{padding:8,textAlign:'right'}}>{fmt(tb.totalTax)}</td>
+                  <td style={{padding:8,textAlign:'right',fontWeight:'bold'}}>{fmt(tb.invoiceTotal)}</td>
+                </tr>
+              );})}
+            </tbody>
+            <tfoot>
+              <tr style={{background:'#f0f4f8',fontWeight:'bold',borderTop:'2px solid #1c5282'}}>
+                <td colSpan={3} style={{padding:8,textAlign:'right'}}>Total ({vcList.length} vouchers)</td>
+                <td style={{padding:8,textAlign:'right'}}>{fmt(vcList.reduce((s,v)=>s+getTaxBreakdown(v).taxable,0))}</td>
+                <td style={{padding:8,textAlign:'right'}}>{fmt(vcList.reduce((s,v)=>s+getTaxBreakdown(v).totalTax,0))}</td>
+                <td style={{padding:8,textAlign:'right'}}>{fmt(vcList.reduce((s,v)=>s+getTaxBreakdown(v).invoiceTotal,0))}</td>
+              </tr>
+            </tfoot>
+          </table>
+          )}
+        </div>
+        <div style={{background:'#1c5282',color:'white',padding:'5px 15px',fontSize:11,textAlign:'center'}}>Enter: Alter Voucher | Esc: Back</div>
+      </div>
+    );
+  }
+
   if (drillDown === 'hsn') {
     const hsnMap: Record<string, any> = {};
     salesVouchers.forEach(v => {
@@ -8592,9 +8683,10 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
         const key = item.hsnCode || 'N/A';
         const rate = item.gstRate || 18;
         if (!hsnMap[key]) hsnMap[key] = {hsn:key, desc:'', uqc:item.unit||'NOS', qty:0, val:0, txval:0, igst:0, cgst:0, sgst:0, totalTax:0, rate};
-        const txval = item.amount / (1 + (rate / 100));
-        const tax = item.amount - txval;
-        hsnMap[key].qty += item.qty; hsnMap[key].val += item.amount; hsnMap[key].txval += txval;
+        // item.amount is already TAXABLE (exclusive of GST)
+        const txval = item.taxableAmount || item.amount;
+        const tax = txval * rate / 100;
+        hsnMap[key].qty += item.qty; hsnMap[key].val += (txval + tax); hsnMap[key].txval += txval;
         if (isInter) hsnMap[key].igst += tax; else { hsnMap[key].cgst += tax/2; hsnMap[key].sgst += tax/2; }
         hsnMap[key].totalTax += tax;
       });
@@ -8686,7 +8778,7 @@ function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUn
                 <td style={{padding:10,textAlign:'right'}}>{s.vouchers.length}</td>
                 <td style={{padding:10,textAlign:'right'}}>{fmt(s.vouchers.reduce((sum,v)=>sum+getTaxBreakdown(v).taxable,0))}</td>
                 <td style={{padding:10,textAlign:'right'}}>{fmt(s.vouchers.reduce((sum,v)=>sum+getTaxBreakdown(v).totalTax,0))}</td>
-                <td style={{padding:10,textAlign:'right'}}>{fmt(s.vouchers.reduce((sum,v)=>sum+v.total,0))}</td>
+                <td style={{padding:10,textAlign:'right',fontWeight:'bold'}}>{fmt(s.vouchers.reduce((sum,v)=>sum+getTaxBreakdown(v).invoiceTotal,0))}</td>
               </tr>
             ))}
           </tbody>
