@@ -459,6 +459,10 @@ export default function App() {
   const [reportLedgerId, setReportLedgerId] = useState<number | null>(null);
   const [reportGroupName, setReportGroupName] = useState<string>('');
   const [altCCtx, setAltCCtx] = useState<AltCContext | null>(null);
+  const [gstr1DrillDown, setGstr1DrillDown] = useState<string | null>(null);
+  const [gstr1DrillDownParty, setGstr1DrillDownParty] = useState<number | null>(null);
+  const [gstr1SelectedRow, setGstr1SelectedRow] = useState<number>(0);
+  const [gstr1SelectedVchIdx, setGstr1SelectedVchIdx] = useState<number>(0);
   const [showCompanySelect, setShowCompanySelect] = useState(false);
   const [showFeatures, setShowFeatures] = useState(false);
   const [showDate, setShowDate] = useState(false);
@@ -1152,6 +1156,12 @@ export default function App() {
     setScreen(s);
     setAlterItem(item || null);
     if (typeName) setAlterListType(typeName);
+    if (s === 'GSTR1_REPORT') {
+      setGstr1DrillDown(null);
+      setGstr1DrillDownParty(null);
+      setGstr1SelectedRow(0);
+      setGstr1SelectedVchIdx(0);
+    }
   };
 
   const handleOpenAltC = (ctx: AltCContext | null) => {
@@ -2317,7 +2327,25 @@ export default function App() {
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={allVouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
-            {screen==='GSTR1_REPORT'         && <GSTR1ReportView vouchers={filteredVouchers} activeCompany={activeCompany} ledgers={ledgers} currentPeriod={currentPeriod} allUnits={allUnits} goBack={goBack} onDrillDownVoucher={(v)=>nav('VOUCHER_ENTRY',v)} />}
+            {screen==='GSTR1_REPORT'         && (
+              <GSTR1ReportView 
+                vouchers={filteredVouchers} 
+                activeCompany={activeCompany} 
+                ledgers={ledgers} 
+                currentPeriod={currentPeriod} 
+                allUnits={allUnits} 
+                goBack={goBack} 
+                onDrillDownVoucher={(v)=>nav('VOUCHER_ENTRY',v)}
+                drillDown={gstr1DrillDown}
+                setDrillDown={setGstr1DrillDown}
+                drillDownParty={gstr1DrillDownParty}
+                setDrillDownParty={setGstr1DrillDownParty}
+                selectedRow={gstr1SelectedRow}
+                setSelectedRow={setGstr1SelectedRow}
+                selectedVchIdx={gstr1SelectedVchIdx}
+                setSelectedVchIdx={setGstr1SelectedVchIdx}
+              />
+            )}
             {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
             {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} />}
             {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} />}
@@ -8173,11 +8201,19 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
   );
 }
 // ==================== GSTR-1 REPORT VIEW (TALLY PRIME STYLE) ====================
-function GSTR1ReportView({vouchers, activeCompany, ledgers, currentPeriod, allUnits, goBack, onDrillDownVoucher}: {vouchers: Voucher[], activeCompany: Company | null, ledgers: Ledger[], currentPeriod: {start:string, end:string}, allUnits: UnitData[], goBack: () => void, onDrillDownVoucher: (v:Voucher)=>void}) {
-  const [drillDown, setDrillDown] = useState<string | null>(null);
-  const [drillDownParty, setDrillDownParty] = useState<number | null>(null);
-  const [selectedRow, setSelectedRow] = useState<number>(0);
-  const [selectedVchIdx, setSelectedVchIdx] = useState<number>(0);
+function GSTR1ReportView({
+  vouchers, activeCompany, ledgers, currentPeriod, allUnits, goBack, onDrillDownVoucher,
+  drillDown, setDrillDown,
+  drillDownParty, setDrillDownParty,
+  selectedRow, setSelectedRow,
+  selectedVchIdx, setSelectedVchIdx
+}: {
+  vouchers: Voucher[], activeCompany: Company | null, ledgers: Ledger[], currentPeriod: {start:string, end:string}, allUnits: UnitData[], goBack: () => void, onDrillDownVoucher: (v:Voucher)=>void,
+  drillDown: string | null, setDrillDown: React.Dispatch<React.SetStateAction<string | null>>,
+  drillDownParty: number | null, setDrillDownParty: React.Dispatch<React.SetStateAction<number | null>>,
+  selectedRow: number, setSelectedRow: React.Dispatch<React.SetStateAction<number>>,
+  selectedVchIdx: number, setSelectedVchIdx: React.Dispatch<React.SetStateAction<number>>
+}) {
 
   const fmt = (n: number) => n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
   
