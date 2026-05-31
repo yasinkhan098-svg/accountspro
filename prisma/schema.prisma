@@ -117,6 +117,7 @@ model VoucherEntry {
   id        Int      @id @default(autoincrement())
   voucherId Int
   ledgerId  Int
+  ledgerName String?  // Optional: stores display name for entries where ledger may not be in DB
   amount    Float
   entryType String   // Dr or Cr
   voucher   Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)

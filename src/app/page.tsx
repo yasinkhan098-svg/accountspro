@@ -905,10 +905,13 @@ export default function App() {
                   ...e,
                   ledgerName: e.ledgerName || e.ledger?.name || '',
                 })),
-                inventoryEntries: (v.inventoryEntries || []).map((ie: any) => ({
-                  ...ie,
-                  itemName: ie.itemName || ie.stockItem?.name || '',
-                })),
+                  inventoryEntries: (v.inventoryEntries || []).map((ie: any) => ({
+                    ...ie,
+                    itemId: ie.stockItemId || ie.itemId,
+                    itemName: ie.itemName || ie.stockItem?.name || '',
+                    showInclTax: ie.stockItem?.showInclTax ?? false,
+                    showAmtInclTax: ie.stockItem?.showAmtInclTax ?? false,
+                  })),
                 partyName: v.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party',
                 date: new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
               };
@@ -1519,21 +1522,35 @@ export default function App() {
         const partyEntry = vRaw.entries?.find((e: any) => e.entryType === partySide);
         const pName = vRaw.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party';
 
+        // Build entries: start with DB-returned entries (mapped with ledgerName)
+        const dbEntries = (vRaw.entries || []).map((e: any, idx: number) => {
+          const localEntry = v.entries?.find((le: any) => le.ledgerId === e.ledgerId && Math.abs(le.amount - e.amount) < 0.01) || v.entries?.[idx];
+          return {
+            ...e,
+            ledgerName: e.ledgerName || e.ledger?.name || localEntry?.ledgerName || '',
+          };
+        });
+        // Re-attach local entries that API filtered out (ledgerId=0 means ledger not in DB yet)
+        // This ensures additional ledgers like Freight, Packing etc. appear in print preview
+        const dbLedgerIds = new Set(dbEntries.map((e: any) => Number(e.ledgerId)));
+        const missingLocalEntries = (v.entries || []).filter((le: any) => {
+          const lid = Number(le.ledgerId);
+          if (lid > 0 && dbLedgerIds.has(lid)) return false;
+          return !!(le.ledgerName);
+        }).map((le: any) => ({ ...le, ledger: null }));
+
         const savedV = {
-          ...v, // Preserve local fields like partyDetails, dispatchDetails that aren't in DB
-          ...vRaw, // Overwrite with server data (id, date, entries)
-          entries: (vRaw.entries || []).map((e: any, idx: number) => {
-            const localEntry = v.entries?.find((le: any) => le.ledgerId === e.ledgerId && le.amount === e.amount) || v.entries?.[idx];
-            return {
-              ...e,
-              ledgerName: e.ledgerName || e.ledger?.name || localEntry?.ledgerName || '',
-            };
-          }),
+          ...v,
+          ...vRaw,
+          entries: [...dbEntries, ...missingLocalEntries],
           inventoryEntries: (vRaw.inventoryEntries || []).map((ie: any, idx: number) => {
             const localItem = v.inventoryEntries?.find((li: any) => (li.itemId || li.stockItemId) === ie.stockItemId) || v.inventoryEntries?.[idx];
             return {
               ...ie,
+              itemId: ie.stockItemId || ie.itemId,
               itemName: ie.itemName || ie.stockItem?.name || localItem?.itemName || '',
+              showInclTax: ie.stockItem?.showInclTax ?? localItem?.showInclTax ?? false,
+              showAmtInclTax: ie.stockItem?.showAmtInclTax ?? localItem?.showAmtInclTax ?? false,
             };
           }),
           partyDetails: typeof vRaw.partyDetails === 'string' ? JSON.parse(vRaw.partyDetails) : (vRaw.partyDetails || v.partyDetails),
@@ -1873,7 +1890,7 @@ export default function App() {
       if (e.ctrlKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         const formScreens = ['GROUP_CREATION','LEDGER_CREATION','STOCK_ITEM_CREATION','UNIT_CREATION','GODOWN_CREATION','VOUCHER_TYPE_CREATION','CURRENCY_CREATION','STOCK_GROUP_CREATION','STOCK_CATEGORY_CREATION','COMPANY_CREATION'];
-        if (formScreens.includes(screen)) { doFormSave(); }
+        if (formScreens.includes(screen) && (document.activeElement as HTMLElement)?.id !== 'btn-save-item') { doFormSave(); }
       }
       if (e.altKey && e.key.toLowerCase() === 'e') {
         e.preventDefault();
@@ -5090,7 +5107,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         ? { ...(partyDetails as any || {}), supplierInvNo, supplierInvDate } as PartyDetails
         : partyDetails,
       dispatchDetails,
-      inventoryEntries: isInventory ? rows.filter(r=>r.itemName).map((r,i)=>({id:i+1,...r})) : [],
+      inventoryEntries: isInventory ? rows.filter(r=>r.itemName).map((r,i)=>{const si=stockItems.find(it=>it.id===r.itemId);return {id:i+1,...r,showInclTax:si?.showInclTax??false,showAmtInclTax:si?.showAmtInclTax??false};}) : [],
       entries: isInventory ? [
         {id:1,ledgerId:findL(partyName),ledgerName:partyName,amount:grandTotal,entryType: partySide},
         ...rows.filter(r=>r.itemName).map((r,i)=>({id:i+2,ledgerId:findL(salesPurchaseLedger),ledgerName:salesPurchaseLedger,amount:r.amount,entryType: otherSide} as VoucherEntry)),
@@ -7525,10 +7542,11 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     const dd = v.dispatchDetails;
     const copyLabels = ["ORIGINAL FOR RECIPIENT", "DUPLICATE FOR TRANSPORTER", "TRIPLICATE FOR SUPPLIER", "EXTRA COPY"];
 
-    // Column visibility - matches voucher entry screen
+    // Column visibility - strictly based on stock item showInclTax/showAmtInclTax/showDiscount flags
+    // If user sets these to "No" during item creation, columns will NOT appear in print preview
     const showDiscount = !!company?.showDiscount;
-    const showInclRate = v.inventoryEntries.some((e: any) => e.rateInclTax && Math.abs(e.rateInclTax - e.rate) > 0.01);
-    const showAmtIncl = v.inventoryEntries.some((e: any) => e.amountInclTax && Math.abs(e.amountInclTax - e.amount) > 0.5);
+    const showInclRate = v.inventoryEntries.some((e: any) => e.showInclTax === true);
+    const showAmtIncl = v.inventoryEntries.some((e: any) => e.showAmtInclTax === true);
 
     const stateCode = (s: string) => {
       const codes: Record<string, string> = {

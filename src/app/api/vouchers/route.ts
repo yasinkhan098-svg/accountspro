@@ -39,8 +39,12 @@ export async function POST(req: Request) {
           partyDetails: partyDetails ? JSON.stringify(partyDetails) : null,
           dispatchDetails: dispatchDetails ? JSON.stringify(dispatchDetails) : null,
           entries: {
-            create: entries.filter((e:any) => e.ledgerId && !isNaN(parseInt(String(e.ledgerId)))).map((e: any) => ({
+            create: entries.filter((e:any) => {
+              const lid = parseInt(String(e.ledgerId));
+              return lid > 0 && !isNaN(lid);
+            }).map((e: any) => ({
               ledgerId: parseInt(String(e.ledgerId)),
+              ledgerName: e.ledgerName || '',
               amount: Math.abs(parseFloat(String(e.amount)) || 0),
               entryType: e.entryType || 'Dr'
             }))
@@ -102,8 +106,12 @@ export async function PUT(req: Request) {
           partyDetails: partyDetails ? JSON.stringify(partyDetails) : null,
           dispatchDetails: dispatchDetails ? JSON.stringify(dispatchDetails) : null,
           entries: {
-            create: entries.filter((e:any) => e.ledgerId && !isNaN(parseInt(String(e.ledgerId)))).map((e: any) => ({
+            create: entries.filter((e:any) => {
+              const lid = parseInt(String(e.ledgerId));
+              return lid > 0 && !isNaN(lid);
+            }).map((e: any) => ({
               ledgerId: parseInt(String(e.ledgerId)),
+              ledgerName: e.ledgerName || '',
               amount: Math.abs(parseFloat(String(e.amount)) || 0),
               entryType: e.entryType || 'Dr'
             }))
