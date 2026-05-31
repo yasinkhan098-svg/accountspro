@@ -8589,7 +8589,7 @@ function GSTR1ReportView({
             <tbody>
               {currentPartyVouchers.map((v,i)=>(
                 <tr key={i} onClick={()=>onDrillDownVoucher(v)} onMouseEnter={()=>setSelectedVchIdx(i)}
-                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedVchIdx?'#fffbe6':'transparent'}}>
+                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedVchIdx?'#f6af3d':'transparent'}}>
                   <td style={{padding:8}}>{v.date}</td>
                   <td style={{padding:8}}>{v.voucherNo}</td>
                   <td style={{padding:8,textAlign:'right'}}>{fmt(getTaxBreakdown(v).taxable)}</td>
@@ -8629,8 +8629,8 @@ function GSTR1ReportView({
             <tbody>
               {partyRows.map((p,i)=>(
                 <tr key={i} onClick={()=>{setDrillDownParty(p.id); setSelectedVchIdx(0);}} onMouseEnter={()=>setSelectedRow(i)}
-                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedRow?'#fffbe6':'transparent'}}>
-                  <td style={{padding:8,fontWeight:'bold',color:'#1c5282'}}>{p.name}</td>
+                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedRow?'#f6af3d':'transparent'}}>
+                  <td style={{padding:8,fontWeight:'bold',color: i===selectedRow ? '#000' : '#1c5282'}}>{p.name}</td>
                   <td style={{padding:8}}>{p.gstin}</td>
                   <td style={{padding:8,textAlign:'center'}}>{p.count}</td>
                   <td style={{padding:8,textAlign:'right'}}>{fmt(p.taxable)}</td>
@@ -8685,10 +8685,10 @@ function GSTR1ReportView({
                 const tb = getTaxBreakdown(v);
                 return (
                 <tr key={i} onClick={()=>onDrillDownVoucher(v)} onMouseEnter={()=>setSelectedVchIdx(i)}
-                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedVchIdx?'#fffbe6':'transparent'}}>
+                  style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedVchIdx?'#f6af3d':'transparent'}}>
                   <td style={{padding:8}}>{v.date}</td>
                   <td style={{padding:8}}>{v.voucherNo}</td>
-                  <td style={{padding:8,fontWeight:'bold',color:'#1c5282'}}>{v.partyName}</td>
+                  <td style={{padding:8,fontWeight:'bold',color: i===selectedVchIdx ? '#000' : '#1c5282'}}>{v.partyName}</td>
                   <td style={{padding:8,textAlign:'right'}}>{fmt(tb.taxable)}</td>
                   <td style={{padding:8,textAlign:'right'}}>{fmt(tb.totalTax)}</td>
                   <td style={{padding:8,textAlign:'right',fontWeight:'bold'}}>{fmt(tb.invoiceTotal)}</td>
@@ -8808,9 +8808,9 @@ function GSTR1ReportView({
           <tbody>
             {sections.map((s,i)=>(
               <tr key={s.id} onClick={()=>setDrillDown(s.id)} onMouseEnter={()=>setSelectedRow(i)}
-                style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedRow?'#fffbe6':'transparent'}}>
+                style={{borderBottom:'1px solid #eee', cursor:'pointer', background: i===selectedRow?'#f6af3d':'transparent'}}>
                 <td style={{padding:10}}>{i+1}</td>
-                <td style={{padding:10,fontWeight:'bold',color:'#1c5282'}}>{s.label}</td>
+                <td style={{padding:10,fontWeight:'bold',color: i===selectedRow ? '#000' : '#1c5282'}}>{s.label}</td>
                 <td style={{padding:10,textAlign:'right'}}>{s.vouchers.length}</td>
                 <td style={{padding:10,textAlign:'right'}}>{fmt(s.vouchers.reduce((sum,v)=>sum+getTaxBreakdown(v).taxable,0))}</td>
                 <td style={{padding:10,textAlign:'right'}}>{fmt(s.vouchers.reduce((sum,v)=>sum+getTaxBreakdown(v).totalTax,0))}</td>
