@@ -486,6 +486,7 @@ export default function App() {
   const [subscriptionExpired, setSubscriptionExpired] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -2090,6 +2091,10 @@ export default function App() {
       <div className="top-nav">
         <div className="top-nav-left">
           <div className="tally-logo">LedgerX</div>
+          {/* Hamburger - only visible on mobile via CSS */}
+          <button className="mobile-ham-btn" onClick={() => setMobileDrawerOpen(true)} aria-label="Open menu">
+            <span/><span/><span/>
+          </button>
           <div className="nav-links">
             <div onClick={()=>setShowCompanySelect(true)}><u>K</u>: Company</div>
             <div onClick={()=>setShowDate(true)}><u>F2</u>: Date</div>
@@ -2193,6 +2198,87 @@ export default function App() {
           {activeCompany?.name || 'No Company Open'} &nbsp;|&nbsp; {currentDate} &nbsp;|&nbsp;
           <span style={{color:'#ffdd88'}}>Alt+C: Inline Create &nbsp; Ctrl+A: Accept &nbsp; Esc: Back</span>
         </span>
+      </div>
+
+      {/* ===== MOBILE NAV DRAWER (hidden on desktop via CSS) ===== */}
+      <div className={`mobile-nav-drawer ${mobileDrawerOpen ? 'open' : ''}`}>
+        <div className="mobile-nav-overlay" onClick={() => setMobileDrawerOpen(false)} />
+        <div className="mobile-nav-panel">
+          {/* Header */}
+          <div className="mobile-nav-header">
+            <div className="mobile-nav-logo">⚡ LedgerX</div>
+            {currentUser && (
+              <>
+                <div className="mobile-nav-user">{currentUser.name} · {currentUser.organizationName}</div>
+                <span className="mobile-nav-plan">
+                  {currentUser.plan === 'LIFETIME' ? '💎 Lifetime' : currentUser.plan === 'YEARLY' ? '⭐ Yearly' : currentUser.plan === 'MONTHLY' ? '📅 Monthly' : '🆓 Trial'}
+                </span>
+              </>
+            )}
+          </div>
+          {/* Company */}
+          <div className="mobile-nav-section">
+            <div className="mobile-nav-section-title">Company</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowCompanySelect(true); }}>
+              <span className="nav-icon">🏢</span> {activeCompany?.name || 'Select Company'}
+            </div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('COMPANY_CREATION'); }}>
+              <span className="nav-icon">➕</span> Create Company
+            </div>
+          </div>
+          {/* Transactions */}
+          <div className="mobile-nav-section">
+            <div className="mobile-nav-section-title">Transactions</div>
+            {(['Sales','Purchase','Receipt','Payment','Journal','Contra','Credit Note','Debit Note'] as const).map(vt => (
+              <div key={vt} className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('VOUCHER_ENTRY'); setActiveVoucher(vt as VoucherTypeKey); }}>
+                <span className="nav-icon">{vt==='Sales'?'🛒':vt==='Purchase'?'📦':vt==='Receipt'?'💰':vt==='Payment'?'💸':vt==='Journal'?'📒':vt==='Contra'?'🔄':vt==='Credit Note'?'➕':'➖'}</span>
+                {vt} Voucher
+              </div>
+            ))}
+          </div>
+          {/* Reports */}
+          <div className="mobile-nav-section">
+            <div className="mobile-nav-section-title">Reports</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('DAY_BOOK'); }}><span className="nav-icon">📅</span> Day Book</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('BALANCE_SHEET'); }}><span className="nav-icon">⚖️</span> Balance Sheet</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('PROFIT_LOSS'); }}><span className="nav-icon">📈</span> Profit & Loss</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('TRIAL_BALANCE'); }}><span className="nav-icon">🗂️</span> Trial Balance</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('LEDGER_REPORT'); }}><span className="nav-icon">📖</span> Ledger Report</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('STOCK_SUMMARY'); }}><span className="nav-icon">📦</span> Stock Summary</div>
+          </div>
+          {/* Masters */}
+          <div className="mobile-nav-section">
+            <div className="mobile-nav-section-title">Masters</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('LEDGER_CREATION'); }}><span className="nav-icon">👤</span> Ledger Creation</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('STOCK_ITEM_CREATION'); }}><span className="nav-icon">📦</span> Stock Item</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('MASTER_MENU'); }}><span className="nav-icon">⚙️</span> All Masters</div>
+          </div>
+          {/* Settings */}
+          <div className="mobile-nav-section">
+            <div className="mobile-nav-section-title">Settings</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowDate(true); }}><span className="nav-icon">📅</span> Change Date</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowPeriod(true); }}><span className="nav-icon">📆</span> Change Period</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowExportModal(true); }}><span className="nav-icon">📤</span> Export Data</div>
+          </div>
+          {/* Footer */}
+          <div className="mobile-nav-footer">
+            {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && (
+              <button className="mobile-nav-upgrade-btn" onClick={() => { setMobileDrawerOpen(false); setShowUpgradeModal(true); }}>⬆ Upgrade</button>
+            )}
+            <button className="mobile-nav-logout-btn" onClick={() => { setMobileDrawerOpen(false); handleLogout(); }}>Logout</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== MOBILE COMPANY BAR (hidden on desktop via CSS) ===== */}
+      <div className="mobile-company-bar">
+        <div>
+          <div className="mobile-company-name">🏢 {activeCompany?.name || 'No Company Selected'}</div>
+          <div className="mobile-company-date">{currentDate} · {currentPeriod.start} – {currentPeriod.end}</div>
+        </div>
+        <button onClick={() => setShowCompanySelect(true)} style={{background:'#1d4885',color:'white',border:'none',padding:'5px 10px',borderRadius:6,fontSize:11,fontWeight:'bold',cursor:'pointer'}}>
+          Change
+        </button>
       </div>
 
       {/* MAIN CONTENT */}
@@ -2889,6 +2975,48 @@ export default function App() {
           onClose={() => setShowUpgradeModal(false)}
         />
       )}
+
+      {/* ===== MOBILE BOTTOM NAV BAR (hidden on desktop via CSS) ===== */}
+      <nav className="mobile-bottom-nav">
+        <div className="mobile-bottom-nav-inner">
+          <button
+            className={`mobile-bottom-btn ${screen === 'GATEWAY_MAIN' ? 'active' : ''}`}
+            onClick={() => { setScreen('GATEWAY_MAIN'); setHistory([]); }}
+          >
+            <span className="btn-icon">🏠</span>
+            Home
+          </button>
+          <button
+            className={`mobile-bottom-btn ${screen === 'VOUCHER_ENTRY' && activeVoucher === 'Sales' ? 'active' : ''}`}
+            onClick={() => { nav('VOUCHER_ENTRY'); setActiveVoucher('Sales'); }}
+          >
+            <span className="btn-icon">🛒</span>
+            Sales
+          </button>
+          <button
+            className={`mobile-bottom-btn ${['DAY_BOOK','BALANCE_SHEET','PROFIT_LOSS','TRIAL_BALANCE','LEDGER_REPORT','SALES_REGISTER','PURCHASE_REGISTER'].includes(screen) ? 'active' : ''}`}
+            onClick={() => nav('DISPLAY_REPORTS_MENU')}
+          >
+            <span className="btn-icon">📊</span>
+            Reports
+          </button>
+          <button
+            className={`mobile-bottom-btn ${['LEDGER_CREATION','STOCK_ITEM_CREATION','MASTER_MENU'].includes(screen) ? 'active' : ''}`}
+            onClick={() => nav('MASTER_MENU')}
+          >
+            <span className="btn-icon">⚙️</span>
+            Masters
+          </button>
+          <button
+            className="mobile-bottom-btn"
+            onClick={() => setMobileDrawerOpen(true)}
+          >
+            <span className="btn-icon">☰</span>
+            More
+          </button>
+        </div>
+      </nav>
+
     </div>
   );
 }

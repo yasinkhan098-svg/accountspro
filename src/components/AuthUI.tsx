@@ -10,13 +10,25 @@ interface AuthUIProps {
 const AUTH_CSS = `
   .auth-wrapper {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: #0f172a;
-    background-image: radial-gradient(circle at 2px 2px, #1e293b 1px, transparent 0);
-    background-size: 40px 40px;
+    background-image: url('/auth-bg.png');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     display: flex; justify-content: center; align-items: center;
     padding: 20px; z-index: 10000; overflow-y: auto;
   }
+  .auth-wrapper::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(8, 20, 45, 0.55);
+    backdrop-filter: blur(1px);
+    z-index: 0;
+  }
   .auth-container {
+    position: relative;
+    z-index: 1;
     background: #fff;
     display: flex;
     width: 100%;
@@ -46,7 +58,7 @@ const AUTH_CSS = `
   .feature-item { font-size: 13px; font-weight: 500; background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; }
   .sidebar-footer { font-size: 11px; opacity: 0.6; }
 
-  .auth-form-section { flex: 1; padding: 40px 60px; display: flex; flex-direction: column; background: #fff; }
+  .auth-form-section { flex: 1; padding: 40px 60px; display: flex; flex-direction: column; background: #fff; overflow-y: auto; }
   .form-header { margin-bottom: 30px; }
   .form-header h2 { font-size: 28px; color: #0f172a; margin: 0 0 8px; font-weight: 700; }
   .form-header p { font-size: 14px; color: #64748b; margin: 0; }
@@ -99,15 +111,6 @@ const AUTH_CSS = `
   }
   @keyframes authSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-  @media (max-width: 850px) {
-    .auth-container { flex-direction: column; height: auto; }
-    .auth-sidebar { width: 100%; padding: 30px; }
-    .auth-form-section { padding: 30px; }
-    .signup-grid { grid-template-columns: 1fr; }
-    .input-field.full-width { grid-column: span 1; }
-    .plan-cards { flex-direction: column; }
-  }
-
   .plan-selection { display: flex; flex-direction: column; height: 100%; justify-content: center; }
   .plan-cards { display: flex; gap: 20px; }
   .plan-card {
@@ -144,7 +147,132 @@ const AUTH_CSS = `
   .btn-secondary:hover { background: #e2e8f0; }
   .input-wrapper { position: relative; }
   .form-actions { display: flex; gap: 10px; }
+
+  /* ===== TABLET (769px - 1024px) ===== */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .auth-wrapper {
+      padding: 16px;
+      align-items: center;
+    }
+    .login-mode {
+      max-width: 680px;
+      height: auto;
+      min-height: 460px;
+    }
+    .signup-mode {
+      max-width: 800px;
+      min-height: auto;
+    }
+    .auth-sidebar {
+      width: 38%;
+      padding: 28px 24px;
+    }
+    .logo-section h1 { font-size: 20px; }
+    .sidebar-desc { font-size: 13px; margin-bottom: 20px; }
+    .feature-item { font-size: 12px; padding: 6px 10px; }
+    .auth-form-section { padding: 28px 32px; }
+    .form-header h2 { font-size: 22px; }
+    .signup-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .plan-cards { flex-wrap: wrap; gap: 12px; }
+    .plan-card { flex: 1 1 calc(50% - 12px); min-width: calc(50% - 12px); padding: 18px; }
+    .plan-card h3 { font-size: 15px; }
+    .plan-card .price { font-size: 22px; }
+  }
+
+  /* ===== MOBILE (≤768px) - All phones and small tablets ===== */
+  @media (max-width: 768px) {
+    .auth-wrapper {
+      padding: 0;
+      align-items: flex-start;
+      background-image: url('/auth-bg.png');
+      background-size: cover;
+      background-position: center center;
+    }
+    .auth-container {
+      flex-direction: column;
+      border-radius: 0;
+      min-height: 100dvh;
+      min-height: 100vh;
+      box-shadow: none;
+    }
+    .login-mode, .signup-mode {
+      max-width: 100%;
+      height: auto;
+      min-height: 100dvh;
+      min-height: 100vh;
+    }
+    .auth-sidebar {
+      width: 100%;
+      padding: 32px 20px 20px;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      min-height: auto;
+    }
+    .auth-sidebar > div:first-child {
+      flex: 1;
+    }
+    .logo-section {
+      margin-bottom: 0;
+    }
+    .logo-section h1 { font-size: 20px; }
+    .sidebar-desc { display: none; }
+    .sidebar-features { display: none; }
+    .sidebar-footer { display: none; }
+    .auth-form-section {
+      flex: 1;
+      padding: 24px 20px 32px;
+      border-radius: 20px 20px 0 0;
+      background: white;
+      box-shadow: 0 -8px 30px rgba(0,0,0,0.15);
+    }
+    .form-header { margin-bottom: 20px; }
+    .form-header h2 { font-size: 22px; }
+    .form-header p { font-size: 13px; }
+    .input-field input {
+      padding: 12px 14px;
+      font-size: 16px; /* Prevents zoom on iOS */
+      min-height: 48px;
+      border-radius: 10px;
+    }
+    .btn-primary {
+      padding: 16px;
+      font-size: 15px;
+      min-height: 52px;
+      border-radius: 10px;
+    }
+    .btn-secondary {
+      padding: 14px;
+      font-size: 14px;
+      min-height: 48px;
+      border-radius: 10px;
+    }
+    .signup-grid {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .input-field.full-width {
+      grid-column: span 1;
+    }
+    .plan-cards {
+      flex-direction: column;
+      gap: 12px;
+    }
+    .plan-card {
+      padding: 16px;
+    }
+    .plan-card h3 { font-size: 16px; }
+    .plan-card .price { font-size: 24px; }
+    .form-actions {
+      flex-direction: column;
+    }
+    .form-footer { font-size: 14px; margin-top: 16px; }
+    .form-footer button { font-size: 14px; }
+    .plan-selection { justify-content: flex-start; }
+    .error-alert { font-size: 13px; padding: 10px 14px; }
+  }
 `;
+
 
 export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
   const [isLogin, setIsLogin] = useState(true);
