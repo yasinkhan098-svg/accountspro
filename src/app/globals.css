@@ -537,11 +537,24 @@ body {
     margin: 0 !important;
     background: transparent !important;
   }
-  .top-nav, .sub-nav, .sidebar, .left-panel, .voucher-header, .no-print, .tally-sidebar {
+  /* Hide ALL non-invoice UI elements when printing */
+  .top-nav, .sub-nav, .sidebar, .left-panel, .voucher-header, .no-print, .tally-sidebar,
+  .mobile-bottom-nav, .mobile-company-bar, .mobile-ham-btn, .mobile-nav-drawer,
+  .mobile-nav-overlay, .mobile-dashboard-cards, .mobile-quick-actions,
+  .mobile-menu-screen, .print-preview-main > div:first-child {
     display: none !important;
   }
   #tax-invoice-print-container {
     display: block !important;
+    width: 100% !important;
+  }
+  /* Ensure print container fills full page */
+  .print-invoice-container {
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
     width: 100% !important;
   }
   .invoice-copy {
@@ -552,12 +565,13 @@ body {
     background: white !important;
     box-sizing: border-box;
     page-break-after: always;
+    page-break-inside: avoid;
     box-shadow: none !important;
     border: 1px solid #555 !important;
     position: relative;
   }
   .invoice-copy:last-child {
-    page-break-after: auto;
+    page-break-after: avoid;
   }
 }
 
