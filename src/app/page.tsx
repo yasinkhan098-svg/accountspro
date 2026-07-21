@@ -1879,6 +1879,7 @@ export default function App() {
         if (showFeatures) { setShowFeatures(false); return; }
         if (showCompanySelect) { setShowCompanySelect(false); return; }
         if (showDate) { setShowDate(false); return; }
+        if (showPeriod) { setShowPeriod(false); return; }
         // Report screens that handle Escape internally for step-by-step
         const internalReports = ['LEDGER_REPORT','GSTR1_REPORT','GSTR3B_REPORT','BALANCE_SHEET','PROFIT_LOSS','TRIAL_BALANCE','DAY_BOOK','STOCK_SUMMARY','OUTSTANDING_REPORT','SALES_REGISTER','PURCHASE_REGISTER'];
         if (internalReports.includes(screen)) return;
@@ -2556,9 +2557,11 @@ export default function App() {
                 <input id="period-from" type="text" className="form-input" 
                   defaultValue={currentPeriod.start} 
                   autoFocus 
+                  ref={el => { if(el) setTimeout(() => { el.focus(); el.select(); }, 50); }}
                   onFocus={e => e.currentTarget.select()}
                   onKeyDown={e => {
                     if(e.key === 'Enter') (document.getElementById('period-to') as HTMLElement)?.focus();
+                    if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setShowPeriod(false); }
                   }}
                 />
               </div>
@@ -2574,6 +2577,7 @@ export default function App() {
                       setCurrentPeriod({start,end});
                       setShowPeriod(false);
                     }
+                    if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setShowPeriod(false); }
                   }}
                 />
               </div>
@@ -6378,7 +6382,8 @@ function BalanceSheetView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDown
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
-      if(e.key==='Escape'){ if(document.querySelector('.modal-overlay')) return; e.preventDefault(); onBack(); }
+      if (document.querySelector('.modal-overlay')) return;
+      if(e.key==='Escape'){ e.preventDefault(); onBack(); }
       else if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, col==='left'?allItems.left.length-1:allItems.right.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='ArrowLeft') { if(col==='right'){setCol('left');setRowIdx(0);} }
@@ -6507,7 +6512,8 @@ function ProfitLossView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDownGr
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
-      if(e.key==='Escape'){ if(document.querySelector('.modal-overlay')) return; e.preventDefault(); onBack(); }
+      if (document.querySelector('.modal-overlay')) return;
+      if(e.key==='Escape'){ e.preventDefault(); onBack(); }
       else if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, col==='left'?allItems.left.length-1:allItems.right.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='ArrowLeft') { if(col==='right'){setCol('left');setRowIdx(0);} }
@@ -6615,7 +6621,8 @@ function TrialBalanceView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDown
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
-      if(e.key==='Escape'){ if(document.querySelector('.modal-overlay')) return; e.preventDefault(); onBack(); }
+      if (document.querySelector('.modal-overlay')) return;
+      if(e.key==='Escape'){ e.preventDefault(); onBack(); }
       else if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, rows.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='Enter') {
@@ -6689,6 +6696,7 @@ function DayBookView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[]; onBack
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
+      if (document.querySelector('.modal-overlay')) return;
       if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, rows.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='Escape') { e.preventDefault(); onBack(); }
@@ -6822,7 +6830,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
   // Keyboard navigation
   useEffect(()=>{
     const onKey=(e:KeyboardEvent)=>{
-      if(e.key==='Escape' && document.querySelector('.modal-overlay')) return;
+      if (document.querySelector('.modal-overlay')) return;
       if(view==='monthly'){
         if(e.key==='ArrowDown'){e.preventDefault();setSelMonthIdx(p=>Math.min(p+1,FISCAL_MONTHS.length-1));}
         else if(e.key==='ArrowUp'){e.preventDefault();setSelMonthIdx(p=>Math.max(p-1,0));}
@@ -7042,6 +7050,7 @@ function SalesRegisterView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[]; 
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
+      if (document.querySelector('.modal-overlay')) return;
       if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, rows.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='Escape') { e.preventDefault(); onBack(); }
@@ -7108,6 +7117,7 @@ function PurchaseRegisterView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
+      if (document.querySelector('.modal-overlay')) return;
       if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, rows.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='Escape') { e.preventDefault(); onBack(); }
@@ -7182,6 +7192,7 @@ function GroupSummaryView({ledgers, vouchers, groupName, onBack, onDrillDownLedg
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
+      if (document.querySelector('.modal-overlay')) return;
       if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, rows.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='Escape') { e.preventDefault(); onBack(); }
@@ -7262,6 +7273,7 @@ function LedgerReportView({ledgers,vouchers,preselectedId,onBack,onDrillDown}:{l
   useEffect(()=>{
     if(selId===null) return;
     const onKey = (e:KeyboardEvent)=>{
+       if (document.querySelector('.modal-overlay')) return;
        if(e.key==='Escape') { e.preventDefault(); e.stopPropagation(); setSelId(null); setSearch(''); }
        else if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, entries.length-1)); }
        else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
@@ -7391,6 +7403,7 @@ function StockSummaryView({stockItems,vouchers,onBack,onDrillDown}:{stockItems:S
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
+      if (document.querySelector('.modal-overlay')) return;
       if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, stockItems.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='Escape') { e.preventDefault(); onBack(); }
@@ -7474,6 +7487,7 @@ function OutstandingView({ledgers,vouchers,onBack,onDrillDown}:{ledgers:Ledger[]
   useEffect(()=>{
     const list = panel==='debtors'?debtors:creditors;
     const onKey = (e:KeyboardEvent)=>{
+      if (document.querySelector('.modal-overlay')) return;
       if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, list.length-1)); }
       else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
       else if(e.key==='ArrowRight' && panel==='debtors') { setPanel('creditors'); setRowIdx(0); }
