@@ -2560,7 +2560,14 @@ export default function App() {
                   ref={el => { if(el) setTimeout(() => { el.focus(); el.select(); }, 50); }}
                   onFocus={e => e.currentTarget.select()}
                   onKeyDown={e => {
-                    if(e.key === 'Enter') (document.getElementById('period-to') as HTMLElement)?.focus();
+                    if(e.key === 'Enter') {
+                      e.preventDefault(); e.stopPropagation();
+                      const toInput = document.getElementById('period-to') as HTMLInputElement;
+                      if (toInput) {
+                        toInput.focus();
+                        toInput.select();
+                      }
+                    }
                     if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setShowPeriod(false); }
                   }}
                 />
@@ -2572,6 +2579,22 @@ export default function App() {
                   onFocus={e => e.currentTarget.select()}
                   onKeyDown={e => {
                     if(e.key === 'Enter') {
+                      e.preventDefault(); e.stopPropagation();
+                      const btn = document.getElementById('period-accept-btn') as HTMLElement;
+                      if (btn) btn.focus();
+                    }
+                    if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setShowPeriod(false); }
+                  }}
+                />
+              </div>
+              <div style={{marginTop:20,display:'flex',justifyContent:'flex-end', gap:10}}>
+                <button 
+                  id="period-accept-btn"
+                  className="tally-btn" 
+                  style={{background:'#1c5282', color:'white', border:'none', padding:'6px 20px', cursor:'pointer'}}
+                  onKeyDown={e => {
+                    if(e.key === 'Enter') {
+                      e.preventDefault(); e.stopPropagation();
                       const start=(document.getElementById('period-from') as HTMLInputElement).value;
                       const end=(document.getElementById('period-to') as HTMLInputElement).value;
                       setCurrentPeriod({start,end});
@@ -2579,15 +2602,13 @@ export default function App() {
                     }
                     if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setShowPeriod(false); }
                   }}
-                />
-              </div>
-              <div style={{marginTop:20,display:'flex',justifyContent:'flex-end', gap:10}}>
-                <button className="tally-btn" onClick={()=>{
-                  const start=(document.getElementById('period-from') as HTMLInputElement).value;
-                  const end=(document.getElementById('period-to') as HTMLInputElement).value;
-                  setCurrentPeriod({start,end});
-                  setShowPeriod(false);
-                }}>Accept</button>
+                  onClick={()=>{
+                    const start=(document.getElementById('period-from') as HTMLInputElement).value;
+                    const end=(document.getElementById('period-to') as HTMLInputElement).value;
+                    setCurrentPeriod({start,end});
+                    setShowPeriod(false);
+                  }}
+                >Accept (Enter)</button>
                 <button className="tally-btn" style={{background:'#eee', color:'#333', border:'1px solid #ccc'}} onClick={()=>setShowPeriod(false)}>Cancel</button>
               </div>
             </div>
@@ -2733,6 +2754,7 @@ export default function App() {
                   placeholder="DD/MM/YYYY"
                   onKeyDown={e=>{
                     if(e.key==='Enter') {
+                      e.preventDefault(); e.stopPropagation();
                       let val = (e.target as HTMLInputElement).value;
                       if(val) {
                         // basic Tally-like DD/MM/YYYY parser
@@ -2760,12 +2782,13 @@ export default function App() {
                       }
                       handleCloseDate();
                     }
-                    if(e.key==='Escape') handleCloseDate();
+                    if(e.key==='Escape') { e.preventDefault(); e.stopPropagation(); handleCloseDate(); }
                   }}
                 />
               </div>
               <div style={{fontSize:11, color:'#666', marginTop:5}}>Format: DD/MM/YYYY (e.g. 18/04/2026)</div>
               <button 
+                id="date-accept-btn"
                 onClick={()=>{
                    const el = document.querySelector('.modal-box input') as HTMLInputElement;
                    if(el) el.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter'}));
