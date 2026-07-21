@@ -2556,7 +2556,7 @@ export default function App() {
                 <input id="period-from" type="text" className="form-input" 
                   defaultValue={currentPeriod.start} 
                   autoFocus 
-                  onFocus={e => e.currentTarget.setSelectionRange(0, 2)}
+                  onFocus={e => e.currentTarget.select()}
                   onKeyDown={e => {
                     if(e.key === 'Enter') (document.getElementById('period-to') as HTMLElement)?.focus();
                   }}
@@ -2566,7 +2566,7 @@ export default function App() {
                 <label style={{width:100}}>To</label><span className="colon">:</span>
                 <input id="period-to" type="text" className="form-input" 
                   defaultValue={currentPeriod.end} 
-                  onFocus={e => e.currentTarget.setSelectionRange(0, 2)}
+                  onFocus={e => e.currentTarget.select()}
                   onKeyDown={e => {
                     if(e.key === 'Enter') {
                       const start=(document.getElementById('period-from') as HTMLInputElement).value;
@@ -2711,7 +2711,20 @@ export default function App() {
             <div className="modal-header">Change Date (F2)</div>
             <div style={{padding:20}}>
               <div className="form-row"><label style={{width:120}}>Voucher Date</label><span className="colon">:</span>
-                <input autoFocus type="text" className="form-input" style={{width:160}}
+                <input
+                  ref={el => {
+                    if (el) {
+                      setTimeout(() => {
+                        el.focus();
+                        el.select();
+                      }, 50);
+                    }
+                  }}
+                  onFocus={e => {
+                    const target = e.target as HTMLInputElement;
+                    setTimeout(() => target.select(), 10);
+                  }}
+                  autoFocus type="text" className="form-input" style={{width:160}}
                   defaultValue={currentDate}
                   placeholder="DD/MM/YYYY"
                   onKeyDown={e=>{
