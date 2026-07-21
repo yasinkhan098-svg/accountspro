@@ -5619,7 +5619,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 updates.taxableAmount = round2(taxable);
                 updates.amount = round2(taxable);
                 updates.amountInclTax = round2(amtInclTax);
-                updates.rateInclTax = round2(rateInclTax);
+                // rateInclTax mein user jo type kare wahi value store karo (round-trip se value na badle)
+                // Agar field 'rateInclTax' hai to user ki typed value directly, warna calculated value
+                updates.rateInclTax = field === 'rateInclTax' ? value : round2(rateInclTax);
 
                 return updates;
               };
