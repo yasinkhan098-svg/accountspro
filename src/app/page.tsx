@@ -5579,14 +5579,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 let r = field === 'rate' ? value : (row.rate || 0);
                 let dP = field === 'discountPerc' ? value : (row.discountPerc || 0);
                 
-                if (field === 'rateInclTax') r = value / factor;
+                // Round rate to max 2 decimal places before multiplication
+                if (field === 'rateInclTax') r = round2(value / factor);
                 if (field === 'amount') {
                    const taxable = value;
-                   // If amount is edited, we calculate rate back
-                   if (q > 0) r = (taxable / (1 - dP/100)) / q;
+                   // If amount is edited, we calculate rate back (rounded to 2 decimals)
+                   if (q > 0) r = round2((taxable / (1 - dP/100)) / q);
                 }
 
-                const gross = round2(q * r);
+                // Multiply using 2-decimal rate so result stays within 2 decimal places
+                const gross = round2(round2(q) * round2(r));
                 const discAmt = round2(gross * (dP / 100));
                 const taxable = round2(gross - discAmt);
                 const amtInclTax = round2(taxable * factor);
