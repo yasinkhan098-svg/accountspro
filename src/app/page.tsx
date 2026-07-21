@@ -4754,6 +4754,25 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     return (vtData.prefix || '') + s + (vtData.suffix || '');
   }, []);
 
+  const getNextAutoNumber = useCallback((): number => {
+    const start = vt?.startNumber || 1;
+    const usedNumbers = new Set(
+      vouchers
+        .filter(v => v.type === activeVoucher)
+        .map(v => {
+          const prefix = vt?.prefix || '';
+          const suffix = vt?.suffix || '';
+          let raw = v.voucherNo || String(v.number || '');
+          if (prefix && raw.startsWith(prefix)) raw = raw.slice(prefix.length);
+          if (suffix && raw.endsWith(suffix)) raw = raw.slice(0, raw.length - suffix.length);
+          return parseInt(raw) || v.number || 0;
+        })
+    );
+    let next = start;
+    while (usedNumbers.has(next)) next++;
+    return next;
+  }, [vouchers, activeVoucher, vt]);
+
   // Print prompt state
   const [showPrintPrompt, setShowPrintPrompt] = useState<{voucher: Voucher, msg: string}|null>(null);
   const [printPromptSel, setPrintPromptSel] = useState<'yes'|'no'>('yes');
@@ -4976,10 +4995,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
      // Reset localNumberingMode when switching voucher type
      setLocalNumberingMode(numberingMethod === 'Manual' ? 'Manual' : 'Auto');
      if (!activeAlterItem) {
-        const nextAuto = vouchers.filter(v => v.type === activeVoucher).length + 1;
-        setManualVoucherNo(String(nextAuto));
+        const nextAuto = getNextAutoNumber();
+        setManualVoucherNo(formatVoucherNo(nextAuto, vt));
      }
-  },[activeVoucher, activeAlterItem, numberingMethod]);
+  },[activeVoucher, activeAlterItem, numberingMethod, getNextAutoNumber, formatVoucherNo, vt]);
 
   // Handle Alt+C return context
   useEffect(() => {
@@ -5076,7 +5095,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   }, [itemSubtotal, totalTax, additionalLedgers, focus, ledgers]);
 
   const isManualMode = !activeAlterItem && localNumberingMode === 'Manual';
-  const vNum = activeAlterItem ? activeAlterItem.number : (isManualMode ? (parseInt(manualVoucherNo) || 1) : (vouchers.filter(v=>v.type===activeVoucher).length + (vt?.startNumber||1)));
+  const vNum = activeAlterItem ? activeAlterItem.number : (isManualMode ? (parseInt(manualVoucherNo) || 1) : getNextAutoNumber());
   const formattedNo = activeAlterItem ? activeAlterItem.voucherNo : (isManualMode ? manualVoucherNo : formatVoucherNo(vNum, vt));
 
   const getList=()=>{
@@ -5425,7 +5444,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     setLocalNumberingMode(mode);
                     if (mode === 'Manual') {
                       // Pre-fill with next auto number as suggestion
-                      const nextAuto = vouchers.filter(v=>v.type===activeVoucher).length + (vt?.startNumber||1);
+                      const nextAuto = getNextAutoNumber();
                       setManualVoucherNo(formatVoucherNo(nextAuto, vt));
                     }
                   }}
