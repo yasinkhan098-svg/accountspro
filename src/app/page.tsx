@@ -4725,6 +4725,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     if (filter) setListSel(0);
   }, [filter]);
   const ref = useRef<HTMLInputElement>(null);
+  const manualVoucherRef = useRef<HTMLInputElement>(null);
 
   // Party Details & Dispatch Details modals
   const [showPartyDetails, setShowPartyDetails] = useState(false);
@@ -5375,7 +5376,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     setSupplierInvNo('');
     setSupplierInvDate('');
     setShowPrintPrompt(null);
-    setTimeout(() => ref.current?.focus(), 80);
+    // Manual mode mein cursor voucher number box pe, Auto mode mein party pe
+    setTimeout(() => {
+      if (isManualMode) {
+        manualVoucherRef.current?.focus();
+        manualVoucherRef.current?.select();
+      } else {
+        ref.current?.focus();
+      }
+    }, 80);
   };
 
   return (
@@ -5432,6 +5441,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               )}
               {isManualMode ? (
                 <input
+                  ref={manualVoucherRef}
                   type="text"
                   className="form-input"
                   style={{width:130, color:vc, fontWeight:'bold', padding:'2px 6px', height:24, border:`2px solid ${vc}`, borderRadius:3}}
