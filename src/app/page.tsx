@@ -431,21 +431,69 @@ function groupLedgersByParent(ledgers: Ledger[], vouchers: Voucher[]) {
 }
 
 // ==================== MAIN APP ====================
-const parseDate = (d: string): Date => {
-  if (!d) return new Date();
-  const months: Record<string, number> = {
-    'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-    'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+const parseDate = (d: string | Date | null | undefined): Date => {
+  if (!d) return new Date(1970, 0, 1);
+  if (d instanceof Date) return d;
+  const s = String(d).trim();
+  if (!s) return new Date(1970, 0, 1);
+
+  // Normalize delimiters (/ and . -> -)
+  const normalized = s.replace(/[\.\/]/g, '-').trim();
+  const parts = normalized.split('-');
+
+  const monthMap: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    january: 0, february: 1, march: 2, april: 3, june: 5,
+    july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
   };
-  const parts = d.split('-');
+
   if (parts.length === 3) {
-    const day = parseInt(parts[0]);
-    const month = months[parts[1]] ?? 0;
-    const year = parseInt(parts[2]);
+    let p1 = parts[0].trim();
+    let p2 = parts[1].trim();
+    let p3 = parts[2].trim();
+
+    // Check if ISO format YYYY-MM-DD
+    if (p1.length === 4 && !isNaN(parseInt(p1))) {
+      const year = parseInt(p1);
+      const month = (parseInt(p2) || 1) - 1;
+      const day = parseInt(p3) || 1;
+      return new Date(year, month, day);
+    }
+
+    // Standard DD-MMM-YYYY or DD-MM-YYYY
+    const day = parseInt(p1) || 1;
+    let month = -1;
+
+    const p2Lower = p2.toLowerCase();
+    if (monthMap[p2Lower] !== undefined) {
+      month = monthMap[p2Lower];
+    } else {
+      for (const [mName, mVal] of Object.entries(monthMap)) {
+        if (p2Lower.startsWith(mName)) {
+          month = mVal;
+          break;
+        }
+      }
+    }
+
+    if (month === -1) {
+      const mNum = parseInt(p2);
+      if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
+        month = mNum - 1;
+      }
+    }
+
+    if (month === -1) month = 0;
+
+    let year = parseInt(p3) || new Date().getFullYear();
+    if (year < 100) year += 2000;
+
     return new Date(year, month, day);
   }
-  const date = new Date(d);
-  return isNaN(date.getTime()) ? new Date() : date;
+
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? new Date(1970, 0, 1) : parsed;
 };
 
 export default function App() {
@@ -1134,11 +1182,15 @@ export default function App() {
   const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => Number(c.companyId) === Number(activeCompany.id)) : [], [allCurrencies, activeCompany]);
   const vouchers       = useMemo(() => activeCompany ? allVouchers.filter(v => Number(v.companyId) === Number(activeCompany.id)) : [], [allVouchers, activeCompany]);
   const filteredVouchers = useMemo(() => {
+    const ps = parseDate(currentPeriod.start);
+    ps.setHours(0, 0, 0, 0);
+
+    const pe = parseDate(currentPeriod.end);
+    pe.setHours(23, 59, 59, 999);
+
     return vouchers.filter(v => {
       const vd = parseDate(v.date);
-      const ps = parseDate(currentPeriod.start);
-      const pe = parseDate(currentPeriod.end);
-      return vd >= ps && vd <= pe;
+      return vd.getTime() >= ps.getTime() && vd.getTime() <= pe.getTime();
     });
   }, [vouchers, currentPeriod]);
   const [formKey, setFormKey] = useState(0);
@@ -2404,7 +2456,7 @@ export default function App() {
             {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
             {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} />}
-            {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
+            {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
             {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
             {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
@@ -6713,9 +6765,9 @@ function TrialBalanceView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDown
   );
 }
 
-function DayBookView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[]; onBack:()=>void; onDrillDown?:(v:Voucher)=>void}) {
+function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Voucher[]; currentPeriod?:{start:string;end:string}; onBack:()=>void; onDrillDown?:(v:Voucher)=>void}) {
   const [rowIdx, setRowIdx] = useState(0);
-  const rows = [...vouchers].sort((a,b)=>new Date(b.date).getTime() - new Date(a.date).getTime());
+  const rows = [...vouchers].sort((a,b)=>parseDate(b.date).getTime() - parseDate(a.date).getTime());
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
@@ -6734,7 +6786,7 @@ function DayBookView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[]; onBack
     <div className="report-view" style={{height:'100%',display:'flex',flexDirection:'column'}}>
       <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between'}}>
         <div style={{fontSize:16,fontWeight:'bold'}}>Day Book</div>
-        <div style={{fontSize:12}}>1-Apr-2026 to 14-Apr-2026</div>
+        <div style={{fontSize:12}}>{currentPeriod ? `${currentPeriod.start} to ${currentPeriod.end}` : ''}</div>
       </div>
       <div style={{flex:1,overflowY:'auto'}}>
         <table className="report-table" style={{width:'100%'}}>
@@ -7066,7 +7118,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
 }
 
 // Legacy stubs (kept for safety, no longer used in routing)
-function SalesRegisterView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[]; onBack:()=>void; onDrillDown?:(v:Voucher)=>void}) {
+function SalesRegisterView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Voucher[]; currentPeriod?:{start:string;end:string}; onBack:()=>void; onDrillDown?:(v:Voucher)=>void}) {
   const [rowIdx, setRowIdx] = useState(0);
   const rows=vouchers.filter(v=>v.type==='Sales'||v.type==='Credit Note');
   const total=rows.reduce((s,v)=>s+(v.type==='Sales'?v.total:-v.total),0);
@@ -7088,7 +7140,7 @@ function SalesRegisterView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[]; 
     <div className="report-view" style={{height:'100%',display:'flex',flexDirection:'column'}}>
       <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between'}}>
         <div style={{fontSize:16,fontWeight:'bold'}}>Sales Register</div>
-        <div style={{fontSize:12}}>1-Apr-2026 to 14-Apr-2026</div>
+        <div style={{fontSize:12}}>{currentPeriod ? `${currentPeriod.start} to ${currentPeriod.end}` : ''}</div>
       </div>
       <div style={{flex:1,overflowY:'auto'}}>
         <table className="report-table" style={{width:'100%'}}>
