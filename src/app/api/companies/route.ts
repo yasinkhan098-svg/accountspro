@@ -9,6 +9,23 @@ export async function POST(req: Request) {
 
     const data = await req.json();
 
+    // Duplicate check: same naam ya same GSTIN ki company usi user ke liye already exist na kare
+    const whereClause: any = user.id !== -1 ? { userId: user.id } : {};
+    const existingByName = await prisma.company.findFirst({
+      where: { ...whereClause, name: { equals: data.name?.trim(), mode: 'insensitive' } }
+    });
+    if (existingByName) {
+      return NextResponse.json({ success: false, error: `Company "${data.name}" already exists!` }, { status: 409 });
+    }
+    if (data.gstin && data.gstin.trim()) {
+      const existingByGstin = await prisma.company.findFirst({
+        where: { ...whereClause, gstin: { equals: data.gstin.trim(), mode: 'insensitive' } }
+      });
+      if (existingByGstin) {
+        return NextResponse.json({ success: false, error: `A company with GSTIN "${data.gstin}" already exists!` }, { status: 409 });
+      }
+    }
+
     const company = await prisma.company.create({
       data: {
         ...(user.id !== -1 ? { user: { connect: { id: user.id } } } : {}),

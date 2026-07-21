@@ -1405,6 +1405,12 @@ export default function App() {
         }
       }
       else if (type === 'company') {
+        // Double-submit guard: pehli company POST complete hone se pehle doosri nahi jayegi
+        if ((saveMaster as any)._savingCompany) {
+          console.warn('Company save already in progress, ignoring duplicate call.');
+          return false;
+        }
+        (saveMaster as any)._savingCompany = true;
         try {
           const res = await fetch('/api/companies', {
             method: 'POST',
@@ -1432,6 +1438,8 @@ export default function App() {
         } catch (e: any) {
           alert("Error creating company: " + e.message);
           return false;
+        } finally {
+          (saveMaster as any)._savingCompany = false;
         }
       }
       else if (type === 'group') setAllGroups(p => [...p, { id, companyId: cid, ...data }]);
