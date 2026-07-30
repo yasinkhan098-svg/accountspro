@@ -92,6 +92,7 @@ model Ledger {
   setAlterGstDetails String?
   openingBal  Float   @default(0.0)
   balanceType String @default("Dr") // Dr or Cr
+  odLimit     Float?  // Overdraft limit for Bank OD A/c group
   companyId Int
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   voucherEntries VoucherEntry[]

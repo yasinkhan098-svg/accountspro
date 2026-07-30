@@ -29,6 +29,7 @@ interface Ledger {
   gstin?: string; pan?: string; phone?: string; email?: string;
   registrationType?: string; bankName?: string; accountNo?: string; ifsc?: string; pinCode?: string;
   bankHolderName?: string; setAlterGstDetails?: string;
+  odLimit?: number | null;
 }
 interface StockGroup { id: number; companyId: number; name: string; alias?: string; under: string; }
 interface StockCategory { id: number; companyId: number; name: string; alias?: string; under: string; }
@@ -3584,8 +3585,15 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const [filter, setFilter] = useState('');
   const [selIdx, setSelIdx] = useState(0);
   const [selCo, setSelCo] = useState(activeAlterItem?.country||'India');
+  const [underValue, setUnderValue] = useState<string>(activeAlterItem?.groupName||'Sundry Debtors');
+  const [odLimit, setOdLimit] = useState<string>(activeAlterItem?.odLimit != null ? String(activeAlterItem.odLimit) : '');
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(()=>{ ref.current?.focus(); },[]);
+
+  // Group-based dynamic field detection
+  const isBankOD = underValue.toLowerCase().includes('bank od') || underValue.toLowerCase() === 'bank od a/c';
+  const isBankAccount = underValue.toLowerCase().includes('bank account') || underValue.toLowerCase() === 'bank accounts';
+  const showBankFields = isBankOD || isBankAccount;
 
   const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
   const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
@@ -3624,7 +3632,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const pick = (v:string) => {
     const ids:Record<string,string> = {under:'l-under',country:'l-country',state:'l-state'};
     const inp = document.getElementById(ids[focus!]||'') as HTMLInputElement;
-    if(inp){inp.value=v;if(focus==='country'){setSelCo(v);}}
+    if(inp){inp.value=v;if(focus==='country'){setSelCo(v);}if(focus==='under'){setUnderValue(v);}}
     setFocus(null);
     setTimeout(() => {
       if (inp) {
@@ -3702,7 +3710,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
           <label style={{width:100}}>Under</label><span className="colon">:</span>
           <input id="l-under" type="text" className="form-input" style={{width:300,fontWeight:'bold'}}
             onFocus={()=>{setFocus('under');setFilter('');}}
-            onInput={e=>{setFilter((e.target as HTMLInputElement).value);setSelIdx(0);}}
+            onInput={e=>{const v=(e.target as HTMLInputElement).value;setFilter(v);setUnderValue(v);setSelIdx(0);}}
             onKeyDown={handleFieldKey('under')}
             onBlur={()=>setTimeout(()=>setFocus(p=>p==='under'?null:p),200)}
             defaultValue={activeAlterItem?.groupName||'Sundry Debtors'} autoComplete="off"/>
@@ -3735,6 +3743,25 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
           <div className="form-row"><label style={{width:140}}>E-mail</label><span className="colon">:</span><input id="l-email" type="text" className="form-input" style={{width:220}} defaultValue={activeAlterItem?.email||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
         </div>
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
+          {/* Dynamic fields based on Under group */}
+          {isBankOD && (
+            <div style={{background:'#fff8e1',border:'1px solid #ffe082',borderRadius:4,padding:'10px 15px',marginBottom:15}}>
+              <b style={{display:'block',marginBottom:8,fontSize:13,color:'#8B4000'}}>🏦 Bank OD Configuration</b>
+              <div className="form-row">
+                <label style={{width:180,fontWeight:'bold',color:'#8B0000'}}>Set OD Limit</label><span className="colon">:</span>
+                <input id="l-od-limit" type="number" className="form-input" style={{width:150,textAlign:'right',fontWeight:'bold'}}
+                  value={odLimit} onChange={e=>setOdLimit(e.target.value)}
+                  onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}
+                  placeholder="0.00"/>
+                <span style={{marginLeft:8,fontSize:12,color:'#8B0000',fontWeight:'bold'}}>Cr</span>
+              </div>
+              {odLimit && parseFloat(odLimit) > 0 && (
+                <div style={{fontSize:11,color:'#555',marginTop:6,paddingLeft:2}}>
+                  ℹ️ Limit: ₹ {parseFloat(odLimit).toLocaleString('en-IN', {minimumFractionDigits:2})} Cr
+                </div>
+              )}
+            </div>
+          )}
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Tax Registration</b>
           <div className="form-row"><label style={{width:180}}>PAN/IT No.</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.pan||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
           <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select id="l-reg" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType||'Regular'} onKeyDown={handleGlobalKeyDown}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
@@ -3746,6 +3773,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
           <div className="form-row"><label style={{width:180}}>A/C No.</label><span className="colon">:</span><input id="l-acc" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.accountNo||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
           <div className="form-row"><label style={{width:180}}>IFSC Code</label><span className="colon">:</span><input id="l-ifsc" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.ifsc||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
         </div>
+
       </div>
       <div style={{borderTop:'2px solid #1c5282',padding:'12px 25px',background:'#f8f8f8'}}>
         <div className="form-row">
@@ -3811,7 +3839,8 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
               setAlterGstDetails: fsv('l-gst-alter'),
               ifsc: fv('l-ifsc'), bankName: fv('l-bank'), accountNo: fv('l-acc'), bankHolderName: fv('l-bank-holder'),
               phone: fv('l-phone'), email: fv('l-email'), pinCode: fv('l-pin'), 
-              openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr' 
+              openingBalance: parseFloat(fv('l-ob')) || 0, balanceType: fsv('l-ob-type') || 'Dr',
+              odLimit: isBankOD && odLimit ? parseFloat(odLimit) : null
             };
             onSave(data);
           }}>
@@ -5639,8 +5668,34 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               onBlur={()=>setTimeout(()=>setFocus(null),200)}
               placeholder="Select party ledger (Alt+C to create new)"
             />
-            {partyBalance!==null && <span style={{marginLeft:10,fontSize:12,color:partyBalance>=0?'#006600':'#c00',fontWeight:'bold'}}>{fmt(partyBalance)} {partyBalance>=0?'Dr':'Cr'}</span>}
           </div>
+          {/* Current Balance row - Tally style */}
+          {partyBalance!==null && (() => {
+            const pLedger = ledgers.find(l=>l.name===partyName);
+            const absBal = Math.abs(partyBalance);
+            const balType = partyBalance >= 0 ? 'Dr' : 'Cr';
+            const isOD = pLedger?.odLimit != null && partyBalance < 0;
+            const odExceeded = pLedger?.odLimit != null && partyBalance < 0 && Math.abs(partyBalance) > (pLedger.odLimit || 0);
+            return (
+              <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:140,marginTop:2,marginBottom:2}}>
+                <span style={{fontSize:11,color:'#555'}}>Current balance</span>
+                <span style={{fontSize:12,fontWeight:'bold',color: partyBalance<0?'#c00':'#006600'}}>
+                  {fmt(absBal)} {balType}
+                </span>
+                {odExceeded && (
+                  <span style={{fontSize:10,color:'#c00',background:'#fff0f0',border:'1px solid #f66',padding:'1px 6px',borderRadius:3,fontWeight:'bold'}}>
+                    ⚠ OD Limit: ₹{fmt(pLedger!.odLimit!)} exceeded!
+                  </span>
+                )}
+                {pLedger?.odLimit != null && !odExceeded && (
+                  <span style={{fontSize:10,color:'#555',opacity:0.7}}>
+                    (OD Limit: ₹{fmt(pLedger.odLimit)} Cr)
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="form-row" style={{marginBottom:0}}>
             <label style={{width:80}}>Ref No.</label><span className="colon">:</span>
             <input id="v-ref" type="text" className="form-input" style={{width:160}} value={refNo} onChange={e=>setRefNo(e.target.value)} placeholder="Auto"
@@ -6042,8 +6097,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             <div style={{width:140,textAlign:'right'}}>Debit (Dr)</div>
             <div style={{width:140,textAlign:'right'}}>Credit (Cr)</div>
           </div>
-          {accEntries.map((entry,idx)=>(
-            <div key={idx} style={{display:'flex',marginBottom:5,alignItems:'center',padding:'3px 5px',background:idx%2===0?'#fff':'#fafafa',borderBottom:'1px solid #f0f0f0'}}>
+          {accEntries.map((entry,idx)=>{
+            // Calculate current balance for this ledger
+            const entryLedger = entry.ledgerName ? ledgers.find(l=>l.name===entry.ledgerName) : null;
+            const entryBal = entryLedger ? getLedgerClosingBalance(entryLedger, vouchers) : null;
+            const entryBalAbs = entryBal !== null ? Math.abs(entryBal) : null;
+            const entryBalType = entryBal !== null ? (entryBal >= 0 ? 'Dr' : 'Cr') : null;
+            const entryOdExceeded = entryLedger?.odLimit != null && entryBal !== null && entryBal < 0 && Math.abs(entryBal) > (entryLedger.odLimit || 0);
+            return (
+            <div key={idx} style={{marginBottom:5,background:idx%2===0?'#fff':'#fafafa',borderBottom:'1px solid #f0f0f0',padding:'3px 5px'}}>
+              <div style={{display:'flex',alignItems:'center'}}>
+
               <div style={{flex:4}}>
                 <input id={`acc-ledger-${idx}`} type="text" className="form-input" style={{width:'96%'}}
                   value={entry.ledgerName}
@@ -6117,7 +6181,28 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 <option>Dr</option><option>Cr</option>
               </select>
             </div>
-          ))}
+            {/* Cur Bal display - Tally style */}
+            {entryBal !== null && entry.ledgerName && (
+              <div style={{display:'flex',alignItems:'center',gap:8,paddingLeft:8,paddingBottom:3,marginTop:1}}>
+                <span style={{fontSize:10,color:'#777'}}>Cur Bal:</span>
+                <span style={{
+                  fontSize:10, fontWeight:'bold',
+                  color: entryOdExceeded ? '#c00' : entryBal < 0 ? '#c00' : '#006600'
+                }}>
+                  {fmt(entryBalAbs!)} {entryBalType}
+                  {entryOdExceeded && <span style={{marginLeft:4,color:'#c00',fontSize:9}}>⚠ OD Exceeded</span>}
+                </span>
+                {entry.amount > 0 && (
+                  <span style={{fontSize:10,color:'#555',marginLeft:4}}>
+                    {entry.entryType} Account: {fmt(entry.amount)} {entry.entryType}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+            );
+          })}
+
           <div style={{padding:'5px 5px',color:'#888',fontSize:11,cursor:'pointer',borderTop:'1px dashed #ddd'}}
             onClick={()=>setAccEntries(p=>[...p,{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}])}>
             + Add ledger entry

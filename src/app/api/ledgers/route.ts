@@ -8,6 +8,7 @@ const normalizeLedger = (l: any) => ({
   pan: l.panItNo || '',
   bankHolderName: l.bankHolderName || '',
   setAlterGstDetails: l.setAlterGstDetails || 'No',
+  odLimit: l.odLimit ?? null,
 });
 
 export async function POST(req: Request) {
@@ -51,7 +52,8 @@ export async function POST(req: Request) {
         bankHolderName: data.bankHolderName,
         setAlterGstDetails: data.setAlterGstDetails || 'No',
         openingBal: data.openingBalance || 0.0,
-        balanceType: data.balanceType || 'Dr'
+        balanceType: data.balanceType || 'Dr',
+        odLimit: data.odLimit !== undefined && data.odLimit !== null && data.odLimit !== '' ? parseFloat(data.odLimit) : null
       }
     });
 
@@ -111,7 +113,8 @@ export async function PUT(req: Request) {
          bankHolderName: data.bankHolderName,
          setAlterGstDetails: data.setAlterGstDetails || 'No',
          openingBal: data.openingBalance || 0.0,
-         balanceType: data.balanceType || 'Dr'
+         balanceType: data.balanceType || 'Dr',
+         odLimit: data.odLimit !== undefined && data.odLimit !== null && data.odLimit !== '' ? parseFloat(data.odLimit) : null
        }
      });
  
