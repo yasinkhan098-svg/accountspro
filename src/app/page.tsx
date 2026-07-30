@@ -5722,16 +5722,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             />
           </div>
           {/* Current Balance row - Tally style matching user image */}
-          {partyBalance!==null && (() => {
-            const pLedger = ledgers.find(l=>l.name.toLowerCase() === partyName.toLowerCase());
-            const absBal = Math.abs(partyBalance);
-            const balType = partyBalance >= 0 ? 'Dr' : 'Cr';
-            const odExceeded = pLedger?.odLimit != null && partyBalance < 0 && Math.abs(partyBalance) > (pLedger.odLimit || 0);
+          {partyName && partyName.trim() !== '' && (() => {
+            const pLedger = ledgers.find(l => l.name.toLowerCase() === partyName.trim().toLowerCase());
+            const bal = pLedger ? getLedgerClosingBalance(pLedger, vouchers) : (partyBalance !== null ? partyBalance : 0);
+            const absBal = Math.abs(bal);
+            const balType = bal >= 0 ? 'Dr' : 'Cr';
+            const odExceeded = pLedger?.odLimit != null && bal < 0 && Math.abs(bal) > (pLedger.odLimit || 0);
             return (
               <div className="form-row" style={{marginBottom:4,marginTop:2,alignItems:'center'}}>
                 <label style={{width:130,fontSize:11,color:'#555',fontStyle:'italic'}}>Current balance</label>
                 <span className="colon">:</span>
-                <span style={{fontSize:12,fontWeight:'bold',fontStyle:'italic',color: partyBalance < 0 ? '#b30000' : '#006600',marginLeft:2}}>
+                <span style={{fontSize:12,fontWeight:'bold',fontStyle:'italic',color: bal < 0 ? '#b30000' : '#006600',marginLeft:2}}>
                   {fmt(absBal)} {balType}
                 </span>
                 {odExceeded && (
@@ -6197,18 +6198,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         }}
                         value={entry.ledgerName}
                         placeholder={idx === 0 ? `Select Particulars ledger...` : `Particulars...`}
-                        onFocus={() => { setFocus({field:'accledger', rowIdx:idx}); setFilter(''); setListSel(0); }}
+                        onFocus={() => { setFocus({field:'accledger', rowIdx:idx}); setFilter(entry.ledgerName || ''); setListSel(0); }}
                         onChange={e => {
+                          const val = e.target.value;
                           const ne = [...accEntries];
-                          ne[idx].ledgerName = e.target.value;
+                          ne[idx].ledgerName = val;
                           setAccEntries(ne);
-                          setFilter(e.target.value);
+                          setFilter(val);
+                          setFocus({field:'accledger', rowIdx:idx});
+                          setListSel(0);
                         }}
                         onKeyDown={e => {
                           if (e.key === 'Enter') {
                             e.preventDefault(); e.stopPropagation();
                             if (focus?.field === 'accledger' && currentList.length > 0 && listSel < currentList.length) {
-                              listKeyDown(e);
+                              pickLedger(currentList[listSel] as Ledger);
                             } else {
                               const amtEl = document.getElementById(`acc-amt-${idx}-${entry.entryType}`) || document.getElementById(`acc-amt-${idx}-Dr`) || document.getElementById(`acc-amt-${idx}-Cr`);
                               amtEl?.focus();
@@ -6217,7 +6221,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                             listKeyDown(e);
                           }
                         }}
-                        onBlur={() => setTimeout(() => setFocus(f => f?.field === 'accledger' && f.rowIdx === idx ? null : f), 200)}
+                        onBlur={() => setTimeout(() => setFocus(f => f?.field === 'accledger' && f.rowIdx === idx ? null : f), 350)}
                       />
                     </div>
                     {/* Amount Input */}
