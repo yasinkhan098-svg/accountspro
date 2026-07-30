@@ -5448,13 +5448,30 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           entryType: al.entryType
         } as VoucherEntry)),
         ...(Math.abs(roundOff) > 0.001 && !hasManualRoundOff ? [{id: entryId++, ledgerId: findL('Round Off'), ledgerName: 'Round Off', amount: Math.abs(roundOff), entryType: roundOff > 0 ? otherSide : partySide} as VoucherEntry] : []),
-      ] : accEntries.filter(e=>e.ledgerName).map((e,i)=>({
-        id:i+1, 
-        ledgerId: e.ledgerId || findL(e.ledgerName), 
-        ledgerName: e.ledgerName, 
-        amount: e.amount, 
-        entryType: e.entryType
-      })),
+      ] : (() => {
+        const validP = accEntries.filter(e=>e.ledgerName).map((e,i)=>({
+          id:i+1, 
+          ledgerId: e.ledgerId || findL(e.ledgerName), 
+          ledgerName: e.ledgerName, 
+          amount: e.amount, 
+          entryType: e.entryType
+        }));
+        if (partyName && !validP.some(e=>e.ledgerName === partyName)) {
+          const totDr = validP.filter(e=>e.entryType==='Dr').reduce((s,e)=>s+e.amount, 0);
+          const totCr = validP.filter(e=>e.entryType==='Cr').reduce((s,e)=>s+e.amount, 0);
+          if (activeVoucher === 'Payment') {
+            validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: totDr || totCr, entryType: 'Cr' });
+          } else if (activeVoucher === 'Receipt') {
+            validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: totCr || totDr, entryType: 'Dr' });
+          } else if (activeVoucher === 'Contra') {
+            const diff = totDr - totCr;
+            if (diff !== 0) {
+              validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: Math.abs(diff), entryType: diff > 0 ? 'Cr' : 'Dr' });
+            }
+          }
+        }
+        return validP;
+      })(),
       narration, total: isInventory ? grandTotal : accDr,
     };
   };
@@ -5616,7 +5633,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         </div>
         <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
           <div className="form-row" style={{marginBottom:0,alignItems:'center'}}>
-            <label style={{width:130}}>Party A/c Name</label><span className="colon">:</span>
+            <label style={{width:130}}>{!isInventory ? 'Account' : 'Party A/c Name'}</label><span className="colon">:</span>
             <input ref={ref} type="text" className="form-input" style={{width:350,fontWeight:'bold'}}
               value={partyName} onChange={e=>{setPartyName(e.target.value);setFilter(e.target.value);}}
               onFocus={()=>{setFocus({field:'party'});setFilter('');setListSel(0);}}
@@ -6102,129 +6119,177 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
       {/* ACCOUNTING MODE */}
       {!isInventory && (
-        <div style={{flex:1,padding:'10px 15px',overflowY:'auto'}}>
-          <div style={{fontSize:12,fontWeight:'bold',color:vc,marginBottom:8,borderBottom:`1px solid ${vc}`,paddingBottom:4}}>
-            Accounting Entries ({activeVoucher})
+        <div style={{flex:1,display:'flex',flexDirection:'column',background:'#fffdf7',overflow:'hidden'}}>
+          {/* Table Header: Particulars / Amount */}
+          <div style={{
+            display:'flex',
+            alignItems:'center',
+            justifyContent:'space-between',
+            padding:'5px 20px',
+            borderTop:'1px solid #777',
+            borderBottom:'1px solid #777',
+            background:'#f5efe6',
+            fontWeight:'bold',
+            fontSize:12,
+            color:'#222'
+          }}>
+            <div>Particulars</div>
+            <div>Amount</div>
           </div>
-          <div style={{display:'flex',fontWeight:'bold',fontSize:11,color:'#666',marginBottom:5,padding:'0 5px'}}>
-            <div style={{flex:4}}>Particulars (Ledger Name)</div>
-            <div style={{width:140,textAlign:'right'}}>Debit (Dr)</div>
-            <div style={{width:140,textAlign:'right'}}>Credit (Cr)</div>
-          </div>
-          {accEntries.map((entry,idx)=>{
-            // Calculate current balance for this ledger
-            const entryLedger = entry.ledgerName ? ledgers.find(l=>l.name===entry.ledgerName) : null;
-            const entryBal = entryLedger ? getLedgerClosingBalance(entryLedger, vouchers) : null;
-            const entryBalAbs = entryBal !== null ? Math.abs(entryBal) : null;
-            const entryBalType = entryBal !== null ? (entryBal >= 0 ? 'Dr' : 'Cr') : null;
-            const entryOdExceeded = entryLedger?.odLimit != null && entryBal !== null && entryBal < 0 && Math.abs(entryBal) > (entryLedger.odLimit || 0);
-            return (
-            <div key={idx} style={{marginBottom:5,background:idx%2===0?'#fff':'#fafafa',borderBottom:'1px solid #f0f0f0',padding:'3px 5px'}}>
-              <div style={{display:'flex',alignItems:'center'}}>
 
-              <div style={{flex:4}}>
-                <input id={`acc-ledger-${idx}`} type="text" className="form-input" style={{width:'96%'}}
-                  value={entry.ledgerName}
-                  placeholder={idx===0?`${activeVoucher==='Payment'||activeVoucher==='Contra'?'Account Dr (who pays)':'Account Dr'}...`:`Account Cr...`}
-                  onFocus={()=>{setFocus({field:'accledger',rowIdx:idx});setFilter('');setListSel(0);}}
-                  onChange={e=>{const ne=[...accEntries];ne[idx].ledgerName=e.target.value;setAccEntries(ne);setFilter(e.target.value);}}
-                  onKeyDown={e=>{
-                    if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
-                      e.preventDefault(); e.stopPropagation();
-                      const l = ledgers.find(lx => lx.name === entry.ledgerName);
-                      if (l) {
-                        onAltC({
-                          fieldType: 'ledger',
-                          activeAlterItem: l,
-                          onCreated: (newItem) => {
-                            const ne = [...accEntries];
-                            ne[idx] = { ...ne[idx], ledgerId: newItem.id, ledgerName: newItem.name };
-                            setAccEntries(ne);
-                            setTimeout(() => document.getElementById(`acc-amt-${idx}-${entry.entryType}`)?.focus(), 100);
-                          }
-                        });
-                      }
-                      return;
-                    }
-                    if(e.altKey&&e.key.toLowerCase()==='c'){
-                      e.preventDefault(); e.stopPropagation(); 
-                      onAltC({
-                        fieldType: 'ledger',
-                        onCreated: (newItem) => {
-                          const ne = [...accEntries];
-                          ne[idx] = { ...ne[idx], ledgerId: newItem.id, ledgerName: newItem.name };
-                          setAccEntries(ne);
-                          setTimeout(() => document.getElementById(`acc-amt-${idx}-${entry.entryType}`)?.focus(), 100);
-                        }
-                      }); 
-                      return;
-                    } else if (e.key === 'Enter') {
-                      e.preventDefault(); e.stopPropagation();
-                      if(focus?.field==='accledger') {
-                        listKeyDown(e);
-                      } else {
-                        setTimeout(() => document.getElementById(`acc-amt-${idx}-${entry.entryType}`)?.focus(), 50);
-                      }
-                    } else {
-                      listKeyDown(e);
-                    }
+          {/* Table Body Rows */}
+          <div style={{flex:1,overflowY:'auto',padding:'5px 0'}}>
+            {accEntries.map((entry, idx) => {
+              const entryLedger = entry.ledgerName ? ledgers.find(l => l.name === entry.ledgerName) : null;
+              const entryBal = entryLedger ? getLedgerClosingBalance(entryLedger, vouchers) : null;
+              const entryBalAbs = entryBal !== null ? Math.abs(entryBal) : null;
+              const entryBalType = entryBal !== null ? (entryBal >= 0 ? 'Dr' : 'Cr') : null;
+              const entryOdExceeded = entryLedger?.odLimit != null && entryBal !== null && entryBal < 0 && Math.abs(entryBal) > (entryLedger.odLimit || 0);
+
+              const isFocused = focus?.field === 'accledger' && focus.rowIdx === idx;
+
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    padding:'6px 20px',
+                    background: isFocused ? '#fff7d6' : idx % 2 === 0 ? '#fffdf7' : '#faf6ee',
+                    borderBottom:'1px solid #efe8da',
+                    transition:'background 0.15s'
                   }}
-                  onBlur={()=>setTimeout(()=>setFocus(f=>f?.field==='accledger'&&f.rowIdx===idx?null:f),200)}
-                />
-              </div>
-              <div style={{width:140}}>
-                {entry.entryType==='Dr'?
-                  <input id={`acc-amt-${idx}-Dr`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold'}} value={entry.amount||''}
-                    onChange={e=>{const ne=[...accEntries];ne[idx].amount=parseFloat(e.target.value)||0;setAccEntries(ne);}}
-                    onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();
-                      if(idx === accEntries.length-1){ setAccEntries(p=>[...p,{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]); setTimeout(()=>document.getElementById(`acc-ledger-${idx+1}`)?.focus(),50); }
-                      else document.getElementById(`acc-ledger-${idx+1}`)?.focus();
-                    }}} /> : <div style={{width:'90%',textAlign:'right',color:'#aaa',fontSize:12,padding:'2px 5px'}}>—</div>}
-              </div>
-              <div style={{width:140}}>
-                {entry.entryType==='Cr'?
-                  <input id={`acc-amt-${idx}-Cr`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold'}} value={entry.amount||''}
-                    onChange={e=>{const ne=[...accEntries];ne[idx].amount=parseFloat(e.target.value)||0;setAccEntries(ne);}}
-                    onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();
-                      if(idx === accEntries.length-1){ setAccEntries(p=>[...p,{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]); setTimeout(()=>document.getElementById(`acc-ledger-${idx+1}`)?.focus(),50); }
-                      else document.getElementById(`acc-ledger-${idx+1}`)?.focus();
-                    }}} /> : <div style={{width:'90%',textAlign:'right',color:'#aaa',fontSize:12,padding:'2px 5px'}}>—</div>}
-              </div>
-              <select value={entry.entryType} className="form-input" style={{width:45,marginLeft:5,fontSize:11}}
-                onChange={e=>{const ne=[...accEntries];ne[idx].entryType=e.target.value as any;setAccEntries(ne);}}>
-                <option>Dr</option><option>Cr</option>
-              </select>
-            </div>
-            {/* Cur Bal display - Tally style */}
-            {entryBal !== null && entry.ledgerName && (
-              <div style={{display:'flex',alignItems:'center',gap:8,paddingLeft:8,paddingBottom:3,marginTop:1}}>
-                <span style={{fontSize:10,color:'#777'}}>Cur Bal:</span>
-                <span style={{
-                  fontSize:10, fontWeight:'bold',
-                  color: entryOdExceeded ? '#c00' : entryBal < 0 ? '#c00' : '#006600'
-                }}>
-                  {fmt(entryBalAbs!)} {entryBalType}
-                  {entryOdExceeded && <span style={{marginLeft:4,color:'#c00',fontSize:9}}>⚠ OD Exceeded</span>}
-                </span>
-                {entry.amount > 0 && (
-                  <span style={{fontSize:10,color:'#555',marginLeft:4}}>
-                    {entry.entryType} Account: {fmt(entry.amount)} {entry.entryType}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-            );
-          })}
+                >
+                  {/* Line 1: Ledger Name + Amount */}
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div style={{flex:1,marginRight:20}}>
+                      <input
+                        id={`acc-ledger-${idx}`}
+                        type="text"
+                        className="form-input"
+                        style={{
+                          width:'100%',
+                          fontWeight:'bold',
+                          fontSize:13,
+                          background:'transparent',
+                          border:'none',
+                          outline:'none',
+                          color:'#000'
+                        }}
+                        value={entry.ledgerName}
+                        placeholder={idx === 0 ? `Select Particulars ledger...` : `Particulars...`}
+                        onFocus={() => { setFocus({field:'accledger', rowIdx:idx}); setFilter(''); setListSel(0); }}
+                        onChange={e => {
+                          const ne = [...accEntries];
+                          ne[idx].ledgerName = e.target.value;
+                          setAccEntries(ne);
+                          setFilter(e.target.value);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault(); e.stopPropagation();
+                            if (focus?.field === 'accledger' && currentList.length > 0 && listSel < currentList.length) {
+                              listKeyDown(e);
+                            } else {
+                              const amtEl = document.getElementById(`acc-amt-${idx}-${entry.entryType}`) || document.getElementById(`acc-amt-${idx}-Dr`) || document.getElementById(`acc-amt-${idx}-Cr`);
+                              amtEl?.focus();
+                            }
+                          } else {
+                            listKeyDown(e);
+                          }
+                        }}
+                        onBlur={() => setTimeout(() => setFocus(f => f?.field === 'accledger' && f.rowIdx === idx ? null : f), 200)}
+                      />
+                    </div>
+                    {/* Amount Input */}
+                    <div style={{width:160,textAlign:'right'}}>
+                      <input
+                        id={`acc-amt-${idx}-${entry.entryType}`}
+                        type="number"
+                        className="form-input"
+                        style={{
+                          width:'100%',
+                          textAlign:'right',
+                          fontWeight:'bold',
+                          fontSize:14,
+                          background:'transparent',
+                          border:'none',
+                          outline:'none',
+                          color:'#000'
+                        }}
+                        value={entry.amount || ''}
+                        onChange={e => {
+                          const ne = [...accEntries];
+                          ne[idx].amount = parseFloat(e.target.value) || 0;
+                          setAccEntries(ne);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (idx === accEntries.length - 1) {
+                              const defaultType = activeVoucher === 'Receipt' ? 'Cr' : 'Dr';
+                              setAccEntries(p => [...p, { ledgerId: 0, ledgerName: '', amount: 0, entryType: defaultType }]);
+                              setTimeout(() => document.getElementById(`acc-ledger-${idx + 1}`)?.focus(), 80);
+                            } else {
+                              document.getElementById(`acc-ledger-${idx + 1}`)?.focus();
+                            }
+                          }
+                        }}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
 
-          <div style={{padding:'5px 5px',color:'#888',fontSize:11,cursor:'pointer',borderTop:'1px dashed #ddd'}}
-            onClick={()=>setAccEntries(p=>[...p,{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}])}>
-            + Add ledger entry
+                  {/* Line 2: Cur Bal (indented 15px) */}
+                  {entry.ledgerName && entryBal !== null && (
+                    <div style={{paddingLeft:15,marginTop:2,fontSize:11,fontStyle:'italic',color: entryOdExceeded ? '#c00' : entryBal < 0 ? '#b30000' : '#444'}}>
+                      Cur Bal: {fmt(entryBalAbs!)} {entryBalType}
+                      {entryOdExceeded && <span style={{marginLeft:6,color:'#c00',fontWeight:'bold',fontStyle:'normal'}}>⚠ OD Exceeded!</span>}
+                    </div>
+                  )}
+
+                  {/* Line 3: On Account / Agst Ref line (indented 25px) */}
+                  {entry.ledgerName && entry.amount > 0 && (
+                    <div style={{paddingLeft:25,marginTop:2,fontSize:11,color:'#333',fontWeight:'500'}}>
+                      On Account &nbsp;&nbsp;&nbsp;&nbsp; {fmt(entry.amount)} {entry.entryType}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Add Ledger Entry Button */}
+            <div
+              style={{padding:'8px 20px',color:'#1c5282',fontSize:12,fontWeight:'bold',cursor:'pointer'}}
+              onClick={() => {
+                const defaultType = activeVoucher === 'Receipt' ? 'Cr' : 'Dr';
+                setAccEntries(p => [...p, { ledgerId: 0, ledgerName: '', amount: 0, entryType: defaultType }]);
+              }}
+            >
+              + Add Particulars Entry
+            </div>
           </div>
-          <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginTop:10,padding:'8px 10px',background:balanced?'#e8f8e8':'#fff0f0',border:`1px solid ${balanced?'#4CAF50':'#f44336'}`,borderRadius:2}}>
-            <span>Total Dr: <b style={{color:'#8B0000'}}>₹ {fmt(accDr)}</b></span>
-            <span>Total Cr: <b style={{color:'#006600'}}>₹ {fmt(accCr)}</b></span>
-            {balanced?<span style={{color:'#006600',fontWeight:'bold'}}>✓ Balanced</span>:<span style={{color:'#c00',fontWeight:'bold'}}>✗ Difference: ₹ {fmt(Math.abs(accDr-accCr))}</span>}
+
+          {/* Bottom Total Bar */}
+          <div style={{
+            display:'flex',
+            alignItems:'center',
+            justifyContent:'space-between',
+            padding:'8px 20px',
+            borderTop:'1px solid #777',
+            background:'#f5efe6'
+          }}>
+            <div style={{fontSize:12,fontWeight:'bold',color:'#333'}}>
+              Total Particulars: ₹ {fmt(accDr || accCr)}
+            </div>
+            <div style={{
+              fontSize:16,
+              fontWeight:'bold',
+              color:'#000',
+              borderTop:'1px solid #666',
+              borderBottom:'3px double #666',
+              padding:'2px 8px'
+            }}>
+              ₹ {fmt(accDr || accCr)}
+            </div>
           </div>
         </div>
       )}
