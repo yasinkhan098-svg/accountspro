@@ -400,10 +400,12 @@ function getDaysRemainingText(expiryStr: string | Date | null | undefined) {
 }
 
 function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
-  let bal = ledger.balanceType === 'Dr' ? ledger.openingBalance : -ledger.openingBalance;
+  if (!ledger) return 0;
+  let bal = ledger.balanceType === 'Dr' ? (ledger.openingBalance || 0) : -(ledger.openingBalance || 0);
   for (const v of vouchers) {
+    if (!v || !v.entries) continue;
     for (const e of v.entries) {
-      if (e.ledgerId === ledger.id) {
+      if (e.ledgerId === ledger.id || (e.ledgerName && e.ledgerName.trim().toLowerCase() === ledger.name.trim().toLowerCase())) {
         bal += e.entryType === 'Dr' ? e.amount : -e.amount;
       }
     }
@@ -5656,10 +5658,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           <div className="form-row" style={{marginBottom:0,alignItems:'center'}}>
             <label style={{width:130}}>{!isInventory ? 'Account' : 'Party A/c Name'}</label><span className="colon">:</span>
             <input ref={ref} type="text" className="form-input" style={{width:350,fontWeight:'bold'}}
-              value={partyName} onChange={e=>{setPartyName(e.target.value);setFilter(e.target.value);}}
-              onFocus={()=>{setFocus({field:'party'});setFilter('');setListSel(0);}}
-              onKeyDown={e=>{
-                if((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')){
+              value={partyName}
+              onChange={e => {
+                const val = e.target.value;
+                setPartyName(val);
+                setFilter(val);
+                setFocus({field:'party'});
+                setListSel(0);
+              }}
+              onFocus={() => { setFocus({field:'party'}); setFilter(partyName || ''); setListSel(0); }}
+              onKeyDown={e => {
+                if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
                   e.preventDefault(); e.stopPropagation();
                   const l = ledgers.find(lx => lx.name === partyName);
                   if (l) {
@@ -5670,13 +5679,13 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         setPartyName(newItem.name);
                         const bal = getLedgerClosingBalance(newItem, vouchers);
                         setPartyBalance(bal);
-                        setTimeout(() => document.getElementById('v-ref')?.focus(), 100);
+                        setTimeout(() => document.getElementById(!isInventory ? 'acc-ledger-0' : 'v-ref')?.focus(), 100);
                       }
                     });
                   }
                   return;
                 }
-                if(e.altKey&&e.key.toLowerCase()==='c'){
+                if (e.altKey && e.key.toLowerCase() === 'c') {
                   e.preventDefault(); e.stopPropagation();
                   onAltC({
                     fieldType: 'ledger',
@@ -5684,41 +5693,45 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       setPartyName(newItem.name);
                       const bal = getLedgerClosingBalance(newItem, vouchers);
                       setPartyBalance(bal);
-                      setTimeout(() => document.getElementById('v-ref')?.focus(), 100);
+                      setTimeout(() => document.getElementById(!isInventory ? 'acc-ledger-0' : 'v-ref')?.focus(), 100);
                     }
                   });
                   return;
                 }
-                if(e.key==='Enter'){
+                if (e.key === 'Enter') {
                   e.preventDefault(); e.stopPropagation();
-                  if(focus?.field==='party') {
-                    listKeyDown(e);
+                  if (focus?.field === 'party' && currentList.length > 0 && listSel < currentList.length) {
+                    pickLedger(currentList[listSel] as Ledger);
                   } else {
-                    if(isInventory && partyName){
-                      const l = ledgers.find(lx=>lx.name===partyName);
+                    if (isInventory && partyName) {
+                      const l = ledgers.find(lx => lx.name === partyName);
                       if (l) {
-                        const pd:PartyDetails={
-                          buyerName:l.name, buyerMailingName:l.name, buyerAddress:l.address||'',
-                          buyerState:l.state||'', buyerCountry:l.country||'India', buyerGstin:l.gstin||'', buyerPlace:l.state||'',
-                          shipName:l.name, shipMailingName:l.name, shipAddress:l.address||'',
-                          shipState:l.state||'', shipCountry:l.country||'India', shipGstin:l.gstin||'', shipPlace:l.state||'',
-                          buyerOrderNo:'', buyerOrderDate:'', termsOfDelivery:'',
+                        const pd: PartyDetails = {
+                          buyerName: l.name, buyerMailingName: l.name, buyerAddress: l.address || '',
+                          buyerState: l.state || '', buyerCountry: l.country || 'India', buyerGstin: l.gstin || '', buyerPlace: l.state || '',
+                          shipName: l.name, shipMailingName: l.name, shipAddress: l.address || '',
+                          shipState: l.state || '', shipCountry: l.country || 'India', shipGstin: l.gstin || '', shipPlace: l.state || '',
+                          buyerOrderNo: '', buyerOrderDate: '', termsOfDelivery: '',
                         };
                         setPartyDetails(pd);
                         setShowPartyDetails(true);
                       } else {
-                        setTimeout(()=>document.getElementById('v-ref')?.focus(), 50);
+                        setTimeout(() => document.getElementById('v-ref')?.focus(), 50);
                       }
                     } else {
-                      setTimeout(()=>document.getElementById('v-ref')?.focus(), 50);
+                      setTimeout(() => {
+                        const el = document.getElementById('acc-ledger-0');
+                        el?.focus();
+                        (el as HTMLInputElement)?.select?.();
+                      }, 80);
                     }
                   }
                 } else {
                   listKeyDown(e);
                 }
               }}
-              onBlur={()=>setTimeout(()=>setFocus(null),200)}
-              placeholder="Select party ledger (Alt+C to create new)"
+              onBlur={() => setTimeout(() => setFocus(f => f?.field === 'party' ? null : f), 350)}
+              placeholder="Select party / bank ledger (Alt+C to create new)"
             />
           </div>
           {/* Current Balance row - Tally style matching user image */}
@@ -6411,10 +6424,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             ⚡ Alt+C: Create New {focus.field==='item'?'Stock Item':'Ledger'}
           </div>
           <div ref={listRef} style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
-            {/* End of List — ALWAYS FIRST, highlighted by default */}
-            {(focus.field==='item' || focus.field==='addl-ledger') && (
+            {/* End of List — Available for item, addl-ledger, and accledger */}
+            {(focus.field==='item' || focus.field==='addl-ledger' || focus.field==='accledger') && (
               <div
-                onMouseDown={e=>{e.preventDefault(); focus.field==='item' ? goToAdditionalLedgers() : goToNarration();}}
+                onMouseDown={e=>{
+                  e.preventDefault();
+                  if (focus.field==='item') goToAdditionalLedgers();
+                  else goToNarration();
+                }}
                 style={{
                   padding:'5px 18px',cursor:'pointer',
                   background:isEndOfItem?'#ffc436':'transparent',
