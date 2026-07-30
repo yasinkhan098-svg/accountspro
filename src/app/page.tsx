@@ -401,7 +401,12 @@ function getDaysRemainingText(expiryStr: string | Date | null | undefined) {
 
 function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
   if (!ledger) return 0;
-  let bal = ledger.balanceType === 'Dr' ? (ledger.openingBalance || 0) : -(ledger.openingBalance || 0);
+  // If ledger has odLimit set and openingBalance is zero/null, use odLimit as initial base balance
+  const opBal = (ledger.openingBalance && Math.abs(ledger.openingBalance) > 0) 
+    ? ledger.openingBalance 
+    : (ledger.odLimit || 0);
+
+  let bal = ledger.balanceType === 'Dr' ? opBal : -opBal;
   for (const v of vouchers) {
     if (!v || !v.entries) continue;
     for (const e of v.entries) {
@@ -5376,8 +5381,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const vColors:Record<string,string>={Sales:'#1c5282',Purchase:'#5a2d82',Receipt:'#1a7a4a',Payment:'#8B0000',Contra:'#4a4a00',Journal:'#00555a','Credit Note':'#7a3d00','Debit Note':'#00407a'};
   const vc=vColors[activeVoucher]||'#1c5282';
 
-  // For item list: End of Item is default (listSel=99999 means End of Item)
-  const isEndOfItem = (focus?.field==='item' || focus?.field==='addl-ledger') && listSel >= currentList.length;
+  // For item list / accledger list: End of List option support
+  const isEndOfItem = (focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger') && listSel >= currentList.length;
 
   const goToAdditionalLedgers = () => {
     setAdditionalLedgers(prev => prev.length === 0 ? [{ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}] : prev);
@@ -5393,7 +5398,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
   const listKeyDown=(e:React.KeyboardEvent)=>{
     if(e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();
-      if(focus?.field==='item' || focus?.field==='addl-ledger'){
+      if(focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger'){
         // End of List → wrap to first real item
         if(isEndOfItem) setListSel(0);
         // Last real item → End of List
@@ -5402,7 +5407,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       } else setListSel(p=>(p+1)%Math.max(1,currentList.length));
     }
     else if(e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();
-      if(focus?.field==='item' || focus?.field==='addl-ledger'){
+      if(focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger'){
         // First real item → End of List
         if(listSel === 0) setListSel(currentList.length);
         // End of List → last real item
@@ -5413,10 +5418,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();
       if(focus?.field==='item'){
         if(isEndOfItem) goToAdditionalLedgers();
-        else if(currentList.length>0) pickItem(currentList[listSel] as StockItem);
+        else if(currentList.length>0 && listSel < currentList.length) pickItem(currentList[listSel] as StockItem);
       } else if(focus?.field==='addl-ledger'){
         if(isEndOfItem || currentList.length === 0) goToNarration();
-        else if(currentList.length>0) {
+        else if(currentList.length>0 && listSel < currentList.length) {
           const ridx = focus.rowIdx;
           pickLedger(currentList[listSel] as Ledger);
           setTimeout(() => {
@@ -5424,7 +5429,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             if (el) el.focus();
           }, 150);
         }
-      } else if(currentList.length>0) pickLedger(currentList[listSel] as Ledger);
+      } else if(focus?.field==='accledger'){
+        if(isEndOfItem || currentList.length === 0) goToNarration();
+        else if(currentList.length>0 && listSel < currentList.length) pickLedger(currentList[listSel] as Ledger);
+        else goToNarration();
+      } else if(currentList.length>0 && listSel < currentList.length) pickLedger(currentList[listSel] as Ledger);
     }
   };
 
@@ -6224,7 +6233,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         onKeyDown={e => {
                           if (e.key === 'Enter') {
                             e.preventDefault(); e.stopPropagation();
-                            if (focus?.field === 'accledger' && currentList.length > 0 && listSel < currentList.length) {
+                            if (isEndOfItem || (!entry.ledgerName && idx > 0)) {
+                              goToNarration();
+                            } else if (focus?.field === 'accledger' && currentList.length > 0 && listSel < currentList.length) {
                               pickLedger(currentList[listSel] as Ledger);
                             } else {
                               const amtEl = document.getElementById(`acc-amt-${idx}-${entry.entryType}`) || document.getElementById(`acc-amt-${idx}-Dr`) || document.getElementById(`acc-amt-${idx}-Cr`);
