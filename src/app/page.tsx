@@ -5743,18 +5743,27 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               placeholder="Select party / bank ledger (Alt+C to create new)"
             />
           </div>
-          {/* Current Balance row - Tally style matching user image */}
+          {/* Current Balance row - Live calculation as user types in Particulars rows */}
           {partyName && partyName.trim() !== '' && (() => {
             const pLedger = ledgers.find(l => l.name.toLowerCase() === partyName.trim().toLowerCase());
-            const bal = pLedger ? getLedgerClosingBalance(pLedger, vouchers) : (partyBalance !== null ? partyBalance : 0);
-            const absBal = Math.abs(bal);
-            const balType = bal >= 0 ? 'Dr' : 'Cr';
-            const odExceeded = pLedger?.odLimit != null && bal < 0 && Math.abs(bal) > (pLedger.odLimit || 0);
+            const baseBal = pLedger ? getLedgerClosingBalance(pLedger, vouchers) : (partyBalance !== null ? partyBalance : 0);
+            
+            // Real-time live adjustment as user types amounts in Particulars rows!
+            let pendingAdj = 0;
+            if (activeVoucher === 'Payment') pendingAdj = -accDr;
+            else if (activeVoucher === 'Receipt') pendingAdj = accCr;
+            else pendingAdj = accDr - accCr;
+
+            const liveBal = baseBal + pendingAdj;
+            const absBal = Math.abs(liveBal);
+            const balType = liveBal >= 0 ? 'Dr' : 'Cr';
+            const odExceeded = pLedger?.odLimit != null && liveBal < 0 && Math.abs(liveBal) > (pLedger.odLimit || 0);
+
             return (
               <div className="form-row" style={{marginBottom:4,marginTop:2,alignItems:'center'}}>
                 <label style={{width:130,fontSize:11,color:'#555',fontStyle:'italic'}}>Current balance</label>
                 <span className="colon">:</span>
-                <span style={{fontSize:12,fontWeight:'bold',fontStyle:'italic',color: bal < 0 ? '#b30000' : '#006600',marginLeft:2}}>
+                <span style={{fontSize:12,fontWeight:'bold',fontStyle:'italic',color: liveBal < 0 ? '#b30000' : '#006600',marginLeft:2}}>
                   {fmt(absBal)} {balType}
                 </span>
                 {odExceeded && (
@@ -6220,7 +6229,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         }}
                         value={entry.ledgerName}
                         placeholder={idx === 0 ? `Select Particulars ledger...` : `Particulars...`}
-                        onFocus={() => { setFocus({field:'accledger', rowIdx:idx}); setFilter(entry.ledgerName || ''); setListSel(0); }}
+                        onFocus={() => {
+                          const val = entry.ledgerName || '';
+                          setFocus({field:'accledger', rowIdx:idx});
+                          setFilter(val);
+                          setListSel(val.trim() === '' ? 99999 : 0);
+                        }}
                         onChange={e => {
                           const val = e.target.value;
                           const ne = [...accEntries];
@@ -6228,7 +6242,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           setAccEntries(ne);
                           setFilter(val);
                           setFocus({field:'accledger', rowIdx:idx});
-                          setListSel(0);
+                          setListSel(val.trim() === '' ? 99999 : 0);
                         }}
                         onKeyDown={e => {
                           if (e.key === 'Enter') {
@@ -6287,13 +6301,22 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     </div>
                   </div>
 
-                  {/* Line 2: Cur Bal (indented 15px) */}
-                  {entry.ledgerName && entryBal !== null && (
-                    <div style={{paddingLeft:15,marginTop:2,fontSize:11,fontStyle:'italic',color: entryOdExceeded ? '#c00' : entryBal < 0 ? '#b30000' : '#444'}}>
-                      Cur Bal: {fmt(entryBalAbs!)} {entryBalType}
-                      {entryOdExceeded && <span style={{marginLeft:6,color:'#c00',fontWeight:'bold',fontStyle:'normal'}}>⚠ OD Exceeded!</span>}
-                    </div>
-                  )}
+                  {/* Line 2: Cur Bal (indented 15px) - Live calculation as user types amount */}
+                  {entry.ledgerName && (() => {
+                    const baseBal = entryLedger ? getLedgerClosingBalance(entryLedger, vouchers) : 0;
+                    const currentAmt = entry.amount || 0;
+                    const liveBal = baseBal + (entry.entryType === 'Dr' ? currentAmt : -currentAmt);
+                    const absBal = Math.abs(liveBal);
+                    const balType = liveBal >= 0 ? 'Dr' : 'Cr';
+                    const isExceeded = entryLedger?.odLimit != null && liveBal < 0 && Math.abs(liveBal) > (entryLedger.odLimit || 0);
+
+                    return (
+                      <div style={{paddingLeft:15,marginTop:2,fontSize:11,fontStyle:'italic',color: isExceeded ? '#c00' : liveBal < 0 ? '#b30000' : '#444'}}>
+                        Cur Bal: {fmt(absBal)} {balType}
+                        {isExceeded && <span style={{marginLeft:6,color:'#c00',fontWeight:'bold',fontStyle:'normal'}}>⚠ OD Exceeded!</span>}
+                      </div>
+                    );
+                  })()}
 
                   {/* Line 3: On Account / Agst Ref line (indented 25px) */}
                   {entry.ledgerName && entry.amount > 0 && (
