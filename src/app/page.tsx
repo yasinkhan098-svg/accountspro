@@ -2473,7 +2473,7 @@ export default function App() {
             {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} vouchers={filteredVouchers} onBack={goBack} onDrillDown={item=>{ /* Maybe later item drilldown */ }} />}
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
-            {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={allVouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
+            {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={vouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
             {screen==='GSTR1_REPORT'         && (
               <GSTR1ReportView 
                 vouchers={filteredVouchers} 
