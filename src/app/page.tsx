@@ -5243,6 +5243,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   };
   const currentList = getList();
 
+  // Auto-sync partyBalance whenever partyName, ledgers, or vouchers change
+  useEffect(() => {
+    if (partyName) {
+      const l = ledgers.find(lx => lx.name.toLowerCase() === partyName.toLowerCase());
+      if (l) {
+        const bal = getLedgerClosingBalance(l, vouchers);
+        setPartyBalance(bal);
+      } else {
+        setPartyBalance(null);
+      }
+    } else {
+      setPartyBalance(null);
+    }
+  }, [partyName, ledgers, vouchers]);
+
   const pickLedger=(l:Ledger)=>{
     if(focus?.field==='party'){
       setPartyName(l.name);
@@ -5260,12 +5275,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setPartyDetails(pd);
         setShowPartyDetails(true);
       } else {
-        setTimeout(() => document.getElementById('v-ref')?.focus(), 50);
+        setTimeout(() => document.getElementById('acc-ledger-0')?.focus(), 80);
       }
     } else if(focus?.field==='accledger'&&focus.rowIdx!==undefined){
       const idx = focus.rowIdx;
-      const ne=[...accEntries];ne[idx]={...ne[idx],ledgerId:l.id,ledgerName:l.name};
+      const entryType = accEntries[idx]?.entryType || (activeVoucher === 'Receipt' ? 'Cr' : 'Dr');
+      const ne=[...accEntries];ne[idx]={...ne[idx],ledgerId:l.id,ledgerName:l.name,entryType};
       setAccEntries(ne);
+      setFocus(null); setFilter(''); setListSel(0);
+      setTimeout(() => {
+        const amtEl = document.getElementById(`acc-amt-${idx}-${entryType}`) || document.getElementById(`acc-amt-${idx}-Dr`) || document.getElementById(`acc-amt-${idx}-Cr`);
+        amtEl?.focus();
+      }, 80);
     } else if(focus?.field==='addl-ledger' && focus.rowIdx!==undefined){
       const idx = focus.rowIdx;
       const ne = [...additionalLedgers];
@@ -5700,26 +5721,26 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               placeholder="Select party ledger (Alt+C to create new)"
             />
           </div>
-          {/* Current Balance row - Tally style */}
+          {/* Current Balance row - Tally style matching user image */}
           {partyBalance!==null && (() => {
-            const pLedger = ledgers.find(l=>l.name===partyName);
+            const pLedger = ledgers.find(l=>l.name.toLowerCase() === partyName.toLowerCase());
             const absBal = Math.abs(partyBalance);
             const balType = partyBalance >= 0 ? 'Dr' : 'Cr';
-            const isOD = pLedger?.odLimit != null && partyBalance < 0;
             const odExceeded = pLedger?.odLimit != null && partyBalance < 0 && Math.abs(partyBalance) > (pLedger.odLimit || 0);
             return (
-              <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:140,marginTop:2,marginBottom:2}}>
-                <span style={{fontSize:11,color:'#555'}}>Current balance</span>
-                <span style={{fontSize:12,fontWeight:'bold',color: partyBalance<0?'#c00':'#006600'}}>
+              <div className="form-row" style={{marginBottom:4,marginTop:2,alignItems:'center'}}>
+                <label style={{width:130,fontSize:11,color:'#555',fontStyle:'italic'}}>Current balance</label>
+                <span className="colon">:</span>
+                <span style={{fontSize:12,fontWeight:'bold',fontStyle:'italic',color: partyBalance < 0 ? '#b30000' : '#006600',marginLeft:2}}>
                   {fmt(absBal)} {balType}
                 </span>
                 {odExceeded && (
-                  <span style={{fontSize:10,color:'#c00',background:'#fff0f0',border:'1px solid #f66',padding:'1px 6px',borderRadius:3,fontWeight:'bold'}}>
+                  <span style={{marginLeft:10,fontSize:10,color:'#c00',background:'#fff0f0',border:'1px solid #f66',padding:'1px 6px',borderRadius:3,fontWeight:'bold'}}>
                     ⚠ OD Limit: ₹{fmt(pLedger!.odLimit!)} exceeded!
                   </span>
                 )}
                 {pLedger?.odLimit != null && !odExceeded && (
-                  <span style={{fontSize:10,color:'#555',opacity:0.7}}>
+                  <span style={{marginLeft:10,fontSize:10,color:'#555',opacity:0.75}}>
                     (OD Limit: ₹{fmt(pLedger.odLimit)} Cr)
                   </span>
                 )}
