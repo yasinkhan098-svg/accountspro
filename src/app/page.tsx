@@ -3591,7 +3591,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   useEffect(()=>{ ref.current?.focus(); },[]);
 
   // Group-based dynamic field detection
-  const isBankOD = underValue.toLowerCase().includes('bank od') || underValue.toLowerCase() === 'bank od a/c';
+  const isBankOD = underValue.toLowerCase().includes('bank od') || underValue.toLowerCase().includes('bank occ') || underValue.toLowerCase() === 'bank od a/c' || underValue.toLowerCase() === 'bank occ account';
   const isBankAccount = underValue.toLowerCase().includes('bank account') || underValue.toLowerCase() === 'bank accounts';
   const showBankFields = isBankOD || isBankAccount;
 
@@ -3632,9 +3632,17 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const pick = (v:string) => {
     const ids:Record<string,string> = {under:'l-under',country:'l-country',state:'l-state'};
     const inp = document.getElementById(ids[focus!]||'') as HTMLInputElement;
-    if(inp){inp.value=v;if(focus==='country'){setSelCo(v);}if(focus==='under'){setUnderValue(v);}}
+    const isUnderField = focus === 'under';
+    if(inp){inp.value=v;if(focus==='country'){setSelCo(v);}if(isUnderField){setUnderValue(v);}}
     setFocus(null);
     setTimeout(() => {
+      // Agar Under field se pick kiya aur Bank OD/OCC group select hua → seedha l-od-limit pe focus
+      const uv = v.toLowerCase();
+      const isODGroup = uv.includes('bank od') || uv.includes('bank occ');
+      if (isUnderField && isODGroup) {
+        const odEl = document.getElementById('l-od-limit');
+        if (odEl) { odEl.focus(); return; }
+      }
       if (inp) {
         const inputs = Array.from(document.querySelectorAll(
           '.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])'
@@ -3642,7 +3650,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
         const idx = inputs.indexOf(inp);
         if (idx >= 0 && idx < inputs.length - 1) (inputs[idx + 1]).focus();
       }
-    }, 50);
+    }, 80);
   };
 
   const handleFieldKey = (field:string) => (e:React.KeyboardEvent) => {
@@ -3656,9 +3664,12 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
     }
   };
 
+  // ledgerFields — l-od-limit is conditionally inserted after l-under when isBankOD
   const ledgerFields = [
-    'l-name', 'l-alias', 'l-under', 'l-mail', 'l-addr', 'l-state', 'l-country', 
-    'l-pin', 'l-phone', 'l-email', 'l-pan', 'l-reg', 'l-gst', 'l-gst-alter', 
+    'l-name', 'l-alias', 'l-under',
+    ...(isBankOD ? ['l-od-limit'] : []),
+    'l-mail', 'l-addr', 'l-state', 'l-country',
+    'l-pin', 'l-phone', 'l-email', 'l-pan', 'l-reg', 'l-gst', 'l-gst-alter',
     'l-bank', 'l-bank-holder', 'l-acc', 'l-ifsc', 'l-ob', 'l-ob-type', 'btn-save-ledger'
   ];
 
@@ -3716,6 +3727,27 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
             defaultValue={activeAlterItem?.groupName||'Sundry Debtors'} autoComplete="off"/>
           <span style={{marginLeft:8,fontSize:11,color:'#888'}}>Alt+C to create</span>
         </div>
+        {/* Set OD Limit — turant Under ke baad, sirf Bank OD/OCC ke liye */}
+        {isBankOD && (
+          <div className="form-row" style={{marginTop:8,background:'#fff8e1',padding:'6px 10px',borderRadius:4,border:'1px solid #ffe082'}}>
+            <label style={{width:100,fontWeight:'bold',color:'#8B0000'}}>Set OD Limit</label><span className="colon">:</span>
+            <input id="l-od-limit" type="number" className="form-input" style={{width:160,textAlign:'right',fontWeight:'bold',border:'2px solid #f9a825'}}
+              value={odLimit}
+              onChange={e=>setOdLimit(e.target.value)}
+              onFocus={()=>setFocus(null)}
+              onKeyDown={e=>{
+                if(e.key==='Enter'){
+                  e.preventDefault();
+                  moveToNext('l-od-limit');
+                }
+              }}
+              placeholder="0.00"/>
+            <span style={{marginLeft:8,fontSize:12,color:'#8B0000',fontWeight:'bold'}}>Cr</span>
+            {odLimit && parseFloat(odLimit)>0 && (
+              <span style={{marginLeft:12,fontSize:11,color:'#555'}}>= ₹ {parseFloat(odLimit).toLocaleString('en-IN',{minimumFractionDigits:2})} Cr</span>
+            )}
+          </div>
+        )}
       </div>
       <div style={{display:'flex',flex:1,borderTop:'1px solid #eee',overflow:'hidden'}}>
         <div style={{flex:1,padding:'15px 25px',borderRight:'1px solid #eee',overflowY:'auto'}}>
@@ -3743,25 +3775,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
           <div className="form-row"><label style={{width:140}}>E-mail</label><span className="colon">:</span><input id="l-email" type="text" className="form-input" style={{width:220}} defaultValue={activeAlterItem?.email||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
         </div>
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
-          {/* Dynamic fields based on Under group */}
-          {isBankOD && (
-            <div style={{background:'#fff8e1',border:'1px solid #ffe082',borderRadius:4,padding:'10px 15px',marginBottom:15}}>
-              <b style={{display:'block',marginBottom:8,fontSize:13,color:'#8B4000'}}>🏦 Bank OD Configuration</b>
-              <div className="form-row">
-                <label style={{width:180,fontWeight:'bold',color:'#8B0000'}}>Set OD Limit</label><span className="colon">:</span>
-                <input id="l-od-limit" type="number" className="form-input" style={{width:150,textAlign:'right',fontWeight:'bold'}}
-                  value={odLimit} onChange={e=>setOdLimit(e.target.value)}
-                  onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}
-                  placeholder="0.00"/>
-                <span style={{marginLeft:8,fontSize:12,color:'#8B0000',fontWeight:'bold'}}>Cr</span>
-              </div>
-              {odLimit && parseFloat(odLimit) > 0 && (
-                <div style={{fontSize:11,color:'#555',marginTop:6,paddingLeft:2}}>
-                  ℹ️ Limit: ₹ {parseFloat(odLimit).toLocaleString('en-IN', {minimumFractionDigits:2})} Cr
-                </div>
-              )}
-            </div>
-          )}
+          {/* Tax Registration */}
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Tax Registration</b>
           <div className="form-row"><label style={{width:180}}>PAN/IT No.</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.pan||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
           <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select id="l-reg" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType||'Regular'} onKeyDown={handleGlobalKeyDown}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
