@@ -5127,7 +5127,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setSupplierInvNo('');
         setSupplierInvDate('');
         setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
-        setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+        const defaultEntryType = activeVoucher === 'Receipt' ? 'Cr' : 'Dr';
+        setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:defaultEntryType}]);
         setAdditionalLedgers([{ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}]);
         setNarration('');
         setPartyBalance(null);
@@ -5576,7 +5577,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     if(activeAlterItem) { onCancel(); return; }
     setPartyName('');
     setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
-    setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+    const defaultEntryType = activeVoucher === 'Receipt' ? 'Cr' : 'Dr';
+    setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:defaultEntryType}]);
     setAdditionalLedgers([]);
     setNarration('');
     setPartyBalance(null);
