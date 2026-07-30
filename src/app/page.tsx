@@ -5430,9 +5430,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           }, 150);
         }
       } else if(focus?.field==='accledger'){
-        if(isEndOfItem || currentList.length === 0) goToNarration();
-        else if(currentList.length>0 && listSel < currentList.length) pickLedger(currentList[listSel] as Ledger);
-        else goToNarration();
+        if ((listSel === 0 && (!filter || filter.trim()==='')) || isEndOfItem || currentList.length === 0) {
+          goToNarration();
+        } else {
+          const realIndex = (!filter || filter.trim()==='') ? listSel - 1 : listSel;
+          if (realIndex >= 0 && realIndex < currentList.length) {
+            pickLedger(currentList[realIndex] as Ledger);
+          } else {
+            goToNarration();
+          }
+        }
       } else if(currentList.length>0 && listSel < currentList.length) pickLedger(currentList[listSel] as Ledger);
     }
   };
@@ -6233,7 +6240,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           const val = entry.ledgerName || '';
                           setFocus({field:'accledger', rowIdx:idx});
                           setFilter(val);
-                          setListSel(val.trim() === '' ? 99999 : 0);
+                          setListSel(0);
                         }}
                         onChange={e => {
                           const val = e.target.value;
@@ -6242,7 +6249,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           setAccEntries(ne);
                           setFilter(val);
                           setFocus({field:'accledger', rowIdx:idx});
-                          setListSel(val.trim() === '' ? 99999 : 0);
+                          setListSel(0);
                         }}
                         onKeyDown={e => {
                           if (e.key === 'Enter') {
@@ -6458,7 +6465,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             ⚡ Alt+C: Create New {focus.field==='item'?'Stock Item':'Ledger'}
           </div>
           <div ref={listRef} style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
-            {/* End of List — Available for item, addl-ledger, and accledger */}
+            {/* End of List — Available at top for item, addl-ledger, and accledger */}
             {(focus.field==='item' || focus.field==='addl-ledger' || focus.field==='accledger') && (
               <div
                 onMouseDown={e=>{
@@ -6468,8 +6475,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 }}
                 style={{
                   padding:'5px 18px',cursor:'pointer',
-                  background:isEndOfItem?'#ffc436':'transparent',
-                  fontWeight:isEndOfItem?'bold':'normal',
+                  background: (listSel === 0 && (!filter || filter.trim()==='')) ? '#ffc436' : (isEndOfItem ? '#ffc436' : 'transparent'),
+                  fontWeight: (listSel === 0 && (!filter || filter.trim()==='')) ? 'bold' : (isEndOfItem ? 'bold' : 'normal'),
                   fontSize:13, color:'#8B0000',
                   borderBottom:'1px solid #ddd',
                 }}
@@ -6477,18 +6484,37 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 End of List
               </div>
             )}
-            {(currentList as any[]).map((it,i)=>(
-              <div key={i} onMouseDown={e=>{e.preventDefault();if(focus.field==='item')pickItem(it as StockItem);else pickLedger(it as Ledger);}}
-                style={{padding:'5px 18px',cursor:'pointer',background:(!isEndOfItem&&i===listSel)?'#ffc436':'transparent',fontWeight:(!isEndOfItem&&i===listSel)?'bold':'normal',fontSize:13}}>
-                {it && 'name' in (it as any) ? (it as any).name : 'Unknown Item'}
-                {focus.field==='item' && (
-                  <span style={{float:'right',fontSize:11,opacity:0.6}}>{typeof (it as any).unit === 'string' ? (it as any).unit : (it as any).unit?.symbol || (it as any).unit?.name || 'Nos'}</span>
-                )}
-                {focus.field!=='item' && 'openingBalance' in (it as any) && (
-                  <span style={{float:'right',fontSize:11,opacity:0.6}}>{fmt(getLedgerClosingBalance(it as Ledger,[]))} {(it as Ledger).balanceType}</span>
-                )}
-              </div>
-            ))}
+            {(currentList as any[]).map((it,i) => {
+              const hasTopEnd = (focus.field==='item' || focus.field==='addl-ledger' || focus.field==='accledger');
+              const itemSelIndex = hasTopEnd && (!filter || filter.trim() === '') ? i + 1 : i;
+              const isSelected = listSel === itemSelIndex;
+
+              return (
+                <div
+                  key={i}
+                  onMouseDown={e => {
+                    e.preventDefault();
+                    if (focus.field==='item') pickItem(it as StockItem);
+                    else pickLedger(it as Ledger);
+                  }}
+                  style={{
+                    padding:'5px 18px',
+                    cursor:'pointer',
+                    background: isSelected ? '#ffc436' : 'transparent',
+                    fontWeight: isSelected ? 'bold' : 'normal',
+                    fontSize:13
+                  }}
+                >
+                  {it && 'name' in (it as any) ? (it as any).name : 'Unknown Item'}
+                  {focus.field==='item' && (
+                    <span style={{float:'right',fontSize:11,opacity:0.6}}>{typeof (it as any).unit === 'string' ? (it as any).unit : (it as any).unit?.symbol || (it as any).unit?.name || 'Nos'}</span>
+                  )}
+                  {focus.field!=='item' && 'openingBalance' in (it as any) && (
+                    <span style={{float:'right',fontSize:11,opacity:0.6}}>{fmt(getLedgerClosingBalance(it as Ledger,[]))} {(it as Ledger).balanceType}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
