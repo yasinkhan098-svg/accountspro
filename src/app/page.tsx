@@ -7121,9 +7121,24 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
   const [rowIdx, setRowIdx] = useState(0);
   const rows = [...vouchers].sort((a,b)=>parseDate(b.date).getTime() - parseDate(a.date).getTime());
 
-  // Collect all unique item columns and total qty map
+  // Collect all unique item columns and net qty map (Purchase - Sales)
   const itemCols = getItemColumns(rows);
-  const totalItemQtyMap = getItemQtyMap(rows);
+  const netDayBookQtyMap: Record<string, number> = {};
+  itemCols.forEach(col => {
+    let net = 0;
+    rows.forEach(v => {
+      const vItemQty = getVoucherItemQty(v);
+      const q = vItemQty[col.key] || 0;
+      if (q > 0) {
+        if (['Sales', 'Credit Note'].includes(v.type)) {
+          net -= q;
+        } else {
+          net += q;
+        }
+      }
+    });
+    netDayBookQtyMap[col.key] = net;
+  });
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
@@ -7166,6 +7181,8 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
               const dr=v.entries.filter(e=>e.entryType==='Dr').reduce((s,e)=>s+e.amount,0);
               const cr=v.entries.filter(e=>e.entryType==='Cr').reduce((s,e)=>s+e.amount,0);
               const vItemQty = getVoucherItemQty(v);
+              const isSales = ['Sales', 'Credit Note'].includes(v.type);
+              const qtyColor = isSales ? '#8B0000' : '#006600';
               return <tr key={i} style={{cursor:'pointer', background: i===rowIdx?'#ffd700':'', color:i===rowIdx?'#000':'inherit'}} 
                 onClick={()=>onDrillDown?.(v)}
                 onMouseEnter={()=>setRowIdx(i)}>
@@ -7176,7 +7193,7 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
                 </td>
                 <td><span style={{padding:'2px 8px',background:'#dde4f0',fontWeight:'bold',fontSize:11}}>{v.type}</span></td>
                 <td style={{fontSize:12}}>{v.refNo}</td>
-                {itemCols.map(col => <td key={col.key} style={{textAlign:'center',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
+                {itemCols.map(col => <td key={col.key} style={{textAlign:'center',color:qtyColor,fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
                 <td style={{textAlign:'right',color:'#8B0000',fontWeight:'bold'}}>{dr?'₹'+fmt(dr):''}</td>
                 <td style={{textAlign:'right',color:'#006600',fontWeight:'bold'}}>{cr?'₹'+fmt(cr):''}</td>
               </tr>;
@@ -7185,7 +7202,15 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
           <tfoot>
             <tr>
               <td colSpan={4} style={{textAlign:'right',fontWeight:'bold',padding:'8px 12px'}}>Total:</td>
-              {itemCols.map(col => <td key={col.key} style={{textAlign:'center',fontWeight:'bold',color:'#1a7a4a',padding:'8px 12px',background:'#e8f4ec'}}>{fmt(totalItemQtyMap[col.key] || 0)}</td>)}
+              {itemCols.map(col => {
+                const netQty = netDayBookQtyMap[col.key] || 0;
+                const isNegative = netQty < 0;
+                return (
+                  <td key={col.key} style={{textAlign:'center',fontWeight:'bold',color: isNegative ? '#8B0000' : '#006600',padding:'8px 12px',background:'#e8f4ec'}}>
+                    {fmt(netQty)}
+                  </td>
+                );
+              })}
               <td style={{textAlign:'right',fontWeight:'bold',color:'#8B0000',padding:'8px 12px'}}>₹ {fmt(rows.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Dr').reduce((ss,e)=>ss+e.amount,0),0))}</td>
               <td style={{textAlign:'right',fontWeight:'bold',color:'#006600',padding:'8px 12px'}}>₹ {fmt(rows.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Cr').reduce((ss,e)=>ss+e.amount,0),0))}</td>
             </tr>
