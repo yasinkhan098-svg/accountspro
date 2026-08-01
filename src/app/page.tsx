@@ -4934,7 +4934,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       if (currentVal) {
         const idx = list.findIndex(it => it && 'name' in (it as any) && (it as any).name.toLowerCase() === currentVal.toLowerCase());
         if (idx >= 0) {
-          setListSel(idx);
+          // items render at itemSelIndex = i+1 when no filter (End of List at top occupies slot 0)
+          const offset = (!filter || filter.trim() === '') ? 1 : 0;
+          setListSel(idx + offset);
         } else if (filter) {
           // While typing (filtering), highlight the first matching item instead of End of List
           setListSel(0);
@@ -5387,7 +5389,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const vc=vColors[activeVoucher]||'#1c5282';
 
   // For item list / accledger list: End of List option support
-  const isEndOfItem = (focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger') && listSel >= currentList.length;
+  // End of List bottom: listSel >= currentList.length (for all three fields, since items now at 1..N with i+1 offset)
+  const isEndOfItem = (focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger') && listSel > currentList.length;
+
 
   const goToAdditionalLedgers = () => {
     setAdditionalLedgers(prev => prev.length === 0 ? [{ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}] : prev);
@@ -5404,31 +5408,40 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const listKeyDown=(e:React.KeyboardEvent)=>{
     if(e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();
       if(focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger'){
-        // End of List → wrap to first real item
+        // End of List (bottom) → wrap to End of List (top, listSel=0)
         if(isEndOfItem) setListSel(0);
-        // Last real item → End of List
-        else if(listSel >= currentList.length - 1) setListSel(currentList.length);
+        // Last real item (listSel=N with i+1 offset) → End of List bottom (listSel=N+1... but use N as sentinel)
+        // For item/addl-ledger: items at listSel 1..N, so End of List bottom at listSel>=N+1; use currentList.length+1
+        // For accledger: same i+1 offset, last item at listSel=N, End of List bottom at listSel=N+1
+        else if(!filter && listSel >= currentList.length) setListSel(currentList.length + 1);
         else setListSel(p=>p+1);
       } else setListSel(p=>(p+1)%Math.max(1,currentList.length));
     }
     else if(e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();
       if(focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger'){
-        // First real item → End of List
-        if(listSel === 0) setListSel(currentList.length);
-        // End of List → last real item
-        else if(isEndOfItem) setListSel(Math.max(0, currentList.length - 1));
+        // End of List (top, listSel=0) → End of List bottom
+        if(listSel === 0) setListSel(currentList.length + 1);
+        // End of List (bottom) → last real item (listSel=N=currentList.length with i+1 offset)
+        else if(isEndOfItem) setListSel(currentList.length);
         else setListSel(p=>p-1);
       } else setListSel(p=>(p-1+Math.max(1,currentList.length))%Math.max(1,currentList.length));
     }
     else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();
       if(focus?.field==='item'){
-        if(isEndOfItem) goToAdditionalLedgers();
-        else if(currentList.length>0 && listSel < currentList.length) pickItem(currentList[listSel] as StockItem);
+        if(isEndOfItem || listSel === 0) goToAdditionalLedgers();
+        else if(currentList.length > 0) {
+          // items render at listSel 1..N (i+1 offset when no filter), so realIndex = listSel-1
+          const realIndex = (!filter || filter.trim() === '') ? listSel - 1 : listSel;
+          if (realIndex >= 0 && realIndex < currentList.length) pickItem(currentList[realIndex] as StockItem);
+        }
       } else if(focus?.field==='addl-ledger'){
-        if(isEndOfItem || currentList.length === 0) goToNarration();
-        else if(currentList.length>0 && listSel < currentList.length) {
+        if(isEndOfItem || listSel === 0 || currentList.length === 0) goToNarration();
+        else if(currentList.length > 0) {
           const ridx = focus.rowIdx;
-          pickLedger(currentList[listSel] as Ledger);
+          const realIndex = (!filter || filter.trim() === '') ? listSel - 1 : listSel;
+          if (realIndex >= 0 && realIndex < currentList.length) {
+            pickLedger(currentList[realIndex] as Ledger);
+          }
           setTimeout(() => {
             const el = document.getElementById(`addl-amt-${ridx}`);
             if (el) el.focus();
