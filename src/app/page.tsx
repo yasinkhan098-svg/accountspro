@@ -5860,8 +5860,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 if (field === 'rateInclTax') r = round2(value / factor);
                 if (field === 'amount') {
                    const taxable = value;
-                   // If amount is edited, we calculate rate back (rounded to 2 decimals)
-                   if (q > 0) r = round2((taxable / (1 - dP/100)) / q);
+                   // If rate is set, calculate qty automatically (qty = amount / rate)
+                   if (r > 0) q = round2((taxable / (1 - dP/100)) / r);
+                   // If rate is 0 but qty is set, calculate rate back
+                   else if (q > 0) r = round2((taxable / (1 - dP/100)) / q);
                 }
 
                 // Multiply using 2-decimal rate so result stays within 2 decimal places
