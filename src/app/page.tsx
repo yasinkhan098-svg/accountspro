@@ -1217,6 +1217,16 @@ export default function App() {
     setScreen(s);
     setAlterItem(item || null);
     if (typeName) setAlterListType(typeName);
+    // When opening a saved voucher, show its original date in the form
+    // When creating a new voucher, reset to today's date
+    if (s === 'VOUCHER_ENTRY') {
+      if (item?.date) {
+        setCurrentDate(item.date);
+      } else if (!item) {
+        const today = new Date();
+        setCurrentDate(today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'));
+      }
+    }
     if (s === 'GSTR1_REPORT') {
       setGstr1DrillDown(null);
       setGstr1DrillDownParty(null);
@@ -7424,7 +7434,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
             </tbody>
             <tfoot>
               <tr style={{background:'#e8eef4',borderTop:'2px solid #aaa'}}>
-                <td colSpan={totalCols} style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',fontSize:13}}>Total:</td>
+                <td colSpan={4} style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',fontSize:13}}>Total:</td>
                 {detailUnits.map(u => <td key={u} style={{textAlign:'right',padding:'7px 10px',fontWeight:'bold',color:'#1a7a4a',background:'#e8f4ec',fontSize:13}}>{fmt(detailUnitMap[u] || 0)}</td>)}
                 <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',color:'#8B0000',fontSize:13}}>{detailDebit>0?fmt(detailDebit):''}</td>
                 <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',color:'#006600',fontSize:13}}>{detailCredit>0?fmt(detailCredit):''}</td>
