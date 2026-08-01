@@ -7137,10 +7137,10 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
             <tr>
               <th>Date</th><th>Particulars</th><th>Voucher Type</th><th>Ref No.</th>
               {units.map(u => (
-                <th key={u} style={{textAlign:'right',background:'#e8f4ec',color:'#1a7a4a',whiteSpace:'nowrap',verticalAlign:'top',lineHeight:1.3}}>
-                  <div style={{fontWeight:'bold'}}>Qty ({u})</div>
+                <th key={u} style={{textAlign:'center',background:'#e8f4ec',color:'#1a7a4a',whiteSpace:'nowrap',verticalAlign:'top',padding:'6px 10px',lineHeight:1.3}}>
+                  <div style={{fontWeight:'bold',textAlign:'center'}}>Qty ({u})</div>
                   {allUnitItems[u] && allUnitItems[u].length > 0 && (
-                    <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}} title={allUnitItems[u].join(', ')}>
+                    <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',textAlign:'center',maxWidth:140,margin:'2px auto 0 auto',overflow:'hidden',textOverflow:'ellipsis'}} title={allUnitItems[u].join(', ')}>
                       {allUnitItems[u].join(', ')}
                     </div>
                   )}
@@ -7310,10 +7310,10 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                 <tr style={{background:'#e8eef4',borderBottom:'2px solid #aaa'}}>
                   <th style={{textAlign:'left',padding:'6px 16px',color:'#333'}}>Particulars</th>
                   {monthlyUnits.map(u => (
-                    <th key={u} style={{textAlign:'right',padding:'6px 10px',color:'#1a7a4a',background:'#e8f4ec',whiteSpace:'nowrap',fontSize:11,verticalAlign:'top',lineHeight:1.3}}>
-                      <div style={{fontWeight:'bold'}}>Qty ({u})</div>
+                    <th key={u} style={{textAlign:'center',padding:'6px 10px',color:'#1a7a4a',background:'#e8f4ec',whiteSpace:'nowrap',fontSize:11,verticalAlign:'top',lineHeight:1.3}}>
+                      <div style={{fontWeight:'bold',textAlign:'center'}}>Qty ({u})</div>
                       {allMonthlyUnitItems[u] && allMonthlyUnitItems[u].length > 0 && (
-                        <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}} title={allMonthlyUnitItems[u].join(', ')}>
+                        <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',textAlign:'center',maxWidth:140,margin:'2px auto 0 auto',overflow:'hidden',textOverflow:'ellipsis'}} title={allMonthlyUnitItems[u].join(', ')}>
                           {allMonthlyUnitItems[u].join(', ')}
                         </div>
                       )}
@@ -7438,10 +7438,10 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                 <th style={{textAlign:'center',padding:'6px 8px',width:90}}>Vch Type</th>
                 <th style={{textAlign:'center',padding:'6px 8px',width:70}}>Vch No.</th>
                 {detailUnits.map(u => (
-                  <th key={u} style={{textAlign:'right',padding:'6px 10px',color:'#1a7a4a',background:'#e8f4ec',whiteSpace:'nowrap',fontSize:11,verticalAlign:'top',lineHeight:1.3}}>
-                    <div style={{fontWeight:'bold'}}>Qty ({u})</div>
+                  <th key={u} style={{textAlign:'center',padding:'6px 10px',color:'#1a7a4a',background:'#e8f4ec',whiteSpace:'nowrap',fontSize:11,verticalAlign:'top',lineHeight:1.3}}>
+                    <div style={{fontWeight:'bold',textAlign:'center'}}>Qty ({u})</div>
                     {detailUnitItems[u] && detailUnitItems[u].length > 0 && (
-                      <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}} title={detailUnitItems[u].join(', ')}>
+                      <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',textAlign:'center',maxWidth:140,margin:'2px auto 0 auto',overflow:'hidden',textOverflow:'ellipsis'}} title={detailUnitItems[u].join(', ')}>
                         {detailUnitItems[u].join(', ')}
                       </div>
                     )}
