@@ -5894,12 +5894,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 updates.rate = round2(r);
                 updates.discountPerc = round2(dP);
                 updates.discountAmt = round2(discAmt);
-                updates.taxableAmount = round2(taxable);
-                updates.amount = round2(taxable);
-                updates.amountInclTax = round2(amtInclTax);
+                // When user is typing amount directly, preserve their typed value exactly
+                // (don't recalculate from qty*rate which causes rounding drift)
+                updates.taxableAmount = field === 'amount' ? round2(value) : round2(taxable);
+                updates.amount = field === 'amount' ? round2(value) : round2(taxable);
+                updates.amountInclTax = field === 'amount' ? round2(value * factor) : round2(amtInclTax);
                 // rateInclTax mein user jo type kare wahi value store karo (round-trip se value na badle)
                 // Agar field 'rateInclTax' hai to user ki typed value directly, warna calculated value
                 updates.rateInclTax = field === 'rateInclTax' ? value : round2(rateInclTax);
+
 
                 return updates;
               };
