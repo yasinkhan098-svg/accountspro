@@ -4956,12 +4956,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         const name = it && 'name' in (it as any) ? (it as any).name : '';
         return name.toLowerCase() === currentVal.toLowerCase();
       });
-      if (idx >= 0) setListSel(idx);
-      else setListSel(0);
+      if (idx >= 0) {
+        // accledger has "End of List" at top when filter is empty → items start at listSel=1
+        const offset = (focus.field === 'accledger' && (!filter || filter.trim() === '')) ? 1 : 0;
+        setListSel(idx + offset);
+      } else setListSel(0);
     } else {
       setListSel(0);
     }
   }, [focus, filter]);
+
 
   // Scroll selected item into view in list
   useEffect(() => {
