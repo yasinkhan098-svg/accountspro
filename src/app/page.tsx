@@ -7165,7 +7165,7 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
                 </td>
                 <td><span style={{padding:'2px 8px',background:'#dde4f0',fontWeight:'bold',fontSize:11}}>{v.type}</span></td>
                 <td style={{fontSize:12}}>{v.refNo}</td>
-                {units.map(u => <td key={u} style={{textAlign:'right',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vUnitQty[u] ? fmt(vUnitQty[u]) : ''}</td>)}
+                {units.map(u => <td key={u} style={{textAlign:'center',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vUnitQty[u] ? fmt(vUnitQty[u]) : ''}</td>)}
                 <td style={{textAlign:'right',color:'#8B0000',fontWeight:'bold'}}>{dr?'₹'+fmt(dr):''}</td>
                 <td style={{textAlign:'right',color:'#006600',fontWeight:'bold'}}>{cr?'₹'+fmt(cr):''}</td>
               </tr>;
@@ -7174,7 +7174,7 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
           <tfoot>
             <tr>
               <td colSpan={4} style={{textAlign:'right',fontWeight:'bold',padding:'8px 12px'}}>Total:</td>
-              {units.map(u => <td key={u} style={{textAlign:'right',fontWeight:'bold',color:'#1a7a4a',padding:'8px 12px',background:'#e8f4ec'}}>{fmt(allUnitMap[u] || 0)}</td>)}
+              {units.map(u => <td key={u} style={{textAlign:'center',fontWeight:'bold',color:'#1a7a4a',padding:'8px 12px',background:'#e8f4ec'}}>{fmt(allUnitMap[u] || 0)}</td>)}
               <td style={{textAlign:'right',fontWeight:'bold',color:'#8B0000',padding:'8px 12px'}}>₹ {fmt(rows.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Dr').reduce((ss,e)=>ss+e.amount,0),0))}</td>
               <td style={{textAlign:'right',fontWeight:'bold',color:'#006600',padding:'8px 12px'}}>₹ {fmt(rows.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Cr').reduce((ss,e)=>ss+e.amount,0),0))}</td>
             </tr>
@@ -7333,7 +7333,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                       onClick={()=>{setSelMonthIdx(i);setView('detail');setRowIdx(0);}}
                       onMouseEnter={()=>setSelMonthIdx(i)}>
                       <td style={{padding:'5px 16px',fontWeight:isSel?'bold':'normal',color:isSel?'#000':'#222'}}>{m.mName}</td>
-                      {monthlyUnits.map(u => <td key={u} style={{textAlign:'right',padding:'5px 10px',color:'#1a7a4a',fontWeight:isSel?'bold':'normal',background:'#f5fbf7'}}>{m.unitQty[u] ? fmt(m.unitQty[u]) : ''}</td>)}
+                      {monthlyUnits.map(u => <td key={u} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:isSel?'bold':'normal',background:'#f5fbf7'}}>{m.unitQty[u] ? fmt(m.unitQty[u]) : ''}</td>)}
                       <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#8B0000'}}>
                         {m.debit>0?fmt(m.debit):''}
                       </td>
@@ -7350,7 +7350,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
               <tfoot>
                 <tr style={{background:'#1c3a5e',color:'white',borderTop:'2px solid #999'}}>
                   <td style={{padding:'7px 16px',fontWeight:'bold',fontSize:13}}>Grand Total</td>
-                  {monthlyUnits.map(u => <td key={u} style={{textAlign:'right',padding:'7px 10px',fontWeight:'bold',background:'#163050'}}>{fmt(allMonthlyUnitMap[u] || 0)}</td>)}
+                  {monthlyUnits.map(u => <td key={u} style={{textAlign:'center',padding:'7px 10px',fontWeight:'bold',background:'#163050'}}>{fmt(allMonthlyUnitMap[u] || 0)}</td>)}
                   <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold'}}>{grandDebit>0?fmt(grandDebit):''}</td>
                   <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold'}}>{grandCredit>0?fmt(grandCredit):''}</td>
                   <td style={{textAlign:'right',padding:'7px 16px',fontWeight:'bold'}}>{grandTotal>0?`${fmt(grandTotal)} Dr`:''}</td>
@@ -7471,7 +7471,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                       <span style={{padding:'1px 6px',background:color,color:'white',fontSize:10,fontWeight:'bold',borderRadius:2}}>{v.type}</span>
                     </td>
                     <td style={{textAlign:'center',padding:'5px 8px',color:'#555'}}>{v.number}</td>
-                    {detailUnits.map(u => <td key={u} style={{textAlign:'right',padding:'5px 10px',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vUnitQty[u] ? fmt(vUnitQty[u]) : ''}</td>)}
+                    {detailUnits.map(u => <td key={u} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vUnitQty[u] ? fmt(vUnitQty[u]) : ''}</td>)}
                     <td style={{textAlign:'right',padding:'5px 12px',color:'#8B0000',fontWeight:dr>0?'bold':'normal'}}>{dr>0?fmt(dr):''}</td>
                     <td style={{textAlign:'right',padding:'5px 12px',color:'#006600',fontWeight:cr>0?'bold':'normal'}}>{cr>0?fmt(cr):''}</td>
                   </tr>
@@ -7481,7 +7481,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
             <tfoot>
               <tr style={{background:'#e8eef4',borderTop:'2px solid #aaa'}}>
                 <td colSpan={4} style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',fontSize:13}}>Total:</td>
-                {detailUnits.map(u => <td key={u} style={{textAlign:'right',padding:'7px 10px',fontWeight:'bold',color:'#1a7a4a',background:'#e8f4ec',fontSize:13}}>{fmt(detailUnitMap[u] || 0)}</td>)}
+                {detailUnits.map(u => <td key={u} style={{textAlign:'center',padding:'7px 10px',fontWeight:'bold',color:'#1a7a4a',background:'#e8f4ec',fontSize:13}}>{fmt(detailUnitMap[u] || 0)}</td>)}
                 <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',color:'#8B0000',fontSize:13}}>{detailDebit>0?fmt(detailDebit):''}</td>
                 <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',color:'#006600',fontSize:13}}>{detailCredit>0?fmt(detailCredit):''}</td>
               </tr>
