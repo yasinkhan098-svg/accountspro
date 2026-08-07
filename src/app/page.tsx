@@ -8816,22 +8816,22 @@ function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherT
 
   return (
     <div style={{display:'flex',justifyContent:'center',paddingTop:'4vh',height:'100%',background:'var(--tally-bg)',width:'100%'}}>
-      <div className="tally-menu-box" style={{width:440,maxHeight:'82vh',display:'flex',flexDirection:'column'}}>
+      <div className="tally-menu-box" style={{width:440,maxHeight:'82vh',display:'flex',flexDirection:'column',background:'#eef4fa'}}>
         <div className="tally-menu-title" style={{fontSize:15,padding:'8px 15px'}}>List of {type}s</div>
-        <div style={{padding:'8px 15px',borderBottom:'1px solid #dde',background:'#f8f8f8',display:'flex',alignItems:'center',gap:10}}>
+        <div style={{padding:'8px 15px',borderBottom:'1px solid #dde',background:'#eef4fa',display:'flex',alignItems:'center',gap:10}}>
           <label style={{fontSize:12,fontWeight:'bold'}}>Search:</label>
           <input ref={ref} type="text" className="form-input" style={{flex:1}} placeholder={`Filter ${type}s...`} value={search} onChange={e=>setSearch(e.target.value)} autoFocus/>
         </div>
         <div ref={listRef} className="modal-list" style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
           {filtered.map((it,i)=>(
-            <div key={i} className={`modal-list-item ${i===selIdx?'selected':''}`} onClick={()=>onSelect(it)} style={{display:'flex',justifyContent:'space-between',padding:'6px 20px'}}>
+            <div key={i} className={`modal-list-item ${i===selIdx?'selected':''}`} onClick={()=>onSelect(it)} style={{display:'flex',justifyContent:'space-between',padding:'6px 20px',background:i===selIdx?'#f6af3d':'transparent',color:i===selIdx?'black':'inherit'}}>
               <span style={{fontWeight:'bold'}}>{typeof it === 'string' ? it : (it as any).name || (it as any).symbol || ''}</span>
               <span style={{opacity:0.6,fontSize:11}}>{(it && typeof it === 'object' && 'groupName' in it) ? it.groupName as string : ''}</span>
             </div>
           ))}
           {filtered.length===0&&<div style={{padding:25,textAlign:'center',color:'#888'}}>No {type}s found.</div>}
         </div>
-        <div style={{background:'#eef2f6',padding:'6px 12px',fontSize:11,color:'#555',borderTop:'1px solid #ccc',textAlign:'center'}}>
+        <div style={{background:'#e2eaf2',padding:'6px 12px',fontSize:11,color:'#555',borderTop:'1px solid #ccc',textAlign:'center'}}>
           ↑/↓: Navigate | Enter: Select | Esc: Back
         </div>
       </div>
