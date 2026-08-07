@@ -7117,6 +7117,13 @@ function getVoucherItemQty(v: Voucher): Record<string, number> {
   return map;
 }
 
+// Helper: determine if voucher type goes to Debit side in registers (Tally Prime convention)
+function isDebitSideVoucher(type: string): boolean {
+  // Payment, Sales, Debit Note, Contra, Journal → Debit column
+  // Receipt, Purchase, Credit Note → Credit column
+  return ['Payment','Sales','Debit Note','Contra','Journal'].includes(type);
+}
+
 function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Voucher[]; currentPeriod?:{start:string;end:string}; onBack:()=>void; onDrillDown?:(v:Voucher)=>void}) {
   const [rowIdx, setRowIdx] = useState(0);
   const rows = [...vouchers].sort((a,b)=>parseDate(b.date).getTime() - parseDate(a.date).getTime());
@@ -7139,6 +7146,10 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
     });
     netDayBookQtyMap[col.key] = net;
   });
+
+  // Tally Prime: each voucher amount shown in ONE column only
+  const totalDr = rows.filter(v=>isDebitSideVoucher(v.type)).reduce((s,v)=>s+(v.total||0),0);
+  const totalCr = rows.filter(v=>!isDebitSideVoucher(v.type)).reduce((s,v)=>s+(v.total||0),0);
 
   useEffect(()=>{
     const onKey = (e:KeyboardEvent)=>{
@@ -7178,8 +7189,10 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
           </thead>
           <tbody>
             {rows.map((v,i)=>{
-              const dr=v.entries.filter(e=>e.entryType==='Dr').reduce((s,e)=>s+e.amount,0);
-              const cr=v.entries.filter(e=>e.entryType==='Cr').reduce((s,e)=>s+e.amount,0);
+              // Tally Prime: show voucher total in ONE column only based on voucher type
+              const showInDebit = isDebitSideVoucher(v.type);
+              const drAmt = showInDebit ? (v.total||0) : 0;
+              const crAmt = showInDebit ? 0 : (v.total||0);
               const vItemQty = getVoucherItemQty(v);
               const isSales = ['Sales', 'Credit Note'].includes(v.type);
               const qtyColor = isSales ? '#8B0000' : '#006600';
@@ -7194,8 +7207,8 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
                 <td><span style={{padding:'2px 8px',background:'#dde4f0',fontWeight:'bold',fontSize:11}}>{v.type}</span></td>
                 <td style={{fontSize:12}}>{v.refNo}</td>
                 {itemCols.map(col => <td key={col.key} style={{textAlign:'center',color:qtyColor,fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
-                <td style={{textAlign:'right',color:'#8B0000',fontWeight:'bold'}}>{dr?'₹'+fmt(dr):''}</td>
-                <td style={{textAlign:'right',color:'#006600',fontWeight:'bold'}}>{cr?'₹'+fmt(cr):''}</td>
+                <td style={{textAlign:'right',color:'#8B0000',fontWeight:'bold'}}>{drAmt>0?'₹'+fmt(drAmt):''}</td>
+                <td style={{textAlign:'right',color:'#006600',fontWeight:'bold'}}>{crAmt>0?'₹'+fmt(crAmt):''}</td>
               </tr>;
             })}
           </tbody>
@@ -7211,8 +7224,8 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
                   </td>
                 );
               })}
-              <td style={{textAlign:'right',fontWeight:'bold',color:'#8B0000',padding:'8px 12px'}}>₹ {fmt(rows.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Dr').reduce((ss,e)=>ss+e.amount,0),0))}</td>
-              <td style={{textAlign:'right',fontWeight:'bold',color:'#006600',padding:'8px 12px'}}>₹ {fmt(rows.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Cr').reduce((ss,e)=>ss+e.amount,0),0))}</td>
+              <td style={{textAlign:'right',fontWeight:'bold',color:'#8B0000',padding:'8px 12px'}}>₹ {fmt(totalDr)}</td>
+              <td style={{textAlign:'right',fontWeight:'bold',color:'#006600',padding:'8px 12px'}}>₹ {fmt(totalCr)}</td>
             </tr>
           </tfoot>
         </table>
@@ -7272,14 +7285,19 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
   const typesToMatch = matchTypes[voucherType] || [voucherType];
   const allRows = vouchers.filter(v => typesToMatch.includes(v.type));
 
-  // Monthly totals
-  // Monthly totals
+  // Tally Prime: Sales/Payment/Debit Note/Contra/Journal → Debit column only
+  //              Purchase/Receipt/Credit Note → Credit column only
+  const registerIsDebitSide = isDebitSideVoucher(voucherType);
+
+  // Monthly totals — show amount in ONE column based on register type
   const monthlyData = FISCAL_MONTHS.map((mName, mi) => {
     const mNum = FISCAL_MONTH_NUMS[mi];
     const mvs = allRows.filter(v => { const d=parseVoucherDate(v.date); return d?.month===mNum; });
-    const debit = mvs.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Dr').reduce((ss,e)=>ss+e.amount,0),0);
-    const credit = mvs.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Cr').reduce((ss,e)=>ss+e.amount,0),0);
-    const total = mvs.reduce((s,v)=>s+v.total,0);
+    const monthTotal = mvs.reduce((s,v)=>s+v.total,0);
+    // Debit-side registers: amount goes to debit column; credit-side: to credit column
+    const debit = registerIsDebitSide ? monthTotal : 0;
+    const credit = registerIsDebitSide ? 0 : monthTotal;
+    const total = monthTotal;
     const itemQty = getItemQtyMap(mvs);
     return {mName, mNum, vouchers:mvs, debit, credit, total, itemQty};
   });
@@ -7294,8 +7312,9 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
 
   // Detail view rows
   const detailRows = monthlyData[selMonthIdx]?.vouchers || [];
-  const detailDebit = detailRows.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Dr').reduce((ss,e)=>ss+e.amount,0),0);
-  const detailCredit = detailRows.reduce((s,v)=>s+v.entries.filter(e=>e.entryType==='Cr').reduce((ss,e)=>ss+e.amount,0),0);
+  const detailTotal = detailRows.reduce((s,v)=>s+v.total,0);
+  const detailDebit = registerIsDebitSide ? detailTotal : 0;
+  const detailCredit = registerIsDebitSide ? 0 : detailTotal;
 
   // Bar graph max
   const maxVal = Math.max(...monthlyData.map(m=>m.total), 1);
@@ -7334,7 +7353,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
       {/* Company sub-header */}
       <div style={{background:'#f0f4f8',borderBottom:'1px solid #ccc',padding:'4px 16px',fontSize:12,display:'flex',gap:20}}>
         <span style={{fontWeight:'bold',color:color}}>{voucherType} Register</span>
-        <span>Transactions: Debit | Credit | Closing Balance</span>
+        <span>Transactions: {registerIsDebitSide ? 'Amount shown in Debit column' : 'Amount shown in Credit column'}</span>
       </div>
 
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
@@ -7355,7 +7374,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                   ))}
                   <th style={{textAlign:'right',padding:'6px 12px',color:'#333'}}>Debit</th>
                   <th style={{textAlign:'right',padding:'6px 12px',color:'#333'}}>Credit</th>
-                  <th style={{textAlign:'right',padding:'6px 16px',color:'#333'}}>Closing Balance</th>
+                  <th style={{textAlign:'right',padding:'6px 16px',color:'#333'}}>Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -7369,13 +7388,15 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                       <td style={{padding:'5px 16px',fontWeight:isSel?'bold':'normal',color:isSel?'#000':'#222'}}>{m.mName}</td>
                       {allMonthlyItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:isSel?'bold':'normal',background:'#f5fbf7'}}>{m.itemQty[col.key] ? fmt(m.itemQty[col.key]) : ''}</td>)}
                       <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#8B0000'}}>
-                        {m.debit>0?fmt(m.debit):''}
+                        {/* Debit-side registers (Sales/Payment/etc): show amount in Debit only */}
+                        {registerIsDebitSide && m.total>0 ? fmt(m.total) : ''}
                       </td>
                       <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#006600'}}>
-                        {m.credit>0?fmt(m.credit):''}
+                        {/* Credit-side registers (Purchase/Receipt/etc): show amount in Credit only */}
+                        {!registerIsDebitSide && m.total>0 ? fmt(m.total) : ''}
                       </td>
                       <td style={{textAlign:'right',padding:'5px 16px',fontWeight:'bold',color:isSel?'#000':color}}>
-                        {m.total>0?`${fmt(m.total)} Dr`:''}
+                        {m.total>0?fmt(m.total):''}
                       </td>
                     </tr>
                   );
@@ -7387,7 +7408,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                   {allMonthlyItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'7px 10px',fontWeight:'bold',background:'#163050'}}>{fmt(allMonthlyItemQtyMap[col.key] || 0)}</td>)}
                   <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold'}}>{grandDebit>0?fmt(grandDebit):''}</td>
                   <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold'}}>{grandCredit>0?fmt(grandCredit):''}</td>
-                  <td style={{textAlign:'right',padding:'7px 16px',fontWeight:'bold'}}>{grandTotal>0?`${fmt(grandTotal)} Dr`:''}</td>
+                  <td style={{textAlign:'right',padding:'7px 16px',fontWeight:'bold'}}>{grandTotal>0?fmt(grandTotal):''}</td>
                 </tr>
               </tfoot>
             </table>
@@ -7487,8 +7508,10 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                 <tr><td colSpan={totalCols+2} style={{textAlign:'center',padding:40,color:'#888',fontSize:13}}>No vouchers found for {selMonth?.mName}</td></tr>
               )}
               {detailRows.map((v,i)=>{
-                const dr = v.entries.filter(e=>e.entryType==='Dr').reduce((s,e)=>s+e.amount,0);
-                const cr = v.entries.filter(e=>e.entryType==='Cr').reduce((s,e)=>s+e.amount,0);
+                // Tally Prime: show voucher total in ONE column only
+                const vAmt = v.total || 0;
+                const drAmt = registerIsDebitSide ? vAmt : 0;
+                const crAmt = registerIsDebitSide ? 0 : vAmt;
                 const isSel = i===rowIdx;
                 const vItemQty = getVoucherItemQty(v);
                 return (
@@ -7503,8 +7526,8 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                     </td>
                     <td style={{textAlign:'center',padding:'5px 8px',color:'#555'}}>{v.number}</td>
                     {detailItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
-                    <td style={{textAlign:'right',padding:'5px 12px',color:'#8B0000',fontWeight:dr>0?'bold':'normal'}}>{dr>0?fmt(dr):''}</td>
-                    <td style={{textAlign:'right',padding:'5px 12px',color:'#006600',fontWeight:cr>0?'bold':'normal'}}>{cr>0?fmt(cr):''}</td>
+                    <td style={{textAlign:'right',padding:'5px 12px',color:'#8B0000',fontWeight:drAmt>0?'bold':'normal'}}>{drAmt>0?fmt(drAmt):''}</td>
+                    <td style={{textAlign:'right',padding:'5px 12px',color:'#006600',fontWeight:crAmt>0?'bold':'normal'}}>{crAmt>0?fmt(crAmt):''}</td>
                   </tr>
                 );
               })}
