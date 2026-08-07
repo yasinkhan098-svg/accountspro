@@ -157,16 +157,16 @@ body {
 
 .tally-menu-box {
   width: 320px;
-  background: #fbfdff;
-  border: 2px solid var(--tally-nav-blue); /* Thicker Dark balanced border */
+  background: #e6eff8; /* Light blue popup background as in reference images */
+  border: 2px solid var(--tally-nav-blue);
   display: flex;
   flex-direction: column;
-  box-shadow: 2px 4px 15px rgba(0,0,0,0.18);
-  outline: 1px solid #ffffff; /* Double border effect */
+  box-shadow: 2px 6px 18px rgba(0, 0, 0, 0.16);
+  outline: 1px solid #ffffff;
 }
 
 .menu-list-container {
-  padding: 6px 0;
+  padding: 8px 0 12px 0;
 }
 
 .submenu-popup {
@@ -175,9 +175,9 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: #fbfdff;
+  background: #e6eff8; /* Light blue popup background */
   border: 2px solid var(--tally-nav-blue);
-  box-shadow: 2px 4px 15px rgba(0,0,0,0.18);
+  box-shadow: 2px 6px 18px rgba(0, 0, 0, 0.16);
   outline: 1px solid #ffffff;
   display: flex;
   flex-direction: column;
@@ -185,26 +185,37 @@ body {
 
 .tally-menu-title {
   background-color: var(--tally-nav-blue);
-  color: white;
+  color: #ffffff;
   padding: 7px 12px;
   text-align: center;
-  font-size: 15px; /* Increased */
+  font-size: 15px;
   font-weight: bold;
   letter-spacing: 0.3px;
-  border-bottom: 1px solid #153666;
+  border-top: 3px solid #143560;
+  border-bottom: 1px solid #143560;
+}
+
+.menu-header {
+  background: transparent;
+  color: #3d5166;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  padding: 12px 24px 3px 24px;
+  text-transform: uppercase;
 }
 
 .menu-item {
-  font-size: 14px; /* Increased from 11px */
-  padding: 5px 24px;
+  font-size: 13.5px;
+  padding: 4px 24px;
   cursor: pointer;
-  color: #111;
+  color: #111111;
   font-weight: bold;
 }
 
 .menu-item.selected {
-  background-color: var(--tally-menu-hover);
-  color: black;
+  background-color: #f6af3d; /* Golden yellow selection bar from reference images */
+  color: #000000;
 }
 
 .menu-item .highlight {
@@ -213,7 +224,7 @@ body {
 }
 
 .menu-item.selected .highlight {
-  color: black;
+  color: #c91111;
 }
 
 /* Master Menu Popup */
@@ -296,12 +307,10 @@ body {
 /* Form Layout */
 .form-workspace {
   flex: 1;
-  background: var(--tally-bg);
+  background: #fdfdfd;
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: auto;
-  padding: 10px;
 }
 
 .master-form-box {
