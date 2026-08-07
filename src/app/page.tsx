@@ -6290,8 +6290,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                             e.preventDefault(); e.stopPropagation();
                             if (isEndOfItem || (!entry.ledgerName && idx > 0)) {
                               goToNarration();
-                            } else if (focus?.field === 'accledger' && currentList.length > 0 && listSel < currentList.length) {
-                              pickLedger(currentList[listSel] as Ledger);
+                            } else if (focus?.field === 'accledger' && currentList.length > 0 && !isEndOfItem) {
+                              // Fix: account for i+1 offset when "End of List" is at top (no filter)
+                              // Same realIndex logic as listKeyDown Enter handler
+                              const realIndex = (!filter || filter.trim() === '') ? listSel - 1 : listSel;
+                              if (realIndex >= 0 && realIndex < currentList.length) {
+                                pickLedger(currentList[realIndex] as Ledger);
+                              } else if (listSel === 0 || realIndex < 0) {
+                                goToNarration();
+                              } else {
+                                const amtEl = document.getElementById(`acc-amt-${idx}-${entry.entryType}`) || document.getElementById(`acc-amt-${idx}-Dr`) || document.getElementById(`acc-amt-${idx}-Cr`);
+                                amtEl?.focus();
+                              }
                             } else {
                               const amtEl = document.getElementById(`acc-amt-${idx}-${entry.entryType}`) || document.getElementById(`acc-amt-${idx}-Dr`) || document.getElementById(`acc-amt-${idx}-Cr`);
                               amtEl?.focus();
