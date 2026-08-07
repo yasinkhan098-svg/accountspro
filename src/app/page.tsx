@@ -8815,21 +8815,25 @@ function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherT
   }, [selIdx]);
 
   return (
-    <div className="form-content" style={{padding:0,height:'100%',display:'flex',flexDirection:'column'}}>
-      <div className="modal-header" style={{fontSize:15,padding:'8px 15px'}}>List of {type}s ({filtered.length} records)</div>
-      <div style={{padding:'8px 15px',borderBottom:'1px solid #dde',background:'#f8f8f8',display:'flex',alignItems:'center',gap:10}}>
-        <label style={{fontSize:12,fontWeight:'bold'}}>Search:</label>
-        <input ref={ref} type="text" className="form-input" style={{width:320}} placeholder={`Filter ${type}s...`} value={search} onChange={e=>setSearch(e.target.value)} autoFocus/>
-        <span style={{fontSize:11,color:'#888',marginLeft:'auto'}}>Arrow Keys to Navigate | Click or Enter to Select | Esc: Back</span>
-      </div>
-      <div ref={listRef} className="modal-list" style={{flex:1,overflowY:'auto'}}>
-        {filtered.map((it,i)=>(
-          <div key={i} className={`modal-list-item ${i===selIdx?'selected':''}`} onClick={()=>onSelect(it)} style={{display:'flex',justifyContent:'space-between'}}>
-            <span style={{fontWeight:'bold'}}>{typeof it === 'string' ? it : (it as any).name || (it as any).symbol || ''}</span>
-            <span style={{opacity:0.45,fontSize:11}}>{(it && typeof it === 'object' && 'groupName' in it) ? it.groupName as string : ''}</span>
-          </div>
-        ))}
-        {filtered.length===0&&<div style={{padding:25,textAlign:'center',color:'#888'}}>No {type}s found.</div>}
+    <div style={{display:'flex',justifyContent:'center',paddingTop:'4vh',height:'100%',background:'var(--tally-bg)',width:'100%'}}>
+      <div className="tally-menu-box" style={{width:440,maxHeight:'82vh',display:'flex',flexDirection:'column'}}>
+        <div className="tally-menu-title" style={{fontSize:15,padding:'8px 15px'}}>List of {type}s</div>
+        <div style={{padding:'8px 15px',borderBottom:'1px solid #dde',background:'#f8f8f8',display:'flex',alignItems:'center',gap:10}}>
+          <label style={{fontSize:12,fontWeight:'bold'}}>Search:</label>
+          <input ref={ref} type="text" className="form-input" style={{flex:1}} placeholder={`Filter ${type}s...`} value={search} onChange={e=>setSearch(e.target.value)} autoFocus/>
+        </div>
+        <div ref={listRef} className="modal-list" style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
+          {filtered.map((it,i)=>(
+            <div key={i} className={`modal-list-item ${i===selIdx?'selected':''}`} onClick={()=>onSelect(it)} style={{display:'flex',justifyContent:'space-between',padding:'6px 20px'}}>
+              <span style={{fontWeight:'bold'}}>{typeof it === 'string' ? it : (it as any).name || (it as any).symbol || ''}</span>
+              <span style={{opacity:0.6,fontSize:11}}>{(it && typeof it === 'object' && 'groupName' in it) ? it.groupName as string : ''}</span>
+            </div>
+          ))}
+          {filtered.length===0&&<div style={{padding:25,textAlign:'center',color:'#888'}}>No {type}s found.</div>}
+        </div>
+        <div style={{background:'#eef2f6',padding:'6px 12px',fontSize:11,color:'#555',borderTop:'1px solid #ccc',textAlign:'center'}}>
+          ↑/↓: Navigate | Enter: Select | Esc: Back
+        </div>
       </div>
     </div>
   );
