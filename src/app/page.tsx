@@ -2437,7 +2437,7 @@ export default function App() {
                   </div>
                 )}
                 {['MASTER_MENU','ALTER_MENU','DISPLAY_REPORTS_MENU','ACCOUNT_BOOKS_MENU'].includes(screen) && (
-                  <div className="tally-menu-box submenu-popup">
+                  <div className="tally-menu-box">
                     <div className="tally-menu-title">
                       {screen==='MASTER_MENU'&&'List of Masters'}
                       {screen==='ALTER_MENU'&&'List of Masters (Alter)'}

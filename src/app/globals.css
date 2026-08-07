@@ -151,18 +151,20 @@ body {
 }
 
 .tally-menu-container {
-  width: 320px; /* Wider for bigger font */
+  width: 320px;
   position: relative;
+  display: flex;
+  justify-content: center;
 }
 
 .tally-menu-box {
   width: 320px;
-  background: #eef4fa; /* Off-white grayish blue from Gateway reference image */
-  border: 2px solid var(--tally-nav-blue);
+  background: #f0f4f9; /* Off-white grayish blue background matching reference image */
+  border: 2px solid #1c4880; /* Dark Navy border around box */
+  outline: 1px solid #ffffff; /* White inner outline */
+  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.22); /* Drop shadow */
   display: flex;
   flex-direction: column;
-  box-shadow: 2px 6px 20px rgba(0, 0, 0, 0.18);
-  outline: 1px solid #ffffff;
 }
 
 .menu-list-container {
@@ -170,33 +172,29 @@ body {
 }
 
 .submenu-popup {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: #eef4fa; /* Off-white grayish blue background */
-  border: 2px solid var(--tally-nav-blue);
-  box-shadow: 2px 6px 20px rgba(0, 0, 0, 0.18);
+  width: 320px;
+  background: #f0f4f9;
+  border: 2px solid #1c4880;
   outline: 1px solid #ffffff;
+  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.22);
   display: flex;
   flex-direction: column;
 }
 
 .tally-menu-title {
-  background-color: var(--tally-nav-blue);
+  background-color: #1c4880;
   color: #ffffff;
   padding: 8px 12px;
   text-align: center;
   font-size: 15px;
   font-weight: bold;
   letter-spacing: 0.3px;
-  border-bottom: 1px solid #153666;
+  border-bottom: 1px solid #143560;
 }
 
 .menu-header {
   background: transparent;
-  color: #4a5c6d;
+  color: #4c6075;
   font-size: 11px;
   font-weight: bold;
   letter-spacing: 0.5px;
@@ -213,7 +211,7 @@ body {
 }
 
 .menu-item.selected {
-  background-color: #f6af3d; /* Warm Golden yellow selection bar from reference image */
+  background-color: #f6af3d; /* Golden yellow selection bar from reference image */
   color: #000000;
 }
 
