@@ -7374,41 +7374,66 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                   ))}
                   <th style={{textAlign:'right',padding:'6px 12px',color:'#333'}}>Debit</th>
                   <th style={{textAlign:'right',padding:'6px 12px',color:'#333'}}>Credit</th>
-                  <th style={{textAlign:'right',padding:'6px 16px',color:'#333'}}>Total</th>
+                  <th style={{textAlign:'right',padding:'6px 16px',color:'#333'}}>Closing Balance</th>
                 </tr>
               </thead>
               <tbody>
-                {monthlyData.map((m,i)=>{
-                  const isSel = i===selMonthIdx;
-                  return (
-                    <tr key={i}
-                      style={{background:isSel?'#ffd700':i%2===0?'#fff':'#fafafa',cursor:'pointer',borderBottom:'1px solid #e0e0e0'}}
-                      onClick={()=>{setSelMonthIdx(i);setView('detail');setRowIdx(0);}}
-                      onMouseEnter={()=>setSelMonthIdx(i)}>
-                      <td style={{padding:'5px 16px',fontWeight:isSel?'bold':'normal',color:isSel?'#000':'#222'}}>{m.mName}</td>
-                      {allMonthlyItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:isSel?'bold':'normal',background:'#f5fbf7'}}>{m.itemQty[col.key] ? fmt(m.itemQty[col.key]) : ''}</td>)}
-                      <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#8B0000'}}>
-                        {/* Debit-side registers (Sales/Payment/etc): show amount in Debit only */}
-                        {registerIsDebitSide && m.total>0 ? fmt(m.total) : ''}
-                      </td>
-                      <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#006600'}}>
-                        {/* Credit-side registers (Purchase/Receipt/etc): show amount in Credit only */}
-                        {!registerIsDebitSide && m.total>0 ? fmt(m.total) : ''}
-                      </td>
-                      <td style={{textAlign:'right',padding:'5px 16px',fontWeight:'bold',color:isSel?'#000':color}}>
-                        {m.total>0?fmt(m.total):''}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {(()=>{
+                  let runningBalance = 0;
+                  return monthlyData.map((m,i)=>{
+                    const isSel = i===selMonthIdx;
+                    // Running closing balance: debit-side adds, credit-side subtracts (or vice versa)
+                    if(registerIsDebitSide) runningBalance += m.total;
+                    else runningBalance += m.total;
+                    const closingLabel = runningBalance > 0
+                      ? `${fmt(runningBalance)} ${registerIsDebitSide ? 'Dr' : 'Cr'}`
+                      : '';
+                    return (
+                      <tr key={i}
+                        style={{background:isSel?'#ffd700':i%2===0?'#fff':'#fafafa',cursor:'pointer',borderBottom:'1px solid #e0e0e0'}}
+                        onClick={()=>{setSelMonthIdx(i);setView('detail');setRowIdx(0);}}
+                        onMouseEnter={()=>setSelMonthIdx(i)}>
+                        <td style={{padding:'5px 16px',fontWeight:isSel?'bold':'normal',color:isSel?'#000':'#222'}}>{m.mName}</td>
+                        {allMonthlyItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:isSel?'bold':'normal',background:'#f5fbf7'}}>{m.itemQty[col.key] ? fmt(m.itemQty[col.key]) : ''}</td>)}
+                        <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#8B0000'}}>
+                          {registerIsDebitSide && m.total>0 ? fmt(m.total) : ''}
+                        </td>
+                        <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#006600'}}>
+                          {!registerIsDebitSide && m.total>0 ? fmt(m.total) : ''}
+                        </td>
+                        <td style={{textAlign:'right',padding:'5px 16px',fontWeight:'bold',color:isSel?'#000':color}}>
+                          {m.total>0 ? closingLabel : ''}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
               <tfoot>
-                <tr style={{background:'#1c3a5e',color:'white',borderTop:'2px solid #999'}}>
-                  <td style={{padding:'7px 16px',fontWeight:'bold',fontSize:13}}>Grand Total</td>
-                  {allMonthlyItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'7px 10px',fontWeight:'bold',background:'#163050'}}>{fmt(allMonthlyItemQtyMap[col.key] || 0)}</td>)}
-                  <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold'}}>{grandDebit>0?fmt(grandDebit):''}</td>
-                  <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold'}}>{grandCredit>0?fmt(grandCredit):''}</td>
-                  <td style={{textAlign:'right',padding:'7px 16px',fontWeight:'bold'}}>{grandTotal>0?fmt(grandTotal):''}</td>
+                {/* Tally Prime style Grand Total row */}
+                <tr style={{background:'#fff',borderTop:'2px solid #333'}}>
+                  <td
+                    colSpan={1 + allMonthlyItemCols.length}
+                    style={{
+                      padding:'9px 16px',
+                      fontWeight:'bold',
+                      fontSize:13,
+                      letterSpacing:'3px',
+                      color:'#000',
+                      borderTop:'2px solid #333',
+                    }}
+                  >
+                    G r a n d &nbsp; T o t a l
+                  </td>
+                  <td style={{textAlign:'right',padding:'9px 12px',fontWeight:'bold',fontSize:13,color:'#8B0000',borderTop:'2px solid #333'}}>
+                    {grandDebit>0 ? fmt(grandDebit) : ''}
+                  </td>
+                  <td style={{textAlign:'right',padding:'9px 12px',fontWeight:'bold',fontSize:13,color:'#006600',borderTop:'2px solid #333'}}>
+                    {grandCredit>0 ? fmt(grandCredit) : ''}
+                  </td>
+                  <td style={{textAlign:'right',padding:'9px 16px',fontWeight:'bold',fontSize:13,color:color,borderTop:'2px solid #333'}}>
+                    {grandTotal>0 ? `${fmt(grandTotal)} ${registerIsDebitSide ? 'Dr' : 'Cr'}` : ''}
+                  </td>
                 </tr>
               </tfoot>
             </table>
