@@ -7198,12 +7198,39 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   }}
                 >
                   {it && 'name' in (it as any) ? (it as any).name : 'Unknown Item'}
-                  {focus.field==='item' && (
-                    <span style={{float:'right',fontSize:11,opacity:0.6}}>{typeof (it as any).unit === 'string' ? (it as any).unit : (it as any).unit?.symbol || (it as any).unit?.name || 'Nos'}</span>
-                  )}
-                  {focus.field!=='item' && 'openingBalance' in (it as any) && (
-                    <span style={{float:'right',fontSize:11,opacity:0.6}}>{fmt(getLedgerClosingBalance(it as Ledger,[]))} {(it as Ledger).balanceType}</span>
-                  )}
+                  {focus.field==='item' && (() => {
+                    const item = it as StockItem;
+                    const unitStr = typeof item.unit === 'string' ? item.unit : (item.unit as any)?.symbol || (item.unit as any)?.name || 'Nos';
+                    let totalQty = item.openingQty || 0;
+                    if (vouchers && vouchers.length > 0) {
+                      vouchers.forEach(v => {
+                        if (v.inventoryEntries) {
+                          v.inventoryEntries.forEach(ie => {
+                            if (ie.itemId === item.id || (ie.itemName && ie.itemName.trim().toLowerCase() === item.name.trim().toLowerCase())) {
+                              if (['Purchase', 'Credit Note'].includes(v.type)) totalQty += (ie.qty || 0);
+                              else if (['Sales', 'Debit Note'].includes(v.type)) totalQty -= (ie.qty || 0);
+                            }
+                          });
+                        }
+                      });
+                    }
+                    return (
+                      <span style={{float:'right',fontSize:11,fontWeight:'bold',color:'#00555a',opacity:0.85}}>
+                        {fmt(totalQty)} {unitStr}
+                      </span>
+                    );
+                  })()}
+                  {focus.field!=='item' && 'openingBalance' in (it as any) && (() => {
+                    const l = it as Ledger;
+                    const closingBal = getLedgerClosingBalance(l, vouchers);
+                    const absBal = Math.abs(closingBal);
+                    const balType = closingBal >= 0 ? 'Dr' : 'Cr';
+                    return (
+                      <span style={{float:'right',fontSize:11,fontWeight:'bold',color: closingBal < 0 ? '#b30000' : '#00555a',opacity:0.85}}>
+                        {fmt(absBal)} {balType}
+                      </span>
+                    );
+                  })()}
                 </div>
               );
             })}
