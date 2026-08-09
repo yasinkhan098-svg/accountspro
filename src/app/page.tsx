@@ -6639,7 +6639,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                             id={`item-desc1-${idx}`}
                             type="text"
                             className="form-input"
-                            style={{flex:1, fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
+                            style={{width:280, maxWidth:'90%', fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
                             placeholder="Description line 1..."
                             value={row.desc1 || ''}
                             onChange={e => {
@@ -6665,7 +6665,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                             id={`item-desc2-${idx}`}
                             type="text"
                             className="form-input"
-                            style={{flex:1, fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
+                            style={{width:280, maxWidth:'90%', fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
                             placeholder="Description line 2..."
                             value={row.desc2 || ''}
                             onChange={e => {
@@ -6690,7 +6690,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                             id={`item-desc3-${idx}`}
                             type="text"
                             className="form-input"
-                            style={{flex:1, fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
+                            style={{width:280, maxWidth:'90%', fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
                             placeholder="Description line 3..."
                             value={row.desc3 || ''}
                             onChange={e => {
