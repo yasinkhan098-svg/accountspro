@@ -5143,7 +5143,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setSupplierInvNo('');
         setSupplierInvDate('');
         setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
-        const defaultEntryType = activeVoucher === 'Receipt' ? 'Cr' : 'Dr';
+        // Contra: Particulars (By/Credit side) = Cr. Receipt: Cr. Others: Dr.
+        const defaultEntryType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
         setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:defaultEntryType}]);
         setAdditionalLedgers([{ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}]);
         setNarration('');
@@ -5303,7 +5304,13 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       }
     } else if(focus?.field==='accledger'&&focus.rowIdx!==undefined){
       const idx = focus.rowIdx;
-      const entryType = accEntries[idx]?.entryType || (activeVoucher === 'Receipt' ? 'Cr' : 'Dr');
+      // Contra: Particulars (By) is always Credit. Receipt: Cr. Others: Dr.
+      let entryType: 'Dr' | 'Cr';
+      if (activeVoucher === 'Contra') {
+        entryType = 'Cr';
+      } else {
+        entryType = accEntries[idx]?.entryType || (activeVoucher === 'Receipt' ? 'Cr' : 'Dr');
+      }
       const ne=[...accEntries];ne[idx]={...ne[idx],ledgerId:l.id,ledgerName:l.name,entryType};
       setAccEntries(ne);
       setFocus(null); setFilter(''); setListSel(0);
@@ -5531,9 +5538,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           } else if (activeVoucher === 'Receipt') {
             validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: totCr || totDr, entryType: 'Dr' });
           } else if (activeVoucher === 'Contra') {
-            const diff = totDr - totCr;
-            if (diff !== 0) {
-              validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: Math.abs(diff), entryType: diff > 0 ? 'Cr' : 'Dr' });
+            // Contra: Account (partyName) = ALWAYS Dr (To account - receives money)
+            // Particulars = ALWAYS Cr (By account - sends money)
+            // The Dr amount = sum of all Cr entries in particulars
+            const contraAmt = totCr; // Sum of Cr particulars = amount going into Account
+            if (contraAmt > 0) {
+              validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: contraAmt, entryType: 'Dr' });
+            } else if (totDr > 0) {
+              // Fallback: if somehow Dr was used, balance it as Cr
+              validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: totDr, entryType: 'Dr' });
             }
           }
         }
@@ -5604,7 +5617,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     if(activeAlterItem) { onCancel(); return; }
     setPartyName('');
     setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
-    const defaultEntryType = activeVoucher === 'Receipt' ? 'Cr' : 'Dr';
+    // Contra: Particulars (By/Credit side) = Cr. Receipt: Cr. Others: Dr.
+    const defaultEntryType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
     setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:defaultEntryType}]);
     setAdditionalLedgers([]);
     setNarration('');
@@ -5788,6 +5802,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             let pendingAdj = 0;
             if (activeVoucher === 'Payment') pendingAdj = -accDr;
             else if (activeVoucher === 'Receipt') pendingAdj = accCr;
+            // Contra: Account field = Dr (To account, balance increases). Particulars = Cr (By account).
+            // Account balance increases by the amount being transferred (= sum of Cr in particulars)
+            else if (activeVoucher === 'Contra') pendingAdj = accCr;
             else pendingAdj = accDr - accCr;
 
             const liveBal = baseBal + pendingAdj;
@@ -6339,7 +6356,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             if (idx === accEntries.length - 1) {
-                              const defaultType = activeVoucher === 'Receipt' ? 'Cr' : 'Dr';
+                              // Contra: Particulars always Cr. Receipt: Cr. Others: Dr.
+                              const defaultType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
                               setAccEntries(p => [...p, { ledgerId: 0, ledgerName: '', amount: 0, entryType: defaultType }]);
                               setTimeout(() => document.getElementById(`acc-ledger-${idx + 1}`)?.focus(), 80);
                             } else {
@@ -6356,6 +6374,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   {entry.ledgerName && (() => {
                     const baseBal = entryLedger ? getLedgerClosingBalance(entryLedger, vouchers) : 0;
                     const currentAmt = entry.amount || 0;
+                    // Contra particulars (By/Credit side): balance DECREASES (Cr reduces balance)
+                    // General rule: Dr increases balance, Cr decreases balance
                     const liveBal = baseBal + (entry.entryType === 'Dr' ? currentAmt : -currentAmt);
                     const absBal = Math.abs(liveBal);
                     const balType = liveBal >= 0 ? 'Dr' : 'Cr';
@@ -6383,7 +6403,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             <div
               style={{padding:'8px 20px',color:'#1c5282',fontSize:12,fontWeight:'bold',cursor:'pointer'}}
               onClick={() => {
-                const defaultType = activeVoucher === 'Receipt' ? 'Cr' : 'Dr';
+                // Contra: Particulars always Cr. Receipt: Cr. Others: Dr.
+                const defaultType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
                 setAccEntries(p => [...p, { ledgerId: 0, ledgerName: '', amount: 0, entryType: defaultType }]);
               }}
             >
