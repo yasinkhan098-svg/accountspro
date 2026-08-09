@@ -4819,128 +4819,128 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "1. Depreciation",
         entries: [
-          { type: "By (Dr)", ledger: "Depreciation A/c", group: "Indirect Expense", amount: 5000 },
-          { type: "To (Cr)", ledger: "Furniture A/c", group: "Fixed Asset", amount: 5000 }
+          { type: "By (Dr)", ledger: "Depreciation A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Furniture A/c", group: "Fixed Assets", amount: 0 }
         ],
         note: "Depreciation expense बढ़ा → Debit; Furniture की book value कम हुई → Credit."
       },
       {
         title: "2. Outstanding Rent",
         entries: [
-          { type: "By (Dr)", ledger: "Rent Expense A/c", group: "Indirect Expense", amount: 10000 },
-          { type: "To (Cr)", ledger: "Outstanding Rent A/c", group: "Current Liability", amount: 10000 }
+          { type: "By (Dr)", ledger: "Rent Expense A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Outstanding Rent A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: "Rent expense हुआ → Debit; अभी भुगतान बाकी है → Liability Credit."
       },
       {
         title: "3. Outstanding Salary",
         entries: [
-          { type: "By (Dr)", ledger: "Salary A/c", group: "Indirect Expense", amount: 30000 },
-          { type: "To (Cr)", ledger: "Outstanding Salary A/c", group: "Current Liability", amount: 30000 }
+          { type: "By (Dr)", ledger: "Salary A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Outstanding Salary A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: ""
       },
       {
         title: "4. Bad Debts",
         entries: [
-          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expense", amount: 2000 },
-          { type: "To (Cr)", ledger: "Rahul A/c", group: "Sundry Debtor", amount: 2000 }
+          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Debtor A/c", group: "Sundry Debtors", amount: 0 }
         ],
         note: ""
       },
       {
         title: "5. Prepaid Insurance",
         entries: [
-          { type: "By (Dr)", ledger: "Prepaid Insurance A/c", group: "Current Asset", amount: 2000 },
-          { type: "To (Cr)", ledger: "Insurance Expense A/c", group: "Indirect Expense", amount: 2000 }
+          { type: "By (Dr)", ledger: "Prepaid Insurance A/c", group: "Current Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Insurance Expense A/c", group: "Indirect Expenses", amount: 0 }
         ],
-        note: "Expense का ₹2,000 future period से संबंधित है, इसलिए Asset बनाया गया।"
+        note: "Future period का expense है, इसलिए Asset बना Debit किया गया।"
       },
       {
         title: "6. Accrued Interest Income",
         entries: [
-          { type: "By (Dr)", ledger: "Accrued Interest A/c", group: "Current Asset", amount: 3000 },
-          { type: "To (Cr)", ledger: "Interest Income A/c", group: "Indirect Income", amount: 3000 }
+          { type: "By (Dr)", ledger: "Accrued Interest A/c", group: "Current Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Interest Income A/c", group: "Indirect Incomes", amount: 0 }
         ],
         note: ""
       },
       {
         title: "7. Interest Outstanding",
         entries: [
-          { type: "By (Dr)", ledger: "Interest on Loan A/c", group: "Indirect Expense", amount: 4000 },
-          { type: "To (Cr)", ledger: "Outstanding Interest A/c", group: "Current Liability", amount: 4000 }
+          { type: "By (Dr)", ledger: "Interest on Loan A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Outstanding Interest A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: ""
       },
       {
         title: "8. Drawings",
         entries: [
-          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 8000 },
-          { type: "To (Cr)", ledger: "Bank A/c", group: "Bank Account", amount: 8000 }
+          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 0 },
+          { type: "To (Cr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 0 }
         ],
         note: ""
       },
       {
         title: "9. Capital Introduced",
         entries: [
-          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Account", amount: 50000 },
-          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 50000 }
+          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 0 },
+          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 0 }
         ],
         note: ""
       },
       {
         title: "10. Loan Received",
         entries: [
-          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Account", amount: 400000 },
-          { type: "To (Cr)", ledger: "Bank Loan A/c", group: "Secured Loan", amount: 400000 }
+          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 0 },
+          { type: "To (Cr)", ledger: "Bank Loan A/c", group: "Secured Loans", amount: 0 }
         ],
         note: ""
       },
       {
         title: "11. Furniture Purchased on Credit",
         entries: [
-          { type: "By (Dr)", ledger: "Furniture A/c", group: "Fixed Asset", amount: 25000 },
-          { type: "To (Cr)", ledger: "XYZ Traders A/c", group: "Sundry Creditor", amount: 25000 }
+          { type: "By (Dr)", ledger: "Furniture A/c", group: "Fixed Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Creditor A/c", group: "Sundry Creditors", amount: 0 }
         ],
         note: ""
       },
       {
         title: "12. Business Expense Paid by Owner",
         entries: [
-          { type: "By (Dr)", ledger: "Electricity Expense A/c", group: "Indirect Expense", amount: 3000 },
-          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 3000 }
+          { type: "By (Dr)", ledger: "Electricity Expense A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 0 }
         ],
-        note: "Owner ने अपनी जेब से ₹3,000 electricity expense दिया।"
+        note: "Owner ने अपनी जेब से electricity expense दिया।"
       },
       {
         title: "13. Customer Balance Written Off",
         entries: [
-          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expense", amount: 1500 },
-          { type: "To (Cr)", ledger: "Amit A/c", group: "Sundry Debtor", amount: 1500 }
+          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Debtor A/c", group: "Sundry Debtors", amount: 0 }
         ],
         note: ""
       },
       {
         title: "14. Supplier Balance Written Back",
         entries: [
-          { type: "By (Dr)", ledger: "XYZ Traders A/c", group: "Sundry Creditor", amount: 2500 },
-          { type: "To (Cr)", ledger: "Income from Write Back A/c", group: "Indirect Income", amount: 2500 }
+          { type: "By (Dr)", ledger: "XYZ Creditor A/c", group: "Sundry Creditors", amount: 0 },
+          { type: "To (Cr)", ledger: "Income from Write Back A/c", group: "Indirect Incomes", amount: 0 }
         ],
         note: ""
       },
       {
         title: "15. Prepaid Stationery",
         entries: [
-          { type: "By (Dr)", ledger: "Prepaid Stationery A/c", group: "Current Asset", amount: 500 },
-          { type: "To (Cr)", ledger: "Stationery Expense A/c", group: "Indirect Expense", amount: 500 }
+          { type: "By (Dr)", ledger: "Prepaid Stationery A/c", group: "Current Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Stationery Expense A/c", group: "Indirect Expenses", amount: 0 }
         ],
         note: ""
       },
       {
         title: "16. Provision for Doubtful Debts",
         entries: [
-          { type: "By (Dr)", ledger: "Provision for Doubtful Debts Expense A/c", group: "Indirect Expense", amount: 5000 },
-          { type: "To (Cr)", ledger: "Provision for Doubtful Debts A/c", group: "Provision/Liability", amount: 5000 }
+          { type: "By (Dr)", ledger: "Provision for Doubtful Debts Expense A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Provision for Doubtful Debts A/c", group: "Provisions", amount: 0 }
         ],
         note: "Tally में Provisions सामान्यतः Current Liabilities / Provisions के अंतर्गत रखा जाता है।"
       }
@@ -4952,24 +4952,24 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "17. Outstanding Audit Fees",
         entries: [
-          { type: "By (Dr)", ledger: "Audit Fees A/c", group: "Indirect Expense", amount: 8000 },
-          { type: "To (Cr)", ledger: "Audit Fees Payable A/c", group: "Current Liabilities", amount: 8000 }
+          { type: "By (Dr)", ledger: "Audit Fees A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Audit Fees Payable A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: ""
       },
       {
         title: "18. Outstanding Telephone Expense",
         entries: [
-          { type: "By (Dr)", ledger: "Telephone Expense A/c", group: "Indirect Expense", amount: 2500 },
-          { type: "To (Cr)", ledger: "Telephone Charges Payable A/c", group: "Current Liabilities", amount: 2500 }
+          { type: "By (Dr)", ledger: "Telephone Expense A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Telephone Charges Payable A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: ""
       },
       {
         title: "19. Outstanding Interest on Loan",
         entries: [
-          { type: "By (Dr)", ledger: "Interest on Loan A/c", group: "Indirect Expense", amount: 6000 },
-          { type: "To (Cr)", ledger: "Outstanding Interest A/c", group: "Current Liabilities", amount: 6000 }
+          { type: "By (Dr)", ledger: "Interest on Loan A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Outstanding Interest A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: ""
       }
@@ -4981,16 +4981,16 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "20. Prepaid Rent",
         entries: [
-          { type: "By (Dr)", ledger: "Prepaid Rent A/c", group: "Current Assets", amount: 5000 },
-          { type: "To (Cr)", ledger: "Rent A/c", group: "Indirect Expense", amount: 5000 }
+          { type: "By (Dr)", ledger: "Prepaid Rent A/c", group: "Current Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Rent Expense A/c", group: "Indirect Expenses", amount: 0 }
         ],
         note: ""
       },
       {
         title: "21. Prepaid Advertisement",
         entries: [
-          { type: "By (Dr)", ledger: "Prepaid Advertisement A/c", group: "Current Assets", amount: 7000 },
-          { type: "To (Cr)", ledger: "Advertisement A/c", group: "Indirect Expense", amount: 7000 }
+          { type: "By (Dr)", ledger: "Prepaid Advertisement A/c", group: "Current Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Advertisement Expense A/c", group: "Indirect Expenses", amount: 0 }
         ],
         note: ""
       }
@@ -5000,18 +5000,18 @@ const JOURNAL_EXAMPLES_DATA = [
     category: "Bad Debts & Debtors Adjustments",
     items: [
       {
-        title: "22. Bad Debts from Amit (₹5,000)",
+        title: "22. Bad Debts Write-off",
         entries: [
-          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expense", amount: 5000 },
-          { type: "To (Cr)", ledger: "Amit A/c", group: "Sundry Debtors", amount: 5000 }
+          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Debtor A/c", group: "Sundry Debtors", amount: 0 }
         ],
         note: ""
       },
       {
         title: "23. Bad Debt Recovered",
         entries: [
-          { type: "By (Dr)", ledger: "Customer A/c", group: "Sundry Debtors", amount: 3000 },
-          { type: "To (Cr)", ledger: "Bad Debts Recovered A/c", group: "Indirect Income", amount: 3000 }
+          { type: "By (Dr)", ledger: "XYZ Customer A/c", group: "Sundry Debtors", amount: 0 },
+          { type: "To (Cr)", ledger: "Bad Debts Recovered A/c", group: "Indirect Incomes", amount: 0 }
         ],
         note: "यदि पहले bad debt write off किया गया था और बाद में पैसा recover हुआ।"
       }
@@ -5023,24 +5023,24 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "24. Commission Accrued",
         entries: [
-          { type: "By (Dr)", ledger: "Commission Receivable A/c", group: "Current Assets", amount: 6000 },
-          { type: "To (Cr)", ledger: "Commission Received A/c", group: "Indirect Income", amount: 6000 }
+          { type: "By (Dr)", ledger: "Commission Receivable A/c", group: "Current Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Commission Income A/c", group: "Indirect Incomes", amount: 0 }
         ],
         note: ""
       },
       {
         title: "25. Rent Accrued",
         entries: [
-          { type: "By (Dr)", ledger: "Rent Receivable A/c", group: "Current Assets", amount: 8000 },
-          { type: "To (Cr)", ledger: "Rent Received A/c", group: "Indirect Income", amount: 8000 }
+          { type: "By (Dr)", ledger: "Rent Receivable A/c", group: "Current Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Rent Income A/c", group: "Indirect Incomes", amount: 0 }
         ],
         note: ""
       },
       {
         title: "26. Income Accrued but Not Received",
         entries: [
-          { type: "By (Dr)", ledger: "Income Receivable A/c", group: "Current Assets", amount: 7000 },
-          { type: "To (Cr)", ledger: "Other Income A/c", group: "Indirect Income", amount: 7000 }
+          { type: "By (Dr)", ledger: "Income Receivable A/c", group: "Current Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Other Income A/c", group: "Indirect Incomes", amount: 0 }
         ],
         note: ""
       }
@@ -5052,24 +5052,24 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "27. Owner Introduced Money in Bank",
         entries: [
-          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 100000 },
-          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 100000 }
+          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 0 },
+          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 0 }
         ],
         note: ""
       },
       {
         title: "28. Goods Withdrawn for Personal Use",
         entries: [
-          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 5000 },
-          { type: "To (Cr)", ledger: "Purchases A/c", group: "Purchase Accounts", amount: 5000 }
+          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 0 },
+          { type: "To (Cr)", ledger: "Purchase A/c", group: "Purchase Accounts", amount: 0 }
         ],
         note: ""
       },
       {
         title: "29. Cash Withdrawn by Owner",
         entries: [
-          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 10000 },
-          { type: "To (Cr)", ledger: "Cash A/c", group: "Cash-in-Hand", amount: 10000 }
+          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 0 },
+          { type: "To (Cr)", ledger: "Cash", group: "Cash-in-hand", amount: 0 }
         ],
         note: ""
       }
@@ -5081,24 +5081,24 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "30. Unsecured Loan Received",
         entries: [
-          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 200000 },
-          { type: "To (Cr)", ledger: "Unsecured Loan A/c", group: "Unsecured Loans", amount: 200000 }
+          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 0 },
+          { type: "To (Cr)", ledger: "Unsecured Loan A/c", group: "Unsecured Loans", amount: 0 }
         ],
         note: ""
       },
       {
         title: "31. Loan Interest Accrued",
         entries: [
-          { type: "By (Dr)", ledger: "Interest on Loan A/c", group: "Indirect Expense", amount: 5000 },
-          { type: "To (Cr)", ledger: "Interest Payable A/c", group: "Current Liabilities", amount: 5000 }
+          { type: "By (Dr)", ledger: "Interest on Loan A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Interest Payable A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: ""
       },
       {
         title: "32. Interest Charged on Customer",
         entries: [
-          { type: "By (Dr)", ledger: "Customer A/c", group: "Sundry Debtors", amount: 2000 },
-          { type: "To (Cr)", ledger: "Interest Received A/c", group: "Indirect Income", amount: 2000 }
+          { type: "By (Dr)", ledger: "XYZ Customer A/c", group: "Sundry Debtors", amount: 0 },
+          { type: "To (Cr)", ledger: "Interest Income A/c", group: "Indirect Incomes", amount: 0 }
         ],
         note: ""
       }
@@ -5110,24 +5110,24 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "33. Computer Purchased on Credit",
         entries: [
-          { type: "By (Dr)", ledger: "Computer A/c", group: "Fixed Assets", amount: 50000 },
-          { type: "To (Cr)", ledger: "ABC Computers A/c", group: "Sundry Creditors", amount: 50000 }
+          { type: "By (Dr)", ledger: "Computer A/c", group: "Fixed Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Creditor A/c", group: "Sundry Creditors", amount: 0 }
         ],
         note: ""
       },
       {
         title: "34. Machinery Purchased on Credit",
         entries: [
-          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 200000 },
-          { type: "To (Cr)", ledger: "Machinery Supplier A/c", group: "Sundry Creditors", amount: 200000 }
+          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Supplier A/c", group: "Sundry Creditors", amount: 0 }
         ],
         note: ""
       },
       {
         title: "35. Installation Charges Capitalized",
         entries: [
-          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 15000 },
-          { type: "To (Cr)", ledger: "Installation Charges A/c", group: "Indirect Expense", amount: 15000 }
+          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Installation Charges A/c", group: "Indirect Expenses", amount: 0 }
         ],
         note: "Installation cost asset को usable condition में लाने की directly attributable cost है।"
       }
@@ -5139,16 +5139,16 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "36. Discount Received from Supplier",
         entries: [
-          { type: "By (Dr)", ledger: "ABC Traders A/c", group: "Sundry Creditors", amount: 3000 },
-          { type: "To (Cr)", ledger: "Discount Received A/c", group: "Indirect Income", amount: 3000 }
+          { type: "By (Dr)", ledger: "XYZ Creditor A/c", group: "Sundry Creditors", amount: 0 },
+          { type: "To (Cr)", ledger: "Discount Received A/c", group: "Indirect Incomes", amount: 0 }
         ],
         note: ""
       },
       {
         title: "37. Purchase Return Adjustment",
         entries: [
-          { type: "By (Dr)", ledger: "Supplier A/c", group: "Sundry Creditors", amount: 5000 },
-          { type: "To (Cr)", ledger: "Purchase Return A/c", group: "Purchase Accounts", amount: 5000 }
+          { type: "By (Dr)", ledger: "XYZ Supplier A/c", group: "Sundry Creditors", amount: 0 },
+          { type: "To (Cr)", ledger: "Purchase Return A/c", group: "Purchase Accounts", amount: 0 }
         ],
         note: "Purchase Return के लिए Debit Note (Ctrl+F9) भी appropriate है।"
       }
@@ -5160,16 +5160,16 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "38. Discount Allowed to Customer",
         entries: [
-          { type: "By (Dr)", ledger: "Discount Allowed A/c", group: "Indirect Expense", amount: 2000 },
-          { type: "To (Cr)", ledger: "Rahul A/c", group: "Sundry Debtors", amount: 2000 }
+          { type: "By (Dr)", ledger: "Discount Allowed A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Debtor A/c", group: "Sundry Debtors", amount: 0 }
         ],
         note: ""
       },
       {
         title: "39. Sales Return Adjustment",
         entries: [
-          { type: "By (Dr)", ledger: "Sales Return A/c", group: "Sales Accounts", amount: 4000 },
-          { type: "To (Cr)", ledger: "Customer A/c", group: "Sundry Debtors", amount: 4000 }
+          { type: "By (Dr)", ledger: "Sales Return A/c", group: "Sales Accounts", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Customer A/c", group: "Sundry Debtors", amount: 0 }
         ],
         note: "Sales Return के लिए Credit Note (Ctrl+F8) भी appropriate है।"
       }
@@ -5181,16 +5181,16 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "40. Commission Received in Advance",
         entries: [
-          { type: "By (Dr)", ledger: "Commission Income A/c", group: "Indirect Income", amount: 10000 },
-          { type: "To (Cr)", ledger: "Commission Received in Advance A/c", group: "Current Liabilities", amount: 10000 }
+          { type: "By (Dr)", ledger: "Commission Income A/c", group: "Indirect Incomes", amount: 0 },
+          { type: "To (Cr)", ledger: "Commission Received in Advance A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: ""
       },
       {
         title: "41. Rent Received in Advance",
         entries: [
-          { type: "By (Dr)", ledger: "Rent Income A/c", group: "Indirect Income", amount: 15000 },
-          { type: "To (Cr)", ledger: "Rent Received in Advance A/c", group: "Current Liabilities", amount: 15000 }
+          { type: "By (Dr)", ledger: "Rent Income A/c", group: "Indirect Incomes", amount: 0 },
+          { type: "To (Cr)", ledger: "Rent Received in Advance A/c", group: "Current Liabilities", amount: 0 }
         ],
         note: ""
       }
@@ -5200,32 +5200,32 @@ const JOURNAL_EXAMPLES_DATA = [
     category: "Multiple Ledger Compound Entries",
     items: [
       {
-        title: "42. Salary + Bonus Payable (Total ₹35,000)",
+        title: "42. Salary + Bonus Payable",
         entries: [
-          { type: "By (Dr)", ledger: "Salary A/c", group: "Indirect Expense", amount: 30000 },
-          { type: "By (Dr)", ledger: "Bonus A/c", group: "Indirect Expense", amount: 5000 },
-          { type: "To (Cr)", ledger: "Salary & Bonus Payable A/c", group: "Current Liabilities", amount: 35000 }
+          { type: "By (Dr)", ledger: "Salary A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "By (Dr)", ledger: "Bonus Expense A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Salary & Bonus Payable A/c", group: "Current Liabilities", amount: 0 }
         ],
-        note: "Debit Total = ₹35,000 | Credit Total = ₹35,000"
+        note: "Compound Entry: Multiple Dr entries to single Cr entry"
       },
       {
-        title: "43. Depreciation on Two Assets (Total ₹12,000)",
+        title: "43. Depreciation on Two Assets",
         entries: [
-          { type: "By (Dr)", ledger: "Depreciation A/c", group: "Indirect Expense", amount: 12000 },
-          { type: "To (Cr)", ledger: "Furniture A/c", group: "Fixed Assets", amount: 5000 },
-          { type: "To (Cr)", ledger: "Computer A/c", group: "Fixed Assets", amount: 7000 }
+          { type: "By (Dr)", ledger: "Depreciation A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Furniture A/c", group: "Fixed Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Computer A/c", group: "Fixed Assets", amount: 0 }
         ],
-        note: "Debit Total = ₹12,000 | Credit Total = ₹12,000"
+        note: "Compound Entry: Single Dr entry to Multiple Cr entries"
       },
       {
-        title: "44. Outstanding Expenses - Multiple (Total ₹20,000)",
+        title: "44. Outstanding Expenses - Multiple",
         entries: [
-          { type: "By (Dr)", ledger: "Rent A/c", group: "Indirect Expense", amount: 10000 },
-          { type: "By (Dr)", ledger: "Electricity A/c", group: "Indirect Expense", amount: 6000 },
-          { type: "By (Dr)", ledger: "Telephone A/c", group: "Indirect Expense", amount: 4000 },
-          { type: "To (Cr)", ledger: "Outstanding Expenses A/c", group: "Current Liabilities", amount: 20000 }
+          { type: "By (Dr)", ledger: "Rent Expense A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "By (Dr)", ledger: "Electricity Expense A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "By (Dr)", ledger: "Telephone Expense A/c", group: "Indirect Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Outstanding Expenses A/c", group: "Current Liabilities", amount: 0 }
         ],
-        note: "Debit Total = ₹20,000 | Credit Total = ₹20,000"
+        note: "Compound Entry: Multiple Expense Dr entries to single Liability Cr entry"
       }
     ]
   },
@@ -5235,32 +5235,32 @@ const JOURNAL_EXAMPLES_DATA = [
       {
         title: "45. Transfer of Expense to Capital",
         entries: [
-          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 20000 },
-          { type: "To (Cr)", ledger: "Direct Cost A/c", group: "Direct Expense", amount: 20000 }
+          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 0 },
+          { type: "To (Cr)", ledger: "Direct Cost A/c", group: "Direct Expenses", amount: 0 }
         ],
         note: "Expense को asset cost में capitalize करने के लिए।"
       },
       {
         title: "46. Transfer of Profit to Capital",
         entries: [
-          { type: "By (Dr)", ledger: "Profit & Loss A/c", group: "Primary", amount: 50000 },
-          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 50000 }
+          { type: "By (Dr)", ledger: "Profit & Loss A/c", group: "Primary", amount: 0 },
+          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 0 }
         ],
         note: ""
       },
       {
         title: "47. Transfer of Loss to Capital",
         entries: [
-          { type: "By (Dr)", ledger: "Capital A/c", group: "Capital Account", amount: 30000 },
-          { type: "To (Cr)", ledger: "Profit & Loss A/c", group: "Primary", amount: 30000 }
+          { type: "By (Dr)", ledger: "Capital A/c", group: "Capital Account", amount: 0 },
+          { type: "To (Cr)", ledger: "Profit & Loss A/c", group: "Primary", amount: 0 }
         ],
         note: ""
       },
       {
         title: "48. Customer Advance Adjustment",
         entries: [
-          { type: "By (Dr)", ledger: "Customer Advance A/c", group: "Current Liabilities", amount: 20000 },
-          { type: "To (Cr)", ledger: "Customer A/c", group: "Sundry Debtors", amount: 20000 }
+          { type: "By (Dr)", ledger: "Customer Advance A/c", group: "Current Liabilities", amount: 0 },
+          { type: "To (Cr)", ledger: "XYZ Customer A/c", group: "Sundry Debtors", amount: 0 }
         ],
         note: "Customer advance adjustment entry."
       }
@@ -7504,28 +7504,65 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         <span style={{ fontSize: 13, fontWeight: 'bold', color: '#222' }}>{item.title}</span>
                         <button
                           type="button"
-                          onClick={() => {
-                            const newEntries = item.entries.map(e => ({
-                              ledgerId: 0,
-                              ledgerName: e.ledger,
-                              amount: e.amount,
-                              entryType: (e.type.includes('Dr') ? 'Dr' : 'Cr') as 'Dr' | 'Cr'
-                            }));
+                          onClick={async () => {
+                            const token = authClient.getToken();
+                            const cid = activeCompany?.id || 0;
+                            // Auto-create missing ledgers in DB and local state
+                            for (const e of item.entries) {
+                              const exists = ledgers.some(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
+                              if (!exists) {
+                                try {
+                                  const res = await fetch('/api/ledgers', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                    body: JSON.stringify({
+                                      companyId: cid,
+                                      name: e.ledger,
+                                      groupName: e.group || 'Primary',
+                                      openingBalance: 0,
+                                      balanceType: e.type.includes('Dr') ? 'Dr' : 'Cr'
+                                    })
+                                  });
+                                  if (res.ok) {
+                                    const resData = await res.json();
+                                    if (resData.ledger) {
+                                      ledgers.push(resData.ledger);
+                                    }
+                                  }
+                                } catch (err) {
+                                  console.warn("Auto-create ledger error:", err);
+                                }
+                              }
+                            }
+                            // Populate entries with amount 0 so user can enter amount manually
+                            const newEntries = item.entries.map(e => {
+                              const found = ledgers.find(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
+                              return {
+                                ledgerId: found?.id || 0,
+                                ledgerName: found?.name || e.ledger,
+                                amount: 0,
+                                entryType: (e.type.includes('Dr') ? 'Dr' : 'Cr') as 'Dr' | 'Cr'
+                              };
+                            });
                             setAccEntries(newEntries);
                             setShowJournalHelp(false);
+                            setTimeout(() => {
+                              document.getElementById('acc-amt-0-Dr')?.focus() || document.getElementById('acc-amt-0-Cr')?.focus();
+                            }, 100);
                           }}
                           style={{
                             background: '#1a7a4a',
                             color: '#fff',
                             border: 'none',
-                            padding: '3px 8px',
+                            padding: '3px 10px',
                             fontSize: 10,
                             fontWeight: 'bold',
                             borderRadius: 3,
                             cursor: 'pointer',
-                            flexShrink: 0
+                            flexShrink: 0,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
                           }}
-                          title="Click to auto-fill this entry into form"
+                          title="Click to auto-fill ledgers (Amount = 0)"
                         >
                           ⚡ Auto Fill
                         </button>
@@ -7546,7 +7583,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                               <span style={{ fontWeight: '600' }}>{entry.ledger}</span>
                               <span style={{ color: '#666', fontStyle: 'italic', marginLeft: 4 }}>({entry.group})</span>
                             </div>
-                            <span style={{ fontWeight: 'bold', color: '#111' }}>₹{entry.amount.toLocaleString('en-IN')}</span>
+                            <span style={{ fontWeight: 'bold', color: '#888' }}>₹0.00</span>
                           </div>
                         ))}
                       </div>
