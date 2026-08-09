@@ -49,6 +49,10 @@ export async function POST(req: Request) {
         showInclTax: !!data.showInclTax, 
         showAmtInclTax: !!data.showAmtInclTax, 
         defaultDiscount: parseFloat(data.defaultDiscount || 0),
+        enableDescription: !!data.enableDescription,
+        descLine1: !!data.descLine1,
+        descLine2: !!data.descLine2,
+        descLine3: !!data.descLine3,
         company: { connect: { id: cid } }
       }
     });
@@ -118,7 +122,11 @@ export async function PUT(req: Request) {
         marketValuationMethod: data.marketValuationMethod !== undefined ? String(data.marketValuationMethod) : undefined,
         showInclTax: data.showInclTax !== undefined ? !!data.showInclTax : undefined, 
         showAmtInclTax: data.showAmtInclTax !== undefined ? !!data.showAmtInclTax : undefined,
-        defaultDiscount: data.defaultDiscount !== undefined ? (parseFloat(data.defaultDiscount) || 0) : undefined
+        defaultDiscount: data.defaultDiscount !== undefined ? (parseFloat(data.defaultDiscount) || 0) : undefined,
+        enableDescription: data.enableDescription !== undefined ? !!data.enableDescription : undefined,
+        descLine1: data.descLine1 !== undefined ? !!data.descLine1 : undefined,
+        descLine2: data.descLine2 !== undefined ? !!data.descLine2 : undefined,
+        descLine3: data.descLine3 !== undefined ? !!data.descLine3 : undefined
       }
     });
     return NextResponse.json({ success: true, item: normalizeStockItem(item) });

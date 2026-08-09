@@ -168,6 +168,10 @@ model StockItem {
   marketValuationMethod String?
   showAmtInclTax Boolean @default(false)
   defaultDiscount Float @default(0.0)
+  enableDescription Boolean? @default(false)
+  descLine1       Boolean? @default(false)
+  descLine2       Boolean? @default(false)
+  descLine3       Boolean? @default(false)
   companyId Int
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   inventoryEntries InventoryEntry[]
@@ -188,6 +192,9 @@ model InventoryEntry {
   taxableAmount Float  @default(0.0)
   gstRate     Float    @default(18)
   hsnCode     String?
+  desc1       String?
+  desc2       String?
+  desc3       String?
   voucher     Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   stockItem   StockItem @relation(fields: [stockItemId], references: [id])
 }

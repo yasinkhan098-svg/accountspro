@@ -62,7 +62,10 @@ export async function POST(req: Request) {
               discountAmt: parseFloat(String(i.discountAmt || 0)),
               taxableAmount: parseFloat(String(i.taxableAmount || i.amount || 0)),
               gstRate: parseFloat(String(i.gstRate || 18)),
-              hsnCode: String(i.hsnCode || '')
+              hsnCode: String(i.hsnCode || ''),
+              desc1: i.desc1 ? String(i.desc1) : undefined,
+              desc2: i.desc2 ? String(i.desc2) : undefined,
+              desc3: i.desc3 ? String(i.desc3) : undefined
             }))
           }
         },
@@ -129,7 +132,10 @@ export async function PUT(req: Request) {
               discountAmt: parseFloat(String(i.discountAmt || 0)),
               taxableAmount: parseFloat(String(i.taxableAmount || i.amount || 0)),
               gstRate: parseFloat(String(i.gstRate || 18)),
-              hsnCode: String(i.hsnCode || '')
+              hsnCode: String(i.hsnCode || ''),
+              desc1: i.desc1 ? String(i.desc1) : undefined,
+              desc2: i.desc2 ? String(i.desc2) : undefined,
+              desc3: i.desc3 ? String(i.desc3) : undefined
             }))
           }
         },

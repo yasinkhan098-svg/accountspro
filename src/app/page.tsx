@@ -44,6 +44,10 @@ interface StockItem {
   costingMethod?: string;
   marketValuationMethod?: string;
   defaultDiscount?: number;
+  enableDescription?: boolean;
+  descLine1?: boolean;
+  descLine2?: boolean;
+  descLine3?: boolean;
 }
 interface UnitData { id: number; companyId: number; name: string; symbol: string; formalName: string; uqc: string; decimalPlaces: number; }
 interface GodownData { id: number; companyId: number; name: string; alias?: string; under: string; address?: string; }
@@ -70,7 +74,7 @@ interface VoucherEntry {
   narration?: string; 
 }
 
-interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; discountPerc?: number; discountAmt?: number; taxableAmount?: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; }
+interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; discountPerc?: number; discountAmt?: number; taxableAmount?: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; desc1?: string; desc2?: string; desc3?: string; }
 
 interface VoucherRow {
   itemId: number;
@@ -86,6 +90,9 @@ interface VoucherRow {
   taxableAmount?: number;
   gstRate: number;
   hsnCode?: string;
+  desc1?: string;
+  desc2?: string;
+  desc3?: string;
 }
 
 interface AccountEntry {
@@ -4014,6 +4021,10 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   const [nameSel, setNameSel]=useState(0);
   const [showInclTax, setShowInclTax] = useState(activeAlterItem?.showInclTax ?? false);
   const [showAmtInclTax, setShowAmtInclTax] = useState(activeAlterItem?.showAmtInclTax ?? false);
+  const [enableDescription, setEnableDescription] = useState(activeAlterItem?.enableDescription ?? false);
+  const [descLine1, setDescLine1] = useState(activeAlterItem?.descLine1 ?? false);
+  const [descLine2, setDescLine2] = useState(activeAlterItem?.descLine2 ?? false);
+  const [descLine3, setDescLine3] = useState(activeAlterItem?.descLine3 ?? false);
   const [isSaving, setIsSaving] = useState(false);
   const listRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
@@ -4101,6 +4112,10 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     if(orateEl) orateEl.value=String(it.openingRate || 0);
     setShowInclTax(it.showInclTax ?? false);
     setShowAmtInclTax(it.showAmtInclTax ?? false);
+    setEnableDescription(it.enableDescription ?? false);
+    setDescLine1(it.descLine1 ?? false);
+    setDescLine2(it.descLine2 ?? false);
+    setDescLine3(it.descLine3 ?? false);
     setFocus(null);
     setTimeout(()=>{
       const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
@@ -4111,7 +4126,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
 
   const stockItemFields = [
     'item-name', 'item-alias', 'item-under', 'item-cat', 'item-units', 'item-altunit',
-    'item-hsn', 'item-gst', 'item-show-incl-tax', 'item-show-amt-incl-tax',
+    'item-hsn', 'item-gst', 'item-show-incl-tax', 'item-show-amt-incl-tax', 'item-enable-desc',
+    'item-desc-line1', 'item-desc-line2', 'item-desc-line3',
     'item-gst-app', 'item-supply-type', 'item-costing', 'item-market',
     'item-oqty', 'item-orate', 'btn-save-item'
   ];
@@ -4266,6 +4282,30 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               </select>
               <span style={{marginLeft:10,fontSize:11,color:'#666'}}>(For Voucher Entry)</span>
             </div>
+            <div className="form-row" style={{marginTop:6}}>
+              <label style={{width:140}}>Provide Description</label><span className="colon">:</span>
+              <select id="item-enable-desc" className="form-input" style={{width:80}} value={enableDescription ? 'Yes' : 'No'} onChange={e=>setEnableDescription(e.target.value==='Yes')} onKeyDown={handleGlobalKeyDown}>
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+              <span style={{marginLeft:10,fontSize:11,color:'#666'}}>(For Voucher Entry)</span>
+            </div>
+            {enableDescription && (
+              <div className="form-row" style={{paddingLeft:15, marginTop:4, marginBottom:6, background:'#f4f8fc', padding:'6px 12px', borderRadius:4, border:'1px solid #d0e0f0'}}>
+                <label style={{width:130, fontSize:11, color:'#1c5282', fontWeight:'bold'}}>Select Description Lines:</label>
+                <div style={{display:'flex', gap:15, alignItems:'center'}}>
+                  <label style={{fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontWeight:'bold', color:'#333'}}>
+                    <input id="item-desc-line1" type="checkbox" checked={descLine1} onChange={e=>setDescLine1(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 1
+                  </label>
+                  <label style={{fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontWeight:'bold', color:'#333'}}>
+                    <input id="item-desc-line2" type="checkbox" checked={descLine2} onChange={e=>setDescLine2(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 2
+                  </label>
+                  <label style={{fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontWeight:'bold', color:'#333'}}>
+                    <input id="item-desc-line3" type="checkbox" checked={descLine3} onChange={e=>setDescLine3(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 3
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
@@ -4408,6 +4448,10 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               altUnit: fv('item-altunit') || 'Not Applicable',
               showInclTax,
               showAmtInclTax,
+              enableDescription,
+              descLine1: enableDescription ? descLine1 : false,
+              descLine2: enableDescription ? descLine2 : false,
+              descLine3: enableDescription ? descLine3 : false,
               gstRate: fv('item-gst') ? parseFloat(fv('item-gst')) : 18, 
               hsnCode: fv('item-hsn'), 
               gstApplicable: fsv('item-gst-app'),
@@ -5836,8 +5880,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   };
   const pickItem=(it:StockItem)=>{
     if(!it) return;
+    const idx = (focus?.field==='item' && focus.rowIdx!==undefined) ? focus.rowIdx : 0;
     if(focus?.field==='item'&&focus.rowIdx!==undefined){
-      const idx = focus.rowIdx;
       const nr=[...rows];
       const gst = it.gstRate || 18;
       nr[idx]={
@@ -5854,6 +5898,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       setRows(nr);
     }
     setFocus(null);setFilter('');setListSel(99999);
+    setTimeout(() => {
+      if (it.enableDescription) {
+        if (it.descLine1) document.getElementById(`item-desc1-${idx}`)?.focus();
+        else if (it.descLine2) document.getElementById(`item-desc2-${idx}`)?.focus();
+        else if (it.descLine3) document.getElementById(`item-desc3-${idx}`)?.focus();
+        else document.getElementById(`item-qty-${idx}`)?.focus();
+      } else {
+        document.getElementById(`item-qty-${idx}`)?.focus();
+      }
+    }, 100);
   };
 
   
@@ -6413,11 +6467,23 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           </div>
           <div style={{flex:1,overflowY:'auto'}}>
             {rows.map((row,idx)=>{
-              const item = stockItems.find(it => it.id === row.itemId);
+              const item = stockItems.find(it => it.id === row.itemId || (it.name && it.name.trim().toLowerCase() === (row.itemName || '').trim().toLowerCase()));
+              const hasDesc = !!item?.enableDescription && (!!item?.descLine1 || !!item?.descLine2 || !!item?.descLine3);
               const showIncl = item?.showInclTax || false;
               const anyShowIncl = rows.some(r => stockItems.find(it => it.id === r.itemId)?.showInclTax);
               const showAmtIncl = item?.showAmtInclTax || false;
               const anyShowAmtIncl = rows.some(r => stockItems.find(it => it.id === r.itemId)?.showAmtInclTax);
+
+              const focusAfterItem = () => {
+                if (hasDesc) {
+                  if (item?.descLine1) document.getElementById(`item-desc1-${idx}`)?.focus();
+                  else if (item?.descLine2) document.getElementById(`item-desc2-${idx}`)?.focus();
+                  else if (item?.descLine3) document.getElementById(`item-desc3-${idx}`)?.focus();
+                  else document.getElementById(`item-qty-${idx}`)?.focus();
+                } else {
+                  document.getElementById(`item-qty-${idx}`)?.focus();
+                }
+              };
 
               const calculateVoucherRow = (row: VoucherRow, field: string, value: number): Partial<VoucherRow> => {
                 const gst = row.gstRate || 18;
@@ -6468,7 +6534,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               };
 
               return (
-              <div key={idx} style={{display:'flex',padding:'4px 10px',alignItems:'center',borderBottom:'1px solid #f5f5f5',background:idx%2===0?'#fff':'#fafafa'}}>
+              <div key={idx} style={{display:'flex',padding:'4px 10px',alignItems:'flex-start',borderBottom:'1px solid #f5f5f5',background:idx%2===0?'#fff':'#fafafa'}}>
                 <div style={{flex:4}}>
                   <input id={`item-name-${idx}`} type="text" className="form-input" style={{width:'97%',border:focus?.field==='item'&&focus.rowIdx===idx?'1px solid #ffc436':'1px solid transparent'}}
                     value={row.itemName}
@@ -6496,7 +6562,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                                 amountInclTax: (nr[idx].amount || 0) * (1 + gst / 100)
                               };
                               setRows(nr);
-                              setTimeout(() => document.getElementById(`item-qty-${idx}`)?.focus(), 100);
+                              setTimeout(() => {
+                                if (newItem.enableDescription) {
+                                  if (newItem.descLine1) document.getElementById(`item-desc1-${idx}`)?.focus();
+                                  else if (newItem.descLine2) document.getElementById(`item-desc2-${idx}`)?.focus();
+                                  else if (newItem.descLine3) document.getElementById(`item-desc3-${idx}`)?.focus();
+                                  else document.getElementById(`item-qty-${idx}`)?.focus();
+                                } else {
+                                  document.getElementById(`item-qty-${idx}`)?.focus();
+                                }
+                              }, 100);
                             }
                           });
                         }
@@ -6520,7 +6595,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                               amountInclTax: (nr[idx].amount || 0) * (1 + gst / 100)
                             };
                             setRows(nr);
-                            setTimeout(() => document.getElementById(`item-qty-${idx}`)?.focus(), 100);
+                            setTimeout(() => {
+                              if (newItem.enableDescription) {
+                                if (newItem.descLine1) document.getElementById(`item-desc1-${idx}`)?.focus();
+                                else if (newItem.descLine2) document.getElementById(`item-desc2-${idx}`)?.focus();
+                                else if (newItem.descLine3) document.getElementById(`item-desc3-${idx}`)?.focus();
+                                else document.getElementById(`item-qty-${idx}`)?.focus();
+                              } else {
+                                document.getElementById(`item-qty-${idx}`)?.focus();
+                              }
+                            }, 100);
                           }
                         });
                         return;
@@ -6531,7 +6615,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           listKeyDown(e);
                         } else {
                           if(isEndOfItem || !row.itemName) goToAdditionalLedgers();
-                          else setTimeout(()=>document.getElementById(`item-qty-${idx}`)?.focus(), 50);
+                          else focusAfterItem();
                         }
                       } else {
                         listKeyDown(e);
@@ -6540,6 +6624,85 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     onBlur={()=>setTimeout(()=>setFocus(f=>f?.field==='item'&&f.rowIdx===idx?null:f),200)}
                     placeholder="Select item (Alt+C to create)"
                   />
+                  {row.itemName && hasDesc && (
+                    <div style={{paddingLeft:8, marginTop:4, display:'flex', flexDirection:'column', gap:3}}>
+                      {item?.descLine1 && (
+                        <div style={{display:'flex', alignItems:'center', gap:5}}>
+                          <span style={{fontSize:10, color:'#1c5282', fontWeight:'bold', width:40}}>Line 1:</span>
+                          <input
+                            id={`item-desc1-${idx}`}
+                            type="text"
+                            className="form-input"
+                            style={{flex:1, fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
+                            placeholder="Description line 1..."
+                            value={row.desc1 || ''}
+                            onChange={e => {
+                              const nr = [...rows];
+                              nr[idx].desc1 = e.target.value;
+                              setRows(nr);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault(); e.stopPropagation();
+                                if (item?.descLine2) document.getElementById(`item-desc2-${idx}`)?.focus();
+                                else if (item?.descLine3) document.getElementById(`item-desc3-${idx}`)?.focus();
+                                else document.getElementById(`item-qty-${idx}`)?.focus();
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+                      {item?.descLine2 && (
+                        <div style={{display:'flex', alignItems:'center', gap:5}}>
+                          <span style={{fontSize:10, color:'#1c5282', fontWeight:'bold', width:40}}>Line 2:</span>
+                          <input
+                            id={`item-desc2-${idx}`}
+                            type="text"
+                            className="form-input"
+                            style={{flex:1, fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
+                            placeholder="Description line 2..."
+                            value={row.desc2 || ''}
+                            onChange={e => {
+                              const nr = [...rows];
+                              nr[idx].desc2 = e.target.value;
+                              setRows(nr);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault(); e.stopPropagation();
+                                if (item?.descLine3) document.getElementById(`item-desc3-${idx}`)?.focus();
+                                else document.getElementById(`item-qty-${idx}`)?.focus();
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+                      {item?.descLine3 && (
+                        <div style={{display:'flex', alignItems:'center', gap:5}}>
+                          <span style={{fontSize:10, color:'#1c5282', fontWeight:'bold', width:40}}>Line 3:</span>
+                          <input
+                            id={`item-desc3-${idx}`}
+                            type="text"
+                            className="form-input"
+                            style={{flex:1, fontSize:11, background:'#fffde6', border:'1px solid #d0c080', padding:'2px 6px', fontWeight:'500'}}
+                            placeholder="Description line 3..."
+                            value={row.desc3 || ''}
+                            onChange={e => {
+                              const nr = [...rows];
+                              nr[idx].desc3 = e.target.value;
+                              setRows(nr);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault(); e.stopPropagation();
+                                document.getElementById(`item-qty-${idx}`)?.focus();
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{width:80}}>{row.itemName ? <input id={`item-qty-${idx}`} type="number" className="form-input" style={{width:'88%',textAlign:'right'}} value={row.qty||''}
                    onChange={e=>{
@@ -9443,6 +9606,9 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
                 <td style={{...tdB, textAlign:'center', borderTop:'none', borderBottom:'none'}}>{idx+1}</td>
                 <td style={{...tdB, borderTop:'none', borderBottom:'none'}}>
                   <div style={{fontWeight:'bold'}}>{e.itemName || (e as any).stockItem?.name}</div>
+                  {e.desc1 && <div style={{fontSize:10, color:'#444', fontStyle:'italic', paddingLeft:6}}>{e.desc1}</div>}
+                  {e.desc2 && <div style={{fontSize:10, color:'#444', fontStyle:'italic', paddingLeft:6}}>{e.desc2}</div>}
+                  {e.desc3 && <div style={{fontSize:10, color:'#444', fontStyle:'italic', paddingLeft:6}}>{e.desc3}</div>}
                 </td>
                 <td style={{...tdB, textAlign:'center', borderTop:'none', borderBottom:'none'}}>{e.hsnCode}</td>
                 <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none', fontWeight:'bold'}}>{fmt(e.qty)} {e.unit}</td>
