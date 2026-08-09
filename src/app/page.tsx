@@ -4811,6 +4811,458 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave,onDelete}:
   );
 }
 
+// ==================== JOURNAL VOUCHER EXAMPLES DATA ====================
+const JOURNAL_EXAMPLES_DATA = [
+  {
+    category: "Expense & Outstanding Entries",
+    items: [
+      {
+        title: "1. Depreciation on Furniture",
+        entries: [
+          { type: "By (Dr)", ledger: "Depreciation A/c", group: "Indirect Expense", amount: 5000 },
+          { type: "To (Cr)", ledger: "Furniture A/c", group: "Fixed Assets", amount: 5000 }
+        ],
+        note: "Depreciation expense बढ़ा → Debit; Furniture की book value कम हुई → Credit."
+      },
+      {
+        title: "2. Outstanding Rent",
+        entries: [
+          { type: "By (Dr)", ledger: "Rent A/c", group: "Indirect Expense", amount: 10000 },
+          { type: "To (Cr)", ledger: "Outstanding Rent A/c", group: "Current Liabilities", amount: 10000 }
+        ],
+        note: "Rent expense हुआ → Debit; अभी भुगतान बाकी है → Liability Credit."
+      },
+      {
+        title: "3. Outstanding Salary",
+        entries: [
+          { type: "By (Dr)", ledger: "Salary A/c", group: "Indirect Expense", amount: 30000 },
+          { type: "To (Cr)", ledger: "Outstanding Salary A/c", group: "Current Liabilities", amount: 30000 }
+        ],
+        note: ""
+      },
+      {
+        title: "4. Outstanding Electricity Expense",
+        entries: [
+          { type: "By (Dr)", ledger: "Electricity Expense A/c", group: "Indirect Expense", amount: 4000 },
+          { type: "To (Cr)", ledger: "Outstanding Electricity A/c", group: "Current Liabilities", amount: 4000 }
+        ],
+        note: ""
+      },
+      {
+        title: "5. Outstanding Audit Fees",
+        entries: [
+          { type: "By (Dr)", ledger: "Audit Fees A/c", group: "Indirect Expense", amount: 8000 },
+          { type: "To (Cr)", ledger: "Audit Fees Payable A/c", group: "Current Liabilities", amount: 8000 }
+        ],
+        note: ""
+      },
+      {
+        title: "6. Outstanding Telephone Expense",
+        entries: [
+          { type: "By (Dr)", ledger: "Telephone Expense A/c", group: "Indirect Expense", amount: 2500 },
+          { type: "To (Cr)", ledger: "Telephone Charges Payable A/c", group: "Current Liabilities", amount: 2500 }
+        ],
+        note: ""
+      },
+      {
+        title: "7. Outstanding Interest",
+        entries: [
+          { type: "By (Dr)", ledger: "Interest on Loan A/c", group: "Indirect Expense", amount: 6000 },
+          { type: "To (Cr)", ledger: "Outstanding Interest A/c", group: "Current Liabilities", amount: 6000 }
+        ],
+        note: ""
+      }
+    ]
+  },
+  {
+    category: "Prepaid Expenses",
+    items: [
+      {
+        title: "8. Prepaid Insurance",
+        entries: [
+          { type: "By (Dr)", ledger: "Prepaid Insurance A/c", group: "Current Assets", amount: 3000 },
+          { type: "To (Cr)", ledger: "Insurance A/c", group: "Indirect Expense", amount: 3000 }
+        ],
+        note: "Expense का ₹3,000 future period से संबंधित है, इसलिए Asset बनाया गया।"
+      },
+      {
+        title: "9. Prepaid Rent",
+        entries: [
+          { type: "By (Dr)", ledger: "Prepaid Rent A/c", group: "Current Assets", amount: 5000 },
+          { type: "To (Cr)", ledger: "Rent A/c", group: "Indirect Expense", amount: 5000 }
+        ],
+        note: ""
+      },
+      {
+        title: "10. Prepaid Advertisement",
+        entries: [
+          { type: "By (Dr)", ledger: "Prepaid Advertisement A/c", group: "Current Assets", amount: 7000 },
+          { type: "To (Cr)", ledger: "Advertisement A/c", group: "Indirect Expense", amount: 7000 }
+        ],
+        note: ""
+      },
+      {
+        title: "11. Prepaid Stationery",
+        entries: [
+          { type: "By (Dr)", ledger: "Prepaid Stationery A/c", group: "Current Assets", amount: 500 },
+          { type: "To (Cr)", ledger: "Stationery Expense A/c", group: "Indirect Expense", amount: 500 }
+        ],
+        note: ""
+      }
+    ]
+  },
+  {
+    category: "Bad Debts & Debtors",
+    items: [
+      {
+        title: "12. Bad Debts",
+        entries: [
+          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expense", amount: 2000 },
+          { type: "To (Cr)", ledger: "Rahul A/c", group: "Sundry Debtors", amount: 2000 }
+        ],
+        note: ""
+      },
+      {
+        title: "13. Bad Debts from Amit",
+        entries: [
+          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expense", amount: 5000 },
+          { type: "To (Cr)", ledger: "Amit A/c", group: "Sundry Debtors", amount: 5000 }
+        ],
+        note: ""
+      },
+      {
+        title: "14. Provision for Doubtful Debts",
+        entries: [
+          { type: "By (Dr)", ledger: "Provision for Doubtful Debts Expense A/c", group: "Indirect Expense", amount: 10000 },
+          { type: "To (Cr)", ledger: "Provision for Doubtful Debts A/c", group: "Provisions / Current Liabilities", amount: 10000 }
+        ],
+        note: "Tally में Provisions सामान्यतः Current Liabilities के अंतर्गत रखा जाता है।"
+      },
+      {
+        title: "15. Bad Debt Recovered",
+        entries: [
+          { type: "By (Dr)", ledger: "Customer A/c", group: "Sundry Debtors", amount: 3000 },
+          { type: "To (Cr)", ledger: "Bad Debts Recovered A/c", group: "Indirect Income", amount: 3000 }
+        ],
+        note: "यदि पहले bad debt write off किया गया था और बाद में पैसा recover हुआ।"
+      },
+      {
+        title: "16. Customer Balance Written Off",
+        entries: [
+          { type: "By (Dr)", ledger: "Bad Debts A/c", group: "Indirect Expense", amount: 1500 },
+          { type: "To (Cr)", ledger: "Amit A/c", group: "Sundry Debtors", amount: 1500 }
+        ],
+        note: ""
+      }
+    ]
+  },
+  {
+    category: "Accrued Income / Interest",
+    items: [
+      {
+        title: "17. Interest Accrued",
+        entries: [
+          { type: "By (Dr)", ledger: "Accrued Interest A/c", group: "Current Assets", amount: 4000 },
+          { type: "To (Cr)", ledger: "Interest Received/Income A/c", group: "Indirect Income", amount: 4000 }
+        ],
+        note: ""
+      },
+      {
+        title: "18. Commission Accrued",
+        entries: [
+          { type: "By (Dr)", ledger: "Commission Receivable A/c", group: "Current Assets", amount: 6000 },
+          { type: "To (Cr)", ledger: "Commission Received A/c", group: "Indirect Income", amount: 6000 }
+        ],
+        note: ""
+      },
+      {
+        title: "19. Rent Accrued",
+        entries: [
+          { type: "By (Dr)", ledger: "Rent Receivable A/c", group: "Current Assets", amount: 8000 },
+          { type: "To (Cr)", ledger: "Rent Received A/c", group: "Indirect Income", amount: 8000 }
+        ],
+        note: ""
+      },
+      {
+        title: "20. Income Accrued but Not Received",
+        entries: [
+          { type: "By (Dr)", ledger: "Income Receivable A/c", group: "Current Assets", amount: 7000 },
+          { type: "To (Cr)", ledger: "Other Income A/c", group: "Indirect Income", amount: 7000 }
+        ],
+        note: ""
+      }
+    ]
+  },
+  {
+    category: "Capital & Drawings",
+    items: [
+      {
+        title: "21. Owner Introduced Cash",
+        entries: [
+          { type: "By (Dr)", ledger: "Cash A/c", group: "Cash-in-Hand", amount: 50000 },
+          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 50000 }
+        ],
+        note: ""
+      },
+      {
+        title: "22. Owner Introduced Money in Bank",
+        entries: [
+          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 100000 },
+          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 100000 }
+        ],
+        note: ""
+      },
+      {
+        title: "23. Personal Expense Paid from Business",
+        entries: [
+          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 8000 },
+          { type: "To (Cr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 8000 }
+        ],
+        note: ""
+      },
+      {
+        title: "24. Goods Withdrawn for Personal Use",
+        entries: [
+          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 5000 },
+          { type: "To (Cr)", ledger: "Purchases A/c", group: "Purchase Accounts", amount: 5000 }
+        ],
+        note: ""
+      },
+      {
+        title: "25. Cash Withdrawn by Owner",
+        entries: [
+          { type: "By (Dr)", ledger: "Drawings A/c", group: "Capital Account", amount: 10000 },
+          { type: "To (Cr)", ledger: "Cash A/c", group: "Cash-in-Hand", amount: 10000 }
+        ],
+        note: ""
+      },
+      {
+        title: "26. Business Expense Paid by Owner",
+        entries: [
+          { type: "By (Dr)", ledger: "Advertisement A/c", group: "Indirect Expense", amount: 6000 },
+          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 6000 }
+        ],
+        note: "Owner ने अपनी जेब से advertisement expense दिया।"
+      }
+    ]
+  },
+  {
+    category: "Loan & Interest",
+    items: [
+      {
+        title: "27. Bank Loan Received",
+        entries: [
+          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 400000 },
+          { type: "To (Cr)", ledger: "Bank Loan A/c", group: "Secured Loans", amount: 400000 }
+        ],
+        note: ""
+      },
+      {
+        title: "28. Unsecured Loan Received",
+        entries: [
+          { type: "By (Dr)", ledger: "Bank A/c", group: "Bank Accounts", amount: 200000 },
+          { type: "To (Cr)", ledger: "Unsecured Loan A/c", group: "Unsecured Loans", amount: 200000 }
+        ],
+        note: ""
+      },
+      {
+        title: "29. Loan Interest Accrued",
+        entries: [
+          { type: "By (Dr)", ledger: "Interest on Loan A/c", group: "Indirect Expense", amount: 5000 },
+          { type: "To (Cr)", ledger: "Interest Payable A/c", group: "Current Liabilities", amount: 5000 }
+        ],
+        note: ""
+      },
+      {
+        title: "30. Interest Charged on Customer",
+        entries: [
+          { type: "By (Dr)", ledger: "Customer A/c", group: "Sundry Debtors", amount: 2000 },
+          { type: "To (Cr)", ledger: "Interest Received A/c", group: "Indirect Income", amount: 2000 }
+        ],
+        note: ""
+      }
+    ]
+  },
+  {
+    category: "Fixed Assets Purchased on Credit",
+    items: [
+      {
+        title: "31. Furniture Purchased on Credit",
+        entries: [
+          { type: "By (Dr)", ledger: "Furniture A/c", group: "Fixed Assets", amount: 25000 },
+          { type: "To (Cr)", ledger: "XYZ Traders A/c", group: "Sundry Creditors", amount: 25000 }
+        ],
+        note: ""
+      },
+      {
+        title: "32. Computer Purchased on Credit",
+        entries: [
+          { type: "By (Dr)", ledger: "Computer A/c", group: "Fixed Assets", amount: 50000 },
+          { type: "To (Cr)", ledger: "ABC Computers A/c", group: "Sundry Creditors", amount: 50000 }
+        ],
+        note: ""
+      },
+      {
+        title: "33. Machinery Purchased on Credit",
+        entries: [
+          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 200000 },
+          { type: "To (Cr)", ledger: "Machinery Supplier A/c", group: "Sundry Creditors", amount: 200000 }
+        ],
+        note: ""
+      },
+      {
+        title: "34. Installation Charges Capitalized",
+        entries: [
+          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 15000 },
+          { type: "To (Cr)", ledger: "Installation Charges A/c", group: "Indirect Expense", amount: 15000 }
+        ],
+        note: "Installation cost asset को usable condition में लाने की directly attributable cost है।"
+      }
+    ]
+  },
+  {
+    category: "Creditors & Suppliers Adjustments",
+    items: [
+      {
+        title: "35. Supplier Balance Written Back",
+        entries: [
+          { type: "By (Dr)", ledger: "XYZ Traders A/c", group: "Sundry Creditors", amount: 2500 },
+          { type: "To (Cr)", ledger: "Liability Written Back A/c", group: "Indirect Income", amount: 2500 }
+        ],
+        note: ""
+      },
+      {
+        title: "36. Discount Received from Supplier",
+        entries: [
+          { type: "By (Dr)", ledger: "ABC Traders A/c", group: "Sundry Creditors", amount: 3000 },
+          { type: "To (Cr)", ledger: "Discount Received A/c", group: "Indirect Income", amount: 3000 }
+        ],
+        note: ""
+      },
+      {
+        title: "37. Purchase Return Adjustment",
+        entries: [
+          { type: "By (Dr)", ledger: "Supplier A/c", group: "Sundry Creditors", amount: 5000 },
+          { type: "To (Cr)", ledger: "Purchase Return A/c", group: "Purchase Accounts", amount: 5000 }
+        ],
+        note: "Purchase Return के लिए Debit Note (Ctrl+F9) भी appropriate है।"
+      }
+    ]
+  },
+  {
+    category: "Debtors & Customers Adjustments",
+    items: [
+      {
+        title: "38. Discount Allowed to Customer",
+        entries: [
+          { type: "By (Dr)", ledger: "Discount Allowed A/c", group: "Indirect Expense", amount: 2000 },
+          { type: "To (Cr)", ledger: "Rahul A/c", group: "Sundry Debtors", amount: 2000 }
+        ],
+        note: ""
+      },
+      {
+        title: "39. Sales Return Adjustment",
+        entries: [
+          { type: "By (Dr)", ledger: "Sales Return A/c", group: "Sales Accounts", amount: 4000 },
+          { type: "To (Cr)", ledger: "Customer A/c", group: "Sundry Debtors", amount: 4000 }
+        ],
+        note: "Sales Return के लिए Credit Note (Ctrl+F8) भी appropriate है।"
+      }
+    ]
+  },
+  {
+    category: "Income Adjustments",
+    items: [
+      {
+        title: "40. Commission Received in Advance",
+        entries: [
+          { type: "By (Dr)", ledger: "Commission Income A/c", group: "Indirect Income", amount: 10000 },
+          { type: "To (Cr)", ledger: "Commission Received in Advance A/c", group: "Current Liabilities", amount: 10000 }
+        ],
+        note: ""
+      },
+      {
+        title: "41. Rent Received in Advance",
+        entries: [
+          { type: "By (Dr)", ledger: "Rent Income A/c", group: "Indirect Income", amount: 15000 },
+          { type: "To (Cr)", ledger: "Rent Received in Advance A/c", group: "Current Liabilities", amount: 15000 }
+        ],
+        note: ""
+      }
+    ]
+  },
+  {
+    category: "Multiple Ledger Compound Entries",
+    items: [
+      {
+        title: "42. Salary + Bonus Payable (Total ₹35,000)",
+        entries: [
+          { type: "By (Dr)", ledger: "Salary A/c", group: "Indirect Expense", amount: 30000 },
+          { type: "By (Dr)", ledger: "Bonus A/c", group: "Indirect Expense", amount: 5000 },
+          { type: "To (Cr)", ledger: "Salary & Bonus Payable A/c", group: "Current Liabilities", amount: 35000 }
+        ],
+        note: "Debit Total = ₹35,000 | Credit Total = ₹35,000"
+      },
+      {
+        title: "43. Depreciation on Two Assets (Total ₹12,000)",
+        entries: [
+          { type: "By (Dr)", ledger: "Depreciation A/c", group: "Indirect Expense", amount: 12000 },
+          { type: "To (Cr)", ledger: "Furniture A/c", group: "Fixed Assets", amount: 5000 },
+          { type: "To (Cr)", ledger: "Computer A/c", group: "Fixed Assets", amount: 7000 }
+        ],
+        note: "Debit Total = ₹12,000 | Credit Total = ₹12,000"
+      },
+      {
+        title: "44. Outstanding Expenses - Multiple (Total ₹20,000)",
+        entries: [
+          { type: "By (Dr)", ledger: "Rent A/c", group: "Indirect Expense", amount: 10000 },
+          { type: "By (Dr)", ledger: "Electricity A/c", group: "Indirect Expense", amount: 6000 },
+          { type: "By (Dr)", ledger: "Telephone A/c", group: "Indirect Expense", amount: 4000 },
+          { type: "To (Cr)", ledger: "Outstanding Expenses A/c", group: "Current Liabilities", amount: 20000 }
+        ],
+        note: "Debit Total = ₹20,000 | Credit Total = ₹20,000"
+      }
+    ]
+  },
+  {
+    category: "Special Adjustment Entries",
+    items: [
+      {
+        title: "45. Transfer of Expense to Capital",
+        entries: [
+          { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 20000 },
+          { type: "To (Cr)", ledger: "Direct Cost A/c", group: "Direct Expense", amount: 20000 }
+        ],
+        note: "Expense को asset cost में capitalize करने के लिए।"
+      },
+      {
+        title: "46. Transfer of Profit to Capital",
+        entries: [
+          { type: "By (Dr)", ledger: "Profit & Loss A/c", group: "Primary", amount: 50000 },
+          { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 50000 }
+        ],
+        note: ""
+      },
+      {
+        title: "47. Transfer of Loss to Capital",
+        entries: [
+          { type: "By (Dr)", ledger: "Capital A/c", group: "Capital Account", amount: 30000 },
+          { type: "To (Cr)", ledger: "Profit & Loss A/c", group: "Primary", amount: 30000 }
+        ],
+        note: ""
+      },
+      {
+        title: "48. Customer Advance Adjustment",
+        entries: [
+          { type: "By (Dr)", ledger: "Customer Advance A/c", group: "Current Liabilities", amount: 20000 },
+          { type: "To (Cr)", ledger: "Customer A/c", group: "Sundry Debtors", amount: 20000 }
+        ],
+        note: "Customer advance adjustment entry."
+      }
+    ]
+  }
+];
+
 // ==================== VOUCHER ENTRY FORM ====================
 function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes,altCReturnContext,onAltCReturnHandled,setAltCReturnContext,onNav,setSaveToast}:{
   activeAlterItem?:any; activeVoucher:VoucherTypeKey; ledgers:Ledger[]; stockItems:StockItem[]; units:UnitData[]; vouchers:Voucher[]; activeCompany:Company | null; currentDate:string; onF2:()=>void; onPrintPreview:(v:Voucher)=>void; onCancel:()=>void;
@@ -4886,6 +5338,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const [deleteConfirmSel, setDeleteConfirmSel] = useState<'yes'|'no'>('yes');
   const [partyDetails, setPartyDetails] = useState<PartyDetails|null>(null);
   const [dispatchDetails, setDispatchDetails] = useState<DispatchDetails|null>(null);
+  const [showJournalHelp, setShowJournalHelp] = useState(false);
+  const [journalExampleSearch, setJournalExampleSearch] = useState('');
   const partyDetailFirstRef = useRef<HTMLInputElement>(null);
   const dispatchFirstRef = useRef<HTMLInputElement>(null);
   
@@ -5747,7 +6201,39 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               )}
             </span>
           </div>
-          <div style={{color:'#444'}}>{currentDate} <span onClick={onF2} style={{cursor:'pointer',marginLeft:10,fontSize:11,background:'#fffbe6',padding:'2px 8px',border:'1px solid #f0d060'}}>F2: Change Date</span></div>
+          <div style={{color:'#444',display:'flex',alignItems:'center',gap:8}}>
+            {activeVoucher === 'Journal' && (
+              <button
+                type="button"
+                onClick={() => setShowJournalHelp(prev => !prev)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowJournalHelp(prev => !prev);
+                  }
+                }}
+                style={{
+                  padding: '2px 9px',
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                  background: '#00555a',
+                  color: '#ffffff',
+                  border: '1px solid #003336',
+                  borderRadius: 3,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                  outline: 'none'
+                }}
+                title="Journal Voucher Examples & Rules (Click or Enter)"
+              >
+                <span>📚</span> Examples
+              </button>
+            )}
+            {currentDate} <span onClick={onF2} style={{cursor:'pointer',marginLeft:10,fontSize:11,background:'#fffbe6',padding:'2px 8px',border:'1px solid #f0d060'}}>F2: Change Date</span>
+          </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
           {/* Account field: HIDDEN for Journal (Journal has no party - only By/To particulars) */}
@@ -6887,6 +7373,194 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                      padding:'6px 20px', cursor:'pointer', fontWeight:'bold', outline:'none'
                    }}>No (N)</button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ===== JOURNAL VOUCHER EXAMPLES SIDE PANEL ===== */}
+      {showJournalHelp && activeVoucher === 'Journal' && (
+        <div style={{
+          position: 'fixed',
+          top: 0, right: 0, bottom: 0,
+          width: 460,
+          maxWidth: '92vw',
+          background: '#ffffff',
+          boxShadow: '-6px 0 25px rgba(0,0,0,0.3)',
+          zIndex: 99999,
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily: 'sans-serif',
+          borderLeft: '4px solid #00555a'
+        }}>
+          {/* Panel Header */}
+          <div style={{
+            background: '#00555a',
+            color: '#fff',
+            padding: '12px 16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 'bold', display:'flex', alignItems:'center', gap:6 }}>
+                <span>📚</span> Journal Voucher Examples
+              </h3>
+              <span style={{ fontSize: 11, opacity: 0.9 }}>By (Dr) = Debit | To (Cr) = Credit</span>
+            </div>
+            <button
+              onClick={() => setShowJournalHelp(false)}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                color: '#fff',
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontSize: 16
+              }}
+              title="Close Panel (Esc)"
+            >✕</button>
+          </div>
+
+          {/* Search Bar */}
+          <div style={{ padding: '10px 14px', background: '#f5efe6', borderBottom: '1px solid #ddd' }}>
+            <input
+              type="text"
+              placeholder="🔍 Search example (Rent, Salary, Depreciation, Loan...)"
+              value={journalExampleSearch}
+              onChange={e => setJournalExampleSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 12px',
+                fontSize: 12,
+                border: '1px solid #ccc',
+                borderRadius: 4,
+                outline: 'none',
+                background: '#fff'
+              }}
+            />
+          </div>
+
+          {/* Scrollable Examples List */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', background: '#faf8f5' }}>
+            {/* Accounting Formula Banner */}
+            <div style={{
+              background: '#e8f5e9',
+              border: '1px solid #a5d6a7',
+              borderRadius: 4,
+              padding: '8px 12px',
+              marginBottom: 14,
+              fontSize: 11,
+              color: '#1b5e20'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: 3 }}>⚡ Key Accounting Rules:</div>
+              <div>• <b>By / Debit (Dr)</b>: Asset or Expense increases</div>
+              <div>• <b>To / Credit (Cr)</b>: Liability, Income or Capital increases</div>
+              <div>• <b>Validation</b>: Total By (Dr) = Total To (Cr)</div>
+            </div>
+
+            {JOURNAL_EXAMPLES_DATA.map((cat, cIdx) => {
+              const filteredItems = cat.items.filter(item => {
+                if (!journalExampleSearch.trim()) return true;
+                const q = journalExampleSearch.toLowerCase();
+                return item.title.toLowerCase().includes(q) ||
+                  item.entries.some(e => e.ledger.toLowerCase().includes(q) || e.group.toLowerCase().includes(q)) ||
+                  (item.note && item.note.toLowerCase().includes(q));
+              });
+
+              if (filteredItems.length === 0) return null;
+
+              return (
+                <div key={cIdx} style={{ marginBottom: 16 }}>
+                  <div style={{
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    color: '#00555a',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.4px',
+                    margin: '0 0 8px 0',
+                    paddingBottom: 4,
+                    borderBottom: '2px solid #00555a'
+                  }}>
+                    {cat.category}
+                  </div>
+
+                  {filteredItems.map((item, iIdx) => (
+                    <div key={iIdx} style={{
+                      background: '#fff',
+                      border: '1px solid #e0d8c8',
+                      borderRadius: 5,
+                      padding: '10px 12px',
+                      marginBottom: 10,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 'bold', color: '#222' }}>{item.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newEntries = item.entries.map(e => ({
+                              ledgerId: 0,
+                              ledgerName: e.ledger,
+                              amount: e.amount,
+                              entryType: (e.type.includes('Dr') ? 'Dr' : 'Cr') as 'Dr' | 'Cr'
+                            }));
+                            setAccEntries(newEntries);
+                            setShowJournalHelp(false);
+                          }}
+                          style={{
+                            background: '#1a7a4a',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '3px 8px',
+                            fontSize: 10,
+                            fontWeight: 'bold',
+                            borderRadius: 3,
+                            cursor: 'pointer',
+                            flexShrink: 0
+                          }}
+                          title="Click to auto-fill this entry into form"
+                        >
+                          ⚡ Auto Fill
+                        </button>
+                      </div>
+
+                      <div style={{ background: '#fdfbf7', border: '1px solid #efe8da', borderRadius: 4, padding: '6px 8px' }}>
+                        {item.entries.map((entry, eIdx) => (
+                          <div key={eIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4, color: '#333' }}>
+                            <div>
+                              <span style={{
+                                fontWeight: 'bold',
+                                color: entry.type.includes('Dr') ? '#1a7a4a' : '#8B0000',
+                                minWidth: 48,
+                                display: 'inline-block'
+                              }}>
+                                {entry.type}
+                              </span>
+                              <span style={{ fontWeight: '600' }}>{entry.ledger}</span>
+                              <span style={{ color: '#666', fontStyle: 'italic', marginLeft: 4 }}>({entry.group})</span>
+                            </div>
+                            <span style={{ fontWeight: 'bold', color: '#111' }}>₹{entry.amount.toLocaleString('en-IN')}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {item.note && (
+                        <div style={{ fontSize: 10, color: '#555', fontStyle: 'italic', marginTop: 6, paddingLeft: 6, borderLeft: '2px solid #00555a' }}>
+                          💡 {item.note}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Panel Footer */}
+          <div style={{ padding: '8px 14px', background: '#f5efe6', borderTop: '1px solid #ddd', fontSize: 11, color: '#555', textAlign: 'center' }}>
+            Click <b>⚡ Auto Fill</b> on any example to load it directly!
           </div>
         </div>
       )}
