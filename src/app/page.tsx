@@ -4086,6 +4086,12 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     if (activeAlterItem) {
       const idx = filteredStockItems.findIndex(it => it.id === activeAlterItem.id);
       if (idx >= 0) setNameSel(idx);
+      setShowInclTax(activeAlterItem.showInclTax ?? false);
+      setShowAmtInclTax(activeAlterItem.showAmtInclTax ?? false);
+      setEnableDescription(activeAlterItem.enableDescription ?? false);
+      setDescLine1(activeAlterItem.descLine1 ?? false);
+      setDescLine2(activeAlterItem.descLine2 ?? false);
+      setDescLine3(activeAlterItem.descLine3 ?? false);
     }
   }, [activeAlterItem, filteredStockItems]);
   const pickStockItem=(it:StockItem)=>{
@@ -4291,17 +4297,17 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               <span style={{marginLeft:10,fontSize:11,color:'#666'}}>(For Voucher Entry)</span>
             </div>
             {enableDescription && (
-              <div className="form-row" style={{paddingLeft:15, marginTop:4, marginBottom:6, background:'#f4f8fc', padding:'6px 12px', borderRadius:4, border:'1px solid #d0e0f0'}}>
-                <label style={{width:130, fontSize:11, color:'#1c5282', fontWeight:'bold'}}>Select Description Lines:</label>
-                <div style={{display:'flex', gap:15, alignItems:'center'}}>
-                  <label style={{fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontWeight:'bold', color:'#333'}}>
-                    <input id="item-desc-line1" type="checkbox" checked={descLine1} onChange={e=>setDescLine1(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 1
+              <div style={{marginTop:6, marginBottom:8, background:'#f4f8fc', padding:'8px 12px', borderRadius:4, border:'1px solid #d0e0f0'}}>
+                <div style={{fontSize:11, color:'#1c5282', fontWeight:'bold', marginBottom:6}}>Select Description Lines:</div>
+                <div style={{display:'flex', gap:18, alignItems:'center', flexWrap:'wrap'}}>
+                  <label style={{fontSize:12, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:5, fontWeight:'bold', color:'#333'}}>
+                    <input id="item-desc-line1" type="checkbox" style={{cursor:'pointer', width:14, height:14}} checked={descLine1} onChange={e=>setDescLine1(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 1
                   </label>
-                  <label style={{fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontWeight:'bold', color:'#333'}}>
-                    <input id="item-desc-line2" type="checkbox" checked={descLine2} onChange={e=>setDescLine2(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 2
+                  <label style={{fontSize:12, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:5, fontWeight:'bold', color:'#333'}}>
+                    <input id="item-desc-line2" type="checkbox" style={{cursor:'pointer', width:14, height:14}} checked={descLine2} onChange={e=>setDescLine2(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 2
                   </label>
-                  <label style={{fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontWeight:'bold', color:'#333'}}>
-                    <input id="item-desc-line3" type="checkbox" checked={descLine3} onChange={e=>setDescLine3(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 3
+                  <label style={{fontSize:12, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:5, fontWeight:'bold', color:'#333'}}>
+                    <input id="item-desc-line3" type="checkbox" style={{cursor:'pointer', width:14, height:14}} checked={descLine3} onChange={e=>setDescLine3(e.target.checked)} onKeyDown={handleGlobalKeyDown}/> Line 3
                   </label>
                 </div>
               </div>
