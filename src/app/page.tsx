@@ -5547,26 +5547,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: totCr || totDr, entryType: 'Dr' });
           } else if (activeVoucher === 'Contra') {
             // Contra: Account (partyName) = ALWAYS Dr (To account - receives money)
-            // Particulars = ALWAYS Cr (By account - sends money)
             const contraAmt = totCr;
             if (contraAmt > 0) {
               validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: contraAmt, entryType: 'Dr' });
             } else if (totDr > 0) {
               validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: totDr, entryType: 'Dr' });
             }
-          } else if (activeVoucher === 'Journal') {
-            // Journal: Account (partyName) = By = Dr.
-            // The balance is auto-derived: if Dr < Cr, account is Dr for the difference; if Dr > Cr, already balanced on Dr side.
-            // We add partyName as a Dr entry with the amount needed to balance (totCr - totDr) if positive.
-            const diff = totCr - totDr;
-            if (diff > 0) {
-              // Need more Dr entries: partyName contributes the balancing Dr amount
-              validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: diff, entryType: 'Dr' });
-            } else if (diff === 0 && totDr === 0) {
-              // No entries at all yet, just add with 0
-              validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: 0, entryType: 'Dr' });
-            }
-            // If diff <= 0 and totDr > 0, account is already included in Dr entries or fully balanced
+            // Journal: NO auto-add of partyName. Journal uses only accEntries (By/To).
+            // partyName is unused for Journal.
           }
         }
         return validP;
@@ -5575,11 +5563,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     };
   };
 
-  const handleSave= async ()=>{
-    // 1. Party Name Validation (Required for ALL vouchers)
-    if(!partyName || partyName.trim() === ""){
-      alert('Party A/c Name is required for all vouchers.');
-      return;
+  const handleSave= async ()=>
+{
+    // 1. Party Name Validation (NOT required for Journal - it uses only Particulars)
+    if (activeVoucher !== 'Journal') {
+      if(!partyName || partyName.trim() === ""){
+        alert('Party A/c Name is required for all vouchers.');
+        return;
+      }
     }
 
     const voucherData = getVoucherData();
@@ -5759,8 +5750,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           <div style={{color:'#444'}}>{currentDate} <span onClick={onF2} style={{cursor:'pointer',marginLeft:10,fontSize:11,background:'#fffbe6',padding:'2px 8px',border:'1px solid #f0d060'}}>F2: Change Date</span></div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          {/* Account field: HIDDEN for Journal (Journal has no party - only By/To particulars) */}
+          {activeVoucher !== 'Journal' && (
           <div className="form-row" style={{marginBottom:0,alignItems:'center'}}>
-            <label style={{width:130}}>{!isInventory ? (activeVoucher === 'Journal' ? 'Account (By/Dr)' : 'Account') : 'Party A/c Name'}</label><span className="colon">:</span>
+            <label style={{width:130}}>{!isInventory ? 'Account' : 'Party A/c Name'}</label><span className="colon">:</span>
             <input ref={ref} type="text" className="form-input" style={{width:350,fontWeight:'bold'}}
               value={partyName}
               onChange={e => {
@@ -5838,27 +5831,20 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               placeholder="Select party / bank ledger (Alt+C to create new)"
             />
           </div>
-          {/* Current Balance row - Live calculation as user types in Particulars rows */}
-          {partyName && partyName.trim() !== '' && (() => {
+          )}
+          {/* Current Balance: hidden for Journal */}
+          {activeVoucher !== 'Journal' && partyName && partyName.trim() !== '' && (() => {
             const pLedger = ledgers.find(l => l.name.toLowerCase() === partyName.trim().toLowerCase());
             const baseBal = pLedger ? getLedgerClosingBalance(pLedger, vouchers) : (partyBalance !== null ? partyBalance : 0);
-            
-            // Real-time live adjustment as user types amounts in Particulars rows!
             let pendingAdj = 0;
             if (activeVoucher === 'Payment') pendingAdj = -accDr;
             else if (activeVoucher === 'Receipt') pendingAdj = accCr;
-            // Contra: Account field = Dr (To account, balance increases). Particulars = Cr (By account).
             else if (activeVoucher === 'Contra') pendingAdj = accCr;
-            // Journal: Account field = By (Dr). Balance increases by Dr amount entered in particulars for this ledger.
-            // For simplicity, show net effect (accDr - accCr) as pending adjustment on the account.
-            else if (activeVoucher === 'Journal') pendingAdj = accDr;
             else pendingAdj = accDr - accCr;
-
             const liveBal = baseBal + pendingAdj;
             const absBal = Math.abs(liveBal);
             const balType = liveBal >= 0 ? 'Dr' : 'Cr';
             const odExceeded = pLedger?.odLimit != null && liveBal < 0 && Math.abs(liveBal) > (pLedger.odLimit || 0);
-
             return (
               <div className="form-row" style={{marginBottom:4,marginTop:2,alignItems:'center'}}>
                 <label style={{width:130,fontSize:11,color:'#555',fontStyle:'italic'}}>Current balance</label>
@@ -5880,6 +5866,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             );
           })()}
 
+          {/* Ref No: hidden for Journal */}
+          {activeVoucher !== 'Journal' && (
           <div className="form-row" style={{marginBottom:0}}>
             <label style={{width:80}}>Ref No.</label><span className="colon">:</span>
             <input id="v-ref" type="text" className="form-input" style={{width:160}} value={refNo} onChange={e=>setRefNo(e.target.value)} placeholder="Auto"
@@ -5892,6 +5880,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 }
               }}}/>
           </div>
+          )}
           {(activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') && (
             <>
               <div className="form-row" style={{marginBottom:0}}>
