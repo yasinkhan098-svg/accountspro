@@ -5143,9 +5143,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setSupplierInvNo('');
         setSupplierInvDate('');
         setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
-        // Contra: Particulars (By/Credit side) = Cr. Receipt: Cr. Others: Dr.
-        const defaultEntryType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
-        setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:defaultEntryType}]);
+        // Journal: Initialize with Dr (By) + Cr (To) pair
+        // Contra: Cr. Receipt: Cr. Others: Dr.
+        if (activeVoucher === 'Journal') {
+          setAccEntries([
+            {ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},
+            {ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}
+          ]);
+        } else {
+          const defaultEntryType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
+          setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:defaultEntryType}]);
+        }
         setAdditionalLedgers([{ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}]);
         setNarration('');
         setPartyBalance(null);
@@ -5540,14 +5548,25 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           } else if (activeVoucher === 'Contra') {
             // Contra: Account (partyName) = ALWAYS Dr (To account - receives money)
             // Particulars = ALWAYS Cr (By account - sends money)
-            // The Dr amount = sum of all Cr entries in particulars
-            const contraAmt = totCr; // Sum of Cr particulars = amount going into Account
+            const contraAmt = totCr;
             if (contraAmt > 0) {
               validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: contraAmt, entryType: 'Dr' });
             } else if (totDr > 0) {
-              // Fallback: if somehow Dr was used, balance it as Cr
               validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: totDr, entryType: 'Dr' });
             }
+          } else if (activeVoucher === 'Journal') {
+            // Journal: Account (partyName) = By = Dr.
+            // The balance is auto-derived: if Dr < Cr, account is Dr for the difference; if Dr > Cr, already balanced on Dr side.
+            // We add partyName as a Dr entry with the amount needed to balance (totCr - totDr) if positive.
+            const diff = totCr - totDr;
+            if (diff > 0) {
+              // Need more Dr entries: partyName contributes the balancing Dr amount
+              validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: diff, entryType: 'Dr' });
+            } else if (diff === 0 && totDr === 0) {
+              // No entries at all yet, just add with 0
+              validP.push({ id: validP.length + 1, ledgerId: findL(partyName), ledgerName: partyName, amount: 0, entryType: 'Dr' });
+            }
+            // If diff <= 0 and totDr > 0, account is already included in Dr entries or fully balanced
           }
         }
         return validP;
@@ -5575,14 +5594,32 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       // Sync back only valid items to data
       voucherData.inventoryEntries = validItems;
     } else {
-      // 3. Accounting Validation (For Receipt, Payment, Contra, Journal)
-      // Check if there's at least one ledger other than the party
-      const otherLedgers = voucherData.entries.filter((e:any) => e.ledgerName && e.ledgerName !== partyName);
-      if (otherLedgers.length === 0) {
-        alert("Please select at least one Ledger entry (other than the Party).");
-        return;
+      if (activeVoucher === 'Journal') {
+        // Journal: needs at least one Dr (By) and one Cr (To) entry
+        const journalEntries = voucherData.entries.filter((e:any) => e.ledgerName && e.amount > 0);
+        const totalDr = journalEntries.filter((e:any) => e.entryType === 'Dr').reduce((s:number,e:any)=>s+e.amount, 0);
+        const totalCr = journalEntries.filter((e:any) => e.entryType === 'Cr').reduce((s:number,e:any)=>s+e.amount, 0);
+        if (journalEntries.length < 2) {
+          alert('Journal Voucher requires at least 2 entries (By/Dr and To/Cr).');
+          return;
+        }
+        if (totalDr === 0 || totalCr === 0) {
+          alert(`Journal Voucher must have both:\n• By (Debit) entries\n• To (Credit) entries`);
+          return;
+        }
+        // 3a. Dr must equal Cr
+        if (Math.abs(totalDr - totalCr) > 0.01) {
+          alert(`Journal Voucher is not balanced!\nTotal Debit (By): ₹${totalDr.toFixed(2)}\nTotal Credit (To): ₹${totalCr.toFixed(2)}\nDifference: ₹${Math.abs(totalDr-totalCr).toFixed(2)}\n\nPlease balance Dr = Cr before saving.`);
+          return;
+        }
+      } else {
+        const otherLedgers = voucherData.entries.filter((e:any) => e.ledgerName && e.ledgerName !== partyName);
+        if (otherLedgers.length === 0) {
+          alert("Please select at least one Ledger entry (other than the Party).");
+          return;
+        }
       }
-    }
+    } // end else (!isInventory)
 
     // 4. Manual Voucher Number Validation
     if (isManualMode && !manualVoucherNo.trim()) {
@@ -5617,9 +5654,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     if(activeAlterItem) { onCancel(); return; }
     setPartyName('');
     setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
-    // Contra: Particulars (By/Credit side) = Cr. Receipt: Cr. Others: Dr.
-    const defaultEntryType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
-    setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:defaultEntryType}]);
+    // Journal: Initialize with Dr (By) + Cr (To) pair
+    if (activeVoucher === 'Journal') {
+      setAccEntries([
+        {ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},
+        {ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}
+      ]);
+    } else {
+      // Contra: Particulars (By/Credit side) = Cr. Receipt: Cr. Others: Dr.
+      const defaultEntryType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
+      setAccEntries([{ledgerId:0,ledgerName:'',amount:0,entryType:defaultEntryType}]);
+    }
     setAdditionalLedgers([]);
     setNarration('');
     setPartyBalance(null);
@@ -5715,7 +5760,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         </div>
         <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
           <div className="form-row" style={{marginBottom:0,alignItems:'center'}}>
-            <label style={{width:130}}>{!isInventory ? 'Account' : 'Party A/c Name'}</label><span className="colon">:</span>
+            <label style={{width:130}}>{!isInventory ? (activeVoucher === 'Journal' ? 'Account (By/Dr)' : 'Account') : 'Party A/c Name'}</label><span className="colon">:</span>
             <input ref={ref} type="text" className="form-input" style={{width:350,fontWeight:'bold'}}
               value={partyName}
               onChange={e => {
@@ -5803,8 +5848,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             if (activeVoucher === 'Payment') pendingAdj = -accDr;
             else if (activeVoucher === 'Receipt') pendingAdj = accCr;
             // Contra: Account field = Dr (To account, balance increases). Particulars = Cr (By account).
-            // Account balance increases by the amount being transferred (= sum of Cr in particulars)
             else if (activeVoucher === 'Contra') pendingAdj = accCr;
+            // Journal: Account field = By (Dr). Balance increases by Dr amount entered in particulars for this ledger.
+            // For simplicity, show net effect (accDr - accCr) as pending adjustment on the account.
+            else if (activeVoucher === 'Journal') pendingAdj = accDr;
             else pendingAdj = accDr - accCr;
 
             const liveBal = baseBal + pendingAdj;
@@ -6244,8 +6291,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             fontSize:12,
             color:'#222'
           }}>
-            <div>Particulars</div>
-            <div>Amount</div>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <span>Particulars</span>
+              {activeVoucher === 'Journal' && (
+                <span style={{fontSize:10,fontWeight:'normal',color:'#555',background:'#fff3cd',padding:'1px 6px',border:'1px solid #f0c040',borderRadius:2}}>
+                  By = Dr (Debit) &nbsp;|&nbsp; To = Cr (Credit)
+                </span>
+              )}
+            </div>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              {activeVoucher === 'Journal' && <span style={{fontSize:11,color:'#555',minWidth:36,textAlign:'center'}}>Dr/Cr</span>}
+              <span>Amount</span>
+            </div>
           </div>
 
           {/* Table Body Rows */}
@@ -6269,9 +6326,19 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     transition:'background 0.15s'
                   }}
                 >
-                  {/* Line 1: Ledger Name + Amount */}
+                  {/* Line 1: By/To prefix + Ledger Name + Dr/Cr Toggle + Amount */}
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                    <div style={{flex:1,marginRight:20}}>
+                    {/* By/To label for Journal */}
+                    {activeVoucher === 'Journal' && (
+                      <span style={{
+                        minWidth:28,fontSize:11,fontWeight:'bold',
+                        color: entry.entryType === 'Dr' ? '#1a7a4a' : '#8B0000',
+                        marginRight:4
+                      }}>
+                        {entry.entryType === 'Dr' ? 'By' : 'To'}
+                      </span>
+                    )}
+                    <div style={{flex:1,marginRight:8}}>
                       <input
                         id={`acc-ledger-${idx}`}
                         type="text"
@@ -6330,6 +6397,37 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         onBlur={() => setTimeout(() => setFocus(f => f?.field === 'accledger' && f.rowIdx === idx ? null : f), 350)}
                       />
                     </div>
+                    {/* Dr/Cr Toggle for Journal */}
+                    {activeVoucher === 'Journal' && (
+                      <div style={{display:'flex',border:'1px solid #ccc',borderRadius:3,overflow:'hidden',marginRight:8,flexShrink:0}}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ne = [...accEntries];
+                            ne[idx] = {...ne[idx], entryType: 'Dr'};
+                            setAccEntries(ne);
+                          }}
+                          style={{
+                            padding:'2px 8px',fontSize:11,fontWeight:'bold',cursor:'pointer',border:'none',
+                            background: entry.entryType === 'Dr' ? '#1a7a4a' : '#f0f0f0',
+                            color: entry.entryType === 'Dr' ? '#fff' : '#555'
+                          }}
+                        >Dr</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ne = [...accEntries];
+                            ne[idx] = {...ne[idx], entryType: 'Cr'};
+                            setAccEntries(ne);
+                          }}
+                          style={{
+                            padding:'2px 8px',fontSize:11,fontWeight:'bold',cursor:'pointer',border:'none',
+                            background: entry.entryType === 'Cr' ? '#8B0000' : '#f0f0f0',
+                            color: entry.entryType === 'Cr' ? '#fff' : '#555'
+                          }}
+                        >Cr</button>
+                      </div>
+                    )}
                     {/* Amount Input */}
                     <div style={{width:160,textAlign:'right'}}>
                       <input
@@ -6356,8 +6454,16 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             if (idx === accEntries.length - 1) {
-                              // Contra: Particulars always Cr. Receipt: Cr. Others: Dr.
-                              const defaultType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
+                              // Journal: alternate Dr/Cr when adding new row
+                              // Contra: always Cr. Receipt: Cr. Others: Dr.
+                              let defaultType: 'Dr' | 'Cr';
+                              if (activeVoucher === 'Journal') {
+                                // Alternate based on last entry type to guide balanced entry
+                                const lastType = accEntries[accEntries.length - 1]?.entryType || 'Dr';
+                                defaultType = lastType === 'Dr' ? 'Cr' : 'Dr';
+                              } else {
+                                defaultType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
+                              }
                               setAccEntries(p => [...p, { ledgerId: 0, ledgerName: '', amount: 0, entryType: defaultType }]);
                               setTimeout(() => document.getElementById(`acc-ledger-${idx + 1}`)?.focus(), 80);
                             } else {
@@ -6392,7 +6498,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   {/* Line 3: On Account / Agst Ref line (indented 25px) */}
                   {entry.ledgerName && entry.amount > 0 && (
                     <div style={{paddingLeft:25,marginTop:2,fontSize:11,color:'#333',fontWeight:'500'}}>
-                      On Account &nbsp;&nbsp;&nbsp;&nbsp; {fmt(entry.amount)} {entry.entryType}
+                      {activeVoucher === 'Journal'
+                        ? (entry.entryType === 'Dr' ? 'By' : 'To')
+                        : 'On Account'
+                      } &nbsp;&nbsp;&nbsp;&nbsp; {fmt(entry.amount)} {entry.entryType}
                     </div>
                   )}
                 </div>
@@ -6403,8 +6512,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             <div
               style={{padding:'8px 20px',color:'#1c5282',fontSize:12,fontWeight:'bold',cursor:'pointer'}}
               onClick={() => {
-                // Contra: Particulars always Cr. Receipt: Cr. Others: Dr.
-                const defaultType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
+                // Journal: alternate Dr/Cr. Contra: Cr. Receipt: Cr. Others: Dr.
+                let defaultType: 'Dr' | 'Cr';
+                if (activeVoucher === 'Journal') {
+                  const lastType = accEntries[accEntries.length - 1]?.entryType || 'Dr';
+                  defaultType = lastType === 'Dr' ? 'Cr' : 'Dr';
+                } else {
+                  defaultType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
+                }
                 setAccEntries(p => [...p, { ledgerId: 0, ledgerName: '', amount: 0, entryType: defaultType }]);
               }}
             >
@@ -6413,28 +6528,60 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           </div>
 
           {/* Bottom Total Bar */}
-          <div style={{
-            display:'flex',
-            alignItems:'center',
-            justifyContent:'space-between',
-            padding:'8px 20px',
-            borderTop:'1px solid #777',
-            background:'#f5efe6'
-          }}>
-            <div style={{fontSize:12,fontWeight:'bold',color:'#333'}}>
-              Total Particulars: ₹ {fmt(accDr || accCr)}
-            </div>
+          {activeVoucher === 'Journal' ? (
+            // Journal: Show Dr and Cr totals separately with balance indicator
             <div style={{
-              fontSize:16,
-              fontWeight:'bold',
-              color:'#000',
-              borderTop:'1px solid #666',
-              borderBottom:'3px double #666',
-              padding:'2px 8px'
+              padding:'8px 20px',
+              borderTop:'1px solid #777',
+              background:'#f5efe6'
             }}>
-              ₹ {fmt(accDr || accCr)}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <div style={{display:'flex',gap:24}}>
+                  <span style={{fontSize:12,fontWeight:'bold',color:'#1a7a4a'}}>
+                    Total By (Dr): ₹ {fmt(accDr)}
+                  </span>
+                  <span style={{fontSize:12,fontWeight:'bold',color:'#8B0000'}}>
+                    Total To (Cr): ₹ {fmt(accCr)}
+                  </span>
+                </div>
+                <div style={{
+                  fontSize:13,fontWeight:'bold',
+                  color: Math.abs(accDr - accCr) < 0.01 ? '#1a7a4a' : '#c00',
+                  background: Math.abs(accDr - accCr) < 0.01 ? '#e8f5e9' : '#fff0f0',
+                  border: `1px solid ${Math.abs(accDr - accCr) < 0.01 ? '#4caf50' : '#f44336'}`,
+                  padding:'3px 12px', borderRadius:3
+                }}>
+                  {Math.abs(accDr - accCr) < 0.01
+                    ? '✓ Balanced'
+                    : `Diff: ₹${fmt(Math.abs(accDr - accCr))} ${accDr > accCr ? 'Dr' : 'Cr'} excess`
+                  }
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{
+              display:'flex',
+              alignItems:'center',
+              justifyContent:'space-between',
+              padding:'8px 20px',
+              borderTop:'1px solid #777',
+              background:'#f5efe6'
+            }}>
+              <div style={{fontSize:12,fontWeight:'bold',color:'#333'}}>
+                Total Particulars: ₹ {fmt(accDr || accCr)}
+              </div>
+              <div style={{
+                fontSize:16,
+                fontWeight:'bold',
+                color:'#000',
+                borderTop:'1px solid #666',
+                borderBottom:'3px double #666',
+                padding:'2px 8px'
+              }}>
+                ₹ {fmt(accDr || accCr)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
