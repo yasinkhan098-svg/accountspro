@@ -7231,22 +7231,23 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   {focus.field==='item' && (() => {
                     const item = it as StockItem;
                     const unitStr = typeof item.unit === 'string' ? item.unit : (item.unit as any)?.symbol || (item.unit as any)?.name || 'Nos';
-                    let totalQty = item.openingQty || 0;
+                    let totalQty = Number(item.openingQty) || 0;
                     if (vouchers && vouchers.length > 0) {
                       vouchers.forEach(v => {
                         if (v.inventoryEntries) {
                           v.inventoryEntries.forEach(ie => {
                             if (ie.itemId === item.id || (ie.itemName && ie.itemName.trim().toLowerCase() === item.name.trim().toLowerCase())) {
-                              if (['Purchase', 'Credit Note'].includes(v.type)) totalQty += (ie.qty || 0);
-                              else if (['Sales', 'Debit Note'].includes(v.type)) totalQty -= (ie.qty || 0);
+                              if (['Purchase', 'Credit Note'].includes(v.type)) totalQty += (Number(ie.qty) || 0);
+                              else if (['Sales', 'Debit Note'].includes(v.type)) totalQty -= (Number(ie.qty) || 0);
                             }
                           });
                         }
                       });
                     }
+                    const isNegative = totalQty < 0;
                     return (
-                      <span style={{float:'right',fontSize:11,fontWeight:'bold',color:'#00555a',opacity:0.85}}>
-                        {fmt(totalQty)} {unitStr}
+                      <span style={{float:'right',fontSize:11,fontWeight:'bold',color: isNegative ? '#c00' : '#00555a',opacity: isNegative ? 1 : 0.85}}>
+                        {isNegative ? '-' : ''}{fmt(totalQty)} {unitStr}
                       </span>
                     );
                   })()}
@@ -8949,7 +8950,7 @@ function StockSummaryView({stockItems,vouchers,onBack,onDrillDown}:{stockItems:S
                 <td style={{textAlign:'right'}}>{it.openingQty}</td>
                 <td style={{textAlign:'right',color:'#006600'}}>{bought||'-'}</td>
                 <td style={{textAlign:'right',color:'#8B0000'}}>{sold||'-'}</td>
-                <td style={{textAlign:'right',fontWeight:'bold',color:closQty<0?'#c00':'#1c5282'}}>{closQty}</td>
+                <td style={{textAlign:'right',fontWeight:'bold',color:closQty<0?'#c00':'#1c5282'}}>{closQty < 0 ? `-${fmt(closQty)}` : fmt(closQty)}</td>
                 <td style={{textAlign:'right',fontSize:12}}>₹{fmt(it.openingRate)}</td>
                 <td style={{textAlign:'right',fontWeight:'bold'}}>₹{fmt(val)}</td>
               </tr>;
