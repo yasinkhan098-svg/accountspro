@@ -6258,7 +6258,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               onKeyDown={e => {
                 if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
                   e.preventDefault(); e.stopPropagation();
-                  const l = ledgers.find(lx => lx.name === partyName);
+                  const l = ledgers.find(lx => lx.name.trim().toLowerCase() === (partyName || '').trim().toLowerCase());
                   if (l) {
                     onAltC({
                       fieldType: 'ledger',
@@ -6477,7 +6477,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     onKeyDown={e=>{
                       if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
                         e.preventDefault(); e.stopPropagation();
-                        const it = stockItems.find(x => x.name === row.itemName);
+                        const it = stockItems.find(x => x.name.trim().toLowerCase() === (row.itemName || '').trim().toLowerCase());
                         if (it) {
                           onAltC({
                             fieldType: 'stockItem',
@@ -6850,6 +6850,36 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           setListSel(0);
                         }}
                         onKeyDown={e => {
+                          if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
+                            e.preventDefault(); e.stopPropagation();
+                            const l = ledgers.find(lx => lx.name.trim().toLowerCase() === (entry.ledgerName || '').trim().toLowerCase());
+                            if (l) {
+                              onAltC({
+                                fieldType: 'ledger',
+                                activeAlterItem: l,
+                                onCreated: (newItem) => {
+                                  const ne = [...accEntries];
+                                  ne[idx] = { ...ne[idx], ledgerId: newItem.id, ledgerName: newItem.name };
+                                  setAccEntries(ne);
+                                  setTimeout(() => document.getElementById(`acc-amt-${idx}-${entry.entryType}`)?.focus(), 100);
+                                }
+                              });
+                            }
+                            return;
+                          }
+                          if (e.altKey && e.key.toLowerCase() === 'c') {
+                            e.preventDefault(); e.stopPropagation();
+                            onAltC({
+                              fieldType: 'ledger',
+                              onCreated: (newItem) => {
+                                const ne = [...accEntries];
+                                ne[idx] = { ...ne[idx], ledgerId: newItem.id, ledgerName: newItem.name };
+                                setAccEntries(ne);
+                                setTimeout(() => document.getElementById(`acc-amt-${idx}-${entry.entryType}`)?.focus(), 100);
+                              }
+                            });
+                            return;
+                          }
                           if (e.key === 'Enter') {
                             e.preventDefault(); e.stopPropagation();
                             if (isEndOfItem || (!entry.ledgerName && idx > 0)) {
