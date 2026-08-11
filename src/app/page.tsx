@@ -458,10 +458,10 @@ function getVoucherPartyDisplayName(v: Voucher | null | undefined): string {
   if (v.partyName && !isSalesOrPurchaseAc(v.partyName)) return v.partyName;
 
   const partyEnt = (v.entries || []).find((e: any) => {
-    const name = e.ledger?.name || e.ledgerName || '';
+    const name = e.ledgerName || e.ledger?.name || '';
     return !isSalesOrPurchaseAc(name) && !name.includes('GST Payable') && name !== 'Round Off';
   });
-  return partyEnt?.ledger?.name || partyEnt?.ledgerName || (v.partyName && !isSalesOrPurchaseAc(v.partyName) ? v.partyName : '-') || '-';
+  return partyEnt?.ledgerName || (v.partyName && !isSalesOrPurchaseAc(v.partyName) ? v.partyName : '-') || '-';
 }
 
 // ==================== MAIN APP ====================
