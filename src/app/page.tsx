@@ -448,6 +448,22 @@ function groupLedgersByParent(ledgers: Ledger[], vouchers: Voucher[]) {
   return groups;
 }
 
+function getVoucherPartyDisplayName(v: Voucher | null | undefined): string {
+  if (!v) return '-';
+  const isSalesOrPurchaseAc = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales', 'purchase a/c', 'purchase a/c.', 'purchase ac', 'purchase'].includes(s.trim().toLowerCase());
+
+  const pd = v.partyDetails;
+  if (pd?.buyerName && !isSalesOrPurchaseAc(pd.buyerName)) return pd.buyerName;
+  if (pd?.buyerMailingName && !isSalesOrPurchaseAc(pd.buyerMailingName)) return pd.buyerMailingName;
+  if (v.partyName && !isSalesOrPurchaseAc(v.partyName)) return v.partyName;
+
+  const partyEnt = (v.entries || []).find((e: any) => {
+    const name = e.ledger?.name || e.ledgerName || '';
+    return !isSalesOrPurchaseAc(name) && !name.includes('GST Payable') && name !== 'Round Off';
+  });
+  return partyEnt?.ledger?.name || partyEnt?.ledgerName || (v.partyName && !isSalesOrPurchaseAc(v.partyName) ? v.partyName : '-') || '-';
+}
+
 // ==================== MAIN APP ====================
 const parseDate = (d: string | Date | null | undefined): Date => {
   if (!d) return new Date(1970, 0, 1);
@@ -6058,18 +6074,24 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     
     const salesPurchaseLedger = isPurchaseSide ? 'Purchase A/c' : 'Sales A/c';
 
+    const isSalesAcName = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales'].includes(s.trim().toLowerCase());
+    let savePartyName = partyName;
+    if (isSalesAcName(savePartyName) && partyDetails?.buyerName && !isSalesAcName(partyDetails.buyerName)) {
+      savePartyName = partyDetails.buyerName;
+    }
+
     return {
       ...(activeAlterItem ? {id: activeAlterItem.id} : {}),
       companyId: activeCompany?.id || 0,
       type:activeVoucher, date:currentDate, number:vNum, voucherNo:formattedNo, refNo:refNo||`${activeVoucher.slice(0,3).toUpperCase()}/${vNum}`,
-      partyName, partyId: findL(partyName),
+      partyName: savePartyName, partyId: findL(savePartyName),
       partyDetails: (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note')
         ? { ...(partyDetails as any || {}), supplierInvNo, supplierInvDate } as PartyDetails
         : partyDetails,
       dispatchDetails,
       inventoryEntries: isInventory ? rows.filter(r=>r.itemName).map((r,i)=>{const si=stockItems.find(it=>it.id===r.itemId);return {id:i+1,...r,showInclTax:si?.showInclTax??false,showAmtInclTax:si?.showAmtInclTax??false};}) : [],
       entries: isInventory ? [
-        {id:1,ledgerId:findL(partyName),ledgerName:partyName,amount:grandTotal,entryType: partySide},
+        {id:1,ledgerId:findL(savePartyName),ledgerName:savePartyName,amount:grandTotal,entryType: partySide},
         ...rows.filter(r=>r.itemName).map((r,i)=>({id:i+2,ledgerId:findL(salesPurchaseLedger),ledgerName:salesPurchaseLedger,amount:r.amount,entryType: otherSide} as VoucherEntry)),
         ...taxEntries,
         ...additionalLedgers.filter(al=>al.ledgerName && al.amount > 0).map((al, i) => ({
@@ -8344,7 +8366,7 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
                 onMouseEnter={()=>setRowIdx(i)}>
                 <td style={{fontSize:12}}>{v.date}</td>
                 <td>
-                  <div style={{fontWeight:'bold',fontSize:13}}>{v.partyName}</div>
+                  <div style={{fontWeight:'bold',fontSize:13}}>{getVoucherPartyDisplayName(v)}</div>
                   <div style={{fontSize:11,color:'#777'}}>{v.narration}</div>
                 </td>
                 <td><span style={{padding:'2px 8px',background:'#dde4f0',fontWeight:'bold',fontSize:11}}>{v.type}</span></td>
@@ -8688,7 +8710,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                     onClick={()=>onDrillDown?.(v)}
                     onMouseEnter={()=>setRowIdx(i)}>
                     <td style={{padding:'5px 12px',fontWeight:isSel?'bold':'normal'}}>{v.date}</td>
-                    <td style={{padding:'5px 12px',fontWeight:'bold',color:'#1a1a1a'}}>{v.partyName||v.narration||'-'}</td>
+                    <td style={{padding:'5px 12px',fontWeight:'bold',color:'#1a1a1a'}}>{getVoucherPartyDisplayName(v)}</td>
                     <td style={{textAlign:'center',padding:'5px 8px'}}>
                       <span style={{padding:'1px 6px',background:color,color:'white',fontSize:10,fontWeight:'bold',borderRadius:2}}>{v.type}</span>
                     </td>
