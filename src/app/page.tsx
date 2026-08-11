@@ -9806,31 +9806,58 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
   const renderQuotationInvoice = (copyIdx: number) => {
     const pd = v.partyDetails;
     const dd = v.dispatchDetails;
-    const partyLedger = ledgers.find(l => l.name === v.partyName);
+    const isSalesAc = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales'].includes(s.trim().toLowerCase());
+
+    const realPartyLedger = (pd?.buyerGstin ? ledgers.find(l => l.gstin === pd.buyerGstin) : null)
+      || (!isSalesAc(pd?.buyerName) ? ledgers.find(l => l.name.toLowerCase() === pd!.buyerName.toLowerCase()) : null)
+      || (!isSalesAc(v.partyName) ? ledgers.find(l => l.name.toLowerCase() === v.partyName.toLowerCase()) : null)
+      || null;
+
+    const partyDisplayName = (!isSalesAc(pd?.buyerName) ? pd!.buyerName : '')
+      || (!isSalesAc(pd?.buyerMailingName) ? pd!.buyerMailingName : '')
+      || (!isSalesAc(v.partyName) ? v.partyName : '')
+      || (realPartyLedger?.name || 'AIMAN POLYMERS');
+
+    const partyDisplayAddress = pd?.buyerAddress || realPartyLedger?.address || '';
+    const partyDisplayGstin = pd?.buyerGstin || realPartyLedger?.gstin || '';
+
     const itemSubtotal = (v.inventoryEntries || []).reduce((s: number, e: any) => s + (e.amount || 0), 0);
     const totalQty = (v.inventoryEntries || []).reduce((s: number, e: any) => s + (e.qty || 0), 0);
-    const primaryUnit = v.inventoryEntries?.[0]?.unit || 'Kgs.';
+    const primaryUnit = v.inventoryEntries?.[0]?.unit || 'Kg';
 
-    // HSN / Tax map for quotation breakdown table
-    const hsnMap = new Map<string, { hsnCode: string; taxable: number; cgst: number; sgst: number; igst: number; total: number; rate: number }>();
-    v.inventoryEntries.forEach((e: any) => {
-      const r = e.gstRate || 18;
-      const hsnKey = (e.hsnCode || '—') + '_' + r;
-      const existing = hsnMap.get(hsnKey) || { hsnCode: e.hsnCode || '—', taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0, rate: r };
-      const taxable = e.amount || 0;
-      const c = isInterState ? 0 : Math.round(taxable * r / 200 * 100) / 100;
-      const s = isInterState ? 0 : Math.round(taxable * r / 200 * 100) / 100;
-      const ig = isInterState ? Math.round(taxable * r / 100 * 100) / 100 : 0;
-      hsnMap.set(hsnKey, {
-        ...existing,
-        taxable: existing.taxable + taxable,
-        cgst: existing.cgst + c,
-        sgst: existing.sgst + s,
-        igst: existing.igst + ig,
-        total: existing.total + c + s + ig
-      });
+    // Group items strictly by GST Rate (e.g. 18%, 12%, 5%)
+    const gstRateMap = new Map<number, { rate: number; taxable: number; cgst: number; sgst: number; igst: number; totalTax: number }>();
+    (v.inventoryEntries || []).forEach((e: any) => {
+      const r = Number(e.gstRate) || 18;
+      const existing = gstRateMap.get(r) || { rate: r, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
+      existing.taxable += (Number(e.amount) || 0);
+      gstRateMap.set(r, existing);
     });
-    const hsnRows = Array.from(hsnMap.values());
+
+    const gstRateRows = Array.from(gstRateMap.values()).map(g => {
+      const taxable = g.taxable;
+      const c = isInterState ? 0 : Math.round(taxable * g.rate / 200 * 100) / 100;
+      const s = isInterState ? 0 : Math.round(taxable * g.rate / 200 * 100) / 100;
+      const ig = isInterState ? Math.round(taxable * g.rate / 100 * 100) / 100 : 0;
+      return {
+        ...g,
+        cgst: c,
+        sgst: s,
+        igst: ig,
+        totalTax: c + s + ig
+      };
+    });
+
+    const totalCgst = gstRateRows.reduce((sum, r) => sum + r.cgst, 0);
+    const totalSgst = gstRateRows.reduce((sum, r) => sum + r.sgst, 0);
+    const totalIgst = gstRateRows.reduce((sum, r) => sum + r.igst, 0);
+    const grandTotalAmt = Math.round((itemSubtotal + totalCgst + totalSgst + totalIgst) * 100) / 100;
+
+    const wordsClean = (num: number) => {
+      const w = numberToWords(num);
+      const text = w.replace(/^INR\s*/i, '').replace(/\s*Only$/i, '').trim();
+      return `Rupees ${text} Only`;
+    };
 
     const tdB: React.CSSProperties = { border: '1px solid #555', padding: '4px 6px', fontSize: 11, verticalAlign: 'top' };
     const tdH: React.CSSProperties = { ...tdB, fontWeight: 'bold', background: '#f9f9f9', textAlign: 'center' };
@@ -9872,14 +9899,14 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               Party Details :
             </div>
             <div style={{ fontWeight: 'bold', fontSize: 13, textTransform: 'uppercase' }}>
-              {v.partyName}
+              {partyDisplayName}
             </div>
             <div style={{ fontSize: 10, whiteSpace: 'pre-wrap', textTransform: 'uppercase' }}>
-              {pd?.buyerAddress || partyLedger?.address || ''}
+              {partyDisplayAddress}
             </div>
             <div style={{ fontSize: 10, marginTop: 12, display: 'flex', gap: 6 }}>
               <span style={{ width: 110 }}>GSTIN / UIN</span>
-              <span>: &nbsp;<b>{pd?.buyerGstin || partyLedger?.gstin || ''}</b></span>
+              <span>: &nbsp;<b>{partyDisplayGstin}</b></span>
             </div>
             <div style={{ fontSize: 10, marginTop: 2, display: 'flex', gap: 6 }}>
               <span style={{ width: 110 }}>Customer P.O. N</span>
@@ -9951,8 +9978,8 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               <td style={{ ...tdB, textAlign: 'right', borderTop: '1px solid #000', fontWeight: 'bold' }}>{fmt(itemSubtotal)}</td>
             </tr>
 
-            {/* Tax rows */}
-            {hsnRows.map((hr, idx) => {
+            {/* Tax rows grouped strictly by GST Rate */}
+            {gstRateRows.map((hr, idx) => {
               if (isInterState) {
                 return (
                   <tr key={'igst-' + idx} style={{ fontSize: 11, fontStyle: 'italic' }}>
@@ -10009,7 +10036,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               <td style={{ ...tdB, borderLeft: 'none', borderRight: 'none' }} />
               <td style={{ ...tdB, textAlign: 'right', borderLeft: 'none' }}>{fmt(totalQty)} {primaryUnit}</td>
               <td style={{ ...tdB }} />
-              <td style={{ ...tdB, textAlign: 'right', fontSize: 12 }}>{fmt(v.total)}</td>
+              <td style={{ ...tdB, textAlign: 'right', fontSize: 12 }}>{fmt(grandTotalAmt || v.total)}</td>
             </tr>
           </tfoot>
         </table>
@@ -10027,22 +10054,31 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
               </tr>
             </thead>
             <tbody>
-              {hsnRows.map((hr, idx) => (
+              {gstRateRows.map((hr, idx) => (
                 <tr key={idx}>
                   <td style={{ ...tdB, textAlign: 'left' }}>{hr.rate}%</td>
                   <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.taxable)}</td>
                   <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.cgst)}</td>
                   <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.sgst)}</td>
-                  <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.cgst + hr.sgst + hr.igst)}</td>
+                  <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.totalTax)}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr style={{ fontWeight: 'bold' }}>
+                <td style={{ ...tdB, textAlign: 'left' }}>Total</td>
+                <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.taxable, 0))}</td>
+                <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.cgst, 0))}</td>
+                <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.sgst, 0))}</td>
+                <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.totalTax, 0))}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
 
         {/* AMOUNT IN WORDS */}
         <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', fontSize: 11 }}>
-          <b>Rupees {numberToWords(v.total)} Only</b>
+          <b>{wordsClean(grandTotalAmt || v.total)}</b>
         </div>
 
         {/* FOOTER SECTION: BANK DETAILS & SIGNATURE */}
