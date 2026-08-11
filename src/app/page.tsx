@@ -9894,7 +9894,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         width: '210mm', minHeight: '297mm', margin: '0 auto 30px auto', background: 'white',
         border: '1.5px solid #000', fontFamily: '"Arial Narrow", Arial, sans-serif', fontSize: 11,
         position: 'relative', boxSizing: 'border-box', padding: 0,
-        display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-start'
       }}>
         {/* HEADER SECTION */}
         <div style={{ padding: '8px 12px', borderBottom: '1px solid #000', position: 'relative' }}>
@@ -10110,7 +10110,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         </div>
 
         {/* FOOTER SECTION: BANK DETAILS & SIGNATURE */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', minHeight: 110, marginTop: 'auto', borderTop: '1px solid #000' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', minHeight: 110, borderTop: '1px solid #000', borderBottom: '1px solid #000' }}>
           {/* LEFT: Our Bank Details */}
           <div style={{ padding: '8px 10px', borderRight: '1px solid #000', fontSize: 10, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
