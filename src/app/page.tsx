@@ -19,7 +19,7 @@ type ScreenType =
   | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
   | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE';
 
-type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note';
+type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note' | 'Sales Quotation';
 
 // ==================== DATA INTERFACES ====================
 interface Ledger {
@@ -56,7 +56,7 @@ interface CurrencyData { id: number; companyId: number; name: string; symbol: st
 interface Company { 
   id: number; name: string; mailingName?: string; address?: string; state?: string; country?: string; gstin?: string; 
   telephone?: string; mobile?: string; email?: string; website?: string; 
-  registrationType?: string; bankName?: string; bankHolderName?: string; accountNo?: string; ifsc?: string; swiftCode?: string; 
+  registrationType?: string; bankName?: string; bankHolderName?: string; accountNo?: string; branch?: string; ifsc?: string; swiftCode?: string; 
   financialYearStart?: string; booksBeginFrom?: string; securityControl?: boolean; password?: string;
   showMobile?: boolean; showEmail?: boolean; showWebsite?: boolean;
   logo?: string; showLogo?: boolean; pinCode?: string;
@@ -113,6 +113,7 @@ interface DispatchDetails {
   deliveryNoteNo: string; dispatchDocNo: string; dispatchedThrough: string;
   destination: string; carrierNameAgent: string; billOfLadingNo: string;
   billOfLadingDate: string; motorVehicleNo: string;
+  customerPoNo?: string; grNo?: string; transport?: string; station?: string; ewayBillNo?: string;
 }
 interface Voucher {
   id: number; companyId: number; type: string; date: string; number: number; voucherNo: string; refNo: string;
@@ -339,7 +340,7 @@ const COUNTRY_DATA: Record<string, string[]> = {
   "Ethiopia":   ["Addis Ababa","Afar","Amhara","Benishangul-Gumuz","Dire Dawa","Gambella","Harari","Oromia","Sidama","SNNPR","Somali","Tigray"],
 };
 const ALL_COUNTRIES = Object.keys(COUNTRY_DATA).sort();
-const VOUCHER_TYPES_DEFAULT = ['Contra','Payment','Receipt','Journal','Sales','Purchase','Credit Note','Debit Note','Reversing Journal','Memorandum'];
+const VOUCHER_TYPES_DEFAULT = ['Contra','Payment','Receipt','Journal','Sales','Purchase','Credit Note','Debit Note','Sales Quotation','Reversing Journal','Memorandum'];
 
 // ==================== INITIAL DUMMY DATA ====================
 const INIT_LEDGERS: Ledger[] = [];
@@ -1971,8 +1972,10 @@ export default function App() {
         if (e.key === 'F5') { e.preventDefault(); setActiveVoucher('Payment'); }
         if (e.key === 'F6') { e.preventDefault(); setActiveVoucher('Receipt'); }
         if (e.key === 'F7') { e.preventDefault(); setActiveVoucher('Journal'); }
-        if (e.key === 'F8') { e.preventDefault(); setActiveVoucher('Sales'); }
+        if (e.key === 'F8' && !e.altKey && !e.ctrlKey) { e.preventDefault(); setActiveVoucher('Sales'); }
+        if (e.key === 'F8' && (e.altKey || e.ctrlKey)) { e.preventDefault(); setActiveVoucher('Sales Quotation'); }
         if (e.key === 'F9') { e.preventDefault(); setActiveVoucher('Purchase'); }
+        if (e.key === 'F10') { e.preventDefault(); setActiveVoucher('Sales Quotation'); }
       }
       if (e.altKey && e.key.toLowerCase() === 'd' && alterItem) {
         e.preventDefault();
@@ -2144,7 +2147,7 @@ export default function App() {
 
   const isFormScreen = !['GATEWAY_MAIN','MASTER_MENU','ALTER_MENU','DISPLAY_REPORTS_MENU','ACCOUNT_BOOKS_MENU'].includes(screen);
 
-  const vColor: Record<string,string> = {Sales:'#1c5282',Purchase:'#5a2d82',Receipt:'#1a7a4a',Payment:'#8B0000',Contra:'#4a4a00',Journal:'#00555a','Credit Note':'#7a3d00','Debit Note':'#00407a'};
+  const vColor: Record<string,string> = {Sales:'#1c5282',Purchase:'#5a2d82',Receipt:'#1a7a4a',Payment:'#8B0000',Contra:'#4a4a00',Journal:'#00555a','Credit Note':'#7a3d00','Debit Note':'#00407a','Sales Quotation':'#2a6f97'};
 
   if (!isMounted) return <div style={{background:'#1e2d3d', height:'100vh'}} />;
 
@@ -2558,8 +2561,9 @@ export default function App() {
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Receipt');}}>F6: Receipt</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Journal');}}>F7: Journal</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales');}}>F8: Sales</div>
+          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>Alt+F8: Quotation</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Purchase');}}>F9: Purchase</div>
-          <div className="sidebar-btn">F10: Others</div>
+          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>F10: Quotation</div>
           <div className="sidebar-btn-spacer"/>
           <div className="sidebar-btn" onClick={()=>setShowFeatures(true)}>F11: Features</div>
           <div className="sidebar-btn">F12: Configure</div>
@@ -5325,10 +5329,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   altCReturnContext?: any; onAltCReturnHandled:()=>void; setAltCReturnContext:(ctx:any)=>void; onNav:(s:any,item?:any,type?:string)=>void;
   setSaveToast: (msg: string | null) => void;
 }) {
-  const isInventory = ['Sales','Purchase','Credit Note','Debit Note'].includes(activeVoucher);
-  // Party side: Sales, Payment, and Debit Note (Purchase Return) debit the party.
+  const isInventory = ['Sales','Purchase','Credit Note','Debit Note','Sales Quotation'].includes(activeVoucher);
+  // Party side: Sales, Payment, Debit Note, and Sales Quotation debit the party.
   // Purchase, Receipt, and Credit Note (Sales Return) credit the party.
-  const partySide: 'Dr' | 'Cr' = ['Sales', 'Payment', 'Debit Note'].includes(activeVoucher) ? 'Dr' : 'Cr';
+  const partySide: 'Dr' | 'Cr' = ['Sales', 'Payment', 'Debit Note', 'Sales Quotation'].includes(activeVoucher) ? 'Dr' : 'Cr';
   const otherSide: 'Dr' | 'Cr' = partySide === 'Dr' ? 'Cr' : 'Dr';
   const isPurchaseSide = activeVoucher === 'Purchase' || activeVoucher === 'Debit Note'; // Used for some legacy checks
 
@@ -5929,7 +5933,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const accCr = accEntries.filter(e=>e.entryType==='Cr').reduce((s: number, e: any) => s + e.amount, 0);
   const balanced = Math.abs(accDr-accCr)<0.01;
 
-  const vColors:Record<string,string>={Sales:'#1c5282',Purchase:'#5a2d82',Receipt:'#1a7a4a',Payment:'#8B0000',Contra:'#4a4a00',Journal:'#00555a','Credit Note':'#7a3d00','Debit Note':'#00407a'};
+  const vColors:Record<string,string>={Sales:'#1c5282',Purchase:'#5a2d82',Receipt:'#1a7a4a',Payment:'#8B0000',Contra:'#4a4a00',Journal:'#00555a','Credit Note':'#7a3d00','Debit Note':'#00407a','Sales Quotation':'#2a6f97'};
   const vc=vColors[activeVoucher]||'#1c5282';
 
   // For item list / accledger list: End of List option support
@@ -6210,9 +6214,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     >
       {/* Voucher type bar */}
       <div style={{background:'#1e2d3d',display:'flex',fontSize:11,flexWrap:'wrap'}}>
-        {(['Contra','Payment','Receipt','Journal','Sales','Purchase','Credit Note','Debit Note'] as VoucherTypeKey[]).map((v,i)=>(
+        {(['Contra','Payment','Receipt','Journal','Sales','Sales Quotation','Purchase','Credit Note','Debit Note'] as VoucherTypeKey[]).map((v,i)=>(
           <div key={i} style={{padding:'5px 10px',cursor:'pointer',fontWeight:'bold',background:activeVoucher===v?vc:'transparent',color:activeVoucher===v?'white':'#aaa',borderRight:'1px solid #333'}}
-            onClick={()=>onChangeType(v)}>F{i+4}: {v}</div>
+            onClick={()=>onChangeType(v)}>
+            {v === 'Sales Quotation' ? 'Alt+F8: Quotation' : (v === 'Credit Note' ? 'Ctrl+F8: Credit Note' : (v === 'Debit Note' ? 'Alt+F9: Debit Note' : `F${i >= 5 ? i + 4 : i + 4}` + `: ${v}`))}
+          </div>
         ))}
         <div style={{marginLeft:'auto',padding:'5px 12px',color:'#888',fontSize:10}}>Alt+C: Inline Create | Ctrl+A: Save | Esc: Back</div>
       </div>
@@ -6223,7 +6229,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
             <span style={{background:vc,color:'white',padding:'3px 14px',fontWeight:'bold',fontSize:14}}>{activeVoucher}</span>
             <span style={{color:'#444',display:'flex',alignItems:'center',gap:6}}>
-              No.
+              {activeVoucher === 'Sales Quotation' ? 'Quotation No.' : 'No.'}
               {/* Numbering Mode Toggle */}
               {!activeAlterItem && (
                 <select
@@ -9277,7 +9283,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     return () => window.removeEventListener('keydown', onKey);
   }, [showOptions, tempCopies]);
 
-  const allPrintableVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note','Payment','Receipt','Contra','Journal'].includes(v.type));
+  const allPrintableVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note','Payment','Receipt','Contra','Journal','Sales Quotation'].includes(v.type));
   const v = printVoucher || allPrintableVouchers[0] || null;
   const getEntryLedgerName = (e: any) => {
     if (!e) return '';
@@ -9797,6 +9803,284 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     );
   };
 
+  const renderQuotationInvoice = (copyIdx: number) => {
+    const pd = v.partyDetails;
+    const dd = v.dispatchDetails;
+    const partyLedger = ledgers.find(l => l.name === v.partyName);
+    const itemSubtotal = (v.inventoryEntries || []).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    const totalQty = (v.inventoryEntries || []).reduce((s: number, e: any) => s + (e.qty || 0), 0);
+    const primaryUnit = v.inventoryEntries?.[0]?.unit || 'Kgs.';
+
+    // HSN / Tax map for quotation breakdown table
+    const hsnMap = new Map<string, { hsnCode: string; taxable: number; cgst: number; sgst: number; igst: number; total: number; rate: number }>();
+    v.inventoryEntries.forEach((e: any) => {
+      const r = e.gstRate || 18;
+      const hsnKey = (e.hsnCode || '—') + '_' + r;
+      const existing = hsnMap.get(hsnKey) || { hsnCode: e.hsnCode || '—', taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0, rate: r };
+      const taxable = e.amount || 0;
+      const c = isInterState ? 0 : Math.round(taxable * r / 200 * 100) / 100;
+      const s = isInterState ? 0 : Math.round(taxable * r / 200 * 100) / 100;
+      const ig = isInterState ? Math.round(taxable * r / 100 * 100) / 100 : 0;
+      hsnMap.set(hsnKey, {
+        ...existing,
+        taxable: existing.taxable + taxable,
+        cgst: existing.cgst + c,
+        sgst: existing.sgst + s,
+        igst: existing.igst + ig,
+        total: existing.total + c + s + ig
+      });
+    });
+    const hsnRows = Array.from(hsnMap.values());
+
+    const tdB: React.CSSProperties = { border: '1px solid #555', padding: '4px 6px', fontSize: 11, verticalAlign: 'top' };
+    const tdH: React.CSSProperties = { ...tdB, fontWeight: 'bold', background: '#f9f9f9', textAlign: 'center' };
+
+    return (
+      <div key={copyIdx} className="invoice-copy" style={{
+        width: '210mm', minHeight: '297mm', margin: '0 auto 30px auto', background: 'white',
+        border: '1.5px solid #000', fontFamily: '"Arial Narrow", Arial, sans-serif', fontSize: 11,
+        position: 'relative', boxSizing: 'border-box', padding: 0
+      }}>
+        {/* HEADER SECTION */}
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid #000', position: 'relative' }}>
+          {/* Top-Left GSTIN */}
+          <div style={{ fontSize: 11, fontWeight: 'bold' }}>
+            GSTIN : {company?.gstin || '05DTPFK7162G1ZN'}
+          </div>
+          {/* Top Center Title & Company Details */}
+          <div style={{ textAlign: 'center', marginTop: -15 }}>
+            <div style={{ fontSize: 13, textDecoration: 'underline', fontWeight: 'bold', marginBottom: 2 }}>
+              Sales Quotation
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {company?.name || 'HARJAS PLASTOCHEM'}
+            </div>
+            <div style={{ fontSize: 10, marginTop: 2 }}>
+              {company?.address}{company?.pinCode ? '-' + company.pinCode : ''}
+            </div>
+            <div style={{ fontSize: 10 }}>
+              Tel. : {company?.telephone || company?.mobile || ''} {company?.email ? `email : ${company.email}` : ''}
+            </div>
+          </div>
+        </div>
+
+        {/* TWO-COLUMN DETAILS SECTION */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', borderBottom: '1px solid #000' }}>
+          {/* LEFT: Party Details */}
+          <div style={{ padding: '6px 10px', borderRight: '1px solid #000' }}>
+            <div style={{ fontStyle: 'italic', fontSize: 11, fontWeight: '500', color: '#111', marginBottom: 2 }}>
+              Party Details :
+            </div>
+            <div style={{ fontWeight: 'bold', fontSize: 13, textTransform: 'uppercase' }}>
+              {v.partyName}
+            </div>
+            <div style={{ fontSize: 10, whiteSpace: 'pre-wrap', textTransform: 'uppercase' }}>
+              {pd?.buyerAddress || partyLedger?.address || ''}
+            </div>
+            <div style={{ fontSize: 10, marginTop: 12, display: 'flex', gap: 6 }}>
+              <span style={{ width: 110 }}>GSTIN / UIN</span>
+              <span>: &nbsp;<b>{pd?.buyerGstin || partyLedger?.gstin || ''}</b></span>
+            </div>
+            <div style={{ fontSize: 10, marginTop: 2, display: 'flex', gap: 6 }}>
+              <span style={{ width: 110 }}>Customer P.O. N</span>
+              <span>: &nbsp;<b>{pd?.buyerOrderNo || dd?.customerPoNo || 'Verbal'}</b></span>
+            </div>
+          </div>
+
+          {/* RIGHT: Quotation Meta Info */}
+          <div style={{ padding: '6px 10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', rowGap: 3, fontSize: 10 }}>
+              <span>Quotation No.</span><span>:</span><span><b>{v.voucherNo}</b></span>
+              <span>Dated</span><span>:</span><span><b>{v.date}</b></span>
+              <span>GR/RR No.</span><span>:</span><span><b>{dd?.billOfLadingNo || dd?.grNo || ''}</b></span>
+              <span>Transport</span><span>:</span><span><b>{dd?.dispatchedThrough || dd?.transport || "By Party's Vehicle"}</b></span>
+              <span>Vehicle No.</span><span>:</span><span><b>{dd?.motorVehicleNo || ''}</b></span>
+              <span>Station</span><span>:</span><span><b>{dd?.destination || dd?.station || pd?.buyerPlace || ''}</b></span>
+              <span>E-Way Bill No.</span><span>:</span><span><b>{dd?.ewayBillNo || ''}</b></span>
+            </div>
+          </div>
+        </div>
+
+        {/* ITEMS TABLE */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: '1px solid #000' }}>
+          <thead>
+            <tr>
+              <th style={{ ...tdH, width: 35 }}>S.N.</th>
+              <th style={{ ...tdH, textAlign: 'left' }}>Description of Goods</th>
+              <th style={{ ...tdH, width: 80 }}>HSN/ SAC<br/>Code</th>
+              <th style={{ ...tdH, width: 90, textAlign: 'right' }}>Qty. Unit</th>
+              <th style={{ ...tdH, width: 70, textAlign: 'right' }}>Price</th>
+              <th style={{ ...tdH, width: 100, textAlign: 'right' }}>Amount( ` )</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(v?.inventoryEntries || []).map((e: any, idx: number) => (
+              <tr key={idx} style={{ fontSize: 11 }}>
+                <td style={{ ...tdB, textAlign: 'center', borderTop: 'none', borderBottom: 'none' }}>{idx + 1}.</td>
+                <td style={{ ...tdB, borderTop: 'none', borderBottom: 'none' }}>
+                  <div style={{ fontWeight: 'normal', textTransform: 'uppercase' }}>{e.itemName || e.stockItem?.name}</div>
+                  {e.desc1 && <div style={{ fontSize: 10, fontStyle: 'italic', paddingLeft: 12 }}>{e.desc1}</div>}
+                  {e.desc2 && <div style={{ fontSize: 10, fontStyle: 'italic', paddingLeft: 12 }}>{e.desc2}</div>}
+                  {e.desc3 && <div style={{ fontSize: 10, fontStyle: 'italic', paddingLeft: 12 }}>{e.desc3}</div>}
+                </td>
+                <td style={{ ...tdB, textAlign: 'center', borderTop: 'none', borderBottom: 'none' }}>{e.hsnCode}</td>
+                <td style={{ ...tdB, textAlign: 'right', borderTop: 'none', borderBottom: 'none' }}>{fmt(e.qty)} {e.unit}</td>
+                <td style={{ ...tdB, textAlign: 'right', borderTop: 'none', borderBottom: 'none' }}>{fmt(e.rate)}</td>
+                <td style={{ ...tdB, textAlign: 'right', borderTop: 'none', borderBottom: 'none' }}>{fmt(e.amount)}</td>
+              </tr>
+            ))}
+            {/* Blank row filler */}
+            {Array.from({ length: Math.max(0, 8 - (v?.inventoryEntries?.length || 0)) }).map((_, i) => (
+              <tr key={'blank-' + i} style={{ height: 22 }}>
+                <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                <td style={{ ...tdB, border: 'none' }} />
+              </tr>
+            ))}
+
+            {/* Subtotal row */}
+            <tr style={{ fontSize: 11, borderTop: '1px solid #000' }}>
+              <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+              <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+              <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+              <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+              <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+              <td style={{ ...tdB, textAlign: 'right', borderTop: '1px solid #000', fontWeight: 'bold' }}>{fmt(itemSubtotal)}</td>
+            </tr>
+
+            {/* Tax rows */}
+            {hsnRows.map((hr, idx) => {
+              if (isInterState) {
+                return (
+                  <tr key={'igst-' + idx} style={{ fontSize: 11, fontStyle: 'italic' }}>
+                    <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                    <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Add : IGST</span>
+                      <span>@ &nbsp;&nbsp;{hr.rate.toFixed(2)} %</span>
+                    </td>
+                    <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                    <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                    <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                    <td style={{ ...tdB, textAlign: 'right', border: 'none' }}>{fmt(hr.igst)}</td>
+                  </tr>
+                );
+              } else {
+                return (
+                  <React.Fragment key={'tax-' + idx}>
+                    <tr style={{ fontSize: 11, fontStyle: 'italic' }}>
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000', paddingLeft: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingRight: 40 }}>
+                          <span>Add : CGST</span>
+                          <span>@ &nbsp;&nbsp;&nbsp;&nbsp;{(hr.rate / 2).toFixed(2)} %</span>
+                        </div>
+                      </td>
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                      <td style={{ ...tdB, textAlign: 'right', border: 'none' }}>{fmt(hr.cgst)}</td>
+                    </tr>
+                    <tr style={{ fontSize: 11, fontStyle: 'italic' }}>
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000', paddingLeft: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingRight: 40 }}>
+                          <span>Add : SGST</span>
+                          <span>@ &nbsp;&nbsp;&nbsp;&nbsp;{(hr.rate / 2).toFixed(2)} %</span>
+                        </div>
+                      </td>
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                      <td style={{ ...tdB, border: 'none', borderRight: '1px solid #000' }} />
+                      <td style={{ ...tdB, textAlign: 'right', border: 'none' }}>{fmt(hr.sgst)}</td>
+                    </tr>
+                  </React.Fragment>
+                );
+              }
+            })}
+          </tbody>
+
+          {/* GRAND TOTAL BAR */}
+          <tfoot>
+            <tr style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', fontWeight: 'bold' }}>
+              <td style={{ ...tdB, borderRight: 'none' }} colSpan={2}>Grand Total</td>
+              <td style={{ ...tdB, borderLeft: 'none', borderRight: 'none' }} />
+              <td style={{ ...tdB, textAlign: 'right', borderLeft: 'none' }}>{fmt(totalQty)} {primaryUnit}</td>
+              <td style={{ ...tdB }} />
+              <td style={{ ...tdB, textAlign: 'right', fontSize: 12 }}>{fmt(v.total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        {/* TAX ANALYSIS BREAKDOWN TABLE */}
+        <div style={{ borderBottom: '1px solid #000' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #000' }}>
+                <th style={{ ...tdH, width: 80, textDecoration: 'underline' }}>Tax Rate</th>
+                <th style={{ ...tdH, textDecoration: 'underline' }}>Taxable Amt.</th>
+                <th style={{ ...tdH, textDecoration: 'underline' }}>CGST Amt.</th>
+                <th style={{ ...tdH, textDecoration: 'underline' }}>SGST Amt.</th>
+                <th style={{ ...tdH, textDecoration: 'underline' }}>Total Tax</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hsnRows.map((hr, idx) => (
+                <tr key={idx}>
+                  <td style={{ ...tdB, textAlign: 'left' }}>{hr.rate}%</td>
+                  <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.taxable)}</td>
+                  <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.cgst)}</td>
+                  <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.sgst)}</td>
+                  <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.cgst + hr.sgst + hr.igst)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* AMOUNT IN WORDS */}
+        <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', fontSize: 11 }}>
+          <b>Rupees {numberToWords(v.total)} Only</b>
+        </div>
+
+        {/* FOOTER SECTION: BANK DETAILS & SIGNATURE */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', minHeight: 110 }}>
+          {/* LEFT: Our Bank Details */}
+          <div style={{ padding: '8px 10px', borderRight: '1px solid #000', fontSize: 10, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontStyle: 'italic', fontWeight: 'bold', marginBottom: 4 }}>Our Bank Detail :</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '85px 10px 1fr', rowGap: 2 }}>
+                <span>A/c Name</span><span>:</span><span><b>{company?.bankHolderName || company?.name || ''}</b></span>
+                <span>A/c No</span><span>:</span><span><b>{company?.accountNo || ''}</b></span>
+                <span>Bank Name</span><span>:</span><span><b>{company?.bankName || ''}</b></span>
+                <span>Branch</span><span>:</span><span><b>{company?.branch || ''}</b></span>
+                <span>IFS Code</span><span>:</span><span><b>{company?.ifsc || ''}</b></span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: Signatures */}
+          <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 10 }}>
+              Receiver's Signature :
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 'bold', textAlign: 'right', marginBottom: 25 }}>
+                For {company?.name || ''}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 'bold', textAlign: 'right' }}>
+                Authorised Signatory
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+
   return (
     <>
     <div className="print-preview-main" style={{display:'flex',height:'100%',overflow:'hidden',background:'#eef2f6'}}>
@@ -9816,7 +10100,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         {Array.from({length: numCopies}).map((_, i) =>
           ['Payment','Receipt','Contra','Journal'].includes(v.type)
             ? renderAccountingVoucher(i)
-            : renderInvoice(i)
+            : (v.type === 'Sales Quotation' || v.type === 'Quotation' ? renderQuotationInvoice(i) : renderInvoice(i))
         )}
       </div>
     </div>
