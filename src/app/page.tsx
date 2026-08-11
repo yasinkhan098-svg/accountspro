@@ -10110,7 +10110,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         </div>
 
         {/* FOOTER SECTION: BANK DETAILS & SIGNATURE */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', minHeight: 110, marginTop: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', minHeight: 110, marginTop: 'auto', borderTop: '1px solid #000' }}>
           {/* LEFT: Our Bank Details */}
           <div style={{ padding: '8px 10px', borderRight: '1px solid #000', fontSize: 10, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
