@@ -15,6 +15,7 @@ type ScreenType =
   | 'BALANCE_SHEET' | 'PROFIT_LOSS' | 'TRIAL_BALANCE' | 'DAY_BOOK'
   | 'SALES_REGISTER' | 'PURCHASE_REGISTER' | 'CONTRA_REGISTER' | 'PAYMENT_REGISTER'
   | 'RECEIPT_REGISTER' | 'JOURNAL_REGISTER' | 'DEBIT_NOTE_REGISTER' | 'CREDIT_NOTE_REGISTER'
+  | 'QUOTATION_REGISTER'
   | 'LEDGER_REPORT' | 'GROUP_SUMMARY' | 'STOCK_SUMMARY'
   | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
   | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE';
@@ -416,7 +417,7 @@ function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
 
   let bal = ledger.balanceType === 'Dr' ? opBal : -opBal;
   for (const v of vouchers) {
-    if (!v || !v.entries) continue;
+    if (!v || !v.entries || v.type === 'Sales Quotation' || v.type === 'Quotation') continue;
     for (const e of v.entries) {
       if (e.ledgerId === ledger.id || (e.ledgerName && e.ledgerName.trim().toLowerCase() === ledger.name.trim().toLowerCase())) {
         bal += e.entryType === 'Dr' ? e.amount : -e.amount;
@@ -429,6 +430,7 @@ function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
 function getLedgerEntries(ledgerId: number, vouchers: Voucher[]): { voucher: Voucher; entry: VoucherEntry }[] {
   const result: { voucher: Voucher; entry: VoucherEntry }[] = [];
   for (const v of vouchers) {
+    if (!v || !v.entries || v.type === 'Sales Quotation' || v.type === 'Quotation') continue;
     for (const e of v.entries) {
       if (e.ledgerId === ledgerId) result.push({ voucher: v, entry: e });
     }
@@ -1781,6 +1783,7 @@ export default function App() {
     { label:'PaYment Register',       highlight:'Y', action:()=>nav('PAYMENT_REGISTER') },
     { label:'Receipt Register',       highlight:'R', action:()=>nav('RECEIPT_REGISTER') },
     { label:'Sales Register',         highlight:'S', action:()=>nav('SALES_REGISTER') },
+    { label:'Sales Quotation Register',highlight:'U', action:()=>nav('QUOTATION_REGISTER') },
     { label:'Purchase Register',      highlight:'P', action:()=>nav('PURCHASE_REGISTER') },
     { label:'Journal Register',       highlight:'J', action:()=>nav('JOURNAL_REGISTER') },
     { label:'Debit Note Register',    highlight:'D', action:()=>nav('DEBIT_NOTE_REGISTER') },
@@ -1959,7 +1962,7 @@ export default function App() {
         if (showDate) { setShowDate(false); return; }
         if (showPeriod) { setShowPeriod(false); return; }
         // Report screens that handle Escape internally for step-by-step
-        const internalReports = ['LEDGER_REPORT','GSTR1_REPORT','GSTR3B_REPORT','BALANCE_SHEET','PROFIT_LOSS','TRIAL_BALANCE','DAY_BOOK','STOCK_SUMMARY','OUTSTANDING_REPORT','SALES_REGISTER','PURCHASE_REGISTER'];
+        const internalReports = ['LEDGER_REPORT','GSTR1_REPORT','GSTR3B_REPORT','BALANCE_SHEET','PROFIT_LOSS','TRIAL_BALANCE','DAY_BOOK','STOCK_SUMMARY','OUTSTANDING_REPORT','SALES_REGISTER','PURCHASE_REGISTER','QUOTATION_REGISTER'];
         if (internalReports.includes(screen)) return;
         goBack();
       }
@@ -2271,6 +2274,7 @@ export default function App() {
           {screen==='PROFIT_LOSS' && 'Profit & Loss Account'}
           {screen==='TRIAL_BALANCE' && 'Trial Balance'}
           {screen==='SALES_REGISTER'       && 'Sales Register'}
+          {screen==='QUOTATION_REGISTER'   && 'Sales Quotation Register'}
           {screen==='PURCHASE_REGISTER'    && 'Purchase Register'}
           {screen==='CONTRA_REGISTER'      && 'Contra Register'}
           {screen==='PAYMENT_REGISTER'     && 'Payment Register'}
@@ -2484,11 +2488,12 @@ export default function App() {
             {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
             {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} />}
-            {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
-            {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
-            {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
-            {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
+            {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
+            {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
+            {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
+            {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
             {screen==='SALES_REGISTER'       && <UniversalRegisterView voucherType='Sales'       vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
+            {screen==='QUOTATION_REGISTER'   && <UniversalRegisterView voucherType='Sales Quotation' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='CONTRA_REGISTER'      && <UniversalRegisterView voucherType='Contra'      vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PAYMENT_REGISTER'     && <UniversalRegisterView voucherType='Payment'     vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
@@ -5336,7 +5341,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const otherSide: 'Dr' | 'Cr' = partySide === 'Dr' ? 'Cr' : 'Dr';
   const isPurchaseSide = activeVoucher === 'Purchase' || activeVoucher === 'Debit Note'; // Used for some legacy checks
 
-  const [partyName, setPartyName] = useState(activeAlterItem?.partyName || '');
+  const isSalesAcName = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales'].includes(s.trim().toLowerCase());
+
+  const [partyName, setPartyName] = useState(() => {
+    if (!activeAlterItem) return '';
+    if (activeAlterItem.partyName && !isSalesAcName(activeAlterItem.partyName)) return activeAlterItem.partyName;
+    if (activeAlterItem.partyDetails?.buyerName && !isSalesAcName(activeAlterItem.partyDetails.buyerName)) return activeAlterItem.partyDetails.buyerName;
+    const partyEnt = activeAlterItem.entries?.find((e: any) => {
+      const name = e.ledger?.name || e.ledgerName || '';
+      return !isSalesAcName(name) && name !== 'Purchase A/c';
+    });
+    return partyEnt?.ledger?.name || partyEnt?.ledgerName || activeAlterItem.partyName || '';
+  });
   const [partyBalance, setPartyBalance] = useState<number|null>(null);
   const [refNo, setRefNo] = useState(activeAlterItem?.refNo || '');
   const [supplierInvNo, setSupplierInvNo] = useState(activeAlterItem?.partyDetails?.supplierInvNo || '');
@@ -5600,7 +5616,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
      lastAlterId.current = currentKey;
 
      if(activeAlterItem) {
-       const pName = activeAlterItem.partyName;
+       let pName = activeAlterItem.partyName;
+       if (isSalesAcName(pName)) {
+         if (activeAlterItem.partyDetails?.buyerName && !isSalesAcName(activeAlterItem.partyDetails.buyerName)) {
+           pName = activeAlterItem.partyDetails.buyerName;
+         } else {
+           const partyEnt = activeAlterItem.entries?.find((e: any) => {
+             const name = e.ledger?.name || e.ledgerName || '';
+             return !isSalesAcName(name) && name !== 'Purchase A/c';
+           });
+           if (partyEnt) pName = partyEnt.ledger?.name || partyEnt.ledgerName || pName;
+         }
+       }
        setPartyName(pName);
        setRefNo(activeAlterItem.refNo||'');
        
@@ -9866,7 +9893,8 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
       <div key={copyIdx} className="invoice-copy" style={{
         width: '210mm', minHeight: '297mm', margin: '0 auto 30px auto', background: 'white',
         border: '1.5px solid #000', fontFamily: '"Arial Narrow", Arial, sans-serif', fontSize: 11,
-        position: 'relative', boxSizing: 'border-box', padding: 0
+        position: 'relative', boxSizing: 'border-box', padding: 0,
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
       }}>
         {/* HEADER SECTION */}
         <div style={{ padding: '8px 12px', borderBottom: '1px solid #000', position: 'relative' }}>
@@ -10082,7 +10110,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         </div>
 
         {/* FOOTER SECTION: BANK DETAILS & SIGNATURE */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', minHeight: 110 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', minHeight: 110, marginTop: 'auto' }}>
           {/* LEFT: Our Bank Details */}
           <div style={{ padding: '8px 10px', borderRight: '1px solid #000', fontSize: 10, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
