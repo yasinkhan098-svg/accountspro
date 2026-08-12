@@ -2522,7 +2522,7 @@ export default function App() {
             {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} vouchers={filteredVouchers} onBack={goBack} onDrillDown={item=>{ /* Maybe later item drilldown */ }} />}
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
-            {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={vouchers} company={activeCompany} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
+            {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={vouchers} company={activeCompany} companies={companies} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
             {screen==='GSTR1_REPORT'         && (
               <GSTR1ReportView 
                 vouchers={filteredVouchers} 
@@ -9310,8 +9310,8 @@ function numberToWords(num: number): string {
   return result;
 }
 
-function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
-  vouchers:Voucher[];company:Company | null;printVoucher:Voucher|null;ledgers:Ledger[];onSelectVoucher:(v:Voucher)=>void;
+function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectVoucher}:{
+  vouchers:Voucher[];company:Company | null;companies?:Company[];printVoucher:Voucher|null;ledgers:Ledger[];onSelectVoucher:(v:Voucher)=>void;
 }) {
   const [numCopies, setNumCopies] = useState(1);
   const [showOptions, setShowOptions] = useState(true);
@@ -9334,6 +9334,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
 
   const allPrintableVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note','Payment','Receipt','Contra','Journal','Sales Quotation'].includes(v.type));
   const v = printVoucher || allPrintableVouchers[0] || null;
+  const currentCompany = (companies || []).find(c => Number(c.id) === Number(v?.companyId)) || company;
   const getEntryLedgerName = (e: any) => {
     if (!e) return '';
     return e.ledgerName || e.ledger?.name || ledgers.find(l => Number(l.id) === Number(e.ledgerId))?.name || '';
@@ -9865,7 +9866,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
     const partyDisplayName = (!isSalesAc(pd?.buyerName) ? pd!.buyerName : '')
       || (!isSalesAc(pd?.buyerMailingName) ? pd!.buyerMailingName : '')
       || (!isSalesAc(v.partyName) ? v.partyName : '')
-      || (realPartyLedger?.name || 'AIMAN POLYMERS');
+      || (realPartyLedger?.name || '');
 
     const partyDisplayAddress = pd?.buyerAddress || realPartyLedger?.address || '';
     const partyDisplayGstin = pd?.buyerGstin || realPartyLedger?.gstin || '';
@@ -9921,22 +9922,38 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
         {/* HEADER SECTION */}
         <div style={{ padding: '8px 12px', borderBottom: '1px solid #000', position: 'relative' }}>
           {/* Top-Left GSTIN */}
-          <div style={{ fontSize: 11, fontWeight: 'bold' }}>
-            GSTIN : {company?.gstin || '05DTPFK7162G1ZN'}
-          </div>
+          {currentCompany?.gstin && (
+            <div style={{ fontSize: 11, fontWeight: 'bold' }}>
+              GSTIN : {currentCompany.gstin}
+            </div>
+          )}
+          {/* Top-Right Logo */}
+          {currentCompany?.showLogo && currentCompany?.logo && (
+            <div style={{ position: 'absolute', top: 8, right: 12 }}>
+              <img src={currentCompany.logo} alt="Logo" style={{ height: 45, objectFit: 'contain' }} />
+            </div>
+          )}
           {/* Top Center Title & Company Details */}
-          <div style={{ textAlign: 'center', marginTop: -15 }}>
+          <div style={{ textAlign: 'center', marginTop: currentCompany?.gstin ? -15 : 0 }}>
             <div style={{ fontSize: 13, textDecoration: 'underline', fontWeight: 'bold', marginBottom: 2 }}>
               Sales Quotation
             </div>
             <div style={{ fontSize: 20, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              {company?.name || 'HARJAS PLASTOCHEM'}
+              {currentCompany?.name || ''}
             </div>
+            {(currentCompany?.address || currentCompany?.pinCode) && (
+              <div style={{ fontSize: 10, marginTop: 2 }}>
+                {currentCompany?.address}{currentCompany?.pinCode ? '-' + currentCompany.pinCode : ''}
+              </div>
+            )}
             <div style={{ fontSize: 10, marginTop: 2 }}>
-              {company?.address}{company?.pinCode ? '-' + company.pinCode : ''}
-            </div>
-            <div style={{ fontSize: 10 }}>
-              Tel. : {company?.telephone || company?.mobile || ''} {company?.email ? `email : ${company.email}` : ''}
+              {[
+                currentCompany?.state ? `State: ${currentCompany.state}` : '',
+                currentCompany?.telephone ? `Tel. : ${currentCompany.telephone}` : '',
+                (currentCompany?.showMobile !== false && currentCompany?.mobile) ? `Mobile : ${currentCompany.mobile}` : '',
+                (currentCompany?.showEmail !== false && currentCompany?.email) ? `Email : ${currentCompany.email}` : '',
+                (currentCompany?.showWebsite !== false && currentCompany?.website) ? `Website : ${currentCompany.website}` : ''
+              ].filter(Boolean).join(' | ')}
             </div>
           </div>
         </div>
@@ -10138,11 +10155,11 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             <div>
               <div style={{ fontStyle: 'italic', fontWeight: 'bold', marginBottom: 4 }}>Our Bank Detail :</div>
               <div style={{ display: 'grid', gridTemplateColumns: '85px 10px 1fr', rowGap: 2 }}>
-                <span>A/c Name</span><span>:</span><span><b>{company?.bankHolderName || company?.name || ''}</b></span>
-                <span>A/c No</span><span>:</span><span><b>{company?.accountNo || ''}</b></span>
-                <span>Bank Name</span><span>:</span><span><b>{company?.bankName || ''}</b></span>
-                <span>Branch</span><span>:</span><span><b>{company?.branch || ''}</b></span>
-                <span>IFS Code</span><span>:</span><span><b>{company?.ifsc || ''}</b></span>
+                <span>A/c Name</span><span>:</span><span><b>{currentCompany?.bankHolderName || currentCompany?.name || ''}</b></span>
+                <span>A/c No</span><span>:</span><span><b>{currentCompany?.accountNo || ''}</b></span>
+                <span>Bank Name</span><span>:</span><span><b>{currentCompany?.bankName || ''}</b></span>
+                <span>Branch</span><span>:</span><span><b>{currentCompany?.branch || ''}</b></span>
+                <span>IFS Code</span><span>:</span><span><b>{currentCompany?.ifsc || ''}</b></span>
               </div>
             </div>
           </div>
@@ -10154,7 +10171,7 @@ function PrintPreview({vouchers,company,printVoucher,ledgers,onSelectVoucher}:{
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 'bold', textAlign: 'right', marginBottom: 25 }}>
-                For {company?.name || ''}
+                For {currentCompany?.name || ''}
               </div>
               <div style={{ fontSize: 11, fontWeight: 'bold', textAlign: 'right' }}>
                 Authorised Signatory
