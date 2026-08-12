@@ -10111,7 +10111,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
         {/* FOOTER SECTION */}
         <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>
           <div style={{fontSize:9}}>Amount Chargeable (in words)</div>
-          <div style={{fontWeight:'bold', fontSize:11}}>INR {numberToWords(v.total)} Only</div>
+          <div style={{fontWeight:'bold', fontSize:11}}>{numberToWords(v.total)}</div>
         </div>
 
         {/* HSN SUMMARY TABLE (Professional Logic) */}
@@ -10167,7 +10167,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
         </div>
 
         <div style={{padding:'5px 10px', borderBottom:'1px solid #000', fontSize:9}}>
-          Tax Amount (in words) : <b>INR {numberToWords(hsnRows.reduce((s,r)=>s+r.cgst+r.sgst+r.igst,0))} Only</b>
+          Tax Amount (in words) : <b>{numberToWords(hsnRows.reduce((s,r)=>s+r.cgst+r.sgst+r.igst,0))}</b>
         </div>
 
         {/* BANK DETAILS & SIGNATURE */}
@@ -10513,7 +10513,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
 
         {/* AMOUNT IN WORDS */}
         <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', fontSize: 11 }}>
-          <b>{wordsClean(grandTotalAmt || v.total)}</b>
+          <b>{numberToWords(grandTotalAmt || v.total)}</b>
         </div>
 
         {/* FOOTER SECTION: BANK DETAILS & SIGNATURE */}
