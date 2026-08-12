@@ -6047,7 +6047,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       onAltCReturnHandled(); // Tell App we've handled it
     }
   }, [altCReturnContext]);
-  const itemSubtotal = rows.reduce((s: number, r: any) => s + r.amount, 0);
+  const itemSubtotal = rows.reduce((s: number, r: any) => s + (r.itemName && r.amount ? r.amount : 0), 0);
 
   // ===== TALLY PRIME GST LOGIC: CGST+SGST (same state) vs IGST (different state) =====
   const companyState = (activeCompany?.state || '').toLowerCase().trim();
@@ -6055,21 +6055,45 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const partyState = (partyLedger?.state || '').toLowerCase().trim();
   const isInterState = partyState !== '' && companyState !== '' && partyState !== companyState;
 
-  // Item-wise GST breakdown (grouped by gstRate)
+  // 1. Calculate Additional Expenses/Discounts that affect Taxable Subtotal (excluding Round Off)
+  const addlTaxableAdjustment = useMemo(() => {
+    return additionalLedgers
+      .filter(al => al.ledgerName && al.ledgerName !== 'Round Off' && (al.amount || 0) > 0)
+      .reduce((s, l) => {
+        // If entryType is 'otherSide' (Dr in Purchase/Sales), it ADDS to taxable cost (+).
+        // If entryType is 'partySide' (Cr in Purchase/Sales), it SUBTRACTS as discount (-).
+        const factor = l.entryType === otherSide ? 1 : -1;
+        return s + (l.amount * factor);
+      }, 0);
+  }, [additionalLedgers, otherSide]);
+
+  // Net Taxable Subtotal (Item Subtotal + Additional Expenses - Additional Discounts)
+  const netTaxableSubtotal = Math.max(0, itemSubtotal + addlTaxableAdjustment);
+
+  // Item-wise GST breakdown (grouped by gstRate, calculated on Net Taxable Subtotal)
   const gstBreakdown = useMemo(() => {
     const map = new Map<number, { taxableAmt: number; gstRate: number }>();
-    rows.filter(r => r.itemName && r.amount > 0).forEach(r => {
+    const activeRows = rows.filter(r => r.itemName && r.amount > 0);
+    const totalItemSub = activeRows.reduce((sum, r) => sum + r.amount, 0);
+
+    activeRows.forEach(r => {
       const existing = map.get(r.gstRate) || { taxableAmt: 0, gstRate: r.gstRate };
       existing.taxableAmt += r.amount;
       map.set(r.gstRate, existing);
     });
-    return Array.from(map.values()).map(g => ({
-      ...g,
-      cgst: isInterState ? 0 : round2(g.taxableAmt * g.gstRate / 200),
-      sgst: isInterState ? 0 : round2(g.taxableAmt * g.gstRate / 200),
-      igst: isInterState ? round2(g.taxableAmt * g.gstRate / 100) : 0,
-    }));
-  }, [rows, isInterState]);
+
+    return Array.from(map.values()).map(g => {
+      const ratio = totalItemSub > 0 ? (g.taxableAmt / totalItemSub) : 0;
+      const netTaxableForGroup = Math.max(0, g.taxableAmt + (addlTaxableAdjustment * ratio));
+      return {
+        ...g,
+        netTaxableAmt: netTaxableForGroup,
+        cgst: isInterState ? 0 : round2(netTaxableForGroup * g.gstRate / 200),
+        sgst: isInterState ? 0 : round2(netTaxableForGroup * g.gstRate / 200),
+        igst: isInterState ? round2(netTaxableForGroup * g.gstRate / 100) : 0,
+      };
+    });
+  }, [rows, isInterState, addlTaxableAdjustment]);
 
   const totalCgst = gstBreakdown.reduce((s: number, g: any) => s + g.cgst, 0);
   const totalSgst = gstBreakdown.reduce((s: number, g: any) => s + g.sgst, 0);
