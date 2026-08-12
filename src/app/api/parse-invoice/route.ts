@@ -39,11 +39,25 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const promptText = `Analyze this purchase invoice/bill document carefully.
+    const promptText = `You are a professional invoice parser. Analyze this purchase invoice/bill document (single or multi-page) carefully.
 Note: There are ${files.length} image/page(s) attached representing this purchase invoice. Treat all attached images as sequential pages of the EXACT SAME purchase invoice/bill.
-Extract all relevant invoice details across all pages and combine all items into a single unified item list.
-IMPORTANT: Extract the exact, distinct item name for each row in the items table. Do NOT repeat or overwrite item names.
-IMPORTANT: For additional charges or discounts listed below the items (such as SPL.DISCOUNT, Special Discount, Discount Given, Freight, Transportation, Loading Charges, Round Off), extract their EXACT name as printed on the bill.
+
+CRITICAL RULES FOR ITEM NAME EXTRACTION:
+1. In the items table (under columns like "Description of Goods", "Description", "Item Name", "Goods Name"):
+   - Extract ONLY the primary item/product title (the main bold or distinct product header font).
+   - DO NOT include long descriptive sub-text, technical specifications, or tax remarks in "itemName" (e.g. strip out text like "IN Central GST", "IN State GST", "Op Code...", batch details, or secondary paragraph descriptions). Keep "itemName" clean, sharp, and concise.
+
+CRITICAL RULES FOR UNITS & NUMBERS:
+2. "unit": Extract the unit of measure (e.g., Kg, Pcs, Box, Mtr, Ltr, Nos, Roll, Set, Bag, Pack, Pair, Sqft). If unit is NOT mentioned or blank, default strictly to "Nos".
+3. "qty": Extract exact quantity as a number.
+4. "rate": Extract unit rate as a number.
+5. "discountPerc" & "discountAmt": Extract any item-level discount (in-bill discount, cash discount, or trade discount percentage/amount). If discount is present, calculate taxable amount = (qty * rate) - discount.
+6. "amount": Extract net amount for the item row after item discounts.
+
+CRITICAL RULES FOR ADDITIONAL CHARGES & DISCOUNTS BELOW ITEMS:
+7. Extract all additional expenses, charges, or discounts listed below the items table (such as SPL.DISCOUNT, Special Discount, Discount Given, Trade Discount, Freight Charges, Transportation Charges, Packaging, Loading Charges, Cartage, Round Off).
+   - Use their EXACT printed names as "ledgerName".
+   - Specify "type": "Discount" for discounts/less items, or "Expense" for extra charges.
 
 Output ONLY a valid JSON object strictly following this structure:
 {
@@ -54,11 +68,11 @@ Output ONLY a valid JSON object strictly following this structure:
   "invoiceDate": "Date of invoice formatted as DD-MMM-YYYY (e.g. 12-Aug-2026)",
   "items": [
     {
-      "itemName": "Exact description or name of the item/goods as printed on bill",
+      "itemName": "Clean main product title only",
       "hsnCode": "HSN or SAC Code if available",
       "qty": 1,
       "rate": 100,
-      "unit": "Unit of measure like Kg, Pcs, Nos, Box, Mtr",
+      "unit": "Nos",
       "discountPerc": 5.0,
       "discountAmt": 5.0,
       "gstRate": 18,
@@ -67,7 +81,7 @@ Output ONLY a valid JSON object strictly following this structure:
   ],
   "additionalLedgers": [
     {
-      "ledgerName": "Exact name of expense/charge/discount as printed on the bill below items (e.g. SPL.DISCOUNT, Special Discount, Discount Given, Freight Charges, Cartage)",
+      "ledgerName": "SPL.DISCOUNT",
       "amount": 2750.0,
       "type": "Discount"
     }

@@ -5487,12 +5487,20 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       const newRows: VoucherRow[] = [];
       if (Array.isArray(inv.items) && inv.items.length > 0) {
         for (const item of inv.items) {
-          const rawItemName = (item.itemName || 'Stock Item').trim();
+          let rawItemName = (item.itemName || 'Stock Item').trim();
+          // Clean out unwanted sub-text like "IN Central GST", "IN State GST", or tax remarks from itemName
+          rawItemName = rawItemName
+            .replace(/\bIN\s+(Central|State)\s+GST\b.*/gi, '')
+            .replace(/\b(Central|State)\s+GST\b.*/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim() || 'Stock Item';
+
           const rawHsn = (item.hsnCode || '').trim();
           const itemGst = Number(item.gstRate) || 18;
           const itemQty = Number(item.qty) || 1;
           const itemRate = Number(item.rate) || 0;
-          const itemUnit = (item.unit || 'Nos').trim();
+          const parsedUnit = (item.unit || '').trim();
+          const itemUnit = (parsedUnit && parsedUnit !== '—' && parsedUnit !== '-') ? parsedUnit : 'Nos';
 
           // Item-level Discount Calculation
           const gross = Math.round(itemQty * itemRate * 100) / 100;
