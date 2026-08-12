@@ -72,18 +72,42 @@ Return ONLY valid JSON. Do not include markdown ticks or additional conversation
       }
     };
 
-    const modelsToTry = [
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-2.0-flash',
-      'gemini-1.5-pro'
-    ];
+    // Fetch available models dynamically for this key
+    let candidateModelNames: string[] = [];
+    try {
+      const modelsListRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (modelsListRes.ok) {
+        const modelsData = await modelsListRes.json();
+        const availableModels: any[] = modelsData.models || [];
+        const generateModels = availableModels.filter((m: any) => 
+          Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent')
+        );
+        candidateModelNames = generateModels.map((m: any) => m.name);
+      } else {
+        const errJson = await modelsListRes.text();
+        console.warn("Dynamic model list fetch failed:", errJson);
+      }
+    } catch (e) {
+      console.warn("Failed to list models dynamically:", e);
+    }
+
+    if (candidateModelNames.length === 0) {
+      candidateModelNames = [
+        'models/gemini-1.5-flash',
+        'models/gemini-1.5-flash-latest',
+        'models/gemini-2.0-flash',
+        'models/gemini-1.5-pro-latest'
+      ];
+    }
 
     let geminiRes = null;
     let lastErrorText = '';
 
-    for (const model of modelsToTry) {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    for (let modelName of candidateModelNames) {
+      // Ensure modelName has models/ prefix
+      const fullModelPath = modelName.startsWith('models/') ? modelName : `models/${modelName}`;
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/${fullModelPath}:generateContent?key=${apiKey}`;
+      
       const res = await fetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,7 +119,7 @@ Return ONLY valid JSON. Do not include markdown ticks or additional conversation
         break;
       } else {
         lastErrorText = await res.text();
-        console.warn(`Model ${model} failed (${res.status}):`, lastErrorText);
+        console.warn(`Model ${fullModelPath} failed (${res.status}):`, lastErrorText);
       }
     }
 
