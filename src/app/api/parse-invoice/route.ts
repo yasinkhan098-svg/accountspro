@@ -42,6 +42,9 @@ export async function POST(req: NextRequest) {
     const promptText = `Analyze this purchase invoice/bill document carefully.
 Note: There are ${files.length} image/page(s) attached representing this purchase invoice. Treat all attached images as sequential pages of the EXACT SAME purchase invoice/bill.
 Extract all relevant invoice details across all pages and combine all items into a single unified item list.
+IMPORTANT: Extract the exact, distinct item name for each row in the items table. Do NOT repeat or overwrite item names.
+IMPORTANT: For additional charges or discounts listed below the items (such as SPL.DISCOUNT, Special Discount, Discount Given, Freight, Transportation, Loading Charges, Round Off), extract their EXACT name as printed on the bill.
+
 Output ONLY a valid JSON object strictly following this structure:
 {
   "supplierName": "Name of the seller or supplier company/party",
@@ -51,7 +54,7 @@ Output ONLY a valid JSON object strictly following this structure:
   "invoiceDate": "Date of invoice formatted as DD-MMM-YYYY (e.g. 12-Aug-2026)",
   "items": [
     {
-      "itemName": "Description or Name of the item/goods",
+      "itemName": "Exact description or name of the item/goods as printed on bill",
       "hsnCode": "HSN or SAC Code if available",
       "qty": 1,
       "rate": 100,
@@ -64,7 +67,7 @@ Output ONLY a valid JSON object strictly following this structure:
   ],
   "additionalLedgers": [
     {
-      "ledgerName": "Exact name of expense/charge/discount listed below items, e.g., SPL.DISCOUNT, Special Discount, Freight Charges, Transportation Charges, Packaging Charges, Logistic Charges, Cartage",
+      "ledgerName": "Exact name of expense/charge/discount as printed on the bill below items (e.g. SPL.DISCOUNT, Special Discount, Discount Given, Freight Charges, Cartage)",
       "amount": 2750.0,
       "type": "Discount"
     }

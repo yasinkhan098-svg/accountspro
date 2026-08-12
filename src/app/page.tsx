@@ -5503,8 +5503,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           const discAmt = Math.round(gross * (discP / 100) * 100) / 100;
           const itemAmount = Number(item.amount) || Math.round((gross - discAmt) * 100) / 100;
 
-          let matchedStockItem = stockItems.find(s => s.name.toLowerCase() === rawItemName.toLowerCase())
-            || (rawHsn ? stockItems.find(s => s.hsnCode === rawHsn) : null);
+          // Match existing stock item strictly by exact name
+          let matchedStockItem = stockItems.find(s => s.name.toLowerCase().trim() === rawItemName.toLowerCase().trim());
 
           let itemId = matchedStockItem ? matchedStockItem.id : 0;
           let itemName = matchedStockItem ? matchedStockItem.name : rawItemName;
@@ -5551,7 +5551,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setRows(newRows);
       }
 
-      // 3. ADDITIONAL LEDGERS & EXPENSES (SPL.DISCOUNT, Freight, Round Off, etc.)
+      // 3. ADDITIONAL LEDGERS & EXPENSES (SPL.DISCOUNT, Discount Given, Freight, Round Off, etc.)
       const parsedAddl: Array<{ ledgerName: string; amount: number; type?: string }> = Array.isArray(inv.additionalLedgers) ? [...inv.additionalLedgers] : [];
       
       // Auto-add Round Off if present & not already in list
@@ -5576,9 +5576,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           || rawName.toLowerCase().includes('disc') 
           || rawName.toLowerCase().includes('less');
 
-        // Match existing ledger
-        let matchedAddl = ledgers.find(l => l.name.toLowerCase() === rawName.toLowerCase())
-          || (isDiscount ? ledgers.find(l => l.name.toLowerCase().includes('discount')) : ledgers.find(l => l.name.toLowerCase().includes('freight')));
+        // Match existing ledger strictly by exact name
+        let matchedAddl = ledgers.find(l => l.name.toLowerCase().trim() === rawName.toLowerCase().trim());
 
         let addlId = matchedAddl ? matchedAddl.id : 0;
         let addlName = matchedAddl ? matchedAddl.name : rawName;
@@ -7308,27 +7307,30 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               </div>
             )}
             {/* Item-wise GST breakdown */}
-            {gstBreakdown.map((g, gi) => (
-              <div key={gi} style={{marginBottom:4}}>
-                {isInterState ? (
-                  <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                    <span style={{fontSize:12,color:'#555'}}>IGST @ {g.gstRate}% on ₹{fmt(g.taxableAmt)}:</span>
-                    <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.igst)}</span>
-                  </div>
-                ) : (
-                  <>
+            {gstBreakdown.map((g, gi) => {
+              const displayTaxable = (g as any).netTaxableAmt !== undefined ? (g as any).netTaxableAmt : g.taxableAmt;
+              return (
+                <div key={gi} style={{marginBottom:4}}>
+                  {isInterState ? (
                     <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                      <span style={{fontSize:12,color:'#555'}}>CGST @ {g.gstRate/2}% on ₹{fmt(g.taxableAmt)}:</span>
-                      <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.cgst)}</span>
+                      <span style={{fontSize:12,color:'#555'}}>IGST @ {g.gstRate}% on ₹{fmt(displayTaxable)}:</span>
+                      <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.igst)}</span>
                     </div>
-                    <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                      <span style={{fontSize:12,color:'#555'}}>SGST @ {g.gstRate/2}% on ₹{fmt(g.taxableAmt)}:</span>
-                      <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.sgst)}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
+                  ) : (
+                    <>
+                      <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
+                        <span style={{fontSize:12,color:'#555'}}>CGST @ {g.gstRate/2}% on ₹{fmt(displayTaxable)}:</span>
+                        <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.cgst)}</span>
+                      </div>
+                      <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
+                        <span style={{fontSize:12,color:'#555'}}>SGST @ {g.gstRate/2}% on ₹{fmt(displayTaxable)}:</span>
+                        <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.sgst)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
             {totalTax > 0 && (
               <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:4,borderTop:'1px dashed #ccc',paddingTop:4}}>
                 <span style={{fontSize:12,fontWeight:'bold',color:'#555'}}>Total Tax:</span>
