@@ -6464,12 +6464,25 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     >
       {/* Voucher type bar */}
       <div style={{background:'#1e2d3d',display:'flex',fontSize:11,flexWrap:'wrap'}}>
-        {(['Contra','Payment','Receipt','Journal','Sales','Sales Quotation','Purchase','Credit Note','Debit Note'] as VoucherTypeKey[]).map((v,i)=>(
-          <div key={i} style={{padding:'5px 10px',cursor:'pointer',fontWeight:'bold',background:activeVoucher===v?vc:'transparent',color:activeVoucher===v?'white':'#aaa',borderRight:'1px solid #333'}}
-            onClick={()=>onChangeType(v)}>
-            {v === 'Sales Quotation' ? 'Alt+F8: Quotation' : (v === 'Credit Note' ? 'Ctrl+F8: Credit Note' : (v === 'Debit Note' ? 'Alt+F9: Debit Note' : `F${i >= 5 ? i + 4 : i + 4}` + `: ${v}`))}
-          </div>
-        ))}
+        {(['Contra','Payment','Receipt','Journal','Sales','Purchase','Sales Quotation','Credit Note','Debit Note'] as VoucherTypeKey[]).map((v,i)=>{
+          const labelMap: Record<string, string> = {
+            'Contra': 'F4: Contra',
+            'Payment': 'F5: Payment',
+            'Receipt': 'F6: Receipt',
+            'Journal': 'F7: Journal',
+            'Sales': 'F8: Sales',
+            'Purchase': 'F9: Purchase',
+            'Sales Quotation': 'Alt+F8: Quotation',
+            'Credit Note': 'Ctrl+F8: Credit Note',
+            'Debit Note': 'Alt+F9: Debit Note'
+          };
+          return (
+            <div key={i} style={{padding:'5px 10px',cursor:'pointer',fontWeight:'bold',background:activeVoucher===v?vc:'transparent',color:activeVoucher===v?'white':'#aaa',borderRight:'1px solid #333'}}
+              onClick={()=>onChangeType(v)}>
+              {labelMap[v] || v}
+            </div>
+          );
+        })}
         <div style={{marginLeft:'auto',padding:'5px 12px',color:'#888',fontSize:10}}>Alt+C: Inline Create | Ctrl+A: Save | Esc: Back</div>
       </div>
 
