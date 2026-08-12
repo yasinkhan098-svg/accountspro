@@ -139,9 +139,8 @@ Return ONLY valid JSON. Do not include markdown ticks or additional conversation
     }
     const rawContent = geminiRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
-    // Clean rawContent in case markdown tags exist
-    const cleanJson = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const invoiceData = JSON.parse(cleanJson);
+    // Repair and parse JSON safely
+    const invoiceData = repairAndParseJson(rawContent);
 
     return NextResponse.json({
       success: true,
@@ -154,5 +153,36 @@ Return ONLY valid JSON. Do not include markdown ticks or additional conversation
       success: false,
       error: err.message || 'Failed to process invoice file.'
     }, { status: 500 });
+  }
+}
+
+function repairAndParseJson(raw: string) {
+  // 1. Remove markdown code blocks
+  let s = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+  // 2. Extract substring from first { to last }
+  const firstBrace = s.indexOf('{');
+  const lastBrace = s.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    s = s.substring(firstBrace, lastBrace + 1);
+  }
+
+  // 3. Direct parse attempt
+  try {
+    return JSON.parse(s);
+  } catch (e1) {
+    // 4. Sanitize malformed JSON syntax (trailing commas, unquoted keys, single quotes)
+    let repaired = s
+      .replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1') // remove comments
+      .replace(/,\s*([}\]])/g, '$1')                        // remove trailing commas
+      .replace(/(['"])?([a-zA-Z0-9_]+)\1\s*:/g, '"$2":');    // fix unquoted keys
+
+    try {
+      return JSON.parse(repaired);
+    } catch (e2) {
+      // 5. Unescaped control characters fallback
+      const sanitized = repaired.replace(/[\u0000-\u001F]+/g, ' ');
+      return JSON.parse(sanitized);
+    }
   }
 }
