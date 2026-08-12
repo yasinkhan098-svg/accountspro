@@ -9916,7 +9916,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
       return `Rupees ${text} Only`;
     };
 
-    const tdB: React.CSSProperties = { border: '1px solid #555', padding: '4px 6px', fontSize: 11, verticalAlign: 'top' };
+    const tdB: React.CSSProperties = { border: '1px solid #555', padding: '4px 6px', fontSize: 11, verticalAlign: 'top', fontWeight: 600 };
     const tdH: React.CSSProperties = { ...tdB, fontWeight: 'bold', background: '#f9f9f9', textAlign: 'center' };
 
     return (
@@ -10019,7 +10019,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
               <tr key={idx} style={{ fontSize: 11 }}>
                 <td style={{ ...tdB, textAlign: 'center', borderTop: 'none', borderBottom: 'none' }}>{idx + 1}.</td>
                 <td style={{ ...tdB, borderTop: 'none', borderBottom: 'none' }}>
-                  <div style={{ fontWeight: 'normal', textTransform: 'uppercase' }}>{e.itemName || e.stockItem?.name}</div>
+                  <div style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{e.itemName || e.stockItem?.name}</div>
                   {e.desc1 && <div style={{ fontSize: 10, fontStyle: 'italic', paddingLeft: 12 }}>{e.desc1}</div>}
                   {e.desc2 && <div style={{ fontSize: 10, fontStyle: 'italic', paddingLeft: 12 }}>{e.desc2}</div>}
                   {e.desc3 && <div style={{ fontSize: 10, fontStyle: 'italic', paddingLeft: 12 }}>{e.desc3}</div>}

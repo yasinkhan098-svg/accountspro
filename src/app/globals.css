@@ -611,10 +611,29 @@ body {
     box-shadow: none !important;
     border: 1px solid #555 !important;
     position: relative;
+    font-weight: 600 !important;
+    color: #000 !important;
   }
   .invoice-copy:last-child {
     page-break-after: avoid;
   }
+}
+
+/* Print Preview Global Bold Styling */
+.invoice-copy {
+  font-weight: 600;
+  color: #000;
+}
+.invoice-copy table,
+.invoice-copy table th,
+.invoice-copy table td,
+.invoice-copy div,
+.invoice-copy span,
+.invoice-copy p {
+  font-weight: 600;
+}
+.invoice-copy th {
+  font-weight: 700;
 }
 
 /* =========================================================
