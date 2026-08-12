@@ -9765,9 +9765,12 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <th style={{...tdH, fontSize:9}} rowSpan={2}>Taxable<br/>Value</th>
                 <th style={{...tdH, fontSize:9}} colSpan={2}>Central Tax</th>
                 <th style={{...tdH, fontSize:9}} colSpan={2}>State Tax</th>
+                <th style={{...tdH, fontSize:9}} colSpan={2}>Integrated Tax</th>
                 <th style={{...tdH, fontSize:9}} rowSpan={2}>Total<br/>Tax Amount</th>
               </tr>
               <tr>
+                <th style={{...tdH, fontSize:9}}>Rate</th>
+                <th style={{...tdH, fontSize:9}}>Amount</th>
                 <th style={{...tdH, fontSize:9}}>Rate</th>
                 <th style={{...tdH, fontSize:9}}>Amount</th>
                 <th style={{...tdH, fontSize:9}}>Rate</th>
@@ -9779,10 +9782,12 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <tr key={idx}>
                   <td style={{...tdB, textAlign:'center'}}>{hr.hsnCode}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.taxable)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.igst > 0 ? '' : (hr.igst===0 ? hr.rate/2 + '%' : '')) : ''}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.rate/2 + '%') : (isInterState ? '—' : '0%')}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? hr.rate/2 + '%' : ''}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? (hr.rate/2 + '%') : (isInterState ? '—' : '0%')}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.sgst)}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.igst > 0 ? (hr.rate + '%') : (isInterState ? hr.rate + '%' : '0%')}</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.igst)}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst + hr.sgst + hr.igst)}</td>
                 </tr>
               ))}
@@ -9795,6 +9800,8 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.cgst,0))}</td>
                 <td style={tdB}/>
                 <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.sgst,0))}</td>
+                <td style={tdB}/>
+                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.igst,0))}</td>
                 <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.cgst+r.sgst+r.igst,0))}</td>
               </tr>
             </tfoot>
@@ -10117,6 +10124,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <th style={{ ...tdH, textDecoration: 'underline' }}>Taxable Amt.</th>
                 <th style={{ ...tdH, textDecoration: 'underline' }}>CGST Amt.</th>
                 <th style={{ ...tdH, textDecoration: 'underline' }}>SGST Amt.</th>
+                <th style={{ ...tdH, textDecoration: 'underline' }}>IGST Amt.</th>
                 <th style={{ ...tdH, textDecoration: 'underline' }}>Total Tax</th>
               </tr>
             </thead>
@@ -10127,6 +10135,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                   <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.taxable)}</td>
                   <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.cgst)}</td>
                   <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.sgst)}</td>
+                  <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.igst)}</td>
                   <td style={{ ...tdB, textAlign: 'right' }}>{fmt(hr.totalTax)}</td>
                 </tr>
               ))}
@@ -10137,6 +10146,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.taxable, 0))}</td>
                 <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.cgst, 0))}</td>
                 <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.sgst, 0))}</td>
+                <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.igst, 0))}</td>
                 <td style={{ ...tdB, textAlign: 'right' }}>{fmt(gstRateRows.reduce((s, r) => s + r.totalTax, 0))}</td>
               </tr>
             </tfoot>
