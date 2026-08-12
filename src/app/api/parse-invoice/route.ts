@@ -42,14 +42,25 @@ Extract all relevant invoice details and output ONLY a valid JSON object strictl
       "qty": 1,
       "rate": 100,
       "unit": "Unit of measure like Kg, Pcs, Nos, Box, Mtr",
+      "discountPerc": 5.0,
+      "discountAmt": 5.0,
       "gstRate": 18,
-      "amount": 100
+      "amount": 95
     }
   ],
-  "cgstAmount": 0,
-  "sgstAmount": 0,
+  "additionalLedgers": [
+    {
+      "ledgerName": "Exact name of expense/charge/discount listed below items, e.g., SPL.DISCOUNT, Special Discount, Freight Charges, Transportation Charges, Packaging Charges, Logistic Charges, Cartage",
+      "amount": 2750.0,
+      "type": "Discount"
+    }
+  ],
+  "subtotal": 149713.35,
+  "cgstAmount": 13226.71,
+  "sgstAmount": 13226.71,
   "igstAmount": 0,
-  "totalAmount": 100
+  "roundOff": 0.23,
+  "totalAmount": 173417.0
 }
 Return ONLY valid JSON. Do not include markdown ticks or additional conversation.`;
 

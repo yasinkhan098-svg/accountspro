@@ -5488,7 +5488,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           const itemQty = Number(item.qty) || 1;
           const itemRate = Number(item.rate) || 0;
           const itemUnit = (item.unit || 'Nos').trim();
-          const itemAmount = Number(item.amount) || Math.round(itemQty * itemRate * 100) / 100;
+
+          // Item-level Discount Calculation
+          const gross = Math.round(itemQty * itemRate * 100) / 100;
+          let discP = Number(item.discountPerc) || 0;
+          if (discP === 0 && item.discountAmt && gross > 0) {
+            discP = Math.round((Number(item.discountAmt) / gross) * 10000) / 100;
+          }
+          const discAmt = Math.round(gross * (discP / 100) * 100) / 100;
+          const itemAmount = Number(item.amount) || Math.round((gross - discAmt) * 100) / 100;
 
           let matchedStockItem = stockItems.find(s => s.name.toLowerCase() === rawItemName.toLowerCase())
             || (rawHsn ? stockItems.find(s => s.hsnCode === rawHsn) : null);
@@ -5525,8 +5533,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             amountInclTax: Math.round(itemAmount * (1 + itemGst / 100) * 100) / 100,
             unit: itemUnit,
             amount: itemAmount,
-            discountPerc: 0,
-            discountAmt: 0,
+            discountPerc: discP,
+            discountAmt: discAmt,
             taxableAmount: itemAmount,
             gstRate: itemGst,
             hsnCode: rawHsn
@@ -5538,7 +5546,87 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setRows(newRows);
       }
 
-      alert(`✅ Invoice scanned & pre-filled successfully!\n• Supplier: ${finalPartyName}\n• Bill No: ${inv.invoiceNo || 'N/A'}\n• Items Parsed: ${newRows.length}\n• Masters Auto-Created: ${createdCount}`);
+      // 3. ADDITIONAL LEDGERS & EXPENSES (SPL.DISCOUNT, Freight, Round Off, etc.)
+      const parsedAddl: Array<{ ledgerName: string; amount: number; type?: string }> = Array.isArray(inv.additionalLedgers) ? [...inv.additionalLedgers] : [];
+      
+      // Auto-add Round Off if present & not already in list
+      if (inv.roundOff && !parsedAddl.some(a => a.ledgerName && a.ledgerName.toLowerCase().includes('round'))) {
+        parsedAddl.push({
+          ledgerName: 'Round Off',
+          amount: Math.abs(Number(inv.roundOff)),
+          type: Number(inv.roundOff) < 0 ? 'Discount' : 'Expense'
+        });
+      }
+
+      const newAddlLedgers: AccountEntry[] = [];
+      let addlInfoSummary: string[] = [];
+
+      for (const addl of parsedAddl) {
+        const rawName = (addl.ledgerName || '').trim();
+        const rawAmt = Math.abs(Number(addl.amount) || 0);
+        if (!rawName || rawAmt === 0) continue;
+
+        // Is it a discount/less item or expense?
+        const isDiscount = (addl.type || '').toLowerCase().includes('disc') 
+          || rawName.toLowerCase().includes('disc') 
+          || rawName.toLowerCase().includes('less');
+
+        // Match existing ledger
+        let matchedAddl = ledgers.find(l => l.name.toLowerCase() === rawName.toLowerCase())
+          || (isDiscount ? ledgers.find(l => l.name.toLowerCase().includes('discount')) : ledgers.find(l => l.name.toLowerCase().includes('freight')));
+
+        let addlId = matchedAddl ? matchedAddl.id : 0;
+        let addlName = matchedAddl ? matchedAddl.name : rawName;
+
+        if (!matchedAddl && rawName && onSaveMaster) {
+          try {
+            const groupName = isDiscount ? 'Indirect Incomes' : (rawName.toLowerCase().includes('round') ? 'Indirect Expenses' : 'Direct Expenses');
+            const newAddlData = {
+              name: rawName,
+              groupName: groupName
+            };
+            const createdAddl = await onSaveMaster('ledger', newAddlData);
+            if (createdAddl && createdAddl.name) {
+              addlId = createdAddl.id;
+              addlName = createdAddl.name;
+              createdCount++;
+            }
+          } catch (err) {
+            console.error("Failed to auto-create additional ledger:", err);
+          }
+        }
+
+        // In Purchase Voucher: partySide is 'Cr', otherSide is 'Dr'.
+        // Expense = 'Dr' (adds to purchase bill), Discount = 'Cr' (subtracts from purchase bill)
+        let entryType: 'Dr' | 'Cr' = isDiscount ? 'Cr' : 'Dr';
+        if (rawName.toLowerCase().includes('round')) {
+          entryType = Number(inv.roundOff) < 0 ? 'Cr' : 'Dr';
+        }
+
+        newAddlLedgers.push({
+          ledgerId: addlId || 0,
+          ledgerName: addlName,
+          amount: rawAmt,
+          entryType: entryType
+        });
+
+        addlInfoSummary.push(`${addlName}: ₹${rawAmt.toFixed(2)} (${entryType})`);
+      }
+
+      if (newAddlLedgers.length > 0) {
+        setAdditionalLedgers(newAddlLedgers);
+      }
+
+      const summaryText = [
+        `✅ Invoice scanned & pre-filled successfully!`,
+        `• Supplier: ${finalPartyName}`,
+        `• Bill No: ${inv.invoiceNo || 'N/A'}`,
+        `• Items Parsed: ${newRows.length}`,
+        newAddlLedgers.length > 0 ? `• Additional Charges/Discounts: ${addlInfoSummary.join(', ')}` : '',
+        `• Masters Auto-Created: ${createdCount}`
+      ].filter(Boolean).join('\n');
+
+      alert(summaryText);
 
     } catch (err: any) {
       console.error("Scanning Error:", err);
@@ -6761,7 +6849,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             )}
             <div style={{width:90,textAlign:'right'}}>Rate</div>
             <div style={{width:55,textAlign:'center'}}>per</div>
-            {activeCompany?.showDiscount && <div style={{width:65,textAlign:'right'}}>Disc %</div>}
+            {(activeCompany?.showDiscount || rows.some(r => (r.discountPerc || 0) > 0 || (r.discountAmt || 0) > 0)) && <div style={{width:65,textAlign:'right'}}>Disc %</div>}
             <div style={{width:110,textAlign:'right'}}>Amount</div>
             {rows.some(r => stockItems.find(it => it.id === r.itemId)?.showAmtInclTax) && (
               <div style={{width:110,textAlign:'right'}}>Amount (Incl. Tax)</div>
@@ -7024,7 +7112,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           const ri = parseFloat(e.target.value)||0;
                           updateRow(idx, calculateVoucherRow(row, 'rateInclTax', ri));
                         }}
-                        onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); setTimeout(()=>document.getElementById(`item-rate-${idx}`)?.focus(), 80);}}}
+                        onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); 
+                          const hasDisc = activeCompany?.showDiscount || rows.some(r => (r.discountPerc || 0) > 0 || (r.discountAmt || 0) > 0);
+                          const nextId = hasDisc ? `item-disc-${idx}` : `item-amt-${idx}`;
+                          setTimeout(()=>document.getElementById(nextId)?.focus(), 80);
+                        }}}
                       />
                     ) : (row.itemName ? <div style={{width:'88%', textAlign:'right', color:'#ccc'}}>—</div> : null)}
                   </div>
@@ -7036,11 +7128,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                      updateRow(idx, calculateVoucherRow(row, 'rate', r));
                    }}
                    onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); 
-                     const nextId = activeCompany?.showDiscount ? `item-disc-${idx}` : `item-amt-${idx}`;
+                     const hasDisc = activeCompany?.showDiscount || rows.some(r => (r.discountPerc || 0) > 0 || (r.discountAmt || 0) > 0);
+                     const nextId = hasDisc ? `item-disc-${idx}` : `item-amt-${idx}`;
                      setTimeout(()=>document.getElementById(nextId)?.focus(), 80);
                    }}} /> : null}</div>
                 <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{row.itemName ? (typeof row.unit === 'string' ? row.unit : (row.unit as any)?.name || (row.unit as any)?.symbol || 'Nos') : ''}</div>
-                {activeCompany?.showDiscount && (
+                {(activeCompany?.showDiscount || rows.some(r => (r.discountPerc || 0) > 0 || (r.discountAmt || 0) > 0)) && (
                   <div style={{width:65}}>
                     {row.itemName ? <input id={`item-disc-${idx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold'}}
                       value={row.discountPerc||''}
