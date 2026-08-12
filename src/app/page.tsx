@@ -2503,7 +2503,7 @@ export default function App() {
             {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} activeCompany={activeCompany} setActiveCompany={setActiveCompany} setCompanies={setCompanies} />}
             {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} />}
+            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} onSaveMaster={saveMaster} />}
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
             {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
@@ -5396,12 +5396,161 @@ const JOURNAL_EXAMPLES_DATA = [
 ];
 
 // ==================== VOUCHER ENTRY FORM ====================
-function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes,altCReturnContext,onAltCReturnHandled,setAltCReturnContext,onNav,setSaveToast}:{
+function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes,altCReturnContext,onAltCReturnHandled,setAltCReturnContext,onNav,setSaveToast,onSaveMaster}:{
   activeAlterItem?:any; activeVoucher:VoucherTypeKey; ledgers:Ledger[]; stockItems:StockItem[]; units:UnitData[]; vouchers:Voucher[]; activeCompany:Company | null; currentDate:string; onF2:()=>void; onPrintPreview:(v:Voucher)=>void; onCancel:()=>void;
   onAltC:(ctx:AltCContext)=>void; onSave:(v:any)=>Promise<Voucher>; onDelete:(id:number)=>void; onChangeType:(t:VoucherTypeKey)=>void; voucherTypes:VoucherTypeData[];
   altCReturnContext?: any; onAltCReturnHandled:()=>void; setAltCReturnContext:(ctx:any)=>void; onNav:(s:any,item?:any,type?:string)=>void;
   setSaveToast: (msg: string | null) => void;
+  onSaveMaster?: (type: string, data: any) => Promise<any>;
 }) {
+  const [isScanningInvoice, setIsScanningInvoice] = useState(false);
+
+  const handleInvoiceFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsScanningInvoice(true);
+      setSaveToast("🤖 AI Scanning Purchase Invoice... Please wait");
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/parse-invoice', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      setSaveToast(null);
+      setIsScanningInvoice(false);
+
+      if (!res.ok || !data.success || !data.invoiceData) {
+        alert("Failed to read invoice: " + (data.error || "Unknown Error"));
+        return;
+      }
+
+      const inv = data.invoiceData;
+      let createdCount = 0;
+
+      // 1. PARTY LEDGER MATCHING & AUTO-CREATION
+      let finalPartyName = partyName;
+      if (inv.supplierName) {
+        const rawSupplier = inv.supplierName.trim();
+        const rawGstin = (inv.supplierGstin || '').trim();
+
+        let matched = (rawGstin ? ledgers.find(l => l.gstin && l.gstin.trim().toUpperCase() === rawGstin.toUpperCase()) : null)
+          || ledgers.find(l => l.name.toLowerCase() === rawSupplier.toLowerCase());
+
+        if (matched) {
+          finalPartyName = matched.name;
+        } else if (onSaveMaster) {
+          try {
+            const newLedgerData = {
+              name: rawSupplier,
+              groupName: 'Sundry Creditors',
+              gstin: rawGstin,
+              address: inv.supplierAddress || '',
+              mailingName: rawSupplier
+            };
+            const createdLedger = await onSaveMaster('ledger', newLedgerData);
+            if (createdLedger && createdLedger.name) {
+              finalPartyName = createdLedger.name;
+              createdCount++;
+            }
+          } catch (err) {
+            console.error("Failed to auto-create supplier ledger:", err);
+            finalPartyName = rawSupplier;
+          }
+        } else {
+          finalPartyName = rawSupplier;
+        }
+      }
+
+      if (finalPartyName) {
+        setPartyName(finalPartyName);
+      }
+      if (inv.invoiceNo) {
+        setSupplierInvNo(inv.invoiceNo);
+        setRefNo(inv.invoiceNo);
+      }
+      if (inv.invoiceDate) {
+        setSupplierInvDate(inv.invoiceDate);
+      }
+
+      // 2. STOCK ITEMS MATCHING & AUTO-CREATION
+      const newRows: VoucherRow[] = [];
+      if (Array.isArray(inv.items) && inv.items.length > 0) {
+        for (const item of inv.items) {
+          const rawItemName = (item.itemName || 'Stock Item').trim();
+          const rawHsn = (item.hsnCode || '').trim();
+          const itemGst = Number(item.gstRate) || 18;
+          const itemQty = Number(item.qty) || 1;
+          const itemRate = Number(item.rate) || 0;
+          const itemUnit = (item.unit || 'Nos').trim();
+          const itemAmount = Number(item.amount) || Math.round(itemQty * itemRate * 100) / 100;
+
+          let matchedStockItem = stockItems.find(s => s.name.toLowerCase() === rawItemName.toLowerCase())
+            || (rawHsn ? stockItems.find(s => s.hsnCode === rawHsn) : null);
+
+          let itemId = matchedStockItem ? matchedStockItem.id : 0;
+          let itemName = matchedStockItem ? matchedStockItem.name : rawItemName;
+
+          if (!matchedStockItem && rawItemName && onSaveMaster) {
+            try {
+              const newItemData = {
+                name: rawItemName,
+                hsnCode: rawHsn,
+                gstRate: itemGst,
+                unit: itemUnit,
+                under: 'Primary'
+              };
+              const createdItem = await onSaveMaster('stockItem', newItemData);
+              if (createdItem) {
+                itemId = createdItem.id;
+                itemName = createdItem.name;
+                createdCount++;
+              }
+            } catch (err) {
+              console.error("Failed to auto-create stock item:", err);
+            }
+          }
+
+          newRows.push({
+            itemId: itemId || 0,
+            itemName: itemName,
+            qty: itemQty,
+            rate: itemRate,
+            rateInclTax: Math.round(itemRate * (1 + itemGst / 100) * 100) / 100,
+            amountInclTax: Math.round(itemAmount * (1 + itemGst / 100) * 100) / 100,
+            unit: itemUnit,
+            amount: itemAmount,
+            discountPerc: 0,
+            discountAmt: 0,
+            taxableAmount: itemAmount,
+            gstRate: itemGst,
+            hsnCode: rawHsn
+          });
+        }
+      }
+
+      if (newRows.length > 0) {
+        setRows(newRows);
+      }
+
+      alert(`✅ Invoice scanned & pre-filled successfully!\n• Supplier: ${finalPartyName}\n• Bill No: ${inv.invoiceNo || 'N/A'}\n• Items Parsed: ${newRows.length}\n• Masters Auto-Created: ${createdCount}`);
+
+    } catch (err: any) {
+      console.error("Scanning Error:", err);
+      setSaveToast(null);
+      setIsScanningInvoice(false);
+      alert("Error scanning invoice: " + (err.message || "Failed to scan"));
+    } finally {
+      setIsScanningInvoice(false);
+      setSaveToast(null);
+      if (e.target) e.target.value = '';
+    }
+  };
   const isInventory = ['Sales','Purchase','Credit Note','Debit Note','Sales Quotation'].includes(activeVoucher);
   // Party side: Sales, Payment, Debit Note, and Sales Quotation debit the party.
   // Purchase, Receipt, and Credit Note (Sales Return) credit the party.
@@ -6329,6 +6478,33 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
           <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
             <span style={{background:vc,color:'white',padding:'3px 14px',fontWeight:'bold',fontSize:14}}>{activeVoucher}</span>
+            {activeVoucher === 'Purchase' && (
+              <label
+                style={{
+                  background: isScanningInvoice ? '#ff9800' : '#1e7e34',
+                  color: 'white',
+                  padding: '4px 12px',
+                  fontWeight: 'bold',
+                  fontSize: 12,
+                  cursor: isScanningInvoice ? 'wait' : 'pointer',
+                  borderRadius: 3,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                }}
+                title="Upload Purchase Invoice image/PDF to auto-scan & pre-fill items"
+              >
+                {isScanningInvoice ? '⏳ AI Scanning Invoice...' : '📷 Auto Scan Bill (AI OCR)'}
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  disabled={isScanningInvoice}
+                  style={{ display: 'none' }}
+                  onChange={handleInvoiceFileUpload}
+                />
+              </label>
+            )}
             <span style={{color:'#444',display:'flex',alignItems:'center',gap:6}}>
               {activeVoucher === 'Sales Quotation' ? 'Quotation No.' : 'No.'}
               {/* Numbering Mode Toggle */}
