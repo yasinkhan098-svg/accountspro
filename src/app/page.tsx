@@ -3236,7 +3236,23 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
     ? uniqueCurrencies.filter(c=>!filterText||c.symbol.toLowerCase().includes(filterText.toLowerCase())||c.name.toLowerCase().includes(filterText.toLowerCase()))
     : [];
 
-  useEffect(()=>{ setSelIdx(0); }, [list.length, focusedField]);
+  useEffect(() => {
+    if (!focusedField) return;
+    if (focusedField === 'country') {
+      const curVal = (document.getElementById('c-country') as HTMLInputElement)?.value || selCo || 'India';
+      const idx = ALL_COUNTRIES.findIndex(c => c.toLowerCase() === curVal.trim().toLowerCase());
+      setSelIdx(idx >= 0 ? idx : 0);
+    } else if (focusedField === 'state') {
+      const curVal = (document.getElementById('c-state') as HTMLInputElement)?.value || activeAlterItem?.state || 'Uttarakhand';
+      const states = COUNTRY_DATA[selCo] || [];
+      const idx = states.findIndex(s => s.toLowerCase() === curVal.trim().toLowerCase());
+      setSelIdx(idx >= 0 ? idx : 0);
+    } else if (focusedField === 'currency') {
+      const curVal = (document.getElementById('c-currency') as HTMLInputElement)?.value || '₹';
+      const idx = uniqueCurrencies.findIndex(c => c.symbol === curVal || c.name.toLowerCase() === curVal.toLowerCase());
+      setSelIdx(idx >= 0 ? idx : 0);
+    }
+  }, [focusedField]);
 
   const pick = (v:any) => {
     let inpStr = '';
@@ -3518,6 +3534,15 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
   const [selIdx, setSelIdx] = useState(0);
   useEffect(()=>{ ref.current?.focus(); },[]);
 
+  useEffect(() => {
+    if (focus) {
+      const curUnder = (document.getElementById('g-under') as HTMLInputElement)?.value || activeAlterItem?.under || 'Primary';
+      const groupNames = groups.map(g => g.name);
+      const idx = groupNames.findIndex(g => g.toLowerCase() === curUnder.trim().toLowerCase());
+      setSelIdx(idx >= 0 ? idx : 0);
+    }
+  }, [focus]);
+
   const list = filter ? groups.filter(g=>g.name.toLowerCase().includes(filter.toLowerCase())).map(g=>g.name) : groups.map(g=>g.name);
 
   const pick = (v:string) => {
@@ -3656,19 +3681,24 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const list = getList();
 
   // Auto-highlight current value when list opens
-  useEffect(()=>{
-    if(focus==='country'){
-      const idx = ALL_COUNTRIES.indexOf(selCo);
-      setSelIdx(idx>=0?idx:0);
-    } else if(focus==='state'){
-      const states = COUNTRY_DATA[selCo]||[];
-      const curState = (document.getElementById('l-state') as HTMLInputElement)?.value || '';
-      const idx = states.indexOf(curState);
-      setSelIdx(idx>=0?idx:0);
-    } else {
-      setSelIdx(0);
+  useEffect(() => {
+    if (!focus) return;
+    if (focus === 'under') {
+      const curUnder = (document.getElementById('l-under') as HTMLInputElement)?.value || underValue || activeAlterItem?.groupName || 'Sundry Debtors';
+      const groupNames = groups.map(g => g.name);
+      const idx = groupNames.findIndex(g => g.toLowerCase() === curUnder.trim().toLowerCase());
+      setSelIdx(idx >= 0 ? idx : 0);
+    } else if (focus === 'country') {
+      const curCountry = (document.getElementById('l-country') as HTMLInputElement)?.value || selCo || activeAlterItem?.country || 'India';
+      const idx = ALL_COUNTRIES.findIndex(c => c.toLowerCase() === curCountry.trim().toLowerCase());
+      setSelIdx(idx >= 0 ? idx : 0);
+    } else if (focus === 'state') {
+      const states = COUNTRY_DATA[selCo] || [];
+      const curState = (document.getElementById('l-state') as HTMLInputElement)?.value || activeAlterItem?.state || '';
+      const idx = states.findIndex(s => s.toLowerCase() === curState.trim().toLowerCase());
+      setSelIdx(idx >= 0 ? idx : 0);
     }
-  },[focus]);
+  }, [focus]);
 
   // Scroll selected item into view
   useEffect(()=>{
@@ -4088,6 +4118,28 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
 
   // Local state for reactive display
   const [currentUnit, setCurrentUnit] = useState(activeAlterItem?.unit || 'Nos');
+
+  useEffect(() => {
+    if (!focus) return;
+    if (focus === 'under') {
+      const curVal = (document.getElementById('item-under') as HTMLInputElement)?.value || activeAlterItem?.under || 'Primary';
+      const idx = stockGroups.findIndex(g => g.name.toLowerCase() === curVal.trim().toLowerCase());
+      setSel(idx >= 0 ? idx : 0);
+    } else if (focus === 'category') {
+      const curVal = (document.getElementById('item-cat') as HTMLInputElement)?.value || activeAlterItem?.category || 'Not Applicable';
+      const idx = stockCategories.findIndex(c => c.name.toLowerCase() === curVal.trim().toLowerCase());
+      setSel(idx >= 0 ? idx : 0);
+    } else if (focus === 'units') {
+      const curVal = (document.getElementById('item-units') as HTMLInputElement)?.value || currentUnit || 'Nos';
+      const idx = units.findIndex(u => u.name.toLowerCase() === curVal.trim().toLowerCase() || u.symbol.toLowerCase() === curVal.trim().toLowerCase());
+      setSel(idx >= 0 ? idx : 0);
+    } else if (focus === 'altunit') {
+      const curVal = (document.getElementById('item-altunit') as HTMLInputElement)?.value || 'Not Applicable';
+      const altUnitsList = [{name:'Not Applicable', symbol:'Not Applicable'}, ...units];
+      const idx = altUnitsList.findIndex(u => u.name.toLowerCase() === curVal.trim().toLowerCase() || u.symbol.toLowerCase() === curVal.trim().toLowerCase());
+      setSel(idx >= 0 ? idx : 0);
+    }
+  }, [focus]);
 
   // pick from under/category/units/altunit list
   const pick=(v:string)=>{
