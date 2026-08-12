@@ -53,8 +53,6 @@ Extract all relevant invoice details and output ONLY a valid JSON object strictl
 }
 Return ONLY valid JSON. Do not include markdown ticks or additional conversation.`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
     const payload = {
       contents: [
         {
@@ -74,19 +72,36 @@ Return ONLY valid JSON. Do not include markdown ticks or additional conversation
       }
     };
 
-    const res = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const modelsToTry = [
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-2.0-flash',
+      'gemini-1.5-pro'
+    ];
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('Gemini API Error:', errText);
-      return NextResponse.json({ success: false, error: `Gemini API Call failed: ${res.statusText}` }, { status: 500 });
+    let geminiRes = null;
+    let lastErrorText = '';
+
+    for (const model of modelsToTry) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        geminiRes = await res.json();
+        break;
+      } else {
+        lastErrorText = await res.text();
+        console.warn(`Model ${model} failed (${res.status}):`, lastErrorText);
+      }
     }
 
-    const geminiRes = await res.json();
+    if (!geminiRes) {
+      return NextResponse.json({ success: false, error: `Gemini API Call failed: ${lastErrorText}` }, { status: 500 });
+    }
     const rawContent = geminiRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     // Clean rawContent in case markdown tags exist
