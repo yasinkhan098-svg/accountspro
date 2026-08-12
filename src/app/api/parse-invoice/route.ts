@@ -3,32 +3,46 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
+    const uploadedFiles = formData.getAll('files') as File[];
+    const singleFile = formData.get('file') as File | null;
     const clientApiKey = formData.get('apiKey') as string | null;
+
+    const files: File[] = uploadedFiles.length > 0 ? uploadedFiles : (singleFile ? [singleFile] : []);
 
     const DEFAULT_KEY_B64 = 'QVEuQWI4Uk42SW4xRzlvbVltRkh6eVJGeExtLXQ3eHY3anpjMGpXdllkV1hmcDZ5a2hlUEE=';
     const defaultKey = Buffer.from(DEFAULT_KEY_B64, 'base64').toString('utf-8');
     const apiKey = process.env.GEMINI_API_KEY || clientApiKey || defaultKey;
 
-    if (!file) {
-      return NextResponse.json({ success: false, error: 'No invoice file uploaded.' }, { status: 400 });
+    if (files.length === 0) {
+      return NextResponse.json({ success: false, error: 'No invoice files uploaded.' }, { status: 400 });
     }
 
     if (!apiKey) {
       return NextResponse.json({ success: false, error: 'Gemini API Key is not configured.' }, { status: 500 });
     }
 
-    // Convert file to base64
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Data = buffer.toString('base64');
-    let mimeType = file.type || 'image/jpeg';
-    if (file.name.endsWith('.pdf')) {
-      mimeType = 'application/pdf';
+    // Convert all uploaded files (multi-page image/PDF) to base64 parts
+    const imageParts: any[] = [];
+    for (const file of files) {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64Data = buffer.toString('base64');
+      let mimeType = file.type || 'image/jpeg';
+      if (file.name.endsWith('.pdf')) {
+        mimeType = 'application/pdf';
+      }
+      imageParts.push({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
+        }
+      });
     }
 
-    const promptText = `Analyze this purchase invoice/bill document or image carefully.
-Extract all relevant invoice details and output ONLY a valid JSON object strictly following this structure:
+    const promptText = `Analyze this purchase invoice/bill document carefully.
+Note: There are ${files.length} image/page(s) attached representing this purchase invoice. Treat all attached images as sequential pages of the EXACT SAME purchase invoice/bill.
+Extract all relevant invoice details across all pages and combine all items into a single unified item list.
+Output ONLY a valid JSON object strictly following this structure:
 {
   "supplierName": "Name of the seller or supplier company/party",
   "supplierGstin": "GSTIN or Tax identification number of the supplier",
@@ -69,12 +83,7 @@ Return ONLY valid JSON. Do not include markdown ticks or additional conversation
         {
           parts: [
             { text: promptText },
-            {
-              inlineData: {
-                mimeType: mimeType,
-                data: base64Data
-              }
-            }
+            ...imageParts
           ]
         }
       ],

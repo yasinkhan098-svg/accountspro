@@ -5406,15 +5406,20 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const [isScanningInvoice, setIsScanningInvoice] = useState(false);
 
   const handleInvoiceFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
 
     try {
       setIsScanningInvoice(true);
-      setSaveToast("🤖 AI Scanning Purchase Invoice... Please wait");
+      const scanMsg = files.length > 1 
+        ? `🤖 AI Scanning ${files.length} Multi-page Invoice Images... Please wait`
+        : `🤖 AI Scanning Purchase Invoice... Please wait`;
+      setSaveToast(scanMsg);
 
       const formData = new FormData();
-      formData.append('file', file);
+      files.forEach(f => formData.append('files', f));
+      formData.append('file', files[0]); // Fallback single file key
 
       const res = await fetch('/api/parse-invoice', {
         method: 'POST',
@@ -6618,12 +6623,13 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   gap: 6,
                   boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
                 }}
-                title="Upload Purchase Invoice image/PDF to auto-scan & pre-fill items"
+                title="Upload single or multiple invoice image pages/PDF to auto-scan & pre-fill items"
               >
-                {isScanningInvoice ? '⏳ AI Scanning Invoice...' : '📷 Auto Scan Bill (AI OCR)'}
+                {isScanningInvoice ? '⏳ AI Scanning Bill Pages...' : '📷 Auto Scan Bill (Multi-Page / PDF)'}
                 <input
                   type="file"
                   accept="image/*,.pdf"
+                  multiple
                   disabled={isScanningInvoice}
                   style={{ display: 'none' }}
                   onChange={handleInvoiceFileUpload}
