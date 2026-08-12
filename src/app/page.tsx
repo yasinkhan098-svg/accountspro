@@ -6627,9 +6627,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               >
                 {isScanningInvoice ? '⏳ AI Scanning Bill Pages...' : '📷 Auto Scan Bill (Multi-Page / PDF)'}
                 <input
+                  id="invoice-file-input"
                   type="file"
-                  accept="image/*,.pdf"
-                  multiple
+                  accept="image/jpeg,image/png,image/jpg,image/webp,image/bmp,application/pdf,.pdf,.jpg,.jpeg,.png,.webp"
+                  multiple={true}
                   disabled={isScanningInvoice}
                   style={{ display: 'none' }}
                   onChange={handleInvoiceFileUpload}
