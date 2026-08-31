@@ -4217,9 +4217,12 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
 
   const moveToNext = (currentId: string) => {
     const idx = stockItemFields.indexOf(currentId);
-    if (idx >= 0 && idx < stockItemFields.length - 1) {
-      const next = document.getElementById(stockItemFields[idx + 1]);
-      if (next) next.focus();
+    if (idx >= 0) {
+      // Skip fields that are not present in the DOM (e.g. hidden desc-line checkboxes when enableDescription=false)
+      for (let i = idx + 1; i < stockItemFields.length; i++) {
+        const next = document.getElementById(stockItemFields[i]);
+        if (next) { next.focus(); break; }
+      }
     }
   };
 
@@ -8704,32 +8707,51 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
   }, [rows, rowIdx, onDrillDown, onBack]);
 
 
+  // Slider state: how many item columns to show at once
+  const ITEM_COLS_PER_PAGE = 3;
+  const [itemColPage, setItemColPage] = useState(0);
+  const totalItemPages = Math.max(1, Math.ceil(itemCols.length / ITEM_COLS_PER_PAGE));
+  const visibleItemCols = itemCols.slice(itemColPage * ITEM_COLS_PER_PAGE, (itemColPage + 1) * ITEM_COLS_PER_PAGE);
+
   return (
     <div className="report-view" style={{height:'100%',display:'flex',flexDirection:'column'}}>
-      <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between'}}>
+      <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div style={{fontSize:16,fontWeight:'bold'}}>Day Book</div>
-        <div style={{fontSize:12}}>{currentPeriod ? `${currentPeriod.start} to ${currentPeriod.end}` : ''}</div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          {itemCols.length > ITEM_COLS_PER_PAGE && (
+            <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.15)',borderRadius:4,padding:'2px 8px'}}>
+              <button onClick={()=>setItemColPage(p=>Math.max(0,p-1))} disabled={itemColPage===0}
+                style={{background:'none',border:'none',color:'white',cursor:itemColPage===0?'default':'pointer',fontSize:16,opacity:itemColPage===0?0.4:1,padding:'0 4px'}}>◀</button>
+              <span style={{fontSize:11,color:'white'}}>Items {itemColPage*ITEM_COLS_PER_PAGE+1}–{Math.min((itemColPage+1)*ITEM_COLS_PER_PAGE,itemCols.length)} of {itemCols.length}</span>
+              <button onClick={()=>setItemColPage(p=>Math.min(totalItemPages-1,p+1))} disabled={itemColPage===totalItemPages-1}
+                style={{background:'none',border:'none',color:'white',cursor:itemColPage===totalItemPages-1?'default':'pointer',fontSize:16,opacity:itemColPage===totalItemPages-1?0.4:1,padding:'0 4px'}}>▶</button>
+            </div>
+          )}
+          <div style={{fontSize:12}}>{currentPeriod ? `${currentPeriod.start} to ${currentPeriod.end}` : ''}</div>
+        </div>
       </div>
       <div style={{flex:1,overflowY:'auto'}}>
         <table className="report-table" style={{width:'100%'}}>
           <thead>
             <tr>
-              <th>Date</th><th>Particulars</th><th>Voucher Type</th><th>Ref No.</th>
-              {itemCols.map(col => (
-                <th key={col.key} style={{textAlign:'center',background:'#e8f4ec',color:'#1a7a4a',whiteSpace:'nowrap',verticalAlign:'top',padding:'6px 10px',lineHeight:1.3}}>
+              <th style={{whiteSpace:'nowrap',minWidth:80}}>Date</th>
+              <th style={{minWidth:160}}>Particulars</th>
+              <th style={{whiteSpace:'nowrap'}}>Voucher Type</th>
+              <th style={{whiteSpace:'nowrap'}}>Ref No.</th>
+              {visibleItemCols.map(col => (
+                <th key={col.key} style={{textAlign:'center',background:'#e8f4ec',color:'#1a7a4a',whiteSpace:'nowrap',verticalAlign:'top',padding:'6px 10px',lineHeight:1.3,minWidth:110}}>
                   <div style={{fontWeight:'bold',textAlign:'center'}}>Qty ({col.unit})</div>
                   <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',textAlign:'center',maxWidth:140,margin:'2px auto 0 auto',overflow:'hidden',textOverflow:'ellipsis'}} title={col.itemName}>
                     {col.itemName}
                   </div>
                 </th>
               ))}
-              <th style={{textAlign:'right'}}>Debit Amount</th>
-              <th style={{textAlign:'right'}}>Credit Amount</th>
+              <th style={{textAlign:'right',whiteSpace:'nowrap'}}>Debit Amount</th>
+              <th style={{textAlign:'right',whiteSpace:'nowrap'}}>Credit Amount</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((v,i)=>{
-              // Tally Prime: show voucher total in ONE column only based on voucher type
               const showInDebit = isDebitSideVoucher(v.type);
               const drAmt = showInDebit ? (v.total||0) : 0;
               const crAmt = showInDebit ? 0 : (v.total||0);
@@ -8739,23 +8761,23 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
               return <tr key={i} style={{cursor:'pointer', background: i===rowIdx?'#ffd700':'', color:i===rowIdx?'#000':'inherit'}} 
                 onClick={()=>onDrillDown?.(v)}
                 onMouseEnter={()=>setRowIdx(i)}>
-                <td style={{fontSize:12}}>{v.date}</td>
+                <td style={{fontSize:12,whiteSpace:'nowrap'}}>{v.date}</td>
                 <td>
                   <div style={{fontWeight:'bold',fontSize:13}}>{getVoucherPartyDisplayName(v)}</div>
                   <div style={{fontSize:11,color:'#777'}}>{v.narration}</div>
                 </td>
-                <td><span style={{padding:'2px 8px',background:'#dde4f0',fontWeight:'bold',fontSize:11}}>{v.type}</span></td>
-                <td style={{fontSize:12}}>{v.refNo}</td>
-                {itemCols.map(col => <td key={col.key} style={{textAlign:'center',color:qtyColor,fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
-                <td style={{textAlign:'right',color:'#8B0000',fontWeight:'bold'}}>{drAmt>0?'₹'+fmt(drAmt):''}</td>
-                <td style={{textAlign:'right',color:'#006600',fontWeight:'bold'}}>{crAmt>0?'₹'+fmt(crAmt):''}</td>
+                <td><span style={{padding:'2px 8px',background:'#dde4f0',fontWeight:'bold',fontSize:11,whiteSpace:'nowrap'}}>{v.type}</span></td>
+                <td style={{fontSize:12,whiteSpace:'nowrap'}}>{v.refNo}</td>
+                {visibleItemCols.map(col => <td key={col.key} style={{textAlign:'center',color:qtyColor,fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
+                <td style={{textAlign:'right',color:'#8B0000',fontWeight:'bold',whiteSpace:'nowrap'}}>{drAmt>0?'₹'+fmt(drAmt):''}</td>
+                <td style={{textAlign:'right',color:'#006600',fontWeight:'bold',whiteSpace:'nowrap'}}>{crAmt>0?'₹'+fmt(crAmt):''}</td>
               </tr>;
             })}
           </tbody>
           <tfoot>
             <tr>
               <td colSpan={4} style={{textAlign:'right',fontWeight:'bold',padding:'8px 12px'}}>Total:</td>
-              {itemCols.map(col => {
+              {visibleItemCols.map(col => {
                 const netQty = netDayBookQtyMap[col.key] || 0;
                 const isNegative = netQty < 0;
                 return (
@@ -8809,6 +8831,9 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
   const [view, setView] = useState<'monthly'|'detail'>('monthly');
   const [selMonthIdx, setSelMonthIdx] = useState(0); // index into FISCAL_MONTHS
   const [rowIdx, setRowIdx] = useState(0);
+  const [monthlyItemPage, setMonthlyItemPage] = useState(0);
+  const [detailItemPage, setDetailItemPage] = useState(0);
+  const ITEM_COLS_PER_PAGE = 3;
   const color = REGISTER_COLORS[voucherType] || '#1c5282';
 
   // Determine which voucher types to include
@@ -8882,13 +8907,27 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
   const selMonth = monthlyData[selMonthIdx];
 
   // ---- MONTHLY VIEW ----
+  const monthlyTotalPages = Math.max(1, Math.ceil(allMonthlyItemCols.length / ITEM_COLS_PER_PAGE));
+  const visibleMonthlyItemCols = allMonthlyItemCols.slice(monthlyItemPage * ITEM_COLS_PER_PAGE, (monthlyItemPage + 1) * ITEM_COLS_PER_PAGE);
+
   if(view==='monthly') return (
     <div style={{display:'flex',height:'100%',background:'#fff',flexDirection:'column'}}>
       {/* Header */}
       <div style={{background:color,color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div style={{fontWeight:'bold',fontSize:15}}>{voucherType} Register</div>
-        <div style={{fontSize:11}}>{currentPeriod.start} to {currentPeriod.end}</div>
-        <div style={{fontSize:11,opacity:0.8}}>↑↓: Navigate | Enter: Drill-down | Esc: Back</div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          {allMonthlyItemCols.length > ITEM_COLS_PER_PAGE && (
+            <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.15)',borderRadius:4,padding:'2px 8px'}}>
+              <button onClick={()=>setMonthlyItemPage(p=>Math.max(0,p-1))} disabled={monthlyItemPage===0}
+                style={{background:'none',border:'none',color:'white',cursor:monthlyItemPage===0?'default':'pointer',fontSize:16,opacity:monthlyItemPage===0?0.4:1,padding:'0 4px'}}>◀</button>
+              <span style={{fontSize:11}}>Items {monthlyItemPage*ITEM_COLS_PER_PAGE+1}–{Math.min((monthlyItemPage+1)*ITEM_COLS_PER_PAGE,allMonthlyItemCols.length)} / {allMonthlyItemCols.length}</span>
+              <button onClick={()=>setMonthlyItemPage(p=>Math.min(monthlyTotalPages-1,p+1))} disabled={monthlyItemPage===monthlyTotalPages-1}
+                style={{background:'none',border:'none',color:'white',cursor:monthlyItemPage===monthlyTotalPages-1?'default':'pointer',fontSize:16,opacity:monthlyItemPage===monthlyTotalPages-1?0.4:1,padding:'0 4px'}}>▶</button>
+            </div>
+          )}
+          <div style={{fontSize:11}}>{currentPeriod.start} to {currentPeriod.end}</div>
+          <div style={{fontSize:11,opacity:0.8}}>↑↓: Navigate | Enter: Drill-down | Esc: Back</div>
+        </div>
       </div>
       {/* Company sub-header */}
       <div style={{background:'#f0f4f8',borderBottom:'1px solid #ccc',padding:'4px 16px',fontSize:12,display:'flex',gap:20}}>
@@ -8903,18 +8942,18 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
             <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr style={{background:'#e8eef4',borderBottom:'2px solid #aaa'}}>
-                  <th style={{textAlign:'left',padding:'6px 16px',color:'#333'}}>Particulars</th>
-                  {allMonthlyItemCols.map(col => (
-                    <th key={col.key} style={{textAlign:'center',padding:'6px 10px',color:'#1a7a4a',background:'#e8f4ec',whiteSpace:'nowrap',fontSize:11,verticalAlign:'top',lineHeight:1.3}}>
+                  <th style={{textAlign:'left',padding:'6px 16px',color:'#333',whiteSpace:'nowrap',minWidth:120}}>Particulars</th>
+                  {visibleMonthlyItemCols.map(col => (
+                    <th key={col.key} style={{textAlign:'center',padding:'6px 10px',color:'#1a7a4a',background:'#e8f4ec',whiteSpace:'nowrap',fontSize:11,verticalAlign:'top',lineHeight:1.3,minWidth:110}}>
                       <div style={{fontWeight:'bold',textAlign:'center'}}>Qty ({col.unit})</div>
                       <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',textAlign:'center',maxWidth:140,margin:'2px auto 0 auto',overflow:'hidden',textOverflow:'ellipsis'}} title={col.itemName}>
                         {col.itemName}
                       </div>
                     </th>
                   ))}
-                  <th style={{textAlign:'right',padding:'6px 12px',color:'#333'}}>Debit</th>
-                  <th style={{textAlign:'right',padding:'6px 12px',color:'#333'}}>Credit</th>
-                  <th style={{textAlign:'right',padding:'6px 16px',color:'#333'}}>Closing Balance</th>
+                  <th style={{textAlign:'right',padding:'6px 12px',color:'#333',whiteSpace:'nowrap'}}>Debit</th>
+                  <th style={{textAlign:'right',padding:'6px 12px',color:'#333',whiteSpace:'nowrap'}}>Credit</th>
+                  <th style={{textAlign:'right',padding:'6px 16px',color:'#333',whiteSpace:'nowrap'}}>Closing Balance</th>
                 </tr>
               </thead>
               <tbody>
@@ -8922,7 +8961,6 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                   let runningBalance = 0;
                   return monthlyData.map((m,i)=>{
                     const isSel = i===selMonthIdx;
-                    // Running closing balance: debit-side adds, credit-side subtracts (or vice versa)
                     if(registerIsDebitSide) runningBalance += m.total;
                     else runningBalance += m.total;
                     const closingLabel = runningBalance > 0
@@ -8931,17 +8969,17 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                     return (
                       <tr key={i}
                         style={{background:isSel?'#ffd700':i%2===0?'#fff':'#fafafa',cursor:'pointer',borderBottom:'1px solid #e0e0e0'}}
-                        onClick={()=>{setSelMonthIdx(i);setView('detail');setRowIdx(0);}}
+                        onClick={()=>{setSelMonthIdx(i);setView('detail');setRowIdx(0);setDetailItemPage(0);}}
                         onMouseEnter={()=>setSelMonthIdx(i)}>
-                        <td style={{padding:'5px 16px',fontWeight:isSel?'bold':'normal',color:isSel?'#000':'#222'}}>{m.mName}</td>
-                        {allMonthlyItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:isSel?'bold':'normal',background:'#f5fbf7'}}>{m.itemQty[col.key] ? fmt(m.itemQty[col.key]) : ''}</td>)}
-                        <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#8B0000'}}>
+                        <td style={{padding:'5px 16px',fontWeight:isSel?'bold':'normal',color:isSel?'#000':'#222',whiteSpace:'nowrap'}}>{m.mName}</td>
+                        {visibleMonthlyItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:isSel?'bold':'normal',background:'#f5fbf7'}}>{m.itemQty[col.key] ? fmt(m.itemQty[col.key]) : ''}</td>)}
+                        <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#8B0000',whiteSpace:'nowrap'}}>
                           {registerIsDebitSide && m.total>0 ? fmt(m.total) : ''}
                         </td>
-                        <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#006600'}}>
+                        <td style={{textAlign:'right',padding:'5px 12px',fontWeight:isSel?'bold':'normal',color:'#006600',whiteSpace:'nowrap'}}>
                           {!registerIsDebitSide && m.total>0 ? fmt(m.total) : ''}
                         </td>
-                        <td style={{textAlign:'right',padding:'5px 16px',fontWeight:'bold',color:isSel?'#000':color}}>
+                        <td style={{textAlign:'right',padding:'5px 16px',fontWeight:'bold',color:isSel?'#000':color,whiteSpace:'nowrap'}}>
                           {m.total>0 ? closingLabel : ''}
                         </td>
                       </tr>
@@ -8950,18 +8988,10 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                 })()}
               </tbody>
               <tfoot>
-                {/* Tally Prime style Grand Total row */}
                 <tr style={{background:'#fff',borderTop:'2px solid #333'}}>
                   <td
-                    colSpan={1 + allMonthlyItemCols.length}
-                    style={{
-                      padding:'9px 16px',
-                      fontWeight:'bold',
-                      fontSize:13,
-                      letterSpacing:'3px',
-                      color:'#000',
-                      borderTop:'2px solid #333',
-                    }}
+                    colSpan={1 + visibleMonthlyItemCols.length}
+                    style={{padding:'9px 16px',fontWeight:'bold',fontSize:13,letterSpacing:'3px',color:'#000',borderTop:'2px solid #333'}}
                   >
                     G r a n d &nbsp; T o t a l
                   </td>
@@ -8986,7 +9016,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                 const h = maxVal>0 ? Math.round((m.total/maxVal)*90) : 0;
                 return (
                   <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer'}}
-                    onClick={()=>{setSelMonthIdx(i);setView('detail');setRowIdx(0);}}>
+                    onClick={()=>{setSelMonthIdx(i);setView('detail');setRowIdx(0);setDetailItemPage(0);}}>
                     <div style={{
                       width:'100%',height:`${h}px`,
                       background:i===selMonthIdx?color:'#cc0000',
@@ -9029,12 +9059,28 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
   );
 
   // ---- DETAIL VIEW ----
+  const detailItemCols = getItemColumns(detailRows);
+  const detailItemQtyMap = getItemQtyMap(detailRows);
+  const detailTotalPages = Math.max(1, Math.ceil(detailItemCols.length / ITEM_COLS_PER_PAGE));
+  const visibleDetailItemCols = detailItemCols.slice(detailItemPage * ITEM_COLS_PER_PAGE, (detailItemPage + 1) * ITEM_COLS_PER_PAGE);
+
   return (
     <div style={{display:'flex',height:'100%',background:'#fff',flexDirection:'column'}}>
       <div style={{background:color,color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div style={{fontWeight:'bold',fontSize:15}}>Voucher Register</div>
-        <div style={{fontSize:11}}>List of {selMonth?.mName || ''} Vouchers</div>
-        <div style={{fontSize:11,opacity:0.8}}>Esc: Back to Monthly</div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          {detailItemCols.length > ITEM_COLS_PER_PAGE && (
+            <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.15)',borderRadius:4,padding:'2px 8px'}}>
+              <button onClick={()=>setDetailItemPage(p=>Math.max(0,p-1))} disabled={detailItemPage===0}
+                style={{background:'none',border:'none',color:'white',cursor:detailItemPage===0?'default':'pointer',fontSize:16,opacity:detailItemPage===0?0.4:1,padding:'0 4px'}}>◀</button>
+              <span style={{fontSize:11}}>Items {detailItemPage*ITEM_COLS_PER_PAGE+1}–{Math.min((detailItemPage+1)*ITEM_COLS_PER_PAGE,detailItemCols.length)} / {detailItemCols.length}</span>
+              <button onClick={()=>setDetailItemPage(p=>Math.min(detailTotalPages-1,p+1))} disabled={detailItemPage===detailTotalPages-1}
+                style={{background:'none',border:'none',color:'white',cursor:detailItemPage===detailTotalPages-1?'default':'pointer',fontSize:16,opacity:detailItemPage===detailTotalPages-1?0.4:1,padding:'0 4px'}}>▶</button>
+            </div>
+          )}
+          <div style={{fontSize:11}}>List of {selMonth?.mName || ''} Vouchers</div>
+          <div style={{fontSize:11,opacity:0.8}}>Esc: Back to Monthly</div>
+        </div>
       </div>
       <div style={{background:'#f0f4f8',borderBottom:'1px solid #ccc',padding:'4px 16px',fontSize:11,display:'flex',justifyContent:'space-between'}}>
         <span>List of All {voucherType} Vouchers</span>
@@ -9043,37 +9089,30 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
 
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
         <div style={{flex:1,overflowY:'auto'}}>
-          {/* Detail view: compute item columns for this month's vouchers */}
-          {(()=>{
-            const detailItemCols = getItemColumns(detailRows);
-            const detailItemQtyMap = getItemQtyMap(detailRows);
-            const totalCols = 4 + detailItemCols.length;
-            return (
           <table className="report-table" style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
             <thead style={{position:'sticky',top:0,zIndex:1}}>
               <tr style={{background:'#e8eef4',borderBottom:'2px solid #aaa'}}>
-                <th style={{textAlign:'left',padding:'6px 12px',width:90}}>Date</th>
-                <th style={{textAlign:'left',padding:'6px 12px'}}>Particulars</th>
-                <th style={{textAlign:'center',padding:'6px 8px',width:90}}>Vch Type</th>
-                <th style={{textAlign:'center',padding:'6px 8px',width:70}}>Vch No.</th>
-                {detailItemCols.map(col => (
-                  <th key={col.key} style={{textAlign:'center',padding:'6px 10px',color:'#1a7a4a',background:'#e8f4ec',whiteSpace:'nowrap',fontSize:11,verticalAlign:'top',lineHeight:1.3}}>
+                <th style={{textAlign:'left',padding:'6px 12px',whiteSpace:'nowrap',minWidth:80}}>Date</th>
+                <th style={{textAlign:'left',padding:'6px 12px',minWidth:160}}>Particulars</th>
+                <th style={{textAlign:'center',padding:'6px 8px',whiteSpace:'nowrap',width:90}}>Vch Type</th>
+                <th style={{textAlign:'center',padding:'6px 8px',whiteSpace:'nowrap',width:70}}>Vch No.</th>
+                {visibleDetailItemCols.map(col => (
+                  <th key={col.key} style={{textAlign:'center',padding:'6px 10px',color:'#1a7a4a',background:'#e8f4ec',whiteSpace:'nowrap',fontSize:11,verticalAlign:'top',lineHeight:1.3,minWidth:110}}>
                     <div style={{fontWeight:'bold',textAlign:'center'}}>Qty ({col.unit})</div>
                     <div style={{fontWeight:'normal',fontSize:10,color:'#2d7a50',fontStyle:'italic',textAlign:'center',maxWidth:140,margin:'2px auto 0 auto',overflow:'hidden',textOverflow:'ellipsis'}} title={col.itemName}>
                       {col.itemName}
                     </div>
                   </th>
                 ))}
-                <th style={{textAlign:'right',padding:'6px 12px',width:110}}>Debit Amount</th>
-                <th style={{textAlign:'right',padding:'6px 12px',width:110}}>Credit Amount</th>
+                <th style={{textAlign:'right',padding:'6px 12px',width:110,whiteSpace:'nowrap'}}>Debit Amount</th>
+                <th style={{textAlign:'right',padding:'6px 12px',width:110,whiteSpace:'nowrap'}}>Credit Amount</th>
               </tr>
             </thead>
             <tbody>
               {detailRows.length===0 && (
-                <tr><td colSpan={totalCols+2} style={{textAlign:'center',padding:40,color:'#888',fontSize:13}}>No vouchers found for {selMonth?.mName}</td></tr>
+                <tr><td colSpan={4 + visibleDetailItemCols.length + 2} style={{textAlign:'center',padding:40,color:'#888',fontSize:13}}>No vouchers found for {selMonth?.mName}</td></tr>
               )}
               {detailRows.map((v,i)=>{
-                // Tally Prime: show voucher total in ONE column only
                 const vAmt = v.total || 0;
                 const drAmt = registerIsDebitSide ? vAmt : 0;
                 const crAmt = registerIsDebitSide ? 0 : vAmt;
@@ -9084,15 +9123,15 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                     style={{background:isSel?'#ffd700':i%2===0?'#fff':'#fafafa',cursor:'pointer',borderBottom:'1px solid #e8e8e8'}}
                     onClick={()=>onDrillDown?.(v)}
                     onMouseEnter={()=>setRowIdx(i)}>
-                    <td style={{padding:'5px 12px',fontWeight:isSel?'bold':'normal'}}>{v.date}</td>
+                    <td style={{padding:'5px 12px',fontWeight:isSel?'bold':'normal',whiteSpace:'nowrap'}}>{v.date}</td>
                     <td style={{padding:'5px 12px',fontWeight:'bold',color:'#1a1a1a'}}>{getVoucherPartyDisplayName(v)}</td>
                     <td style={{textAlign:'center',padding:'5px 8px'}}>
-                      <span style={{padding:'1px 6px',background:color,color:'white',fontSize:10,fontWeight:'bold',borderRadius:2}}>{v.type}</span>
+                      <span style={{padding:'1px 6px',background:color,color:'white',fontSize:10,fontWeight:'bold',borderRadius:2,whiteSpace:'nowrap'}}>{v.type}</span>
                     </td>
-                    <td style={{textAlign:'center',padding:'5px 8px',color:'#555'}}>{v.number}</td>
-                    {detailItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
-                    <td style={{textAlign:'right',padding:'5px 12px',color:'#8B0000',fontWeight:drAmt>0?'bold':'normal'}}>{drAmt>0?fmt(drAmt):''}</td>
-                    <td style={{textAlign:'right',padding:'5px 12px',color:'#006600',fontWeight:crAmt>0?'bold':'normal'}}>{crAmt>0?fmt(crAmt):''}</td>
+                    <td style={{textAlign:'center',padding:'5px 8px',color:'#555',whiteSpace:'nowrap'}}>{v.number}</td>
+                    {visibleDetailItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
+                    <td style={{textAlign:'right',padding:'5px 12px',color:'#8B0000',fontWeight:drAmt>0?'bold':'normal',whiteSpace:'nowrap'}}>{drAmt>0?fmt(drAmt):''}</td>
+                    <td style={{textAlign:'right',padding:'5px 12px',color:'#006600',fontWeight:crAmt>0?'bold':'normal',whiteSpace:'nowrap'}}>{crAmt>0?fmt(crAmt):''}</td>
                   </tr>
                 );
               })}
@@ -9100,14 +9139,12 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
             <tfoot>
               <tr style={{background:'#e8eef4',borderTop:'2px solid #aaa'}}>
                 <td colSpan={4} style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',fontSize:13}}>Total:</td>
-                {detailItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'7px 10px',fontWeight:'bold',color:'#1a7a4a',background:'#e8f4ec',fontSize:13}}>{fmt(detailItemQtyMap[col.key] || 0)}</td>)}
+                {visibleDetailItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'7px 10px',fontWeight:'bold',color:'#1a7a4a',background:'#e8f4ec',fontSize:13}}>{fmt(detailItemQtyMap[col.key] || 0)}</td>)}
                 <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',color:'#8B0000',fontSize:13}}>{detailDebit>0?fmt(detailDebit):''}</td>
                 <td style={{textAlign:'right',padding:'7px 12px',fontWeight:'bold',color:'#006600',fontSize:13}}>{detailCredit>0?fmt(detailCredit):''}</td>
               </tr>
             </tfoot>
           </table>
-            );
-          })()}
         </div>
 
         {/* Right Sidebar */}
