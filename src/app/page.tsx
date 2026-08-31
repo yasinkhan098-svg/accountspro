@@ -7153,10 +7153,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           const ri = parseFloat(e.target.value)||0;
                           updateRow(idx, calculateVoucherRow(row, 'rateInclTax', ri));
                         }}
-                        onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation(); 
-                          const hasDisc = activeCompany?.showDiscount || rows.some(r => (r.discountPerc || 0) > 0 || (r.discountAmt || 0) > 0);
-                          const nextId = hasDisc ? `item-disc-${idx}` : `item-amt-${idx}`;
-                          setTimeout(()=>document.getElementById(nextId)?.focus(), 80);
+                        onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation();
+                          // After Rate Incl. Tax → always go to Rate (step by step)
+                          setTimeout(()=>document.getElementById(`item-rate-${idx}`)?.focus(), 80);
                         }}}
                       />
                     ) : (row.itemName ? <div style={{width:'88%', textAlign:'right', color:'#ccc'}}>—</div> : null)}
