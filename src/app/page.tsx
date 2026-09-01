@@ -2505,9 +2505,9 @@ export default function App() {
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
             {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} onSaveMaster={saveMaster} />}
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
-            {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
-            {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
-            {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
+            {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} />}
+            {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} stockItems={stockItems} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} />}
+            {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onSaveOpeningBalance={async (ledgerId, ob, bt) => { const token = authClient.getToken(); const res = await fetch('/api/ledgers', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:ledgerId,openingBalance:ob,balanceType:bt})}); const d = await res.json(); if(d.success){setAllLedgers(p=>p.map(x=>x.id===ledgerId?{...x,openingBalance:ob,balanceType:bt}:x));} }} />}
             {screen==='SALES_REGISTER'       && <UniversalRegisterView voucherType='Sales'       vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='QUOTATION_REGISTER'   && <UniversalRegisterView voucherType='Sales Quotation' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
@@ -2519,7 +2519,7 @@ export default function App() {
             {screen==='CREDIT_NOTE_REGISTER' && <UniversalRegisterView voucherType='Credit Note' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='LEDGER_REPORT'        && <LedgerReportView ledgers={ledgers} vouchers={filteredVouchers} preselectedId={reportLedgerId} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='GROUP_SUMMARY'        && <GroupSummaryView ledgers={ledgers} vouchers={filteredVouchers} groupName={reportGroupName} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
-            {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} vouchers={filteredVouchers} onBack={goBack} onDrillDown={item=>{ /* Maybe later item drilldown */ }} />}
+            {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} stockGroups={stockGroups} vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={(id: number)=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownVoucher={(v: Voucher)=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} onSaveOpeningStock={async (itemId: number, qty: number, rate: number) => { const token = authClient.getToken(); const res = await fetch('/api/stock-items', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:itemId,openingQty:qty,openingRate:rate})}); const d = await res.json(); if(d.success){setAllStockItems(p=>p.map(x=>x.id===itemId?{...x,openingQty:qty,openingRate:rate}:x));} }} />}
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={vouchers} company={activeCompany} companies={companies} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
@@ -8271,127 +8271,171 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
 // ==================== REPORTS ====================
 
-function BalanceSheetView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDownGroup}:{ledgers:Ledger[];vouchers:Voucher[];onBack:()=>void;onDrillDownLedger:(id:number)=>void;onDrillDownGroup:(name:string)=>void;}) {
-  const [rowIdx, setRowIdx] = useState(0);
-  const [col, setCol] = useState<'left'|'right'>('left');
+// ==================== BALANCE SHEET VIEW — FULLY FUNCTIONAL ====================
+function BalanceSheetView({
+  ledgers, vouchers, currentPeriod, onBack, onDrillDownLedger, onDrillDownGroup, onDrillDownVoucher
+}: {
+  ledgers: Ledger[]; vouchers: Voucher[];
+  currentPeriod?: {start:string;end:string};
+  onBack: ()=>void;
+  onDrillDownLedger: (id:number)=>void;
+  onDrillDownGroup: (name:string)=>void;
+  onDrillDownVoucher?: (v:Voucher)=>void;
+}) {
   const grp = useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
-  const assetGroups=['Cash-in-hand','Bank Accounts','Bank OD A/c','Sundry Debtors','Loans & Advances (Asset)','Stock-in-hand','Deposits (Asset)','Investments','Fixed Assets','Current Assets','Misc. Expenses (ASSET)'];
-  const liabGroups=['Capital Account','Reserves & Surplus','Retained Earnings','Secured Loans','Unsecured Loans','Loans (Liability)','Sundry Creditors','Current Liabilities','Provisions','Duties & Taxes','Branch / Divisions'];
+  const [expanded, setExpanded] = useState<Record<string,boolean>>({});
+  const toggleGroup = (name:string) => setExpanded(p=>({...p,[name]:!p[name]}));
 
-  // Flatten for keyboard nav
-  const allItems = useMemo(()=>{
-    const left: any[] = [];
-    liabGroups.forEach(gn=>{
-      const items=grp[gn];
-      if(!items||!items.some(x=>x.balance!==0)) return;
-      left.push({type:'group', name:gn, balance: items.reduce((s,x)=>s+x.balance,0)});
-      items.filter(x=>x.balance!==0).forEach(x=>left.push({type:'ledger', name:x.ledger.name, id:x.ledger.id, balance:x.balance}));
-    });
-    const right: any[] = [];
-    assetGroups.forEach(gn=>{
-      const items=grp[gn];
-      if(!items||!items.some(x=>x.balance!==0)) return;
-      right.push({type:'group', name:gn, balance: items.reduce((s,x)=>s+x.balance,0)});
-      items.filter(x=>x.balance!==0).forEach(x=>right.push({type:'ledger', name:x.ledger.name, id:x.ledger.id, balance:x.balance}));
-    });
-    return {left, right, max: Math.max(left.length, right.length)};
-  }, [grp]);
+  // ---- TALLY STANDARD GROUP CLASSIFICATIONS ----
+  const liabGroups  = ['Capital Account','Reserves & Surplus','Retained Earnings','Secured Loans','Unsecured Loans','Loans (Liability)','Sundry Creditors','Current Liabilities','Provisions','Duties & Taxes','Branch / Divisions'];
+  const assetGroups = ['Fixed Assets','Investments','Deposits (Asset)','Loans & Advances (Asset)','Stock-in-hand','Sundry Debtors','Cash-in-hand','Bank Accounts','Bank OD A/c','Current Assets','Misc. Expenses (ASSET)'];
+  const incomeGroups = ['Sales Accounts','Direct Incomes','Indirect Incomes','Income (Direct)','Income (Indirect)'];
+  const expenseGroups = ['Purchase Accounts','Direct Expenses','Indirect Expenses','Expenses (Direct)','Expenses (Indirect)'];
 
-  useEffect(()=>{
-    const onKey = (e:KeyboardEvent)=>{
-      if (document.querySelector('.modal-overlay')) return;
-      if(e.key==='Escape'){ e.preventDefault(); onBack(); }
-      else if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, col==='left'?allItems.left.length-1:allItems.right.length-1)); }
-      else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
-      else if(e.key==='ArrowLeft') { if(col==='right'){setCol('left');setRowIdx(0);} }
-      else if(e.key==='ArrowRight') { if(col==='left'){setCol('right');setRowIdx(0);} }
-      else if(e.key==='Enter') {
-        e.preventDefault();
-        const target = col==='left' ? allItems.left[rowIdx] : allItems.right[rowIdx];
-        if(!target) return;
-        if(target.type==='group') onDrillDownGroup(target.name);
-        else onDrillDownLedger(target.id);
+  // ---- CALCULATIONS ----
+  const getGroupTotal = (groupNames: string[]) =>
+    groupNames.reduce((s, gn) => s + (grp[gn]||[]).reduce((gs,x)=>gs+x.balance,0), 0);
+
+  const totalIncome   = getGroupTotal(incomeGroups);
+  const totalExpense  = getGroupTotal(expenseGroups);
+  // Net Profit: Income (Cr) > Expense (Dr) = Profit, else Loss
+  // incomeGroups ledgers naturally have negative balance (Cr side) in our system
+  // totalIncome < 0 means credit (income), totalExpense > 0 means debit (expense)
+  const netProfit = Math.abs(totalIncome) - Math.abs(totalExpense); // positive = profit
+
+  const totalLiabRaw = getGroupTotal(liabGroups);
+  const totalAssetRaw = getGroupTotal(assetGroups);
+
+  // In our system: positive balance = Dr, negative = Cr
+  // Liabilities are Cr side (negative), Assets are Dr side (positive)
+  const totalLiabDisplay = Math.abs(totalLiabRaw) + (netProfit > 0 ? netProfit : 0);
+  const totalAssetDisplay = Math.abs(totalAssetRaw) + (netProfit < 0 ? Math.abs(netProfit) : 0);
+  const balanced = Math.abs(totalLiabDisplay - totalAssetDisplay) < 1;
+
+  // Build rows
+  type BSRow = { type:'group'|'ledger'; name:string; amount:number; id?:number; };
+  const buildSide = (groupNames: string[]): BSRow[] => {
+    const rows: BSRow[] = [];
+    for (const gn of groupNames) {
+      const items = (grp[gn]||[]).filter(x=>x.balance!==0);
+      if (!items.length) continue;
+      const total = items.reduce((s,x)=>s+x.balance,0);
+      rows.push({type:'group', name:gn, amount:total});
+      if (expanded[gn]) {
+        for (const item of items) {
+          rows.push({type:'ledger', name:item.ledger.name, amount:item.balance, id:item.ledger.id});
+        }
       }
-    };
-    window.addEventListener('keydown', onKey);
-    return ()=>window.removeEventListener('keydown', onKey);
-  }, [onBack, allItems, rowIdx, col, onDrillDownGroup, onDrillDownLedger]);
+    }
+    return rows;
+  };
 
-  const totalAssets=allItems.right.reduce((s,x)=>s+x.balance,0);
-  const totalLiab=allItems.left.reduce((s,x)=>s+x.balance,0);
+  const liabRows  = buildSide(liabGroups);
+  const assetRows = buildSide(assetGroups);
+
+  // Add Net Profit/Loss row to the appropriate side
+  if (netProfit > 0) {
+    liabRows.push({type:'group', name:`Net Profit (Transferred to P&L)`, amount:-netProfit});
+  } else if (netProfit < 0) {
+    assetRows.push({type:'group', name:`Net Loss (Transferred to P&L)`, amount:netProfit});
+  }
+
+  const maxRows = Math.max(liabRows.length, assetRows.length);
+  const C = {header:'#1c3e5a', subHeader:'#2b6cb0', even:'#fafcff', odd:'#fff', sel:'#ffd700', groupBg:'#e8edf5'};
+
+  const rowStyle = (type:'group'|'ledger', isNetP=false): React.CSSProperties => ({
+    fontWeight: type==='group'?'bold':'normal',
+    background: isNetP?'#e8f5e8': type==='group'?C.groupBg:'transparent',
+    color: isNetP?'#1a7a4a':'inherit',
+    cursor:'pointer',
+    fontSize: type==='group'?12:11,
+  });
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
-    <div className="report-view" style={{height:'100%',display:'flex',flexDirection:'column'}}>
-      <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between'}}>
-        <div style={{fontSize:16,fontWeight:'bold'}}>Balance Sheet</div>
-        <div style={{fontSize:12}}>As on 14-Apr-2026</div>
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#f5f7fa'}}>
+      {/* Header */}
+      <div style={{background:`linear-gradient(90deg,${C.header},${C.subHeader})`,color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+        <div>
+          <div style={{fontSize:16,fontWeight:'bold'}}>📊 Balance Sheet</div>
+          <div style={{fontSize:11,opacity:0.8}}>As on: {currentPeriod?.end || new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-')}</div>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <span style={{fontSize:11,padding:'3px 10px',background: balanced?'#1a7a4a':'#8B0000',borderRadius:3,fontWeight:'bold'}}>
+            {balanced ? '✓ Balanced' : `⚠ Diff: ₹${fmt(Math.abs(totalLiabDisplay-totalAssetDisplay))}`}
+          </span>
+          <button onClick={handlePrint} style={{padding:'3px 12px',background:'rgba(255,255,255,0.2)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
+          <button onClick={onBack} style={{padding:'3px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
+        </div>
       </div>
-      <div style={{flex:1,overflowY:'auto', background:'#fff'}}>
-        <table className="report-table" style={{width:'100%', borderCollapse:'collapse', tableLayout:'fixed'}}>
+
+      {/* Sub header */}
+      <div style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,color:'#555',display:'flex',gap:24}}>
+        <span>Total Liabilities: <b style={{color:'#1c5282'}}>₹{fmt(totalLiabDisplay)}</b></span>
+        <span>Total Assets: <b style={{color:'#1c5282'}}>₹{fmt(totalAssetDisplay)}</b></span>
+        {netProfit>0&&<span>Net Profit: <b style={{color:'#1a7a4a'}}>₹{fmt(netProfit)}</b></span>}
+        {netProfit<0&&<span>Net Loss: <b style={{color:'#8B0000'}}>₹{fmt(Math.abs(netProfit))}</b></span>}
+        <span style={{marginLeft:'auto',fontSize:10,color:'#888'}}>↑↓ Navigate | Enter: Drill-down | Click ▶ to expand group</span>
+      </div>
+
+      {/* Table */}
+      <div style={{flex:1,overflowY:'auto',background:'#fff'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',tableLayout:'fixed',fontSize:12}}>
           <thead>
-            <tr style={{background:'#1c5282', color:'white'}}>
-              <th style={{padding:'8px 15px', textAlign:'left', borderRight:'2px solid #fff'}}>LIABILITIES</th>
-              <th style={{padding:'8px 15px', textAlign:'right', width:140, borderRight:'2px solid #fff'}}>Amount</th>
-              <th style={{padding:'8px 15px', textAlign:'left', borderRight:'2px solid #fff'}}>ASSETS</th>
-              <th style={{padding:'8px 15px', textAlign:'right', width:140}}>Amount</th>
+            <tr style={{background:C.header,color:'white'}}>
+              <th style={{padding:'8px 12px',textAlign:'left',width:'35%',borderRight:'3px solid #fff'}}>LIABILITIES</th>
+              <th style={{padding:'8px 12px',textAlign:'right',width:'15%',borderRight:'3px solid #fff'}}>Amount (₹)</th>
+              <th style={{padding:'8px 12px',textAlign:'left',width:'35%',borderRight:'1px solid rgba(255,255,255,0.3)'}}>ASSETS</th>
+              <th style={{padding:'8px 12px',textAlign:'right',width:'15%'}}>Amount (₹)</th>
             </tr>
           </thead>
           <tbody>
-            {Array.from({length: allItems.max}).map((_, i) => {
-              const l = allItems.left[i];
-              const r = allItems.right[i];
-              const isSelL = col==='left' && i===rowIdx;
-              const isSelR = col==='right' && i===rowIdx;
-
+            {Array.from({length:maxRows}).map((_,i)=>{
+              const l = liabRows[i];
+              const r = assetRows[i];
+              const isNetL = l?.name?.includes('Net Profit') || l?.name?.includes('Net Loss');
+              const isNetR = r?.name?.includes('Net Profit') || r?.name?.includes('Net Loss');
               return (
-                <tr key={i} style={{fontSize:12, borderBottom:'1px solid #eee'}}>
+                <tr key={i} style={{borderBottom:'1px solid #eee',background:i%2===0?C.even:C.odd}}>
                   {/* Liability side */}
-                  <td style={{
-                    padding:l?.type==='group'?'6px 10px':'3px 25px', 
-                    fontWeight:l?.type==='group'?'bold':'normal',
-                    background:isSelL?'#ffd700':(l?.type==='group'?'#f8f8f8':'transparent'),
-                    color:isSelL?'#000':'inherit',
-                    cursor:'pointer',
-                    borderRight:'1px solid #ddd'
-                  }} onClick={()=>{setCol('left');setRowIdx(i); if(l?.type==='group')onDrillDownGroup(l.name); else if(l?.id)onDrillDownLedger(l.id);}}>
-                    {l?.name || ''}
+                  <td style={{...rowStyle(l?.type||'ledger',isNetL), padding:l?.type==='group'?'6px 8px 6px 12px':'4px 8px 4px 28px', borderRight:'2px solid #dde'}}
+                    onClick={()=>{ if(!l)return; if(l.type==='group'){toggleGroup(l.name); onDrillDownGroup(l.name);} else if(l.id)onDrillDownLedger(l.id); }}>
+                    {l ? (
+                      <span style={{display:'flex',alignItems:'center',gap:4}}>
+                        {l.type==='group' && <span style={{fontSize:10,color:'#888'}}>{expanded[l.name]?'▼':'▶'}</span>}
+                        {isNetL ? '📈 ' : ''}{l.name}
+                      </span>
+                    ) : ''}
                   </td>
-                  <td style={{
-                    textAlign:'right', padding:'6px 10px', fontWeight:'bold', borderRight:'2px solid #1c5282',
-                    background:isSelL?'#ffd700':(l?.type==='group'?'#f8f8f8':'transparent'),
-                    color:isSelL?'#000':(l? '#000' : 'transparent')
-                  }}>
-                    {l ? fmt(Math.abs(l.balance)) : ''}
+                  <td style={{textAlign:'right',padding:'6px 12px',fontWeight:'bold',borderRight:'3px solid #1c5282',color:isNetL?'#1a7a4a':'#333',background:l?.type==='group'?C.groupBg:'transparent'}}>
+                    {l ? fmt(Math.abs(l.amount)) : ''}
                   </td>
-                  
                   {/* Asset side */}
-                  <td style={{
-                    padding:r?.type==='group'?'6px 10px':'3px 25px', 
-                    fontWeight:r?.type==='group'?'bold':'normal',
-                    background:isSelR?'#ffd700':(r?.type==='group'?'#f8f8f8':'transparent'),
-                    color:isSelR?'#000':'inherit',
-                    cursor:'pointer',
-                    borderRight:'1px solid #ddd'
-                  }} onClick={()=>{setCol('right');setRowIdx(i); if(r?.type==='group')onDrillDownGroup(r.name); else if(r?.id)onDrillDownLedger(r.id);}}>
-                    {r?.name || ''}
+                  <td style={{...rowStyle(r?.type||'ledger',isNetR), padding:r?.type==='group'?'6px 8px 6px 12px':'4px 8px 4px 28px', borderRight:'1px solid #dde'}}
+                    onClick={()=>{ if(!r)return; if(r.type==='group'){toggleGroup(r.name); onDrillDownGroup(r.name);} else if(r.id)onDrillDownLedger(r.id); }}>
+                    {r ? (
+                      <span style={{display:'flex',alignItems:'center',gap:4}}>
+                        {r.type==='group' && <span style={{fontSize:10,color:'#888'}}>{expanded[r.name]?'▼':'▶'}</span>}
+                        {isNetR ? '📉 ' : ''}{r.name}
+                      </span>
+                    ) : ''}
                   </td>
-                  <td style={{
-                    textAlign:'right', padding:'6px 10px', fontWeight:'bold',
-                    background:isSelR?'#ffd700':(r?.type==='group'?'#f8f8f8':'transparent'),
-                    color:isSelR?'#000':(r? '#000' : 'transparent')
-                  }}>
-                    {r ? fmt(Math.abs(r.balance)) : ''}
+                  <td style={{textAlign:'right',padding:'6px 12px',fontWeight:'bold',color:isNetR?'#8B0000':'#333',background:r?.type==='group'?C.groupBg:'transparent'}}>
+                    {r ? fmt(Math.abs(r.amount)) : ''}
                   </td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot>
-            <tr style={{background:'#1c5282', color:'white', fontWeight:'bold'}}>
-              <td style={{padding:'8px 15px'}}>Total</td>
-              <td style={{textAlign:'right', padding:'8px 10px', borderRight:'2px solid #fff'}}>₹ {fmt(Math.abs(totalLiab))}</td>
-              <td style={{padding:'8px 15px'}}>Total</td>
-              <td style={{textAlign:'right', padding:'8px 10px'}}>₹ {fmt(Math.abs(totalAssets))}</td>
+            <tr style={{background:C.header,color:'white',fontWeight:'bold',borderTop:'2px solid #999'}}>
+              <td style={{padding:'10px 12px',letterSpacing:2}}>G r a n d &nbsp; T o t a l</td>
+              <td style={{textAlign:'right',padding:'10px 12px',fontSize:13,borderRight:'3px solid #fff'}}>₹ {fmt(totalLiabDisplay)}</td>
+              <td style={{padding:'10px 12px',letterSpacing:2}}>G r a n d &nbsp; T o t a l</td>
+              <td style={{textAlign:'right',padding:'10px 12px',fontSize:13}}>₹ {fmt(totalAssetDisplay)}</td>
             </tr>
           </tfoot>
         </table>
@@ -8401,126 +8445,308 @@ function BalanceSheetView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDown
 }
 
 
-function ProfitLossView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDownGroup}:{ledgers:Ledger[];vouchers:Voucher[];onBack:()=>void;onDrillDownLedger:(id:number)=>void;onDrillDownGroup:(name:string)=>void;}) {
-  const [rowIdx, setRowIdx] = useState(0);
-  const [col, setCol] = useState<'left'|'right'>('left');
+// ==================== PROFIT & LOSS VIEW — FULLY FUNCTIONAL ====================
+function ProfitLossView({
+  ledgers, vouchers, currentPeriod, stockItems = [], onBack, onDrillDownLedger, onDrillDownGroup, onDrillDownVoucher
+}: {
+  ledgers: Ledger[]; vouchers: Voucher[];
+  currentPeriod?: {start:string;end:string};
+  stockItems?: StockItem[];
+  onBack: ()=>void;
+  onDrillDownLedger: (id:number)=>void;
+  onDrillDownGroup: (name:string)=>void;
+  onDrillDownVoucher?: (v:Voucher)=>void;
+}) {
   const grp = useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
-  
-  const expGroups=['Purchase Accounts','Direct Expenses','Indirect Expenses','Expenses (Direct)','Expenses (Indirect)'];
-  const incGroups=['Sales Accounts','Direct Incomes','Indirect Incomes','Income (Direct)','Income (Indirect)'];
+  const [expanded, setExpanded] = useState<Record<string,boolean>>({
+    'Sales Accounts': true,
+    'Purchase Accounts': true,
+    'Direct Expenses': true,
+    'Indirect Expenses': true
+  });
+  const toggleGroup = (name:string) => setExpanded(p=>({...p,[name]:!p[name]}));
 
-  const allItems = useMemo(()=>{
-    const left: any[] = [];
-    expGroups.forEach(gn=>{
-      const items=grp[gn];
-      if(!items||!items.some(x=>x.balance!==0)) return;
-      left.push({type:'group', name:gn, balance: items.reduce((s,x)=>s+x.balance,0)});
-      items.filter(x=>x.balance!==0).forEach(x=>left.push({type:'ledger', name:x.ledger.name, id:x.ledger.id, balance:x.balance}));
-    });
-    const right: any[] = [];
-    incGroups.forEach(gn=>{
-      const items=grp[gn];
-      if(!items||!items.some(x=>x.balance!==0)) return;
-      right.push({type:'group', name:gn, balance: items.reduce((s,x)=>s+x.balance,0)});
-      items.filter(x=>x.balance!==0).forEach(x=>right.push({type:'ledger', name:x.ledger.name, id:x.ledger.id, balance:x.balance}));
-    });
-    return {left, right, max: Math.max(left.length, right.length)};
-  }, [grp]);
+  // Standard group lists
+  const directExpGroups   = ['Purchase Accounts','Direct Expenses','Expenses (Direct)'];
+  const directIncGroups   = ['Sales Accounts','Direct Incomes','Income (Direct)'];
+  const indirectExpGroups = ['Indirect Expenses','Expenses (Indirect)'];
+  const indirectIncGroups = ['Indirect Incomes','Income (Indirect)'];
 
-  useEffect(()=>{
-    const onKey = (e:KeyboardEvent)=>{
-      if (document.querySelector('.modal-overlay')) return;
-      if(e.key==='Escape'){ e.preventDefault(); onBack(); }
-      else if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, col==='left'?allItems.left.length-1:allItems.right.length-1)); }
-      else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
-      else if(e.key==='ArrowLeft') { if(col==='right'){setCol('left');setRowIdx(0);} }
-      else if(e.key==='ArrowRight') { if(col==='left'){setCol('right');setRowIdx(0);} }
-      else if(e.key==='Enter') {
-        e.preventDefault();
-        const target = col==='left' ? allItems.left[rowIdx] : allItems.right[rowIdx];
-        if(!target) return;
-        if(target.type==='group') onDrillDownGroup(target.name);
-        else onDrillDownLedger(target.id);
+  // Opening & Closing Stock calculations
+  const openingStockValue = useMemo(()=>{
+    return stockItems.reduce((acc, it) => acc + ((it.openingQty || 0) * (it.openingRate || 0)), 0);
+  }, [stockItems]);
+
+  const closingStockValue = useMemo(()=>{
+    if (stockItems.length > 0) {
+      let totalVal = 0;
+      for (const it of stockItems) {
+        let qty = it.openingQty || 0;
+        let totalCost = (it.openingQty || 0) * (it.openingRate || 0);
+        let totalInQty = it.openingQty || 0;
+        for (const v of vouchers) {
+          for (const ie of (v.inventoryEntries || [])) {
+            if (ie.itemId === it.id) {
+              if (v.type === 'Purchase' || v.type === 'Credit Note') {
+                qty += ie.qty || 0;
+                totalCost += (ie.qty || 0) * (ie.rate || 0);
+                totalInQty += ie.qty || 0;
+              } else if (v.type === 'Sales' || v.type === 'Debit Note') {
+                qty -= ie.qty || 0;
+              }
+            }
+          }
+        }
+        const avgRate = totalInQty > 0 ? (totalCost / totalInQty) : (it.openingRate || 0);
+        totalVal += Math.max(0, qty) * avgRate;
       }
-    };
-    window.addEventListener('keydown', onKey);
-    return ()=>window.removeEventListener('keydown', onKey);
-  }, [onBack, allItems, rowIdx, col, onDrillDownGroup, onDrillDownLedger]);
+      return totalVal;
+    }
+    const stockLedgers = grp['Stock-in-hand'] || [];
+    return stockLedgers.reduce((s, x) => s + Math.abs(x.balance), 0);
+  }, [stockItems, vouchers, grp]);
 
-  const sales = Math.abs(allItems.right.filter(x=>x.name.includes('Sales')).reduce((s,x)=>s+x.balance,0));
-  const purchases = Math.abs(allItems.left.filter(x=>x.name.includes('Purchase')).reduce((s,x)=>s+x.balance,0));
-  const netProfit = sales - purchases; // Simplified for demo
+  // Aggregate group amounts
+  const sumGroups = (gnList: string[]) =>
+    gnList.reduce((s, gn) => s + (grp[gn]||[]).reduce((gs,x)=>gs+Math.abs(x.balance),0), 0);
+
+  const netPurchases = sumGroups(directExpGroups);
+  const netSales     = sumGroups(directIncGroups);
+  const indExpenses  = sumGroups(indirectExpGroups);
+  const indIncomes   = sumGroups(indirectIncGroups);
+
+  // Trading A/c:
+  // Dr: Opening Stock + Net Purchases
+  // Cr: Net Sales + Closing Stock
+  const tradingDr = openingStockValue + netPurchases;
+  const tradingCr = netSales + closingStockValue;
+  const grossProfit = tradingCr - tradingDr; // >0 is Gross Profit, <0 is Gross Loss
+
+  // P&L A/c:
+  // Dr: Gross Loss (if any) + Indirect Expenses
+  // Cr: Gross Profit (if any) + Indirect Incomes
+  const plDr = (grossProfit < 0 ? Math.abs(grossProfit) : 0) + indExpenses;
+  const plCr = (grossProfit > 0 ? grossProfit : 0) + indIncomes;
+  const netProfit = plCr - plDr; // >0 is Net Profit, <0 is Net Loss
+
+  const totalTradingBoth = Math.max(tradingDr + (grossProfit > 0 ? grossProfit : 0), tradingCr + (grossProfit < 0 ? Math.abs(grossProfit) : 0));
+  const totalPLBoth      = Math.max(plDr + (netProfit > 0 ? netProfit : 0), plCr + (netProfit < 0 ? Math.abs(netProfit) : 0));
+
+  type PLRow = { type:'header'|'group'|'ledger'|'summary'; name:string; amount?:number; id?:number; isHighlight?:boolean; };
+
+  // Build Trading Left (Dr: Expenses) and Right (Cr: Income)
+  const buildGroupRows = (gnList: string[]): PLRow[] => {
+    const rows: PLRow[] = [];
+    for (const gn of gnList) {
+      const items = (grp[gn]||[]).filter(x=>x.balance!==0);
+      if (!items.length) continue;
+      const total = items.reduce((s,x)=>s+Math.abs(x.balance),0);
+      rows.push({type:'group', name:gn, amount:total});
+      if (expanded[gn]) {
+        for (const item of items) {
+          rows.push({type:'ledger', name:item.ledger.name, amount:Math.abs(item.balance), id:item.ledger.id});
+        }
+      }
+    }
+    return rows;
+  };
+
+  const tradingLeft: PLRow[] = [
+    {type:'summary', name:'Opening Stock', amount:openingStockValue},
+    ...buildGroupRows(directExpGroups),
+  ];
+  if (grossProfit > 0) {
+    tradingLeft.push({type:'summary', name:'Gross Profit c/d (Transferred to P&L)', amount:grossProfit, isHighlight:true});
+  }
+
+  const tradingRight: PLRow[] = [
+    ...buildGroupRows(directIncGroups),
+    {type:'summary', name:'Closing Stock', amount:closingStockValue},
+  ];
+  if (grossProfit < 0) {
+    tradingRight.push({type:'summary', name:'Gross Loss c/d (Transferred to P&L)', amount:Math.abs(grossProfit), isHighlight:true});
+  }
+
+  // P&L Left & Right
+  const plLeft: PLRow[] = [];
+  if (grossProfit < 0) {
+    plLeft.push({type:'summary', name:'Gross Loss b/d', amount:Math.abs(grossProfit), isHighlight:true});
+  }
+  plLeft.push(...buildGroupRows(indirectExpGroups));
+  if (netProfit > 0) {
+    plLeft.push({type:'summary', name:'Net Profit (Transferred to Capital)', amount:netProfit, isHighlight:true});
+  }
+
+  const plRight: PLRow[] = [];
+  if (grossProfit > 0) {
+    plRight.push({type:'summary', name:'Gross Profit b/d', amount:grossProfit, isHighlight:true});
+  }
+  plRight.push(...buildGroupRows(indirectIncGroups));
+  if (netProfit < 0) {
+    plRight.push({type:'summary', name:'Net Loss (Transferred to Capital)', amount:Math.abs(netProfit), isHighlight:true});
+  }
+
+  const maxTrading = Math.max(tradingLeft.length, tradingRight.length);
+  const maxPL      = Math.max(plLeft.length, plRight.length);
+
+  const C = {header:'#8B0000', incHeader:'#006600', groupBg:'#f8f9fa', even:'#fafcff', odd:'#fff'};
 
   return (
-    <div className="report-view" style={{height:'100%',display:'flex',flexDirection:'column'}}>
-      <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between'}}>
-        <div style={{fontSize:16,fontWeight:'bold'}}>Profit & Loss Account</div>
-        <div style={{fontSize:12}}>1-Apr-2026 to 14-Apr-2026</div>
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#f5f7fa'}}>
+      {/* Title Bar */}
+      <div style={{background:'linear-gradient(90deg,#8B0000,#006600)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+        <div>
+          <div style={{fontSize:16,fontWeight:'bold'}}>📈 Profit &amp; Loss Account</div>
+          <div style={{fontSize:11,opacity:0.8}}>Period: {currentPeriod?.start || '01-Apr-2026'} to {currentPeriod?.end || '31-Mar-2027'}</div>
+        </div>
+        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+          <span style={{fontSize:12,padding:'4px 12px',background:netProfit>=0?'#1a7a4a':'#8B0000',borderRadius:4,fontWeight:'bold'}}>
+            {netProfit>=0 ? `✓ Net Profit: ₹${fmt(netProfit)}` : `⚠ Net Loss: ₹${fmt(Math.abs(netProfit))}`}
+          </span>
+          <button onClick={()=>window.print()} style={{padding:'4px 12px',background:'rgba(255,255,255,0.2)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
+          <button onClick={onBack} style={{padding:'4px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
+        </div>
       </div>
-      <div style={{flex:1,overflowY:'auto', background:'#fff'}}>
-        <table className="report-table" style={{width:'100%', borderCollapse:'collapse', tableLayout:'fixed'}}>
+
+      {/* Highlights bar */}
+      <div style={{background:'#fff',borderBottom:'1px solid #dde',padding:'6px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
+        <span>Sales: <b style={{color:'#006600'}}>₹{fmt(netSales)}</b></span>
+        <span>Purchases: <b style={{color:'#8B0000'}}>₹{fmt(netPurchases)}</b></span>
+        <span>Gross Profit: <b style={{color:grossProfit>=0?'#006600':'#8B0000'}}>₹{fmt(Math.abs(grossProfit))}</b></span>
+        <span>Indirect Exp: <b style={{color:'#8B0000'}}>₹{fmt(indExpenses)}</b></span>
+        <span style={{marginLeft:'auto',fontSize:10,color:'#888'}}>Click group ▶ to expand ledgers | Click ledger for Voucher details</span>
+      </div>
+
+      {/* Main Table */}
+      <div style={{flex:1,overflowY:'auto',background:'#fff'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',tableLayout:'fixed',fontSize:12}}>
           <thead>
-            <tr style={{background:'#8B0000', color:'white'}}>
-              <th style={{padding:'8px 15px', textAlign:'left', borderRight:'2px solid #fff'}}>EXPENDITURE</th>
-              <th style={{padding:'8px 15px', textAlign:'right', width:140, borderRight:'2px solid #fff'}}>Amount</th>
-              <th style={{padding:'8px 15px', textAlign:'left', borderRight:'2px solid #fff', background:'#006600'}}>INCOME</th>
-              <th style={{padding:'8px 15px', textAlign:'right', width:140, background:'#006600'}}>Amount</th>
+            <tr>
+              <th style={{background:C.header,color:'white',padding:'8px 12px',textAlign:'left',width:'35%',borderRight:'2px solid #fff'}}>PARTICULARS (Debit / Expenses)</th>
+              <th style={{background:C.header,color:'white',padding:'8px 12px',textAlign:'right',width:'15%',borderRight:'3px solid #333'}}>Amount (₹)</th>
+              <th style={{background:C.incHeader,color:'white',padding:'8px 12px',textAlign:'left',width:'35%',borderRight:'2px solid #fff'}}>PARTICULARS (Credit / Incomes)</th>
+              <th style={{background:C.incHeader,color:'white',padding:'8px 12px',textAlign:'right',width:'15%'}}>Amount (₹)</th>
             </tr>
           </thead>
           <tbody>
-            {Array.from({length: allItems.max}).map((_, i) => {
-              const l = allItems.left[i];
-              const r = allItems.right[i];
-              const isSelL = col==='left' && i===rowIdx;
-              const isSelR = col==='right' && i===rowIdx;
-
+            {/* --- SECTION 1: TRADING ACCOUNT --- */}
+            <tr style={{background:'#eef2f7',fontWeight:'bold',fontSize:11,color:'#333'}}>
+              <td colSpan={2} style={{padding:'4px 12px',borderRight:'3px solid #1c5282'}}>TRADING ACCOUNT (Direct Costs)</td>
+              <td colSpan={2} style={{padding:'4px 12px'}}>TRADING ACCOUNT (Direct Revenues)</td>
+            </tr>
+            {Array.from({length:maxTrading}).map((_,i)=>{
+              const l = tradingLeft[i];
+              const r = tradingRight[i];
               return (
-                <tr key={i} style={{fontSize:12, borderBottom:'1px solid #eee'}}>
-                  {/* Expenditure side */}
+                <tr key={'tr-'+i} style={{borderBottom:'1px solid #eee',background:i%2===0?C.even:C.odd}}>
+                  {/* Trading Left */}
                   <td style={{
-                    padding:l?.type==='group'?'6px 10px':'3px 25px', 
-                    fontWeight:l?.type==='group'?'bold':'normal',
-                    background:isSelL?'#ffd700':(l?.type==='group'?'#f5dede':'transparent'),
-                    color:isSelL?'#000':'inherit',
-                    cursor:'pointer',
-                    borderRight:'1px solid #ddd'
-                  }} onClick={()=>{setCol('left');setRowIdx(i); if(l?.type==='group')onDrillDownGroup(l.name); else if(l?.id)onDrillDownLedger(l.id);}}>
-                    {l?.name || ''}
+                    padding: l?.type==='group'?'6px 8px 6px 12px': l?.type==='ledger'?'3px 8px 3px 28px':'6px 12px',
+                    fontWeight: l?.type==='ledger'?'normal':'bold',
+                    color: l?.isHighlight?'#006600': l?.type==='ledger'?'#444':'#111',
+                    background: l?.isHighlight?'#e8f5e8': l?.type==='group'?C.groupBg:'transparent',
+                    cursor: l?.type==='ledger'||l?.type==='group'?'pointer':'default',
+                    borderRight:'1px solid #eee'
+                  }} onClick={()=>{ if(l?.id) onDrillDownLedger(l.id); else if(l?.type==='group') { toggleGroup(l.name); onDrillDownGroup(l.name); } }}>
+                    {l ? (
+                      <span style={{display:'flex',alignItems:'center',gap:4}}>
+                        {l.type==='group' && <span style={{fontSize:10,color:'#888'}}>{expanded[l.name]?'▼':'▶'}</span>}
+                        {l.isHighlight ? '⭐ ' : ''}{l.name}
+                      </span>
+                    ) : ''}
                   </td>
-                  <td style={{
-                    textAlign:'right', padding:'6px 10px', fontWeight:'bold', borderRight:'2px solid #8B0000',
-                    background:isSelL?'#ffd700':(l?.type==='group'?'#f5dede':'transparent'),
-                    color:isSelL?'#000':(l? '#000' : 'transparent')
-                  }}>
-                    {l ? fmt(Math.abs(l.balance)) : ''}
+                  <td style={{textAlign:'right',padding:'6px 12px',fontWeight:l?.type==='ledger'?'normal':'bold',borderRight:'3px solid #1c5282',color:l?.isHighlight?'#006600':'inherit'}}>
+                    {l?.amount !== undefined ? fmt(l.amount) : ''}
                   </td>
-                  
-                  {/* Income side */}
+
+                  {/* Trading Right */}
                   <td style={{
-                    padding:r?.type==='group'?'6px 10px':'3px 25px', 
-                    fontWeight:r?.type==='group'?'bold':'normal',
-                    background:isSelR?'#ffd700':(r?.type==='group'?'#e8f5e8':'transparent'),
-                    color:isSelR?'#000':'inherit',
-                    cursor:'pointer',
-                    borderRight:'1px solid #ddd'
-                  }} onClick={()=>{setCol('right');setRowIdx(i); if(r?.type==='group')onDrillDownGroup(r.name); else if(r?.id)onDrillDownLedger(r.id);}}>
-                    {r?.name || ''}
+                    padding: r?.type==='group'?'6px 8px 6px 12px': r?.type==='ledger'?'3px 8px 3px 28px':'6px 12px',
+                    fontWeight: r?.type==='ledger'?'normal':'bold',
+                    color: r?.isHighlight?'#8B0000': r?.type==='ledger'?'#444':'#111',
+                    background: r?.isHighlight?'#fff0f0': r?.type==='group'?C.groupBg:'transparent',
+                    cursor: r?.type==='ledger'||r?.type==='group'?'pointer':'default',
+                    borderRight:'1px solid #eee'
+                  }} onClick={()=>{ if(r?.id) onDrillDownLedger(r.id); else if(r?.type==='group') { toggleGroup(r.name); onDrillDownGroup(r.name); } }}>
+                    {r ? (
+                      <span style={{display:'flex',alignItems:'center',gap:4}}>
+                        {r.type==='group' && <span style={{fontSize:10,color:'#888'}}>{expanded[r.name]?'▼':'▶'}</span>}
+                        {r.isHighlight ? '⭐ ' : ''}{r.name}
+                      </span>
+                    ) : ''}
                   </td>
+                  <td style={{textAlign:'right',padding:'6px 12px',fontWeight:r?.type==='ledger'?'normal':'bold',color:r?.isHighlight?'#8B0000':'inherit'}}>
+                    {r?.amount !== undefined ? fmt(r.amount) : ''}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr style={{background:'#f0f4f8',fontWeight:'bold',borderTop:'2px solid #aaa',borderBottom:'2px solid #aaa'}}>
+              <td style={{padding:'6px 12px'}}>Total Trading Dr</td>
+              <td style={{textAlign:'right',padding:'6px 12px',borderRight:'3px solid #1c5282'}}>₹ {fmt(totalTradingBoth)}</td>
+              <td style={{padding:'6px 12px'}}>Total Trading Cr</td>
+              <td style={{textAlign:'right',padding:'6px 12px'}}>₹ {fmt(totalTradingBoth)}</td>
+            </tr>
+
+            {/* --- SECTION 2: PROFIT & LOSS ACCOUNT --- */}
+            <tr style={{background:'#eef2f7',fontWeight:'bold',fontSize:11,color:'#333'}}>
+              <td colSpan={2} style={{padding:'4px 12px',borderRight:'3px solid #1c5282'}}>PROFIT &amp; LOSS ACCOUNT (Operating &amp; Indirect Expenses)</td>
+              <td colSpan={2} style={{padding:'4px 12px'}}>PROFIT &amp; LOSS ACCOUNT (Operating &amp; Indirect Income)</td>
+            </tr>
+            {Array.from({length:maxPL}).map((_,i)=>{
+              const l = plLeft[i];
+              const r = plRight[i];
+              return (
+                <tr key={'pl-'+i} style={{borderBottom:'1px solid #eee',background:i%2===0?C.even:C.odd}}>
+                  {/* P&L Left */}
                   <td style={{
-                    textAlign:'right', padding:'6px 10px', fontWeight:'bold',
-                    background:isSelR?'#ffd700':(r?.type==='group'?'#e8f5e8':'transparent'),
-                    color:isSelR?'#000':(r? '#000' : 'transparent')
-                  }}>
-                    {r ? fmt(Math.abs(r.balance)) : ''}
+                    padding: l?.type==='group'?'6px 8px 6px 12px': l?.type==='ledger'?'3px 8px 3px 28px':'6px 12px',
+                    fontWeight: l?.type==='ledger'?'normal':'bold',
+                    color: l?.isHighlight?'#006600': l?.type==='ledger'?'#444':'#111',
+                    background: l?.isHighlight?'#e8f5e8': l?.type==='group'?C.groupBg:'transparent',
+                    cursor: l?.type==='ledger'||l?.type==='group'?'pointer':'default',
+                    borderRight:'1px solid #eee'
+                  }} onClick={()=>{ if(l?.id) onDrillDownLedger(l.id); else if(l?.type==='group') { toggleGroup(l.name); onDrillDownGroup(l.name); } }}>
+                    {l ? (
+                      <span style={{display:'flex',alignItems:'center',gap:4}}>
+                        {l.type==='group' && <span style={{fontSize:10,color:'#888'}}>{expanded[l.name]?'▼':'▶'}</span>}
+                        {l.isHighlight ? '🏆 ' : ''}{l.name}
+                      </span>
+                    ) : ''}
+                  </td>
+                  <td style={{textAlign:'right',padding:'6px 12px',fontWeight:l?.type==='ledger'?'normal':'bold',borderRight:'3px solid #1c5282',color:l?.isHighlight?'#006600':'inherit'}}>
+                    {l?.amount !== undefined ? fmt(l.amount) : ''}
+                  </td>
+
+                  {/* P&L Right */}
+                  <td style={{
+                    padding: r?.type==='group'?'6px 8px 6px 12px': r?.type==='ledger'?'3px 8px 3px 28px':'6px 12px',
+                    fontWeight: r?.type==='ledger'?'normal':'bold',
+                    color: r?.isHighlight?'#8B0000': r?.type==='ledger'?'#444':'#111',
+                    background: r?.isHighlight?'#fff0f0': r?.type==='group'?C.groupBg:'transparent',
+                    cursor: r?.type==='ledger'||r?.type==='group'?'pointer':'default',
+                    borderRight:'1px solid #eee'
+                  }} onClick={()=>{ if(r?.id) onDrillDownLedger(r.id); else if(r?.type==='group') { toggleGroup(r.name); onDrillDownGroup(r.name); } }}>
+                    {r ? (
+                      <span style={{display:'flex',alignItems:'center',gap:4}}>
+                        {r.type==='group' && <span style={{fontSize:10,color:'#888'}}>{expanded[r.name]?'▼':'▶'}</span>}
+                        {r.isHighlight ? '⚠️ ' : ''}{r.name}
+                      </span>
+                    ) : ''}
+                  </td>
+                  <td style={{textAlign:'right',padding:'6px 12px',fontWeight:r?.type==='ledger'?'normal':'bold',color:r?.isHighlight?'#8B0000':'inherit'}}>
+                    {r?.amount !== undefined ? fmt(r.amount) : ''}
                   </td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot>
-            <tr style={{background:'#1c5282', color:'white', fontWeight:'bold'}}>
-              <td colSpan={3} style={{padding:'8px 20px'}}>Net Profit:</td>
-              <td style={{textAlign:'right', padding:'8px 10px'}}>₹ {fmt(netProfit)}</td>
+            <tr style={{background:'#1c5282',color:'white',fontWeight:'bold',borderTop:'2px solid #333'}}>
+              <td style={{padding:'9px 12px',letterSpacing:2}}>T O T A L</td>
+              <td style={{textAlign:'right',padding:'9px 12px',fontSize:13,borderRight:'3px solid #fff'}}>₹ {fmt(totalPLBoth)}</td>
+              <td style={{padding:'9px 12px',letterSpacing:2}}>T O T A L</td>
+              <td style={{textAlign:'right',padding:'9px 12px',fontSize:13}}>₹ {fmt(totalPLBoth)}</td>
             </tr>
           </tfoot>
         </table>
@@ -8530,82 +8756,284 @@ function ProfitLossView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDownGr
 }
 
 
-function TrialBalanceView({ledgers,vouchers,onBack,onDrillDownLedger,onDrillDownGroup}:{ledgers:Ledger[];vouchers:Voucher[];onBack:()=>void;onDrillDownLedger:(id:number)=>void;onDrillDownGroup:(name:string)=>void;}) {
-  const [rowIdx, setRowIdx] = useState(0);
-  const rows=useMemo(()=>ledgers.map(l=>{const bal=getLedgerClosingBalance(l,vouchers);return{l,bal};}),[ledgers,vouchers]);
-  const totDr=rows.filter(r=>r.bal>0).reduce((s,r)=>s+r.bal,0);
-  const totCr=rows.filter(r=>r.bal<0).reduce((s,r)=>s+r.bal,0);
+// ==================== TRIAL BALANCE VIEW — FULLY FUNCTIONAL ====================
+function TrialBalanceView({
+  ledgers, vouchers, currentPeriod, onBack, onDrillDownLedger, onDrillDownGroup, onSaveOpeningBalance
+}: {
+  ledgers: Ledger[]; vouchers: Voucher[];
+  currentPeriod?: {start:string;end:string};
+  onBack: ()=>void;
+  onDrillDownLedger: (id:number)=>void;
+  onDrillDownGroup: (name:string)=>void;
+  onSaveOpeningBalance?: (ledgerId:number, ob:number, bt:'Dr'|'Cr')=>Promise<void>;
+}) {
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Record<string,boolean>>({});
+  const [editId, setEditId] = useState<number|null>(null);
+  const [editVal, setEditVal] = useState<string>('');
+  const [editType, setEditType] = useState<'Dr'|'Cr'>('Dr');
+  const [isSaving, setIsSaving] = useState(false);
 
+  // Group ledgers by groupName
+  const groupedData = useMemo(()=>{
+    const map: Record<string, {
+      ledger: Ledger;
+      opDr: number; opCr: number;
+      txDr: number; txCr: number;
+      clDr: number; clCr: number;
+    }[]> = {};
+
+    for (const l of ledgers) {
+      const vEntries = getLedgerEntries(l.id, vouchers);
+      const txDr = vEntries.filter(e=>e.entry.entryType==='Dr').reduce((s,e)=>s+e.entry.amount, 0);
+      const txCr = vEntries.filter(e=>e.entry.entryType==='Cr').reduce((s,e)=>s+e.entry.amount, 0);
+
+      const opDr = l.balanceType === 'Dr' ? (l.openingBalance || 0) : 0;
+      const opCr = l.balanceType === 'Cr' ? (l.openingBalance || 0) : 0;
+
+      const netCl = (opDr - opCr) + (txDr - txCr);
+      const clDr = netCl > 0 ? netCl : 0;
+      const clCr = netCl < 0 ? Math.abs(netCl) : 0;
+
+      const gn = l.groupName || 'Primary';
+      if (!map[gn]) map[gn] = [];
+      map[gn].push({ ledger:l, opDr, opCr, txDr, txCr, clDr, clCr });
+    }
+    return map;
+  }, [ledgers, vouchers]);
+
+  // Expand all by default if groups <= 15
   useEffect(()=>{
-    const onKey = (e:KeyboardEvent)=>{
-      if (document.querySelector('.modal-overlay')) return;
-      if(e.key==='Escape'){ e.preventDefault(); onBack(); }
-      else if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, rows.length-1)); }
-      else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
-      else if(e.key==='Enter') {
-        e.preventDefault();
-        const target = rows[rowIdx];
-        if(target) onDrillDownLedger(target.l.id);
+    const allKeys = Object.keys(groupedData);
+    const init: Record<string,boolean> = {};
+    for (const k of allKeys) init[k] = true;
+    setExpanded(init);
+  }, [groupedData]);
+
+  // Grand Totals
+  const totals = useMemo(()=>{
+    let opDr = 0, opCr = 0, txDr = 0, txCr = 0, clDr = 0, clCr = 0;
+    for (const rows of Object.values(groupedData)) {
+      for (const r of rows) {
+        opDr += r.opDr; opCr += r.opCr;
+        txDr += r.txDr; txCr += r.txCr;
+        clDr += r.clDr; clCr += r.clCr;
       }
-    };
-    window.addEventListener('keydown', onKey);
-    return ()=>window.removeEventListener('keydown', onKey);
-  }, [rows, rowIdx, onBack, onDrillDownLedger]);
+    }
+    return { opDr, opCr, txDr, txCr, clDr, clCr };
+  }, [groupedData]);
+
+  const balanced = Math.abs(totals.clDr - totals.clCr) < 1;
+
+  const toggleAll = (expand: boolean) => {
+    const next: Record<string,boolean> = {};
+    for (const k of Object.keys(groupedData)) next[k] = expand;
+    setExpanded(next);
+  };
+
+  const handleStartEdit = (l: Ledger, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditId(l.id);
+    setEditVal(String(l.openingBalance || 0));
+    setEditType(l.balanceType || 'Dr');
+  };
+
+  const handleSaveEdit = async (ledgerId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onSaveOpeningBalance) return;
+    const num = Math.abs(parseFloat(editVal) || 0);
+    setIsSaving(true);
+    try {
+      await onSaveOpeningBalance(ledgerId, num, editType);
+      setEditId(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditId(null);
+  };
+
+  const filteredGroups = useMemo(()=>{
+    if (!search.trim()) return Object.entries(groupedData);
+    const q = search.toLowerCase();
+    const result: [string, typeof groupedData[string]][] = [];
+    for (const [gn, rows] of Object.entries(groupedData)) {
+      const matchLedgers = rows.filter(r => r.ledger.name.toLowerCase().includes(q) || gn.toLowerCase().includes(q));
+      if (matchLedgers.length) result.push([gn, matchLedgers]);
+    }
+    return result;
+  }, [groupedData, search]);
 
   return (
-
-    <div className="report-view" style={{height:'100%',display:'flex',flexDirection:'column'}}>
-      <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between'}}>
-        <div style={{fontSize:16,fontWeight:'bold'}}>Trial Balance</div>
-        <div style={{fontSize:12}}>As on 14-Apr-2026</div>
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#f5f7fa'}}>
+      {/* Title Header */}
+      <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+        <div>
+          <div style={{fontSize:16,fontWeight:'bold'}}>⚖️ Trial Balance</div>
+          <div style={{fontSize:11,opacity:0.8}}>Period: {currentPeriod?.start || '01-Apr-2026'} to {currentPeriod?.end || '31-Mar-2027'}</div>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <input
+            value={search}
+            onChange={e=>setSearch(e.target.value)}
+            placeholder="Search ledger..."
+            style={{padding:'4px 10px',fontSize:11,borderRadius:4,border:'1px solid rgba(255,255,255,0.4)',background:'rgba(255,255,255,0.15)',color:'white',outline:'none',width:150}}
+          />
+          <button onClick={()=>toggleAll(true)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Expand All</button>
+          <button onClick={()=>toggleAll(false)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Collapse All</button>
+          <button onClick={()=>window.print()} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
+          <button onClick={onBack} style={{padding:'4px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
+        </div>
       </div>
-      <div style={{flex:1,overflowY:'auto'}}>
-        <table className="report-table" style={{width:'100%'}}>
-          <thead>
-            <tr>
-              <th>Ledger Name</th>
-              <th>Group</th>
-              <th style={{textAlign:'right',width:150}}>Opening Balance</th>
-              <th style={{textAlign:'right',width:150}}>Debit (Dr)</th>
-              <th style={{textAlign:'right',width:150}}>Credit (Cr)</th>
-              <th style={{textAlign:'right',width:150}}>Closing Balance</th>
+
+      {/* Sub header */}
+      <div style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
+        <span>Opening Diff: <b style={{color:Math.abs(totals.opDr-totals.opCr)<1?'#1a7a4a':'#8B0000'}}>₹{fmt(Math.abs(totals.opDr-totals.opCr))}</b></span>
+        <span>Txns Total: <b style={{color:'#1c5282'}}>₹{fmt(totals.txDr)}</b></span>
+        <span>Closing Diff: <b style={{color:balanced?'#1a7a4a':'#8B0000'}}>{balanced ? '✓ 0.00 (Balanced)' : `₹${fmt(Math.abs(totals.clDr-totals.clCr))}`}</b></span>
+        <span style={{marginLeft:'auto',fontSize:10,color:'#888'}}>Click ledger row to view Vouchers | Click ✏️ to update Opening Balance</span>
+      </div>
+
+      {/* Table */}
+      <div style={{flex:1,overflowY:'auto',background:'#fff'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead style={{position:'sticky',top:0,zIndex:2}}>
+            <tr style={{background:'#1c5282',color:'white',borderBottom:'2px solid #fff'}}>
+              <th rowSpan={2} style={{padding:'6px 12px',textAlign:'left',minWidth:220}}>Particulars</th>
+              <th colSpan={2} style={{padding:'4px 10px',textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.3)',background:'#164268'}}>Opening Balance</th>
+              <th colSpan={2} style={{padding:'4px 10px',textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.3)',background:'#1a507e'}}>Transactions</th>
+              <th colSpan={2} style={{padding:'4px 10px',textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.3)',background:'#164268'}}>Closing Balance</th>
+            </tr>
+            <tr style={{background:'#1c5282',color:'white'}}>
+              <th style={{padding:'4px 10px',textAlign:'right',width:105,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:105,fontSize:11}}>Credit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:105,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:105,fontSize:11}}>Credit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:115,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:115,fontSize:11}}>Credit (₹)</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({l,bal},i)=>{
-              const vEntries=getLedgerEntries(l.id,vouchers);
-              const drAmt=vEntries.filter(e=>e.entry.entryType==='Dr').reduce((s,e)=>s+e.entry.amount,0);
-              const crAmt=vEntries.filter(e=>e.entry.entryType==='Cr').reduce((s,e)=>s+e.entry.amount,0);
-              return (
-                <tr key={i} style={{cursor:'pointer', background: i===rowIdx?'#ffd700':'', color:i===rowIdx?'#000':'inherit'}}
-                  onClick={()=>onDrillDownLedger(l.id)}
-                  onMouseEnter={()=>setRowIdx(i)}>
-                  <td style={{fontWeight:'bold'}}>{l.name}</td>
+            {filteredGroups.map(([gn, rows]) => {
+              const isExp = expanded[gn];
+              const grpOpDr = rows.reduce((s,r)=>s+r.opDr, 0);
+              const grpOpCr = rows.reduce((s,r)=>s+r.opCr, 0);
+              const grpTxDr = rows.reduce((s,r)=>s+r.txDr, 0);
+              const grpTxCr = rows.reduce((s,r)=>s+r.txCr, 0);
+              const grpClDr = rows.reduce((s,r)=>s+r.clDr, 0);
+              const grpClCr = rows.reduce((s,r)=>s+r.clCr, 0);
 
-                  <td style={{fontSize:11,color:'#555'}}>{l.groupName}</td>
-                  <td style={{textAlign:'right',fontSize:12}}>{l.openingBalance?`${fmt(l.openingBalance)} ${l.balanceType}`:'-'}</td>
-                  <td style={{textAlign:'right',color:'#8B0000',fontSize:12}}>{drAmt?fmt(drAmt):'-'}</td>
-                  <td style={{textAlign:'right',color:'#006600',fontSize:12}}>{crAmt?fmt(crAmt):'-'}</td>
-                  <td style={{textAlign:'right',fontWeight:'bold',color:bal>0?'#8B0000':bal<0?'#006600':'#999'}}>{bal!==0?`${fmt(Math.abs(bal))} ${bal>0?'Dr':'Cr'}`:'-'}</td>
-                </tr>
+              return (
+                <React.Fragment key={gn}>
+                  {/* Group Header Row */}
+                  <tr style={{background:'#eef3f8',fontWeight:'bold',cursor:'pointer',borderBottom:'1px solid #dde'}}
+                    onClick={()=>setExpanded(p=>({...p,[gn]:!p[gn]}))}>
+                    <td style={{padding:'6px 12px',color:'#1c5282'}}>
+                      <span style={{marginRight:6,fontSize:10,color:'#666'}}>{isExp ? '▼' : '▶'}</span>
+                      {gn}
+                      <span style={{fontSize:10,color:'#888',fontWeight:'normal',marginLeft:8}}>({rows.length} ledgers)</span>
+                    </td>
+                    <td style={{textAlign:'right',padding:'6px 10px',borderLeft:'1px solid #dde'}}>{grpOpDr>0?fmt(grpOpDr):'-'}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px'}}>{grpOpCr>0?fmt(grpOpCr):'-'}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px',borderLeft:'1px solid #dde',color:'#8B0000'}}>{grpTxDr>0?fmt(grpTxDr):'-'}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px',color:'#006600'}}>{grpTxCr>0?fmt(grpTxCr):'-'}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px',borderLeft:'1px solid #dde',color:'#8B0000'}}>{grpClDr>0?fmt(grpClDr):'-'}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px',color:'#006600'}}>{grpClCr>0?fmt(grpClCr):'-'}</td>
+                  </tr>
+
+                  {/* Ledger Rows */}
+                  {isExp && rows.map(r => {
+                    const isEditing = editId === r.ledger.id;
+                    return (
+                      <tr key={r.ledger.id}
+                        style={{borderBottom:'1px solid #f0f0f0',cursor:'pointer',background:'#fff'}}
+                        onClick={()=>{ if (!isEditing) onDrillDownLedger(r.ledger.id); }}
+                        onMouseEnter={e=>e.currentTarget.style.background='#fdfbee'}
+                        onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                        <td style={{padding:'4px 12px 4px 32px',color:'#222',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <span>{r.ledger.name}</span>
+                          {!isEditing && onSaveOpeningBalance && (
+                            <button
+                              onClick={e=>handleStartEdit(r.ledger, e)}
+                              title="Update Opening Balance"
+                              style={{padding:'1px 6px',fontSize:10,background:'#f0f4f8',border:'1px solid #ccd',borderRadius:3,cursor:'pointer',color:'#555'}}>
+                              ✏️
+                            </button>
+                          )}
+                        </td>
+
+                        {/* Opening Bal Dr & Cr (with inline editing) */}
+                        {isEditing ? (
+                          <td colSpan={2} style={{padding:'2px 8px',borderLeft:'1px solid #eee',background:'#fff9e6'}} onClick={e=>e.stopPropagation()}>
+                            <div style={{display:'flex',gap:4,alignItems:'center',justifyContent:'flex-end'}}>
+                              <input
+                                type="number"
+                                value={editVal}
+                                onChange={e=>setEditVal(e.target.value)}
+                                style={{width:70,padding:'2px 4px',fontSize:11,border:'1px solid #999',borderRadius:2}}
+                              />
+                              <select
+                                value={editType}
+                                onChange={e=>setEditType(e.target.value as 'Dr'|'Cr')}
+                                style={{padding:'2px 4px',fontSize:11,border:'1px solid #999',borderRadius:2}}>
+                                <option value="Dr">Dr</option>
+                                <option value="Cr">Cr</option>
+                              </select>
+                              <button onClick={e=>handleSaveEdit(r.ledger.id, e)} disabled={isSaving} style={{padding:'2px 6px',background:'#1a7a4a',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>
+                                {isSaving?'…':'✓'}
+                              </button>
+                              <button onClick={handleCancelEdit} style={{padding:'2px 6px',background:'#888',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>✕</button>
+                            </div>
+                          </td>
+                        ) : (
+                          <>
+                            <td style={{textAlign:'right',padding:'4px 10px',borderLeft:'1px solid #eee',fontSize:11}}>{r.opDr>0?fmt(r.opDr):'-'}</td>
+                            <td style={{textAlign:'right',padding:'4px 10px',fontSize:11}}>{r.opCr>0?fmt(r.opCr):'-'}</td>
+                          </>
+                        )}
+
+                        <td style={{textAlign:'right',padding:'4px 10px',borderLeft:'1px solid #eee',color:'#8B0000',fontSize:11}}>{r.txDr>0?fmt(r.txDr):'-'}</td>
+                        <td style={{textAlign:'right',padding:'4px 10px',color:'#006600',fontSize:11}}>{r.txCr>0?fmt(r.txCr):'-'}</td>
+                        <td style={{textAlign:'right',padding:'4px 10px',borderLeft:'1px solid #eee',fontWeight:'bold',color:'#8B0000',fontSize:11}}>{r.clDr>0?fmt(r.clDr):'-'}</td>
+                        <td style={{textAlign:'right',padding:'4px 10px',fontWeight:'bold',color:'#006600',fontSize:11}}>{r.clCr>0?fmt(r.clCr):'-'}</td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
               );
             })}
           </tbody>
           <tfoot>
-            <tr>
-              <td colSpan={3} style={{textAlign:'right',padding:'8px 12px',fontWeight:'bold'}}>Total:</td>
-              <td style={{textAlign:'right',padding:'8px 12px',fontWeight:'bold',color:'#8B0000'}}>₹ {fmt(totDr)}</td>
-              <td style={{textAlign:'right',padding:'8px 12px',fontWeight:'bold',color:'#006600'}}>₹ {fmt(Math.abs(totCr))}</td>
-              <td style={{textAlign:'right',padding:'8px 12px',fontWeight:'bold',color:Math.abs(totDr+totCr)<1?'#006600':'#c00'}}>
-                {Math.abs(totDr+totCr)<1?'✓ Balanced':'Diff: '+fmt(Math.abs(totDr+totCr))}
-              </td>
+            <tr style={{background:'#1c5282',color:'white',fontWeight:'bold',borderTop:'2px solid #333'}}>
+              <td style={{padding:'8px 12px',letterSpacing:2}}>T O T A L</td>
+              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>₹ {fmt(totals.opDr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px'}}>₹ {fmt(totals.opCr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>₹ {fmt(totals.txDr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px'}}>₹ {fmt(totals.txCr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>₹ {fmt(totals.clDr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px'}}>₹ {fmt(totals.clCr)}</td>
             </tr>
+            {!balanced && (
+              <tr style={{background:'#fff0f0',color:'#8B0000',fontWeight:'bold'}}>
+                <td style={{padding:'6px 12px'}}>Difference in Closing Balance</td>
+                <td colSpan={4}></td>
+                <td colSpan={2} style={{textAlign:'right',padding:'6px 12px',fontSize:13}}>
+                  ⚠ Difference: ₹ {fmt(Math.abs(totals.clDr - totals.clCr))}
+                </td>
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>
     </div>
   );
 }
+
 
 interface ItemColumnInfo {
   key: string;
@@ -9524,84 +9952,453 @@ function LedgerReportView({ledgers,vouchers,preselectedId,onBack,onDrillDown}:{l
   );
 }
 
-function StockSummaryView({stockItems,vouchers,onBack,onDrillDown}:{stockItems:StockItem[];vouchers:Voucher[];onBack:()=>void;onDrillDown?:(id:number)=>void}) {
-  const [rowIdx, setRowIdx] = useState(0);
+// ==================== STOCK SUMMARY VIEW — FULLY FUNCTIONAL ====================
+function StockSummaryView({
+  stockItems, stockGroups = [], vouchers, currentPeriod, onBack, onDrillDown, onDrillDownVoucher, onSaveOpeningStock
+}: {
+  stockItems: StockItem[];
+  stockGroups?: StockGroup[];
+  vouchers: Voucher[];
+  currentPeriod?: {start:string;end:string};
+  onBack: ()=>void;
+  onDrillDown?: (id:number)=>void;
+  onDrillDownVoucher?: (v:Voucher)=>void;
+  onSaveOpeningStock?: (itemId:number, qty:number, rate:number)=>Promise<void>;
+}) {
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Record<string,boolean>>({});
+  const [editId, setEditId] = useState<number|null>(null);
+  const [editQty, setEditQty] = useState<string>('');
+  const [editRate, setEditRate] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedItemForMovement, setSelectedItemForMovement] = useState<StockItem|null>(null);
 
-  useEffect(()=>{
-    const onKey = (e:KeyboardEvent)=>{
-      if (document.querySelector('.modal-overlay')) return;
-      if(e.key==='ArrowDown') { e.preventDefault(); setRowIdx(p=>Math.min(p+1, stockItems.length-1)); }
-      else if(e.key==='ArrowUp') { e.preventDefault(); setRowIdx(p=>Math.max(p-1, 0)); }
-      else if(e.key==='Escape') { e.preventDefault(); onBack(); }
-      else if(e.key==='Enter' && stockItems[rowIdx]) { e.preventDefault(); onDrillDown?.(stockItems[rowIdx].id); }
-    };
-    window.addEventListener('keydown', onKey);
-    return ()=>window.removeEventListener('keydown', onKey);
-  }, [stockItems, rowIdx, onDrillDown, onBack]);
+  // Helper for unit symbol
+  const getUnitSymbol = (u: any) => typeof u === 'string' ? u : (u?.symbol || u?.name || 'Nos');
 
+  // Compute stats for each item
+  const itemStats = useMemo(()=>{
+    const map = new Map<number, {
+      item: StockItem;
+      opQty: number; opRate: number; opVal: number;
+      inQty: number; inVal: number;
+      outQty: number; outVal: number;
+      clQty: number; clRate: number; clVal: number;
+      transactions: { voucher: Voucher; entry: InventoryEntry }[];
+    }>();
 
-  const getClosingQty=(item:StockItem)=>{
-    let qty=item.openingQty;
-    for(const v of vouchers){
-      for(const e of v.inventoryEntries){
-        if(e.itemId===item.id){
-          if(v.type==='Sales'||v.type==='Debit Note') qty-=e.qty;
-          else if(v.type==='Purchase'||v.type==='Credit Note') qty+=e.qty;
+    for (const it of stockItems) {
+      const opQty = it.openingQty || 0;
+      const opRate = it.openingRate || 0;
+      const opVal = opQty * opRate;
+
+      let inQty = 0, inVal = 0;
+      let outQty = 0, outVal = 0;
+      const txns: { voucher: Voucher; entry: InventoryEntry }[] = [];
+
+      for (const v of vouchers) {
+        if (!v || !v.inventoryEntries) continue;
+        for (const ie of v.inventoryEntries) {
+          if (ie.itemId === it.id || (ie.itemName && ie.itemName.trim().toLowerCase() === it.name.trim().toLowerCase())) {
+            txns.push({ voucher: v, entry: ie });
+            const q = ie.qty || 0;
+            const amt = ie.amount || (q * (ie.rate || 0)) || 0;
+            if (v.type === 'Purchase' || v.type === 'Credit Note') {
+              inQty += q;
+              inVal += amt;
+            } else if (v.type === 'Sales' || v.type === 'Debit Note') {
+              outQty += q;
+              outVal += amt;
+            }
+          }
         }
       }
+
+      // Sort transactions by date
+      txns.sort((a,b)=>parseDate(a.voucher.date).getTime() - parseDate(b.voucher.date).getTime());
+
+      const clQty = opQty + inQty - outQty;
+      const totalAvailableQty = opQty + inQty;
+      const totalAvailableVal = opVal + inVal;
+      const avgRate = totalAvailableQty > 0 ? (totalAvailableVal / totalAvailableQty) : opRate;
+      const clVal = clQty * avgRate;
+
+      map.set(it.id, {
+        item: it,
+        opQty, opRate, opVal,
+        inQty, inVal,
+        outQty, outVal,
+        clQty, clRate: avgRate, clVal,
+        transactions: txns
+      });
     }
-    return qty;
+    return map;
+  }, [stockItems, vouchers]);
+
+  // Group items by groupName (it.under)
+  const groupedItems = useMemo(()=>{
+    const map: Record<string, typeof stockItems> = {};
+    for (const it of stockItems) {
+      const gn = it.under || 'Primary';
+      if (!map[gn]) map[gn] = [];
+      map[gn].push(it);
+    }
+    return map;
+  }, [stockItems]);
+
+  // Expand all by default
+  useEffect(()=>{
+    const allGns = Object.keys(groupedItems);
+    const init: Record<string,boolean> = {};
+    for (const gn of allGns) init[gn] = true;
+    setExpanded(init);
+  }, [groupedItems]);
+
+  const toggleAll = (expand: boolean) => {
+    const next: Record<string,boolean> = {};
+    for (const k of Object.keys(groupedItems)) next[k] = expand;
+    setExpanded(next);
   };
+
+  // Grand Totals
+  const grandTotals = useMemo(()=>{
+    let opVal = 0, inQty = 0, inVal = 0, outQty = 0, outVal = 0, clVal = 0;
+    itemStats.forEach(st=>{
+      opVal += st.opVal;
+      inQty += st.inQty;
+      inVal += st.inVal;
+      outQty += st.outQty;
+      outVal += st.outVal;
+      clVal += st.clVal;
+    });
+    return { opVal, inQty, inVal, outQty, outVal, clVal };
+  }, [itemStats]);
+
+  // Inline editing handlers
+  const handleStartEdit = (it: StockItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditId(it.id);
+    setEditQty(String(it.openingQty || 0));
+    setEditRate(String(it.openingRate || 0));
+  };
+
+  const handleSaveEdit = async (itemId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onSaveOpeningStock) return;
+    const q = Math.abs(parseFloat(editQty) || 0);
+    const r = Math.abs(parseFloat(editRate) || 0);
+    setIsSaving(true);
+    try {
+      await onSaveOpeningStock(itemId, q, r);
+      setEditId(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditId(null);
+  };
+
+  // Filter groups and items
+  const filteredGroups = useMemo(()=>{
+    if (!search.trim()) return Object.entries(groupedItems);
+    const q = search.toLowerCase();
+    const result: [string, StockItem[]][] = [];
+    for (const [gn, items] of Object.entries(groupedItems)) {
+      const match = items.filter(it => it.name.toLowerCase().includes(q) || gn.toLowerCase().includes(q));
+      if (match.length) result.push([gn, match]);
+    }
+    return result;
+  }, [groupedItems, search]);
+
+  const movementData = selectedItemForMovement ? itemStats.get(selectedItemForMovement.id) : null;
+
   return (
-    <div className="report-view" style={{height:'100%',display:'flex',flexDirection:'column'}}>
-      <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between'}}>
-        <div style={{fontSize:16,fontWeight:'bold'}}>Stock Summary</div>
-        <div style={{fontSize:12}}>As on 14-Apr-2026</div>
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#f5f7fa',position:'relative'}}>
+      {/* Title Bar */}
+      <div style={{background:'linear-gradient(90deg,#1c5282,#2b6cb0)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+        <div>
+          <div style={{fontSize:16,fontWeight:'bold'}}>📦 Stock Summary</div>
+          <div style={{fontSize:11,opacity:0.8}}>Period: {currentPeriod?.start || '01-Apr-2026'} to {currentPeriod?.end || '31-Mar-2027'}</div>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <input
+            value={search}
+            onChange={e=>setSearch(e.target.value)}
+            placeholder="Search stock item..."
+            style={{padding:'4px 10px',fontSize:11,borderRadius:4,border:'1px solid rgba(255,255,255,0.4)',background:'rgba(255,255,255,0.15)',color:'white',outline:'none',width:160}}
+          />
+          <button onClick={()=>toggleAll(true)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Expand All</button>
+          <button onClick={()=>toggleAll(false)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Collapse All</button>
+          <button onClick={()=>window.print()} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
+          <button onClick={onBack} style={{padding:'4px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
+        </div>
       </div>
-      <div style={{flex:1,overflowY:'auto'}}>
-        <table className="report-table" style={{width:'100%'}}>
-          <thead>
-            <tr>
-              <th>Item Name</th><th>Stock Group</th><th>Unit</th><th>GST %</th>
-              <th style={{textAlign:'right'}}>Opening Qty</th>
-              <th style={{textAlign:'right'}}>Purchased</th>
-              <th style={{textAlign:'right'}}>Sold</th>
-              <th style={{textAlign:'right'}}>Closing Qty</th>
-              <th style={{textAlign:'right'}}>Rate</th>
-              <th style={{textAlign:'right'}}>Closing Value</th>
+
+      {/* Sub header */}
+      <div style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
+        <span>Items: <b style={{color:'#1c5282'}}>{stockItems.length}</b></span>
+        <span>Total Opening Val: <b style={{color:'#555'}}>₹{fmt(grandTotals.opVal)}</b></span>
+        <span>Total Inward Val: <b style={{color:'#006600'}}>₹{fmt(grandTotals.inVal)}</b></span>
+        <span>Total Outward Val: <b style={{color:'#8B0000'}}>₹{fmt(grandTotals.outVal)}</b></span>
+        <span>Total Closing Stock Value: <b style={{color:'#1c5282'}}>₹{fmt(grandTotals.clVal)}</b></span>
+        <span style={{marginLeft:'auto',fontSize:10,color:'#888'}}>Click item row to drill down into Item Movement &amp; Vouchers</span>
+      </div>
+
+      {/* Table */}
+      <div style={{flex:1,overflowY:'auto',background:'#fff'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead style={{position:'sticky',top:0,zIndex:2}}>
+            <tr style={{background:'#1c5282',color:'white',borderBottom:'2px solid #fff'}}>
+              <th rowSpan={2} style={{padding:'6px 12px',textAlign:'left',minWidth:180}}>Item Name</th>
+              <th rowSpan={2} style={{padding:'6px 8px',textAlign:'left',width:110}}>Group</th>
+              <th rowSpan={2} style={{padding:'6px 8px',textAlign:'center',width:65}}>Unit</th>
+              <th colSpan={3} style={{padding:'4px 8px',textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.3)',background:'#164268'}}>Opening Stock</th>
+              <th colSpan={2} style={{padding:'4px 8px',textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.3)',background:'#1a507e'}}>Inwards</th>
+              <th colSpan={2} style={{padding:'4px 8px',textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.3)',background:'#164268'}}>Outwards</th>
+              <th colSpan={3} style={{padding:'4px 8px',textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.3)',background:'#1a507e'}}>Closing Stock</th>
+            </tr>
+            <tr style={{background:'#1c5282',color:'white'}}>
+              <th style={{padding:'4px 8px',textAlign:'right',width:70,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Qty</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:75,fontSize:11}}>Rate (₹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (₹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:70,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Qty</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (₹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:70,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Qty</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (₹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:75,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Qty</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:80,fontSize:11}}>Avg Rate</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:95,fontSize:11}}>Value (₹)</th>
             </tr>
           </thead>
           <tbody>
-            {stockItems.map((it,i)=>{
-              const closQty=getClosingQty(it);
-              const bought=vouchers.filter(v=>v.type==='Purchase'||v.type==='Credit Note').flatMap(v=>v.inventoryEntries.filter(e=>e.itemId===it.id)).reduce((s,e)=>s+e.qty,0);
-              const sold=vouchers.filter(v=>v.type==='Sales'||v.type==='Debit Note').flatMap(v=>v.inventoryEntries.filter(e=>e.itemId===it.id)).reduce((s,e)=>s+e.qty,0);
-              const val=closQty*it.openingRate;
-              return <tr key={i} style={{cursor:'pointer', background: i===rowIdx?'#ffd700':'', color:i===rowIdx?'#000':'inherit'}} onClick={()=>onDrillDown?.(it.id)} onMouseEnter={()=>setRowIdx(i)}>
-                <td style={{fontWeight:'bold'}}>{it.name}</td>
-                <td style={{fontSize:12,color:'#555'}}>{it.under}</td>
-                <td style={{fontSize:12}}>{typeof it.unit === 'string' ? it.unit : (it.unit as any)?.symbol || (it.unit as any)?.name || 'Nos'}</td>
-                <td style={{textAlign:'center',fontSize:12}}>{it.gstRate}%</td>
-                <td style={{textAlign:'right'}}>{it.openingQty}</td>
-                <td style={{textAlign:'right',color:'#006600'}}>{bought||'-'}</td>
-                <td style={{textAlign:'right',color:'#8B0000'}}>{sold||'-'}</td>
-                <td style={{textAlign:'right',fontWeight:'bold',color:closQty<0?'#c00':'#1c5282'}}>{closQty < 0 ? `-${fmt(closQty)}` : fmt(closQty)}</td>
-                <td style={{textAlign:'right',fontSize:12}}>₹{fmt(it.openingRate)}</td>
-                <td style={{textAlign:'right',fontWeight:'bold'}}>₹{fmt(val)}</td>
-              </tr>;
+            {filteredGroups.map(([gn, items]) => {
+              const isExp = expanded[gn];
+              const grpOpVal = items.reduce((s,it)=>s+(itemStats.get(it.id)?.opVal||0), 0);
+              const grpInVal = items.reduce((s,it)=>s+(itemStats.get(it.id)?.inVal||0), 0);
+              const grpOutVal = items.reduce((s,it)=>s+(itemStats.get(it.id)?.outVal||0), 0);
+              const grpClVal = items.reduce((s,it)=>s+(itemStats.get(it.id)?.clVal||0), 0);
+
+              return (
+                <React.Fragment key={gn}>
+                  {/* Stock Group Header */}
+                  <tr style={{background:'#eef3f8',fontWeight:'bold',cursor:'pointer',borderBottom:'1px solid #dde'}}
+                    onClick={()=>setExpanded(p=>({...p,[gn]:!p[gn]}))}>
+                    <td colSpan={3} style={{padding:'6px 12px',color:'#1c5282'}}>
+                      <span style={{marginRight:6,fontSize:10,color:'#666'}}>{isExp ? '▼' : '▶'}</span>
+                      {gn}
+                      <span style={{fontSize:10,color:'#888',fontWeight:'normal',marginLeft:8}}>({items.length} items)</span>
+                    </td>
+                    <td colSpan={2} style={{borderLeft:'1px solid #dde'}}></td>
+                    <td style={{textAlign:'right',padding:'6px 8px',fontSize:11}}>{grpOpVal>0?fmt(grpOpVal):'-'}</td>
+                    <td></td>
+                    <td style={{textAlign:'right',padding:'6px 8px',color:'#006600',borderLeft:'1px solid #dde',fontSize:11}}>{grpInVal>0?fmt(grpInVal):'-'}</td>
+                    <td></td>
+                    <td style={{textAlign:'right',padding:'6px 8px',color:'#8B0000',borderLeft:'1px solid #dde',fontSize:11}}>{grpOutVal>0?fmt(grpOutVal):'-'}</td>
+                    <td colSpan={2} style={{borderLeft:'1px solid #dde'}}></td>
+                    <td style={{textAlign:'right',padding:'6px 8px',fontWeight:'bold',color:'#1c5282',fontSize:11}}>₹ {fmt(grpClVal)}</td>
+                  </tr>
+
+                  {/* Stock Items Rows */}
+                  {isExp && items.map(it => {
+                    const st = itemStats.get(it.id)!;
+                    const isEditing = editId === it.id;
+                    const isNegative = st.clQty < 0;
+
+                    return (
+                      <tr key={it.id}
+                        style={{borderBottom:'1px solid #f0f0f0',cursor:'pointer',background:'#fff'}}
+                        onClick={()=>{ if (!isEditing) setSelectedItemForMovement(it); }}
+                        onMouseEnter={e=>e.currentTarget.style.background='#fdfbee'}
+                        onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                        <td style={{padding:'5px 12px 5px 28px',color:'#222',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <span style={{fontWeight:'bold'}}>{it.name}</span>
+                          {!isEditing && onSaveOpeningStock && (
+                            <button
+                              onClick={e=>handleStartEdit(it, e)}
+                              title="Update Opening Stock & Rate"
+                              style={{padding:'1px 6px',fontSize:10,background:'#f0f4f8',border:'1px solid #ccd',borderRadius:3,cursor:'pointer',color:'#555'}}>
+                              ✏️
+                            </button>
+                          )}
+                        </td>
+                        <td style={{padding:'5px 8px',fontSize:11,color:'#666'}}>{it.under}</td>
+                        <td style={{padding:'5px 8px',textAlign:'center',fontSize:11,color:'#666'}}>{getUnitSymbol(it.unit)}</td>
+
+                        {/* Opening Stock (with inline edit) */}
+                        {isEditing ? (
+                          <td colSpan={3} style={{padding:'2px 8px',borderLeft:'1px solid #eee',background:'#fff9e6'}} onClick={e=>e.stopPropagation()}>
+                            <div style={{display:'flex',gap:4,alignItems:'center',justifyContent:'flex-end'}}>
+                              <span style={{fontSize:10,color:'#777'}}>Qty:</span>
+                              <input
+                                type="number"
+                                value={editQty}
+                                onChange={e=>setEditQty(e.target.value)}
+                                style={{width:55,padding:'2px 4px',fontSize:11,border:'1px solid #999',borderRadius:2}}
+                              />
+                              <span style={{fontSize:10,color:'#777'}}>Rate:</span>
+                              <input
+                                type="number"
+                                value={editRate}
+                                onChange={e=>setEditRate(e.target.value)}
+                                style={{width:55,padding:'2px 4px',fontSize:11,border:'1px solid #999',borderRadius:2}}
+                              />
+                              <button onClick={e=>handleSaveEdit(it.id, e)} disabled={isSaving} style={{padding:'2px 6px',background:'#1a7a4a',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>
+                                {isSaving?'…':'✓'}
+                              </button>
+                              <button onClick={handleCancelEdit} style={{padding:'2px 6px',background:'#888',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>✕</button>
+                            </div>
+                          </td>
+                        ) : (
+                          <>
+                            <td style={{textAlign:'right',padding:'5px 8px',borderLeft:'1px solid #eee',fontSize:11}}>{st.opQty || '-'}</td>
+                            <td style={{textAlign:'right',padding:'5px 8px',fontSize:11}}>{st.opRate > 0 ? fmt(st.opRate) : '-'}</td>
+                            <td style={{textAlign:'right',padding:'5px 8px',fontSize:11}}>{st.opVal > 0 ? fmt(st.opVal) : '-'}</td>
+                          </>
+                        )}
+
+                        {/* Inwards */}
+                        <td style={{textAlign:'right',padding:'5px 8px',borderLeft:'1px solid #eee',color:'#006600',fontSize:11}}>{st.inQty > 0 ? fmt(st.inQty) : '-'}</td>
+                        <td style={{textAlign:'right',padding:'5px 8px',color:'#006600',fontSize:11}}>{st.inVal > 0 ? fmt(st.inVal) : '-'}</td>
+
+                        {/* Outwards */}
+                        <td style={{textAlign:'right',padding:'5px 8px',borderLeft:'1px solid #eee',color:'#8B0000',fontSize:11}}>{st.outQty > 0 ? fmt(st.outQty) : '-'}</td>
+                        <td style={{textAlign:'right',padding:'5px 8px',color:'#8B0000',fontSize:11}}>{st.outVal > 0 ? fmt(st.outVal) : '-'}</td>
+
+                        {/* Closing Stock */}
+                        <td style={{textAlign:'right',padding:'5px 8px',borderLeft:'1px solid #eee',fontWeight:'bold',color:isNegative?'#8B0000':'#1c5282',fontSize:11}}>
+                          {fmt(st.clQty)}
+                        </td>
+                        <td style={{textAlign:'right',padding:'5px 8px',fontSize:11}}>{st.clRate > 0 ? fmt(st.clRate) : '-'}</td>
+                        <td style={{textAlign:'right',padding:'5px 8px',fontWeight:'bold',color:isNegative?'#8B0000':'#1c5282',fontSize:11}}>
+                          ₹ {fmt(st.clVal)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              );
             })}
           </tbody>
           <tfoot>
-            <tr>
-              <td colSpan={9} style={{textAlign:'right',fontWeight:'bold',padding:'8px 12px'}}>Total Stock Value:</td>
-              <td style={{textAlign:'right',fontWeight:'bold',fontSize:15,padding:'8px 12px',color:'#1c5282'}}>₹ {fmt(stockItems.reduce((s,it)=>s+getClosingQty(it)*it.openingRate,0))}</td>
+            <tr style={{background:'#1c5282',color:'white',fontWeight:'bold',borderTop:'2px solid #333'}}>
+              <td colSpan={3} style={{padding:'8px 12px',letterSpacing:2}}>T O T A L</td>
+              <td colSpan={2} style={{borderLeft:'1px solid rgba(255,255,255,0.3)'}}></td>
+              <td style={{textAlign:'right',padding:'8px 8px'}}>₹ {fmt(grandTotals.opVal)}</td>
+              <td style={{textAlign:'right',padding:'8px 8px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>{fmt(grandTotals.inQty)}</td>
+              <td style={{textAlign:'right',padding:'8px 8px'}}>₹ {fmt(grandTotals.inVal)}</td>
+              <td style={{textAlign:'right',padding:'8px 8px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>{fmt(grandTotals.outQty)}</td>
+              <td style={{textAlign:'right',padding:'8px 8px'}}>₹ {fmt(grandTotals.outVal)}</td>
+              <td colSpan={2} style={{borderLeft:'1px solid rgba(255,255,255,0.3)'}}></td>
+              <td style={{textAlign:'right',padding:'8px 8px',fontSize:13}}>₹ {fmt(grandTotals.clVal)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
+
+      {/* --- ITEM MOVEMENT MODAL / DRILL-DOWN --- */}
+      {selectedItemForMovement && movementData && (
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:999,display:'flex',justifyContent:'center',alignItems:'center'}}>
+          <div style={{background:'#fff',width:'80%',maxWidth:950,maxHeight:'85vh',borderRadius:6,boxShadow:'0 10px 40px rgba(0,0,0,0.3)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            {/* Modal Header */}
+            <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontSize:15,fontWeight:'bold'}}>📊 Item Movement: {selectedItemForMovement.name}</div>
+                <div style={{fontSize:11,opacity:0.8}}>Group: {selectedItemForMovement.under} | Unit: {getUnitSymbol(selectedItemForMovement.unit)} | GST: {selectedItemForMovement.gstRate}%</div>
+              </div>
+              <button onClick={()=>setSelectedItemForMovement(null)} style={{background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,padding:'4px 12px',cursor:'pointer',fontSize:12}}>✕ Close</button>
+            </div>
+
+            {/* Modal Stats Summary */}
+            <div style={{background:'#f0f4f8',padding:'8px 20px',display:'flex',gap:20,fontSize:11,borderBottom:'1px solid #dde'}}>
+              <span>Opening: <b>{movementData.opQty}</b> @ ₹{fmt(movementData.opRate)}</span>
+              <span>Total Inward: <b style={{color:'#006600'}}>{movementData.inQty}</b> (₹{fmt(movementData.inVal)})</span>
+              <span>Total Outward: <b style={{color:'#8B0000'}}>{movementData.outQty}</b> (₹{fmt(movementData.outVal)})</span>
+              <span>Closing: <b style={{color:'#1c5282'}}>{movementData.clQty}</b> @ ₹{fmt(movementData.clRate)} (<b>₹{fmt(movementData.clVal)}</b>)</span>
+            </div>
+
+            {/* Modal Transactions Table */}
+            <div style={{flex:1,overflowY:'auto',padding:10}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                <thead>
+                  <tr style={{background:'#1c5282',color:'white'}}>
+                    <th style={{padding:'6px 10px',textAlign:'left',width:85}}>Date</th>
+                    <th style={{padding:'6px 10px',textAlign:'left'}}>Particulars (Party Name)</th>
+                    <th style={{padding:'6px 8px',textAlign:'center',width:95}}>Vch Type</th>
+                    <th style={{padding:'6px 8px',textAlign:'center',width:80}}>Vch No</th>
+                    <th style={{padding:'6px 10px',textAlign:'right',width:80}}>Inward Qty</th>
+                    <th style={{padding:'6px 10px',textAlign:'right',width:80}}>Outward Qty</th>
+                    <th style={{padding:'6px 10px',textAlign:'right',width:85}}>Rate (₹)</th>
+                    <th style={{padding:'6px 10px',textAlign:'right',width:95}}>Amount (₹)</th>
+                    <th style={{padding:'6px 10px',textAlign:'right',width:85}}>Balance Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Opening Balance Row */}
+                  <tr style={{background:'#fafafa',borderBottom:'1px solid #eee',fontStyle:'italic'}}>
+                    <td style={{padding:'6px 10px',color:'#666'}}>—</td>
+                    <td colSpan={3} style={{padding:'6px 10px',fontWeight:'bold',color:'#555'}}>Opening Balance</td>
+                    <td style={{textAlign:'right',padding:'6px 10px'}}>{movementData.opQty}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px'}}>—</td>
+                    <td style={{textAlign:'right',padding:'6px 10px'}}>{fmt(movementData.opRate)}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px'}}>₹ {fmt(movementData.opVal)}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px',fontWeight:'bold',color:'#1c5282'}}>{movementData.opQty}</td>
+                  </tr>
+
+                  {movementData.transactions.length === 0 && (
+                    <tr>
+                      <td colSpan={9} style={{textAlign:'center',padding:30,color:'#888'}}>No transactions found for this item during the period.</td>
+                    </tr>
+                  )}
+
+                  {(()=>{
+                    let runningQty = movementData.opQty;
+                    return movementData.transactions.map(({voucher: v, entry: ie}, i) => {
+                      const isInward = v.type === 'Purchase' || v.type === 'Credit Note';
+                      const q = ie.qty || 0;
+                      if (isInward) runningQty += q; else runningQty -= q;
+                      const amt = ie.amount || (q * (ie.rate || 0)) || 0;
+
+                      return (
+                        <tr key={i} style={{borderBottom:'1px solid #eee',cursor:'pointer'}}
+                          onClick={()=>{ if (onDrillDownVoucher) { onDrillDownVoucher(v); setSelectedItemForMovement(null); } }}
+                          onMouseEnter={e=>e.currentTarget.style.background='#fdfbee'}
+                          onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                          <td style={{padding:'5px 10px'}}>{v.date}</td>
+                          <td style={{padding:'5px 10px',fontWeight:'bold',color:'#1c5282'}}>{v.partyName || 'Party A/c'}</td>
+                          <td style={{textAlign:'center',padding:'5px 8px'}}>
+                            <span style={{padding:'2px 6px',background:'#e8edf5',color:'#1c5282',borderRadius:2,fontSize:10,fontWeight:'bold'}}>{v.type}</span>
+                          </td>
+                          <td style={{textAlign:'center',padding:'5px 8px',fontSize:11,color:'#555'}}>{v.voucherNo || v.number}</td>
+                          <td style={{textAlign:'right',padding:'5px 10px',color:'#006600',fontWeight:'bold'}}>{isInward ? fmt(q) : ''}</td>
+                          <td style={{textAlign:'right',padding:'5px 10px',color:'#8B0000',fontWeight:'bold'}}>{!isInward ? fmt(q) : ''}</td>
+                          <td style={{textAlign:'right',padding:'5px 10px'}}>{fmt(ie.rate || 0)}</td>
+                          <td style={{textAlign:'right',padding:'5px 10px',fontWeight:'bold'}}>₹ {fmt(amt)}</td>
+                          <td style={{textAlign:'right',padding:'5px 10px',fontWeight:'bold',color:runningQty<0?'#8B0000':'#1c5282'}}>{fmt(runningQty)}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{background:'#f0f4f8',padding:'8px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:'1px solid #dde'}}>
+              <span style={{fontSize:11,color:'#666'}}>💡 Click on any transaction voucher to open and edit the voucher directly</span>
+              <button onClick={()=>setSelectedItemForMovement(null)} style={{padding:'5px 16px',background:'#1c5282',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:12}}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function OutstandingView({ledgers,vouchers,onBack,onDrillDown}:{ledgers:Ledger[];vouchers:Voucher[];onBack:()=>void;onDrillDown?:(id:number)=>void}) {
   const [rowIdx, setRowIdx] = useState(0);
