@@ -2544,7 +2544,7 @@ export default function App() {
             )}
             {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
             {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} />}
-            {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} />}
+            {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} ledgers={ledgers} vouchers={vouchers} stockItems={stockItems} activeCompany={activeCompany} onDataImported={()=>window.location.reload()} />}
             {screen==='ALTER_LIST' && (
               <AlterListView type={alterListType} ledgers={ledgers} groups={groups} stockGroups={stockGroups}
                 companies={companies}
@@ -9658,8 +9658,10 @@ function OutstandingView({ledgers,vouchers,onBack,onDrillDown}:{ledgers:Ledger[]
   );
 }
 
+// ==================== CHART OF ACCOUNTS — FULLY CALCULATED ====================
 function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];vouchers:Voucher[];onBack:()=>void}) {
-  const grp=useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
+  const [search, setSearch] = useState('');
+  const grp = useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -9669,32 +9671,218 @@ function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];voucher
     return () => window.removeEventListener('keydown', onKey);
   }, [onBack]);
 
-  const sides:{title:string;color:string;groups:string[]}[]=[
-    {title:'ASSETS',color:'#2b579a',groups:['Cash-in-hand','Bank Accounts','Sundry Debtors','Loans & Advances (Asset)','Fixed Assets','Stock-in-hand','Investments','Current Assets']},
-    {title:'LIABILITIES',color:'#8B0000',groups:['Capital Account','Sundry Creditors','Secured Loans','Unsecured Loans','Current Liabilities','Duties & Taxes','Provisions','Reserves & Surplus']},
-    {title:'INCOME',color:'#006600',groups:['Sales Accounts','Direct Incomes','Indirect Incomes']},
-    {title:'EXPENSES',color:'#555500',groups:['Purchase Accounts','Direct Expenses','Indirect Expenses']},
+  // Section definitions with their groups
+  const sections: {title:string;color:string;bg:string;groups:string[];side:'Dr'|'Cr'}[] = [
+    {title:'ASSETS',        color:'#1a4f8a', bg:'#e8f0fb', groups:['Cash-in-hand','Bank Accounts','Bank OD A/c','Bank OCC A/c','Sundry Debtors','Loans & Advances (Asset)','Fixed Assets','Stock-in-hand','Investments','Current Assets','Deposits (Asset)','Misc. Expenses (ASSET)'], side:'Dr'},
+    {title:'LIABILITIES',   color:'#8B0000', bg:'#fbeaea', groups:['Capital Account','Reserves & Surplus','Retained Earnings','Sundry Creditors','Secured Loans','Unsecured Loans','Current Liabilities','Duties & Taxes','Provisions','Branch / Divisions','Suspense A/c'], side:'Cr'},
+    {title:'INCOME',        color:'#145214', bg:'#e8f5e8', groups:['Sales Accounts','Direct Incomes','Income (Direct)','Indirect Incomes','Income (Indirect)'], side:'Cr'},
+    {title:'EXPENSES',      color:'#5a4000', bg:'#fdf6e3', groups:['Purchase Accounts','Direct Expenses','Expenses (Direct)','Indirect Expenses','Expenses (Indirect)'], side:'Dr'},
   ];
+
+  // Helper: calculate group total (signed: positive = Dr balance)
+  function groupTotal(groupNames: string[]): number {
+    let total = 0;
+    for (const gn of groupNames) {
+      const items = grp[gn] || [];
+      for (const {balance} of items) total += balance;
+    }
+    return total;
+  }
+
+  // Section totals
+  const assetTotal   = groupTotal(sections[0].groups);
+  const liabTotal    = groupTotal(sections[1].groups);
+  const incomeTotal  = groupTotal(sections[2].groups);  // Cr = negative from getLedgerClosingBalance perspective
+  const expenseTotal = groupTotal(sections[3].groups);  // Dr = positive
+
+  // Net Profit = Income (Cr) - Expenses (Dr)
+  // Income ledgers: Cr balances are negative in our sign convention (Credit = negative number from getLedgerClosingBalance)
+  // Actually getLedgerClosingBalance returns: positive = net Dr, negative = net Cr
+  // For income group: balance < 0 means Cr (income earned) which is good
+  // Net income in Cr terms = -incomeTotal (negate to get Cr value)
+  // Net expense in Dr terms = expenseTotal
+  const netIncomeCr  = -incomeTotal;   // positive means net income (Cr)
+  const netExpDr     = expenseTotal;   // positive means net expense (Dr)
+  const netProfit    = netIncomeCr - netExpDr; // positive = profit (Cr)
+
+  // Balance check: Assets (Dr) = Liabilities (Cr) + Net Profit
+  // assetTotal > 0 means net Dr
+  // liabTotal < 0 means net Cr (normal for liabilities)
+  const assetsNet    = assetTotal;           // positive = Dr
+  const liabsNet     = -liabTotal;           // positive = Cr (inverted)
+  const totalLiabAndProfit = liabsNet + netProfit;
+  const difference   = assetsNet - totalLiabAndProfit;
+  const balanced     = Math.abs(difference) < 0.01;
+
+  const searchLower = search.trim().toLowerCase();
+
+  const renderSection = (sec: typeof sections[0]) => {
+    const hasAnyLedger = sec.groups.some(gn => (grp[gn]||[]).length > 0);
+    if (!hasAnyLedger && !search) return null;
+
+    const secTotal = groupTotal(sec.groups);
+    const secTotalCr = sec.side === 'Cr' ? -secTotal : secTotal; // positive = normal direction
+
+    return (
+      <div style={{border:`2px solid ${sec.color}`, overflow:'hidden', marginBottom:0, borderRadius:4}}>
+        {/* Section Header */}
+        <div style={{background:sec.color, color:'white', padding:'7px 14px', fontWeight:'bold', fontSize:13, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <span>▪ {sec.title}</span>
+          <span style={{fontSize:12, fontFamily:'monospace', opacity:0.95}}>
+            {secTotalCr !== 0 ? `${fmt(Math.abs(secTotalCr))} ${secTotalCr > 0 ? sec.side : (sec.side==='Dr'?'Cr':'Dr')}` : '—'}
+          </span>
+        </div>
+
+        {/* Groups */}
+        {sec.groups.map(gn => {
+          let items = grp[gn] || [];
+          if (searchLower) items = items.filter(({ledger}) => ledger.name.toLowerCase().includes(searchLower));
+          if (items.length === 0) return null;
+
+          const groupBal = items.reduce((s,{balance})=>s+balance, 0);
+          const groupBalDisp = sec.side==='Cr' ? -groupBal : groupBal; // positive = normal
+
+          return (
+            <div key={gn}>
+              {/* Group Header Row */}
+              <div style={{
+                background: sec.bg, borderLeft:`4px solid ${sec.color}`,
+                padding:'4px 12px', fontWeight:'bold', fontSize:12,
+                display:'flex', justifyContent:'space-between', alignItems:'center',
+                borderBottom:`1px solid ${sec.color}44`
+              }}>
+                <span style={{color:sec.color}}>▶ {gn}</span>
+                <span style={{color: groupBalDisp>=0 ? sec.color : '#888', fontSize:11, fontFamily:'monospace'}}>
+                  {groupBalDisp !== 0 ? `${fmt(Math.abs(groupBalDisp))} ${groupBalDisp>=0?sec.side:(sec.side==='Dr'?'Cr':'Dr')}` : '—'}
+                </span>
+              </div>
+
+              {/* Individual Ledgers */}
+              {items.map(({ledger,balance},i) => {
+                const dispBal = sec.side==='Cr' ? -balance : balance;
+                return (
+                  <div key={i} style={{
+                    padding:'3px 12px 3px 28px', fontSize:12,
+                    borderBottom:'1px dotted #e0e0e0',
+                    display:'flex', justifyContent:'space-between', alignItems:'center',
+                    background: i%2===0?'#fff':'#fafafa'
+                  }}>
+                    <span style={{color:'#333'}}>{ledger.name}</span>
+                    <span style={{
+                      fontWeight:'bold',
+                      color: balance===0?'#bbb': dispBal>=0?'#1a4f8a':'#8B0000',
+                      fontSize:11, fontFamily:'monospace'
+                    }}>
+                      {balance!==0
+                        ? `${fmt(Math.abs(balance))} ${balance>0?'Dr':'Cr'}`
+                        : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+
+        {/* Section Total Footer */}
+        <div style={{
+          background: sec.color, color:'white', padding:'5px 14px',
+          display:'flex', justifyContent:'space-between', alignItems:'center',
+          fontWeight:'bold', fontSize:12, borderTop:`1px solid ${sec.color}88`
+        }}>
+          <span>Total {sec.title}</span>
+          <span style={{fontFamily:'monospace'}}>
+            {secTotalCr!==0 ? `${fmt(Math.abs(secTotalCr))} ${secTotalCr>0?sec.side:(sec.side==='Dr'?'Cr':'Dr')}` : '0.00'}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div style={{height:'100%',overflowY:'auto',padding:10}}>
-      <div style={{background:'#1c5282',color:'white',padding:'10px 20px',marginBottom:10,fontWeight:'bold',fontSize:16}}>Chart of Accounts</div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        {sides.map((side,si)=>(
-          <div key={si} style={{border:`2px solid ${side.color}`,overflow:'hidden'}}>
-            <div style={{background:side.color,color:'white',padding:'6px 12px',fontWeight:'bold',fontSize:13}}>{side.title}</div>
-            {side.groups.map(gn=>{
-              const items=grp[gn];
-              if(!items||items.length===0) return null;
-              return <div key={gn}>
-                <div style={{background:side.color+'22',padding:'3px 10px',fontWeight:'bold',fontSize:12,borderLeft:`4px solid ${side.color}`}}>▶ {gn} ({items.length})</div>
-                {items.map(({ledger,balance},i)=><div key={i} style={{padding:'2px 10px 2px 24px',fontSize:12,borderBottom:'1px dotted #eee',display:'flex',justifyContent:'space-between'}}>
-                  <span>{ledger.name}</span>
-                  <span style={{fontWeight:'bold',color:balance>0?'#8B0000':balance<0?'#006600':'#999',fontSize:11}}>{balance!==0?`${fmt(Math.abs(balance))} ${balance>0?'Dr':'Cr'}`:'-'}</span>
-                </div>)}
-              </div>;
-            })}
+    <div style={{height:'100%', overflowY:'auto', background:'#f5f7fa'}}>
+      {/* Title Bar */}
+      <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)', color:'white', padding:'10px 20px', fontWeight:'bold', fontSize:15, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <span>📊 Chart of Accounts</span>
+        <div style={{display:'flex', gap:10, alignItems:'center'}}>
+          <input
+            value={search}
+            onChange={e=>setSearch(e.target.value)}
+            placeholder="Search ledger..."
+            style={{padding:'3px 10px', borderRadius:3, border:'1px solid #aad', fontSize:12, background:'rgba(255,255,255,0.15)', color:'white', outline:'none', width:160}}
+          />
+          <button onClick={onBack} style={{padding:'3px 12px', background:'rgba(255,255,255,0.15)', color:'white', border:'1px solid rgba(255,255,255,0.4)', borderRadius:3, cursor:'pointer', fontSize:12}}>✕ Close</button>
+        </div>
+      </div>
+
+      {/* Company Info Summary */}
+      <div style={{background:'#fff', borderBottom:'1px solid #dde', padding:'6px 20px', display:'flex', gap:30, fontSize:12, color:'#555'}}>
+        <span>📁 Total Ledgers: <b style={{color:'#1c5282'}}>{ledgers.length}</b></span>
+        <span>📂 Groups Used: <b style={{color:'#1c5282'}}>{Object.keys(grp).length}</b></span>
+        <span style={{marginLeft:'auto', fontWeight:'bold', color:balanced?'#1a7a4a':'#d9534f'}}>
+          {balanced ? '✓ Books are Balanced' : `⚠ Difference: ${fmt(Math.abs(difference))}`}
+        </span>
+      </div>
+
+      <div style={{padding:'12px 14px'}}>
+
+        {/* === ROW 1: ASSETS | LIABILITIES === */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12}}>
+          {renderSection(sections[0])}
+          {renderSection(sections[1])}
+        </div>
+
+        {/* === NET PROFIT ROW (bridges P&L into Balance Sheet) === */}
+        <div style={{background:'#fff', border:'2px solid #2c7a2c', borderRadius:4, padding:'8px 16px', marginBottom:12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <div>
+            <div style={{fontWeight:'bold', fontSize:13, color:'#145214'}}>Net {netProfit>=0?'Profit':'Loss'} (Income − Expenses)</div>
+            <div style={{fontSize:11, color:'#666', marginTop:2}}>
+              Income: {fmt(netIncomeCr)} Cr &nbsp;|&nbsp; Expenses: {fmt(netExpDr)} Dr
+            </div>
           </div>
-        ))}
+          <div style={{fontWeight:'bold', fontSize:16, color: netProfit>=0?'#145214':'#8B0000', fontFamily:'monospace'}}>
+            {fmt(Math.abs(netProfit))} {netProfit>=0?'Cr (Profit)':'Dr (Loss)'}
+          </div>
+        </div>
+
+        {/* === ROW 2: INCOME | EXPENSES === */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12}}>
+          {renderSection(sections[2])}
+          {renderSection(sections[3])}
+        </div>
+
+        {/* === GRAND TOTALS / BALANCE CHECK === */}
+        <div style={{background:'#1c3e5a', color:'white', borderRadius:4, overflow:'hidden'}}>
+          <div style={{background:'#1a2e40', padding:'6px 16px', fontWeight:'bold', fontSize:12, letterSpacing:1}}>
+            BALANCE SHEET EQUATION CHECK
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:0}}>
+            {[
+              {label:'Total Assets (Dr)', value:assetsNet, side:'Dr' as const, color:'#2b6cb0'},
+              {label:'Total Liabilities + Capital (Cr)', value:liabsNet, side:'Cr' as const, color:'#c0392b'},
+              {label:'Net Profit (Cr)', value:netProfit, side:netProfit>=0?'Cr'as const:'Dr'as const, color:'#27ae60'},
+            ].map((row,i)=>(
+              <div key={i} style={{padding:'10px 16px', borderRight:i<2?'1px solid rgba(255,255,255,0.15)':undefined, textAlign:'center'}}>
+                <div style={{fontSize:10, opacity:0.75, marginBottom:4}}>{row.label}</div>
+                <div style={{fontSize:15, fontWeight:'bold', fontFamily:'monospace', color:row.color}}>
+                  {fmt(Math.abs(row.value))}
+                </div>
+                <div style={{fontSize:10, opacity:0.7}}>{row.side}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{
+            padding:'8px 16px', textAlign:'center', fontSize:13, fontWeight:'bold',
+            background: balanced?'#145214':'#7B0000',
+            borderTop:'1px solid rgba(255,255,255,0.2)'
+          }}>
+            {balanced
+              ? `✓ Assets (${fmt(assetsNet)}) = Liabilities (${fmt(liabsNet)}) + Net Profit (${fmt(netProfit)}) — BALANCED`
+              : `⚠ Difference of ${fmt(Math.abs(difference))} — UNBALANCED (check entries)`
+            }
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -11617,23 +11805,594 @@ function RoleManagementView({goBack}: {goBack: () => void}) {
   );
 }
 
-// ==================== DATA EXCHANGE VIEW ====================
-function DataExchangeView({goBack}: {goBack: () => void}) {
+// ==================== DATA EXCHANGE VIEW — FULLY FUNCTIONAL ====================
+function DataExchangeView({
+  goBack, ledgers, vouchers, stockItems, activeCompany, onDataImported
+}: {
+  goBack: () => void;
+  ledgers: Ledger[];
+  vouchers: Voucher[];
+  stockItems: StockItem[];
+  activeCompany: Company | null;
+  onDataImported: () => void;
+}) {
+  const [tab, setTab] = useState<'export'|'import'>('export');
+  const [busy, setBusy] = useState(false);
+  const [log, setLog] = useState<{type:'info'|'ok'|'warn'|'err'; msg:string}[]>([]);
+  const [importFile, setImportFile] = useState<File|null>(null);
+  const [importType, setImportType] = useState<'ledgers-csv'|'vouchers-csv'|'json-backup'>('ledgers-csv');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const addLog = (type: 'info'|'ok'|'warn'|'err', msg: string) =>
+    setLog(prev => [...prev, {type, msg}]);
+
+  const clearLog = () => setLog([]);
+
+  // ——— CSV / JSON helpers ———
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const escCsv = (v: any) => {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+
+  const toCsv = (rows: Record<string,any>[], headers: string[]) => {
+    const lines = [headers.join(',')];
+    for (const row of rows) {
+      lines.push(headers.map(h => escCsv(row[h])).join(','));
+    }
+    return lines.join('\n');
+  };
+
+  const parseCsvLines = (text: string): string[][] => {
+    const lines: string[][] = [];
+    let cur: string[] = [], field = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"' && text[i+1] === '"') { field += '"'; i++; }
+        else if (c === '"') inQ = false;
+        else field += c;
+      } else {
+        if (c === '"') inQ = true;
+        else if (c === ',') { cur.push(field); field = ''; }
+        else if (c === '\n') { cur.push(field); lines.push(cur); cur = []; field = ''; }
+        else if (c === '\r') {}
+        else field += c;
+      }
+    }
+    if (field || cur.length) { cur.push(field); lines.push(cur); }
+    return lines.filter(r => r.some(c => c.trim()));
+  };
+
+  const getToken = () => {
+    try { return authClient.getToken() || ''; } catch { return ''; }
+  };
+
+  // ——— EXPORTS ———
+  const exportLedgersCSV = () => {
+    if (!ledgers.length) { addLog('warn','No ledgers to export.'); return; }
+    const headers = ['Name','GroupName','Alias','OpeningBalance','BalanceType','Address','State','PinCode','GSTIN','PAN','Phone','Email','BankName','AccountNo','IFSC'];
+    const rows = ledgers.map(l => ({
+      Name: l.name, GroupName: l.groupName, Alias: l.alias||'',
+      OpeningBalance: l.openingBalance||0, BalanceType: l.balanceType||'Dr',
+      Address: l.address||'', State: l.state||'', PinCode: l.pinCode||'',
+      GSTIN: l.gstin||'', PAN: l.pan||'', Phone: l.phone||'', Email: l.email||'',
+      BankName: l.bankName||'', AccountNo: l.accountNo||'', IFSC: l.ifsc||''
+    }));
+    const csv = toCsv(rows, headers);
+    downloadBlob(new Blob([csv], {type:'text/csv'}), `Ledgers_${activeCompany?.name||'Company'}_${new Date().toISOString().slice(0,10)}.csv`);
+    addLog('ok', `✓ Exported ${ledgers.length} ledgers to CSV.`);
+  };
+
+  const exportVouchersCSV = () => {
+    if (!vouchers.length) { addLog('warn','No vouchers to export.'); return; }
+    const headers = ['Date','Type','VoucherNo','PartyName','Narration','LedgerName','EntryType','Amount'];
+    const rows: Record<string,any>[] = [];
+    for (const v of vouchers) {
+      if (!v.entries?.length) continue;
+      for (const e of v.entries) {
+        rows.push({
+          Date: v.date, Type: v.type, VoucherNo: v.voucherNo,
+          PartyName: v.partyName||'', Narration: v.narration||'',
+          LedgerName: e.ledgerName||'', EntryType: e.entryType, Amount: e.amount
+        });
+      }
+    }
+    const csv = toCsv(rows, headers);
+    downloadBlob(new Blob([csv], {type:'text/csv'}), `Vouchers_${activeCompany?.name||'Company'}_${new Date().toISOString().slice(0,10)}.csv`);
+    addLog('ok', `✓ Exported ${vouchers.length} vouchers (${rows.length} entries) to CSV.`);
+  };
+
+  const exportFullJSON = () => {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      company: activeCompany,
+      ledgers,
+      vouchers,
+      stockItems,
+      version: '1.0'
+    };
+    const json = JSON.stringify(data, null, 2);
+    downloadBlob(new Blob([json], {type:'application/json'}), `FullBackup_${activeCompany?.name||'Company'}_${new Date().toISOString().slice(0,10)}.json`);
+    addLog('ok', `✓ Full backup exported: ${ledgers.length} ledgers, ${vouchers.length} vouchers, ${stockItems.length} stock items.`);
+  };
+
+  const exportLedgersJSON = () => {
+    const data = { exportedAt: new Date().toISOString(), company: activeCompany?.name, ledgers };
+    downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}), `Ledgers_${activeCompany?.name||'Company'}.json`);
+    addLog('ok', `✓ Exported ${ledgers.length} ledgers to JSON.`);
+  };
+
+  // ——— IMPORTS ———
+  const handleImport = async () => {
+    if (!importFile) { addLog('err','Please select a file first.'); return; }
+    if (!activeCompany?.id) { addLog('err','No active company. Please open a company first.'); return; }
+    clearLog();
+    setBusy(true);
+    addLog('info', `Starting import from: ${importFile.name}`);
+
+    try {
+      const text = await importFile.text();
+
+      if (importType === 'ledgers-csv') {
+        await importLedgersFromCSV(text);
+      } else if (importType === 'vouchers-csv') {
+        await importVouchersFromCSV(text);
+      } else if (importType === 'json-backup') {
+        await importFromJSON(text);
+      }
+    } catch (err: any) {
+      addLog('err', `Import failed: ${err.message || err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const importLedgersFromCSV = async (text: string) => {
+    const lines = parseCsvLines(text);
+    if (lines.length < 2) { addLog('err','CSV is empty or has no data rows.'); return; }
+
+    const headers = lines[0].map(h => h.trim());
+    const nameIdx     = headers.findIndex(h => h.toLowerCase() === 'name');
+    const groupIdx    = headers.findIndex(h => h.toLowerCase() === 'groupname');
+    const opBalIdx    = headers.findIndex(h => h.toLowerCase() === 'openingbalance');
+    const balTypeIdx  = headers.findIndex(h => h.toLowerCase() === 'balancetype');
+    const aliasIdx    = headers.findIndex(h => h.toLowerCase() === 'alias');
+    const addrIdx     = headers.findIndex(h => h.toLowerCase() === 'address');
+    const stateIdx    = headers.findIndex(h => h.toLowerCase() === 'state');
+    const gstinIdx    = headers.findIndex(h => h.toLowerCase() === 'gstin');
+    const panIdx      = headers.findIndex(h => h.toLowerCase() === 'pan');
+    const phoneIdx    = headers.findIndex(h => h.toLowerCase() === 'phone');
+    const emailIdx    = headers.findIndex(h => h.toLowerCase() === 'email');
+    const bankIdx     = headers.findIndex(h => h.toLowerCase() === 'bankname');
+    const accIdx      = headers.findIndex(h => h.toLowerCase() === 'accountno');
+    const ifscIdx     = headers.findIndex(h => h.toLowerCase() === 'ifsc');
+    const pinIdx      = headers.findIndex(h => h.toLowerCase() === 'pincode');
+
+    if (nameIdx === -1 || groupIdx === -1) {
+      addLog('err', 'CSV must have "Name" and "GroupName" columns.'); return;
+    }
+
+    const dataRows = lines.slice(1);
+    let created = 0, skipped = 0, failed = 0;
+    const token = getToken();
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const name = row[nameIdx]?.trim();
+      if (!name) { skipped++; continue; }
+
+      const payload = {
+        companyId: activeCompany!.id,
+        name,
+        groupName: row[groupIdx]?.trim() || 'Primary',
+        alias:     aliasIdx > -1 ? row[aliasIdx]?.trim() : undefined,
+        openingBalance: opBalIdx > -1 ? parseFloat(row[opBalIdx]) || 0 : 0,
+        balanceType:    balTypeIdx > -1 ? (row[balTypeIdx]?.trim() || 'Dr') : 'Dr',
+        address:  addrIdx  > -1 ? row[addrIdx]?.trim()  : undefined,
+        state:    stateIdx > -1 ? row[stateIdx]?.trim()  : undefined,
+        pinCode:  pinIdx   > -1 ? row[pinIdx]?.trim()   : undefined,
+        gstin:    gstinIdx > -1 ? row[gstinIdx]?.trim() : undefined,
+        pan:      panIdx   > -1 ? row[panIdx]?.trim()   : undefined,
+        phone:    phoneIdx > -1 ? row[phoneIdx]?.trim() : undefined,
+        email:    emailIdx > -1 ? row[emailIdx]?.trim() : undefined,
+        bankName: bankIdx  > -1 ? row[bankIdx]?.trim()  : undefined,
+        accountNo:accIdx   > -1 ? row[accIdx]?.trim()   : undefined,
+        ifsc:     ifscIdx  > -1 ? row[ifscIdx]?.trim()  : undefined,
+      };
+
+      try {
+        const res = await fetch('/api/ledgers', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          created++;
+          if (created % 10 === 0) addLog('info', `  ... ${created} ledgers created so far`);
+        } else if (data.error?.includes('already exists')) {
+          skipped++;
+          addLog('warn', `  Skipped (duplicate): ${name}`);
+        } else {
+          failed++;
+          addLog('err', `  Failed "${name}": ${data.error}`);
+        }
+      } catch (e: any) {
+        failed++;
+        addLog('err', `  Error "${name}": ${e.message}`);
+      }
+    }
+
+    addLog('ok', `✓ Import complete: ${created} created, ${skipped} skipped (duplicates), ${failed} failed.`);
+    if (created > 0) {
+      addLog('info', 'Reloading data...');
+      setTimeout(() => onDataImported(), 1500);
+    }
+  };
+
+  const importVouchersFromCSV = async (text: string) => {
+    addLog('info', 'Parsing vouchers CSV...');
+    const lines = parseCsvLines(text);
+    if (lines.length < 2) { addLog('err','CSV is empty.'); return; }
+
+    const headers = lines[0].map(h => h.trim().toLowerCase());
+    const dateIdx   = headers.indexOf('date');
+    const typeIdx   = headers.indexOf('type');
+    const vNoIdx    = headers.indexOf('voucherno');
+    const partyIdx  = headers.indexOf('partyname');
+    const narrIdx   = headers.indexOf('narration');
+    const lNameIdx  = headers.indexOf('ledgername');
+    const etIdx     = headers.indexOf('entrytype');
+    const amtIdx    = headers.indexOf('amount');
+
+    if ([dateIdx,typeIdx,vNoIdx,lNameIdx,etIdx,amtIdx].some(x=>x===-1)) {
+      addLog('err','CSV must have: Date, Type, VoucherNo, LedgerName, EntryType, Amount columns.');
+      return;
+    }
+
+    // Group rows by voucherNo
+    const vMap = new Map<string, any[]>();
+    for (const row of lines.slice(1)) {
+      const vNo = row[vNoIdx]?.trim() || '';
+      if (!vMap.has(vNo)) vMap.set(vNo, []);
+      vMap.get(vNo)!.push(row);
+    }
+
+    const token = getToken();
+    let created = 0, failed = 0;
+    const vMapEntries = Array.from(vMap.entries());
+    for (const [vNo, rows] of vMapEntries) {
+      const firstRow = rows[0];
+      const date = firstRow[dateIdx]?.trim() || new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-');
+      const type = firstRow[typeIdx]?.trim() || 'Journal';
+      const narration = narrIdx > -1 ? (firstRow[narrIdx]?.trim() || '') : '';
+      const partyName = partyIdx > -1 ? (firstRow[partyIdx]?.trim() || '') : '';
+
+      // Find party ledger id
+      const partyLedger = ledgers.find(l => l.name.trim().toLowerCase() === partyName.trim().toLowerCase());
+
+      const entries: any[] = [];
+      for (const row of rows) {
+        const lName = row[lNameIdx]?.trim() || '';
+        if (!lName) continue;
+        const ledger = ledgers.find(l => l.name.trim().toLowerCase() === lName.trim().toLowerCase());
+        if (!ledger) { addLog('warn', `  Ledger not found: "${lName}" in voucher ${vNo}`); }
+        entries.push({
+          ledgerId: ledger?.id || 0,
+          ledgerName: lName,
+          amount: Math.abs(parseFloat(row[amtIdx]) || 0),
+          entryType: (row[etIdx]?.trim() || 'Dr') as 'Dr'|'Cr'
+        });
+      }
+
+      const validEntries = entries.filter(e => e.ledgerId > 0);
+      if (validEntries.length < 2) {
+        failed++;
+        addLog('err', `  Voucher ${vNo}: need at least 2 valid ledger entries (found ${validEntries.length})`);
+        continue;
+      }
+
+      // Validate Dr = Cr
+      const totalDr = validEntries.filter(e=>e.entryType==='Dr').reduce((s,e)=>s+e.amount,0);
+      const totalCr = validEntries.filter(e=>e.entryType==='Cr').reduce((s,e)=>s+e.amount,0);
+      if (Math.abs(totalDr - totalCr) > 0.01) {
+        addLog('warn', `  Voucher ${vNo}: Dr(${totalDr}) ≠ Cr(${totalCr}) — still importing`);
+      }
+
+      try {
+        const res = await fetch('/api/vouchers', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+          body: JSON.stringify({
+            companyId: activeCompany!.id,
+            type, date, voucherNo: vNo, narration,
+            partyName, partyId: partyLedger?.id || 0,
+            entries: validEntries, inventoryEntries: []
+          })
+        });
+        const data = await res.json();
+        if (data.success) created++;
+        else { failed++; addLog('err', `  Voucher ${vNo} failed: ${data.error}`); }
+      } catch (e: any) {
+        failed++;
+        addLog('err', `  Voucher ${vNo} error: ${e.message}`);
+      }
+    }
+
+    addLog('ok', `✓ Voucher import complete: ${created} created, ${failed} failed.`);
+    if (created > 0) setTimeout(() => onDataImported(), 1500);
+  };
+
+  const importFromJSON = async (text: string) => {
+    let data: any;
+    try { data = JSON.parse(text); } catch (e) { addLog('err','Invalid JSON file.'); return; }
+
+    if (!data.ledgers && !data.vouchers) {
+      addLog('err', 'JSON file does not appear to be a valid LedgerX backup. Expected "ledgers" or "vouchers" fields.');
+      return;
+    }
+
+    const token = getToken();
+    let lCreated = 0, lSkipped = 0, vCreated = 0;
+
+    // Import Ledgers
+    if (data.ledgers?.length) {
+      addLog('info', `Importing ${data.ledgers.length} ledgers...`);
+      for (const l of data.ledgers) {
+        try {
+          const res = await fetch('/api/ledgers', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+            body: JSON.stringify({
+              ...l,
+              companyId: activeCompany!.id,
+              id: undefined
+            })
+          });
+          const d = await res.json();
+          if (d.success) lCreated++;
+          else if (d.error?.includes('already exists')) lSkipped++;
+          else addLog('warn', `  Ledger "${l.name}": ${d.error}`);
+        } catch (e: any) { addLog('err', `  Ledger "${l.name}": ${e.message}`); }
+      }
+      addLog('ok', `  Ledgers: ${lCreated} created, ${lSkipped} skipped`);
+    }
+
+    // Re-fetch ledgers to get IDs for voucher import
+    let freshLedgers: Ledger[] = [...ledgers];
+    if (lCreated > 0) {
+      try {
+        const res = await fetch(`/api/ledgers?companyId=${activeCompany!.id}`, {
+          headers: {'Authorization': `Bearer ${token}`}
+        });
+        const d = await res.json();
+        if (d.ledgers) freshLedgers = d.ledgers.map((l: any) => ({...l, openingBalance: l.openingBal ?? 0, pan: l.panItNo || ''}));
+      } catch {}
+    }
+
+    // Import Vouchers
+    if (data.vouchers?.length) {
+      addLog('info', `Importing ${data.vouchers.length} vouchers...`);
+      for (const v of data.vouchers) {
+        const mappedEntries = (v.entries || []).map((e: any) => {
+          const lName = e.ledgerName || '';
+          const found = freshLedgers.find(l => l.name.trim().toLowerCase() === lName.trim().toLowerCase());
+          return {
+            ledgerId: found?.id || e.ledgerId || 0,
+            ledgerName: lName,
+            amount: Math.abs(e.amount || 0),
+            entryType: e.entryType || 'Dr'
+          };
+        }).filter((e: any) => e.ledgerId > 0);
+
+        if (mappedEntries.length < 2) { addLog('warn', `  Skipping voucher ${v.voucherNo}: insufficient mapped entries`); continue; }
+
+        try {
+          const res = await fetch('/api/vouchers', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+            body: JSON.stringify({
+              companyId: activeCompany!.id,
+              type: v.type, date: v.date, voucherNo: v.voucherNo,
+              narration: v.narration || '',
+              entries: mappedEntries, inventoryEntries: []
+            })
+          });
+          const d = await res.json();
+          if (d.success) vCreated++;
+          else addLog('warn', `  Voucher ${v.voucherNo}: ${d.error}`);
+        } catch (e: any) { addLog('err', `  Voucher error: ${e.message}`); }
+      }
+      addLog('ok', `  Vouchers: ${vCreated} created`);
+    }
+
+    addLog('ok', `✓ JSON import complete: ${lCreated} ledgers + ${vCreated} vouchers imported.`);
+    if (lCreated + vCreated > 0) {
+      addLog('info', 'Reloading application data...');
+      setTimeout(() => onDataImported(), 1500);
+    }
+  };
+
+  // ——— UI COLORS ———
+  const C = { blue:'#1c5282', green:'#1a7a4a', red:'#8B0000', orange:'#b35900', bg:'#f5f7fa' };
+
+  const btnStyle = (color: string): React.CSSProperties => ({
+    padding:'8px 18px', background:color, color:'white', border:'none',
+    cursor:busy?'not-allowed':'pointer', borderRadius:4, fontSize:12,
+    fontWeight:'bold', opacity:busy?0.6:1, transition:'opacity 0.2s'
+  });
+
+  const logColor: Record<string,string> = {info:'#555', ok:'#145214', warn:'#7a4a00', err:'#8B0000'};
+  const logBg:    Record<string,string> = {info:'#f0f4ff', ok:'#e8f5e8', warn:'#fdf6e3', err:'#fff0f0'};
+  const logIcon:  Record<string,string> = {info:'ℹ', ok:'✓', warn:'⚠', err:'✗'};
+
   return (
-    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#fff'}}>
-      <div style={{background:'#1c5282',color:'white',padding:'10px 15px',fontWeight:'bold'}}>Data Import / Export (Tally Style)</div>
-      <div style={{padding:20,display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-        <div style={{border:'1px solid #ccc',padding:15,borderRadius:4}}>
-          <h3 style={{marginTop:0}}>Import Data</h3>
-          <p style={{fontSize:12,color:'#666'}}>Import Masters or Vouchers from XML/Excel files.</p>
-          <button style={{padding:'8px 20px',background:'#1c5282',color:'white',border:'none',cursor:'pointer'}}>Select File...</button>
+    <div style={{height:'100%', overflowY:'auto', background:C.bg, display:'flex', flexDirection:'column'}}>
+      {/* Header */}
+      <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)', color:'white', padding:'10px 20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <span style={{fontWeight:'bold', fontSize:15}}>🔄 Data Exchange</span>
+        <button onClick={goBack} style={{padding:'3px 14px', background:'rgba(255,255,255,0.15)', color:'white', border:'1px solid rgba(255,255,255,0.4)', borderRadius:3, cursor:'pointer', fontSize:12}}>✕ Close</button>
+      </div>
+
+      {/* Company Context Bar */}
+      <div style={{background:'#fff', borderBottom:'1px solid #dde', padding:'5px 20px', fontSize:12, color:'#555', display:'flex', gap:20}}>
+        <span>🏢 Company: <b style={{color:C.blue}}>{activeCompany?.name || '— No company selected —'}</b></span>
+        <span>📁 Ledgers: <b>{ledgers.length}</b></span>
+        <span>📄 Vouchers: <b>{vouchers.length}</b></span>
+        <span>📦 Stock Items: <b>{stockItems.length}</b></span>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:'flex', background:'#e8edf5', padding:'8px 20px', gap:8}}>
+        {(['export','import'] as const).map(t => (
+          <button key={t} onClick={()=>setTab(t)} style={{
+            padding:'6px 24px', border:'none', borderRadius:4,
+            background: tab===t ? C.blue : 'rgba(0,0,0,0.08)',
+            color: tab===t ? 'white' : '#555',
+            fontWeight: tab===t ? 'bold' : 'normal',
+            cursor:'pointer', fontSize:13, textTransform:'capitalize'
+          }}>
+            {t === 'export' ? '📤 Export Data' : '📥 Import Data'}
+          </button>
+        ))}
+      </div>
+
+      <div style={{flex:1, padding:'16px 20px', display:'grid', gridTemplateColumns:'1fr 340px', gap:16}}>
+
+        {/* LEFT PANEL */}
+        <div>
+          {tab === 'export' ? (
+            <div style={{display:'flex', flexDirection:'column', gap:14}}>
+              {/* Export Cards */}
+              {[
+                {
+                  icon:'📋', title:'Export Ledgers (CSV)',
+                  desc:'Download all ledgers with group, opening balance, GST details, and contact information. Compatible with Excel / Google Sheets.',
+                  action: exportLedgersCSV, color: C.blue, count: `${ledgers.length} ledgers`
+                },
+                {
+                  icon:'📊', title:'Export Vouchers (CSV)',
+                  desc:'Download all voucher entries with date, type, party name, ledger name, Dr/Cr, and amount. Each entry on a separate row.',
+                  action: exportVouchersCSV, color: '#5a2d82', count: `${vouchers.length} vouchers`
+                },
+                {
+                  icon:'💾', title:'Export Ledgers (JSON)',
+                  desc:'Download ledgers in JSON format for structured data exchange or custom integration.',
+                  action: exportLedgersJSON, color: C.orange, count: `${ledgers.length} ledgers`
+                },
+                {
+                  icon:'🗄️', title:'Full Backup (JSON)',
+                  desc:'Export complete data backup including all ledgers, vouchers, and stock items. Use this for migration or full data restore.',
+                  action: exportFullJSON, color: C.green, count: `${ledgers.length} ledgers + ${vouchers.length} vouchers + ${stockItems.length} items`
+                },
+              ].map((card, i) => (
+                <div key={i} style={{background:'#fff', border:'1px solid #dde', borderRadius:6, padding:'14px 16px', display:'flex', gap:14, alignItems:'flex-start', boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+                  <span style={{fontSize:28, lineHeight:1}}>{card.icon}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:'bold', fontSize:14, color:'#1c3e5a', marginBottom:4}}>{card.title}</div>
+                    <div style={{fontSize:12, color:'#666', marginBottom:8, lineHeight:1.5}}>{card.desc}</div>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                      <span style={{fontSize:11, color:'#888', background:'#f0f4ff', padding:'2px 8px', borderRadius:3}}>{card.count}</span>
+                      <button style={btnStyle(card.color)} onClick={()=>{clearLog(); card.action();}}>⬇ Download</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{background:'#fff', border:'1px solid #dde', borderRadius:6, padding:'16px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+              <div style={{fontWeight:'bold', fontSize:14, color:'#1c3e5a', marginBottom:12}}>📥 Import Configuration</div>
+
+              {/* Import Type */}
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:12, fontWeight:'bold', color:'#444', display:'block', marginBottom:6}}>Import Type</label>
+                <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                  {[
+                    {val:'ledgers-csv',    label:'Ledgers from CSV',       hint:'Name, GroupName, OpeningBalance, BalanceType, Address, GSTIN, ...'},
+                    {val:'vouchers-csv',   label:'Vouchers from CSV',      hint:'Date, Type, VoucherNo, LedgerName, EntryType, Amount (one entry per row)'},
+                    {val:'json-backup',    label:'Full Restore from JSON',  hint:'Complete backup exported from this app'},
+                  ].map(opt => (
+                    <label key={opt.val} style={{display:'flex', alignItems:'flex-start', gap:8, cursor:'pointer', padding:'8px 10px', borderRadius:4, background: importType===opt.val?'#e8f0fb':'#fafafa', border:`1px solid ${importType===opt.val?C.blue:'#dde'}`}}>
+                      <input type="radio" name="importType" value={opt.val} checked={importType===opt.val as any} onChange={e=>setImportType(e.target.value as any)} style={{marginTop:2}}/>
+                      <div>
+                        <div style={{fontSize:13, fontWeight:'bold', color: importType===opt.val?C.blue:'#333'}}>{opt.label}</div>
+                        <div style={{fontSize:11, color:'#777', marginTop:2}}>{opt.hint}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* File Picker */}
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:12, fontWeight:'bold', color:'#444', display:'block', marginBottom:6}}>Select File</label>
+                <div style={{display:'flex', gap:8, alignItems:'center'}}>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept={importType==='json-backup'?'.json':'.csv'}
+                    onChange={e=>setImportFile(e.target.files?.[0]||null)}
+                    style={{display:'none'}}
+                  />
+                  <button style={{...btnStyle(C.blue), flex:1}} onClick={()=>fileRef.current?.click()}>📁 Choose File...</button>
+                  {importFile && <span style={{fontSize:11, color:'#555', maxWidth:140, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{importFile.name}</span>}
+                </div>
+                {importFile && <div style={{fontSize:11, color:'#1a7a4a', marginTop:4}}>✓ {importFile.name} ({(importFile.size/1024).toFixed(1)} KB)</div>}
+              </div>
+
+              {/* Warnings */}
+              <div style={{background:'#fff9e6', border:'1px solid #f5c518', borderRadius:4, padding:'8px 12px', fontSize:11, color:'#7a5c00', marginBottom:14}}>
+                <b>⚠ Notes:</b><br/>
+                • Existing ledgers with the same name will be skipped (no duplicates)<br/>
+                • Vouchers require all ledger names to exist in the company<br/>
+                • JSON restore will reload the page after completion
+              </div>
+
+              <button
+                style={{...btnStyle(C.green), width:'100%', padding:'10px'}}
+                onClick={handleImport}
+                disabled={busy || !importFile || !activeCompany}
+              >
+                {busy ? '⏳ Importing...' : '⬆ Start Import'}
+              </button>
+            </div>
+          )}
         </div>
-        <div style={{border:'1px solid #ccc',padding:15,borderRadius:4}}>
-          <h3 style={{marginTop:0}}>Export Data</h3>
-          <p style={{fontSize:12,color:'#666'}}>Export Masters or Vouchers for backup or migration.</p>
-          <button style={{padding:'8px 20px',background:'#1a7a4a',color:'white',border:'none',cursor:'pointer'}}>Export to XML/Excel</button>
+
+        {/* RIGHT PANEL — Activity Log */}
+        <div style={{display:'flex', flexDirection:'column', gap:0}}>
+          <div style={{background:'#1c3e5a', color:'white', padding:'7px 12px', fontSize:12, fontWeight:'bold', borderRadius:'6px 6px 0 0', display:'flex', justifyContent:'space-between'}}>
+            <span>📋 Activity Log</span>
+            {log.length > 0 && <button onClick={clearLog} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:10}}>Clear</button>}
+          </div>
+          <div style={{flex:1, background:'#fff', border:'1px solid #dde', borderTop:'none', borderRadius:'0 0 6px 6px', minHeight:300, padding:8, overflowY:'auto', display:'flex', flexDirection:'column', gap:4}}>
+            {log.length === 0 ? (
+              <div style={{textAlign:'center', color:'#aaa', fontSize:12, paddingTop:40}}>
+                {tab==='export' ? '⬇ Click Download to start export' : '⬆ Select file and click Import'}
+              </div>
+            ) : log.map((entry, i) => (
+              <div key={i} style={{fontSize:11, padding:'3px 8px', borderRadius:3, background:logBg[entry.type], color:logColor[entry.type], display:'flex', gap:6, alignItems:'flex-start'}}>
+                <span style={{fontWeight:'bold', flexShrink:0}}>{logIcon[entry.type]}</span>
+                <span style={{wordBreak:'break-all'}}>{entry.msg}</span>
+              </div>
+            ))}
+            {busy && (
+              <div style={{textAlign:'center', padding:'10px', color:'#555', fontSize:12}}>
+                <span style={{display:'inline-block', animation:'spin 1s linear infinite'}}>⏳</span> Processing...
+              </div>
+            )}
+          </div>
         </div>
+
       </div>
     </div>
   );
 }
+
