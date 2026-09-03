@@ -2,9 +2,12 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaLibSQL } from '@prisma/adapter-libsql'
 import { createClient } from '@libsql/client'
 
+const dbUrl = process.env.TURSO_DATABASE_URL || 'file:prisma/dev.db'
+const authToken = process.env.TURSO_AUTH_TOKEN
+
 const libsql = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN!,
+  url: dbUrl,
+  ...(authToken ? { authToken } : {}),
 })
 
 const adapter = new PrismaLibSQL(libsql)
