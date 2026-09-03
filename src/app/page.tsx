@@ -139,34 +139,34 @@ const TALLY_GROUPS = [
   "Sales Accounts", "Secured Loans", "Stock-in-hand", "Sundry Creditors",
   "Sundry Debtors", "Suspense A/c", "Unsecured Loans"
 ];
-// Country Ã¢â€ â€™ Currency mapping (Tally Prime style)
+// Country → Currency mapping (Tally Prime style)
 const COUNTRY_CURRENCY: Record<string,{symbol:string;name:string;isoCode:string;paise:string}> = {
-  "India":                {symbol:"Ã¢â€šÂ¹",  name:"Indian Rupee",       isoCode:"INR", paise:"Paise"},
+  "India":                {symbol:"₹",  name:"Indian Rupee",       isoCode:"INR", paise:"Paise"},
   "USA":                  {symbol:"$",  name:"US Dollar",          isoCode:"USD", paise:"Cents"},
-  "United Kingdom":       {symbol:"Ã‚Â£",  name:"Pound Sterling",     isoCode:"GBP", paise:"Pence"},
+  "United Kingdom":       {symbol:"£",  name:"Pound Sterling",     isoCode:"GBP", paise:"Pence"},
   "United Arab Emirates":{symbol:"AED",name:"UAE Dirham",          isoCode:"AED", paise:"Fils"},
   "Australia":            {symbol:"A$", name:"Australian Dollar",   isoCode:"AUD", paise:"Cents"},
   "Canada":               {symbol:"C$", name:"Canadian Dollar",     isoCode:"CAD", paise:"Cents"},
-  "Germany":              {symbol:"Ã¢â€šÂ¬",  name:"Euro",                isoCode:"EUR", paise:"Cents"},
-  "France":               {symbol:"Ã¢â€šÂ¬",  name:"Euro",                isoCode:"EUR", paise:"Cents"},
-  "Japan":                {symbol:"Ã‚Â¥",  name:"Japanese Yen",        isoCode:"JPY", paise:"Sen"},
-  "China":                {symbol:"Ã‚Â¥",  name:"Chinese Yuan",        isoCode:"CNY", paise:"Fen"},
+  "Germany":              {symbol:"€",  name:"Euro",                isoCode:"EUR", paise:"Cents"},
+  "France":               {symbol:"€",  name:"Euro",                isoCode:"EUR", paise:"Cents"},
+  "Japan":                {symbol:"¥",  name:"Japanese Yen",        isoCode:"JPY", paise:"Sen"},
+  "China":                {symbol:"¥",  name:"Chinese Yuan",        isoCode:"CNY", paise:"Fen"},
   "Saudi Arabia":         {symbol:"SAR",name:"Saudi Riyal",         isoCode:"SAR", paise:"Halalah"},
   "Singapore":            {symbol:"S$", name:"Singapore Dollar",    isoCode:"SGD", paise:"Cents"},
   "New Zealand":          {symbol:"NZ$",name:"New Zealand Dollar",  isoCode:"NZD", paise:"Cents"},
   "South Africa":         {symbol:"R",  name:"South African Rand",  isoCode:"ZAR", paise:"Cents"},
   "Malaysia":             {symbol:"RM", name:"Malaysian Ringgit",   isoCode:"MYR", paise:"Sen"},
-  "Bangladesh":           {symbol:"Ã Â§Â³",  name:"Bangladeshi Taka",   isoCode:"BDT", paise:"Poisha"},
+  "Bangladesh":           {symbol:"৳",  name:"Bangladeshi Taka",   isoCode:"BDT", paise:"Poisha"},
   "Nepal":                {symbol:"Rs", name:"Nepalese Rupee",      isoCode:"NPR", paise:"Paisa"},
   "Sri Lanka":            {symbol:"Rs", name:"Sri Lankan Rupee",    isoCode:"LKR", paise:"Cents"},
-  "Pakistan":             {symbol:"Ã¢â€šÂ¨",  name:"Pakistani Rupee",     isoCode:"PKR", paise:"Paisa"},
+  "Pakistan":             {symbol:"₨",  name:"Pakistani Rupee",     isoCode:"PKR", paise:"Paisa"},
   "Indonesia":            {symbol:"Rp", name:"Indonesian Rupiah",   isoCode:"IDR", paise:"Sen"},
-  "Thailand":             {symbol:"Ã Â¸Â¿",  name:"Thai Baht",           isoCode:"THB", paise:"Satang"},
+  "Thailand":             {symbol:"฿",  name:"Thai Baht",           isoCode:"THB", paise:"Satang"},
   "Kuwait":               {symbol:"KD", name:"Kuwaiti Dinar",       isoCode:"KWD", paise:"Fils"},
   "Qatar":                {symbol:"QR", name:"Qatari Riyal",        isoCode:"QAR", paise:"Dirham"},
   "Bahrain":              {symbol:"BD", name:"Bahraini Dinar",      isoCode:"BHD", paise:"Fils"},
   "Oman":                 {symbol:"RO", name:"Omani Rial",          isoCode:"OMR", paise:"Baisa"},
-  "Nigeria":              {symbol:"Ã¢â€šÂ¦",  name:"Nigerian Naira",      isoCode:"NGN", paise:"Kobo"},
+  "Nigeria":              {symbol:"₦",  name:"Nigerian Naira",      isoCode:"NGN", paise:"Kobo"},
   "Kenya":                {symbol:"KSh",name:"Kenyan Shilling",     isoCode:"KES", paise:"Cents"},
   "Ethiopia":             {symbol:"Br", name:"Ethiopian Birr",      isoCode:"ETB", paise:"Cents"},
   "Mexico":               {symbol:"MX$",name:"Mexican Peso",        isoCode:"MXN", paise:"Cents"},
@@ -220,15 +220,15 @@ const COUNTRY_DATA: Record<string, string[]> = {
     "Nunavut","Ontario","Prince Edward Island","Quebec","Saskatchewan","Yukon"
   ],
   "Germany": [
-    "Baden-WÃƒÂ¼rttemberg","Bavaria","Berlin","Brandenburg","Bremen","Hamburg",
+    "Baden-Württemberg","Bavaria","Berlin","Brandenburg","Bremen","Hamburg",
     "Hesse","Lower Saxony","Mecklenburg-Vorpommern","North Rhine-Westphalia",
     "Rhineland-Palatinate","Saarland","Saxony","Saxony-Anhalt",
     "Schleswig-Holstein","Thuringia"
   ],
   "France": [
-    "Auvergne-RhÃƒÂ´ne-Alpes","Bourgogne-Franche-ComtÃƒÂ©","Brittany","Centre-Val de Loire",
-    "Corsica","Grand Est","Hauts-de-France","ÃƒÅ½le-de-France","Normandy",
-    "Nouvelle-Aquitaine","Occitanie","Pays de la Loire","Provence-Alpes-CÃƒÂ´te d'Azur"
+    "Auvergne-Rhône-Alpes","Bourgogne-Franche-Comté","Brittany","Centre-Val de Loire",
+    "Corsica","Grand Est","Hauts-de-France","Île-de-France","Normandy",
+    "Nouvelle-Aquitaine","Occitanie","Pays de la Loire","Provence-Alpes-Côte d'Azur"
   ],
   "China": [
     "Anhui","Beijing","Chongqing","Fujian","Gansu","Guangdong","Guangxi",
@@ -308,11 +308,11 @@ const COUNTRY_DATA: Record<string, string[]> = {
     "Khyber Pakhtunkhwa","Punjab","Sindh"
   ],
   "Brazil": [
-    "Acre","Alagoas","AmapÃƒÂ¡","Amazonas","Bahia","CearÃƒÂ¡","Distrito Federal",
-    "EspÃƒÂ­rito Santo","GoiÃƒÂ¡s","MaranhÃƒÂ£o","Mato Grosso","Mato Grosso do Sul",
-    "Minas Gerais","ParÃƒÂ¡","ParaÃƒÂ­ba","ParanÃƒÂ¡","Pernambuco","PiauÃƒÂ­",
-    "Rio de Janeiro","Rio Grande do Norte","Rio Grande do Sul","RondÃƒÂ´nia",
-    "Roraima","Santa Catarina","SÃƒÂ£o Paulo","Sergipe","Tocantins"
+    "Acre","Alagoas","Amapá","Amazonas","Bahia","Ceará","Distrito Federal",
+    "Espírito Santo","Goiás","Maranhão","Mato Grosso","Mato Grosso do Sul",
+    "Minas Gerais","Pará","Paraíba","Paraná","Pernambuco","Piauí",
+    "Rio de Janeiro","Rio Grande do Norte","Rio Grande do Sul","Rondônia",
+    "Roraima","Santa Catarina","São Paulo","Sergipe","Tocantins"
   ],
   "Mexico": [
     "Aguascalientes","Baja California","Baja California Sur","Campeche",
@@ -378,7 +378,7 @@ const INIT_VOUCHER_TYPES: VoucherTypeData[] = VOUCHER_TYPES_DEFAULT.map((v, i) =
 }));
 
 const INIT_CURRENCIES: CurrencyData[] = [
-  { id:1, companyId:1, name:"Indian Rupee", symbol:"Ã¢â€šÂ¹", isoCode:"INR", decimalPlaces:2 },
+  { id:1, companyId:1, name:"Indian Rupee", symbol:"₹", isoCode:"INR", decimalPlaces:2 },
   { id:2, companyId:1, name:"US Dollar",    symbol:"$", isoCode:"USD", decimalPlaces:2 },
 ];
 
@@ -569,6 +569,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  // Final Balance Sheet & P&L Export Modal
   const [showFinalBSModal, setShowFinalBSModal] = useState(false);
   const [finalBSExporting, setFinalBSExporting] = useState(false);
   const [finalBSForm, setFinalBSForm] = useState({
@@ -579,7 +581,6 @@ export default function App() {
     caMno: '',
     place: '',
   });
-
 
   useEffect(() => {
     setIsMounted(true);
@@ -734,7 +735,7 @@ export default function App() {
   };
 
 
-  // â”€â”€â”€ Final Balance Sheet & P&L Export (CA Format) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Final Balance Sheet & P&L Export (CA Format) ──────────────────────────────────
   const openFinalBSModal = () => {
     if (!activeCompany) {
       alert('Pehle ek company select karein!');
@@ -768,21 +769,21 @@ export default function App() {
       });
       const res = await fetch(`/api/reports/export-excel?${params.toString()}`);
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Export failed' }));
-        throw new Error(err.error || 'Export failed');
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Export failed');
       }
       const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
       a.href = url;
-      a.download = `${activeCompany.name.replace(/[^a-zA-Z0-9]/g,'_')}_FinancialStatements.xlsx`;
+      a.download = `${(activeCompany.name || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_')}_Financial_Statements_CA_Format.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setShowFinalBSModal(false);
     } catch (err: any) {
-      alert(`Export error: ${err.message}`);
+      alert(`Excel export error: ${err.message || 'Kuch galat ho gaya'}`);
     } finally {
       setFinalBSExporting(false);
     }
@@ -1587,7 +1588,7 @@ export default function App() {
             setCompanies(p => [...p, newCo]);
             setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' }))]);
             setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
-            setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "Ã¢â€šÂ¹", isoCode: "INR", decimalPlaces: 2 }]);
+            setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
             setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
             setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id }))]);
             setActiveCompany(newCo);
@@ -2036,9 +2037,9 @@ export default function App() {
           setTimeout(() => lastFocusRef.current?.focus(), 80);
           return; 
         }
+        if (showFinalBSModal) { setShowFinalBSModal(false); return; }
         if (showExportModal) { setShowExportModal(false); return; }
         if (showEmailModal) { setShowEmailModal(false); return; }
-        if (showFinalBSModal) { setShowFinalBSModal(false); return; }
         if (showGST) { setShowGST(false); return; }
         if (showFeatures) { setShowFeatures(false); return; }
         if (showCompanySelect) { setShowCompanySelect(false); return; }
@@ -2259,7 +2260,7 @@ export default function App() {
           border:'1px solid #0f5c36',
           letterSpacing:0.3,
         }}>
-          <span style={{fontSize:16}}>Ã¢Å“â€œ</span> {saveToast} <span style={{opacity:0.7,fontSize:11,marginLeft:8}}>Press Esc to exit</span>
+          <span style={{fontSize:16}}>✓</span> {saveToast} <span style={{opacity:0.7,fontSize:11,marginLeft:8}}>Press Esc to exit</span>
         </div>
       )}
       {/* TOP NAV */}
@@ -2286,7 +2287,7 @@ export default function App() {
              <div style={{fontSize:11, fontWeight:'bold', color:'#f1c40f'}}>{currentUser?.name}</div>
              <div style={{fontSize:9, color:'#fff', opacity:0.8}}>{currentUser?.organizationName}</div>
              <div style={{fontSize:9, color:'#a3e635', fontWeight:'bold', opacity:0.9}}>
-                {currentUser?.plan === 'LIFETIME' ? 'Ã°Å¸â€™Å½ Lifetime' : currentUser?.plan === 'YEARLY' ? 'Ã¢Â­Â Yearly' : currentUser?.plan === 'MONTHLY' ? 'Ã°Å¸â€œâ€¦ Monthly' : currentUser?.plan === 'TRIAL' ? 'Ã°Å¸â€ â€œ Trial' : currentUser?.plan}
+                {currentUser?.plan === 'LIFETIME' ? '💎 Lifetime' : currentUser?.plan === 'YEARLY' ? '⭐ Yearly' : currentUser?.plan === 'MONTHLY' ? '📅 Monthly' : currentUser?.plan === 'TRIAL' ? '🆓 Trial' : currentUser?.plan}
                 {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && currentUser?.subscriptionExpiry && (
                   <span style={{color: '#f87171', marginLeft: 6}}>
                     ({getDaysRemainingText(currentUser.subscriptionExpiry)})
@@ -2304,7 +2305,7 @@ export default function App() {
                  fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px'
                }}
              >
-               Ã¢Â¬â€  UPGRADE
+               ⬆ UPGRADE
              </button>
            )}
            <button 
@@ -2324,11 +2325,11 @@ export default function App() {
            </button>
         </div>
         <div className="nav-links">
-          <div>O: Import</div>
+          <div><u>O</u>: Import</div>
           <div onClick={()=>setShowExportModal(true)}><u>E</u>: Export</div>
           <div onClick={()=>setShowEmailModal(true)}><u>M</u>: E-mail</div>
           <div onClick={()=>nav('PRINT_PREVIEW')}><u>P</u>: Print</div>
-          <div onClick={()=>openFinalBSModal()} style={{background:'linear-gradient(135deg,#27ae60,#1e8449)',color:'#fff',padding:'2px 8px',borderRadius:3,cursor:'pointer',fontWeight:'bold'}}>ðŸ“Š Final BS</div>
+          <div onClick={()=>openFinalBSModal()} style={{background:'linear-gradient(135deg,#27ae60,#1e8449)',color:'#fff',padding:'2px 8px',borderRadius:3,cursor:'pointer',fontWeight:'bold'}}>📊 Final BS</div>
           <div onClick={()=>setShowFeatures(true)}>F11: Features</div>
         </div>
       </div>
@@ -2383,12 +2384,12 @@ export default function App() {
         <div className="mobile-nav-panel">
           {/* Header */}
           <div className="mobile-nav-header">
-            <div className="mobile-nav-logo">Ã¢Å¡Â¡ LedgerX</div>
+            <div className="mobile-nav-logo">⚡ LedgerX</div>
             {currentUser && (
               <>
-                <div className="mobile-nav-user">{currentUser.name} Ã‚Â· {currentUser.organizationName}</div>
+                <div className="mobile-nav-user">{currentUser.name} · {currentUser.organizationName}</div>
                 <span className="mobile-nav-plan">
-                  {currentUser.plan === 'LIFETIME' ? 'Ã°Å¸â€™Å½ Lifetime' : currentUser.plan === 'YEARLY' ? 'Ã¢Â­Â Yearly' : currentUser.plan === 'MONTHLY' ? 'Ã°Å¸â€œâ€¦ Monthly' : 'Ã°Å¸â€ â€œ Trial'}
+                  {currentUser.plan === 'LIFETIME' ? '💎 Lifetime' : currentUser.plan === 'YEARLY' ? '⭐ Yearly' : currentUser.plan === 'MONTHLY' ? '📅 Monthly' : '🆓 Trial'}
                 </span>
               </>
             )}
@@ -2397,10 +2398,10 @@ export default function App() {
           <div className="mobile-nav-section">
             <div className="mobile-nav-section-title">Company</div>
             <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowCompanySelect(true); }}>
-              <span className="nav-icon">Ã°Å¸ÂÂ¢</span> {activeCompany?.name || 'Select Company'}
+              <span className="nav-icon">🏢</span> {activeCompany?.name || 'Select Company'}
             </div>
             <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('COMPANY_CREATION'); }}>
-              <span className="nav-icon">Ã¢Å¾â€¢</span> Create Company
+              <span className="nav-icon">➕</span> Create Company
             </div>
           </div>
           {/* Transactions */}
@@ -2408,7 +2409,7 @@ export default function App() {
             <div className="mobile-nav-section-title">Transactions</div>
             {(['Sales','Purchase','Receipt','Payment','Journal','Contra','Credit Note','Debit Note'] as const).map(vt => (
               <div key={vt} className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('VOUCHER_ENTRY'); setActiveVoucher(vt as VoucherTypeKey); }}>
-                <span className="nav-icon">{vt==='Sales'?'Ã°Å¸â€ºâ€™':vt==='Purchase'?'Ã°Å¸â€œÂ¦':vt==='Receipt'?'Ã°Å¸â€™Â°':vt==='Payment'?'Ã°Å¸â€™Â¸':vt==='Journal'?'Ã°Å¸â€œâ€™':vt==='Contra'?'Ã°Å¸â€â€ž':vt==='Credit Note'?'Ã¢Å¾â€¢':'Ã¢Å¾â€“'}</span>
+                <span className="nav-icon">{vt==='Sales'?'🛒':vt==='Purchase'?'📦':vt==='Receipt'?'💰':vt==='Payment'?'💸':vt==='Journal'?'📒':vt==='Contra'?'🔄':vt==='Credit Note'?'➕':'➖'}</span>
                 {vt} Voucher
               </div>
             ))}
@@ -2416,31 +2417,31 @@ export default function App() {
           {/* Reports */}
           <div className="mobile-nav-section">
             <div className="mobile-nav-section-title">Reports</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('DAY_BOOK'); }}><span className="nav-icon">Ã°Å¸â€œâ€¦</span> Day Book</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('BALANCE_SHEET'); }}><span className="nav-icon">Ã¢Å¡â€“Ã¯Â¸Â</span> Balance Sheet</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('PROFIT_LOSS'); }}><span className="nav-icon">Ã°Å¸â€œË†</span> Profit & Loss</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('TRIAL_BALANCE'); }}><span className="nav-icon">Ã°Å¸â€”â€šÃ¯Â¸Â</span> Trial Balance</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('LEDGER_REPORT'); }}><span className="nav-icon">Ã°Å¸â€œâ€“</span> Ledger Report</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('STOCK_SUMMARY'); }}><span className="nav-icon">Ã°Å¸â€œÂ¦</span> Stock Summary</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('DAY_BOOK'); }}><span className="nav-icon">📅</span> Day Book</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('BALANCE_SHEET'); }}><span className="nav-icon">⚖️</span> Balance Sheet</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('PROFIT_LOSS'); }}><span className="nav-icon">📈</span> Profit & Loss</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('TRIAL_BALANCE'); }}><span className="nav-icon">🗂️</span> Trial Balance</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('LEDGER_REPORT'); }}><span className="nav-icon">📖</span> Ledger Report</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('STOCK_SUMMARY'); }}><span className="nav-icon">📦</span> Stock Summary</div>
           </div>
           {/* Masters */}
           <div className="mobile-nav-section">
             <div className="mobile-nav-section-title">Masters</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('LEDGER_CREATION'); }}><span className="nav-icon">Ã°Å¸â€˜Â¤</span> Ledger Creation</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('STOCK_ITEM_CREATION'); }}><span className="nav-icon">Ã°Å¸â€œÂ¦</span> Stock Item</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('MASTER_MENU'); }}><span className="nav-icon">Ã¢Å¡â„¢Ã¯Â¸Â</span> All Masters</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('LEDGER_CREATION'); }}><span className="nav-icon">👤</span> Ledger Creation</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('STOCK_ITEM_CREATION'); }}><span className="nav-icon">📦</span> Stock Item</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('MASTER_MENU'); }}><span className="nav-icon">⚙️</span> All Masters</div>
           </div>
           {/* Settings */}
           <div className="mobile-nav-section">
             <div className="mobile-nav-section-title">Settings</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowDate(true); }}><span className="nav-icon">Ã°Å¸â€œâ€¦</span> Change Date</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowPeriod(true); }}><span className="nav-icon">Ã°Å¸â€œâ€ </span> Change Period</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowExportModal(true); }}><span className="nav-icon">Ã°Å¸â€œÂ¤</span> Export Data</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowDate(true); }}><span className="nav-icon">📅</span> Change Date</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowPeriod(true); }}><span className="nav-icon">📆</span> Change Period</div>
+            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); setShowExportModal(true); }}><span className="nav-icon">📤</span> Export Data</div>
           </div>
           {/* Footer */}
           <div className="mobile-nav-footer">
             {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && (
-              <button className="mobile-nav-upgrade-btn" onClick={() => { setMobileDrawerOpen(false); setShowUpgradeModal(true); }}>Ã¢Â¬â€  Upgrade</button>
+              <button className="mobile-nav-upgrade-btn" onClick={() => { setMobileDrawerOpen(false); setShowUpgradeModal(true); }}>⬆ Upgrade</button>
             )}
             <button className="mobile-nav-logout-btn" onClick={() => { setMobileDrawerOpen(false); handleLogout(); }}>Logout</button>
           </div>
@@ -2450,8 +2451,8 @@ export default function App() {
       {/* ===== MOBILE COMPANY BAR (hidden on desktop via CSS) ===== */}
       <div className="mobile-company-bar">
         <div>
-          <div className="mobile-company-name">Ã°Å¸ÂÂ¢ {activeCompany?.name || 'No Company Selected'}</div>
-          <div className="mobile-company-date">{currentDate} Ã‚Â· {currentPeriod.start} Ã¢â‚¬â€œ {currentPeriod.end}</div>
+          <div className="mobile-company-name">🏢 {activeCompany?.name || 'No Company Selected'}</div>
+          <div className="mobile-company-date">{currentDate} · {currentPeriod.start} – {currentPeriod.end}</div>
         </div>
         <button onClick={() => setShowCompanySelect(true)} style={{background:'#1d4885',color:'white',border:'none',padding:'5px 10px',borderRadius:6,fontSize:11,fontWeight:'bold',cursor:'pointer'}}>
           Change
@@ -2500,12 +2501,12 @@ export default function App() {
                     <div style={{color:'#1d4885',fontWeight:'bold',marginBottom:6}}>QUICK OVERVIEW</div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
                       <span>Cash Balance</span><span style={{fontWeight:'bold',color:'#006600'}}>
-                        Ã¢â€šÂ¹ {fmt(cashBal)}
+                        ₹ {fmt(cashBal)}
                       </span>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
                       <span>Bank Balance</span><span style={{fontWeight:'bold',color:'#006600'}}>
-                        Ã¢â€šÂ¹ {fmt(bankBal)}
+                        ₹ {fmt(bankBal)}
                       </span>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
@@ -3069,130 +3070,6 @@ export default function App() {
         </div>
       )}
 
-      {showFinalBSModal && (
-        <div className="modal-overlay" onClick={()=>setShowFinalBSModal(false)}>
-          <div className="modal-box" style={{width:540, maxHeight:'90vh', overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
-            <div className="modal-header" style={{background:'linear-gradient(135deg, #1c5282, #2980b9)', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 16px', color:'#fff'}}>
-              <span style={{fontWeight:'bold', fontSize:14}}>ðŸ“Š Final Balance Sheet & P&L (CA Excel Format)</span>
-              <span style={{cursor:'pointer', fontSize:16, fontWeight:'bold'}} onClick={()=>setShowFinalBSModal(false)}>âœ•</span>
-            </div>
-            <div style={{padding:20}}>
-              {activeCompany && (
-                <div style={{background:'#f0f7ff', border:'1px solid #cce3f8', borderRadius:6, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#1c5282'}}>
-                  ðŸ¢ <b>{activeCompany.name}</b>
-                  {activeCompany.address && <div style={{fontSize:11, color:'#555', marginTop:2}}>{activeCompany.address}</div>}
-                </div>
-              )}
-
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16}}>
-                <div>
-                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>Balance Sheet As On Date</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{width:'100%'}} 
-                    value={finalBSForm.asOnDate} 
-                    onChange={e => setFinalBSForm(f => ({ ...f, asOnDate: e.target.value }))}
-                    placeholder="e.g. 31-Mar-2026"
-                  />
-                </div>
-                <div>
-                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>Place / City</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{width:'100%'}} 
-                    value={finalBSForm.place} 
-                    onChange={e => setFinalBSForm(f => ({ ...f, place: e.target.value }))}
-                    placeholder="e.g. SITARGANJ"
-                  />
-                </div>
-                <div>
-                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>P&L From Date</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{width:'100%'}} 
-                    value={finalBSForm.fromDate} 
-                    onChange={e => setFinalBSForm(f => ({ ...f, fromDate: e.target.value }))}
-                    placeholder="e.g. 01-Apr-2025"
-                  />
-                </div>
-                <div>
-                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>P&L To Date</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{width:'100%'}} 
-                    value={finalBSForm.toDate} 
-                    onChange={e => setFinalBSForm(f => ({ ...f, toDate: e.target.value }))}
-                    placeholder="e.g. 31-Mar-2026"
-                  />
-                </div>
-              </div>
-
-              <div style={{borderTop:'1px solid #eee', paddingTop:12, marginBottom:16}}>
-                <div style={{fontSize:11, fontWeight:'bold', color:'#777', textTransform:'uppercase', marginBottom:8}}>Chartered Accountant / Signatory Details</div>
-                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
-                  <div>
-                    <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>CA / Firm Name</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      style={{width:'100%'}} 
-                      value={finalBSForm.caName} 
-                      onChange={e => setFinalBSForm(f => ({ ...f, caName: e.target.value }))}
-                      placeholder="e.g. RAMESH GUPTA & CO."
-                    />
-                  </div>
-                  <div>
-                    <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>M.No. (Membership No.)</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      style={{width:'100%'}} 
-                      value={finalBSForm.caMno} 
-                      onChange={e => setFinalBSForm(f => ({ ...f, caMno: e.target.value }))}
-                      placeholder="e.g. 054321"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div style={{background:'#f6fff6', border:'1px solid #b2dfb2', borderRadius:6, padding:'10px 14px', fontSize:12, color:'#2a6a2a', marginBottom:16}}>
-                ðŸ“‹ <b>Exported Excel Features:</b>
-                <ul style={{margin:'4px 0 0 16px', padding:0}}>
-                  <li><b>Sheet 1: Balance Sheet</b> â€” Liabilities & Assets in exact CA firm layout</li>
-                  <li><b>Sheet 2: Profit & Loss</b> â€” Trading Account + P&L with Gross & Net Profit</li>
-                  <li>Bold headings, Red negative values, double underline totals, "compiled on...", signatures</li>
-                </ul>
-              </div>
-
-              <div style={{display:'flex', gap:10}}>
-                <button 
-                  onClick={()=>setShowFinalBSModal(false)}
-                  style={{flex:1, padding:'9px 16px', border:'1px solid #ccc', borderRadius:4, background:'#fff', color:'#555', cursor:'pointer', fontSize:13, fontWeight:'bold'}}
-                >
-                  Cancel (Esc)
-                </button>
-                <button 
-                  onClick={handleFinalBSExport}
-                  disabled={finalBSExporting || !activeCompany}
-                  style={{
-                    flex:2, padding:'9px 16px', border:'none', borderRadius:4,
-                    background: finalBSExporting ? '#90bc90' : 'linear-gradient(135deg, #27ae60, #1e8449)',
-                    color:'#fff', cursor: finalBSExporting ? 'not-allowed' : 'pointer',
-                    fontSize:13, fontWeight:'bold', display:'flex', alignItems:'center', justifyContent:'center', gap:8
-                  }}
-                >
-                  {finalBSExporting ? 'â³ Generating Excel...' : 'â¬‡ Export CA Excel'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {pwdPrompt && (
         <div className="modal-overlay" onKeyDown={e => {
           if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPwdPrompt(null); }
@@ -3307,6 +3184,127 @@ export default function App() {
         </div>
         );
       })()}
+      {showFinalBSModal && (
+        <div className="modal-overlay" onClick={()=>setShowFinalBSModal(false)}>
+          <div className="modal-box" style={{width:540, maxHeight:'90vh', overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header" style={{background:'linear-gradient(135deg, #1c5282, #2980b9)', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 16px', color:'#fff'}}>
+              <span style={{fontWeight:'bold', fontSize:14}}>📊 Final Balance Sheet & P&L (CA Excel Format)</span>
+              <span style={{cursor:'pointer', fontSize:16, fontWeight:'bold'}} onClick={()=>setShowFinalBSModal(false)}>✕</span>
+            </div>
+            <div style={{padding:20}}>
+              {activeCompany && (
+                <div style={{background:'#f0f7ff', border:'1px solid #cce3f8', borderRadius:6, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#1c5282'}}>
+                  🏢 <b>{activeCompany.name}</b>
+                  {activeCompany.address && <div style={{fontSize:11, color:'#555', marginTop:2}}>{activeCompany.address}</div>}
+                </div>
+              )}
+
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16}}>
+                <div>
+                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>Balance Sheet As On Date</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    style={{width:'100%'}} 
+                    value={finalBSForm.asOnDate} 
+                    onChange={e => setFinalBSForm(f => ({ ...f, asOnDate: e.target.value }))}
+                    placeholder="e.g. 31-Mar-2026"
+                  />
+                </div>
+                <div>
+                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>Place / City</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    style={{width:'100%'}} 
+                    value={finalBSForm.place} 
+                    onChange={e => setFinalBSForm(f => ({ ...f, place: e.target.value }))}
+                    placeholder="e.g. SITARGANJ"
+                  />
+                </div>
+                <div>
+                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>P&L From Date</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    style={{width:'100%'}} 
+                    value={finalBSForm.fromDate} 
+                    onChange={e => setFinalBSForm(f => ({ ...f, fromDate: e.target.value }))}
+                    placeholder="e.g. 01-Apr-2025"
+                  />
+                </div>
+                <div>
+                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>P&L To Date</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    style={{width:'100%'}} 
+                    value={finalBSForm.toDate} 
+                    onChange={e => setFinalBSForm(f => ({ ...f, toDate: e.target.value }))}
+                    placeholder="e.g. 31-Mar-2026"
+                  />
+                </div>
+              </div>
+
+              <div style={{borderTop:'1px solid #eee', paddingTop:12, marginBottom:16}}>
+                <div style={{fontSize:11, fontWeight:'bold', color:'#777', textTransform:'uppercase', marginBottom:8}}>Chartered Accountant / Signatory Details</div>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                  <div>
+                    <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>CA / Firm Name</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{width:'100%'}} 
+                      value={finalBSForm.caName} 
+                      onChange={e => setFinalBSForm(f => ({ ...f, caName: e.target.value }))}
+                      placeholder="e.g. RAMESH GUPTA & CO."
+                    />
+                  </div>
+                  <div>
+                    <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>M.No. (Membership No.)</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{width:'100%'}} 
+                      value={finalBSForm.caMno} 
+                      onChange={e => setFinalBSForm(f => ({ ...f, caMno: e.target.value }))}
+                      placeholder="e.g. 054321"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{background:'#f6fff6', border:'1px solid #b2dfb2', borderRadius:6, padding:'10px 14px', fontSize:12, color:'#2a6a2a', marginBottom:16}}>
+                📋 <b>Exported Excel Features:</b>
+                <ul style={{margin:'4px 0 0 16px', padding:0}}>
+                  <li><b>Sheet 1: Balance Sheet</b> — Liabilities & Assets in exact CA firm layout</li>
+                  <li><b>Sheet 2: Profit & Loss</b> — Trading Account + P&L with Gross & Net Profit</li>
+                  <li>Bold headings, Red negative values, double underline totals, "compiled on...", signatures</li>
+                </ul>
+              </div>
+
+              <div style={{display:'flex', gap:10, justifyContent:'flex-end'}}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={()=>setShowFinalBSModal(false)}
+                  disabled={finalBSExporting}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleFinalBSExport}
+                  disabled={finalBSExporting}
+                  style={{background:'#1a7a4a', color:'#fff', fontWeight:'bold', display:'flex', alignItems:'center', gap:6}}
+                >
+                  {finalBSExporting ? '⏳ Generating Excel...' : '📊 Download CA Excel'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showUpgradeModal && currentUser && (
         <PlanUpgradeModal
           currentUser={currentUser}
@@ -3325,35 +3323,35 @@ export default function App() {
             className={`mobile-bottom-btn ${screen === 'GATEWAY_MAIN' ? 'active' : ''}`}
             onClick={() => { setScreen('GATEWAY_MAIN'); setHistory([]); }}
           >
-            <span className="btn-icon">Ã°Å¸ÂÂ </span>
+            <span className="btn-icon">🏠</span>
             Home
           </button>
           <button
             className={`mobile-bottom-btn ${screen === 'VOUCHER_ENTRY' && activeVoucher === 'Sales' ? 'active' : ''}`}
             onClick={() => { nav('VOUCHER_ENTRY'); setActiveVoucher('Sales'); }}
           >
-            <span className="btn-icon">Ã°Å¸â€ºâ€™</span>
+            <span className="btn-icon">🛒</span>
             Sales
           </button>
           <button
             className={`mobile-bottom-btn ${['DAY_BOOK','BALANCE_SHEET','PROFIT_LOSS','TRIAL_BALANCE','LEDGER_REPORT','SALES_REGISTER','PURCHASE_REGISTER'].includes(screen) ? 'active' : ''}`}
             onClick={() => nav('DISPLAY_REPORTS_MENU')}
           >
-            <span className="btn-icon">Ã°Å¸â€œÅ </span>
+            <span className="btn-icon">📊</span>
             Reports
           </button>
           <button
             className={`mobile-bottom-btn ${['LEDGER_CREATION','STOCK_ITEM_CREATION','MASTER_MENU'].includes(screen) ? 'active' : ''}`}
             onClick={() => nav('MASTER_MENU')}
           >
-            <span className="btn-icon">Ã¢Å¡â„¢Ã¯Â¸Â</span>
+            <span className="btn-icon">⚙️</span>
             Masters
           </button>
           <button
             className="mobile-bottom-btn"
             onClick={() => setMobileDrawerOpen(true)}
           >
-            <span className="btn-icon">Ã¢ËœÂ°</span>
+            <span className="btn-icon">☰</span>
             More
           </button>
         </div>
@@ -3375,7 +3373,7 @@ function ListPanel({ title, items, selectedName, onSelect, onAltC, fieldKey }: {
       {onAltC && (
         <div style={{padding:'4px 15px',color:'#8B4000',fontSize:11,fontWeight:'bold',cursor:'pointer',background:'#fffbe6',borderBottom:'1px solid #f0d060'}}
           onMouseDown={e=>{e.preventDefault();onAltC();}}>
-          Ã¢Å¡Â¡ Alt+C: Create New
+          ⚡ Alt+C: Create New
         </div>
       )}
       <div ref={ref} style={{flex:1,overflowY:'auto'}}>
@@ -3383,7 +3381,7 @@ function ListPanel({ title, items, selectedName, onSelect, onAltC, fieldKey }: {
           {items.map((g,i)=>(
             <div key={i} onMouseDown={e=>{e.preventDefault();onSelect(g);}}
               className={`modal-list-item ${g===selectedName?'selected':''}`}>
-              {g==='Primary'&&<span style={{marginRight:6,color:'#888'}}>Ã¢â„¢Â¦</span>}{g}
+              {g==='Primary'&&<span style={{marginRight:6,color:'#888'}}>♦</span>}{g}
             </div>
           ))}
         </div>
@@ -3440,7 +3438,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
       const idx = states.findIndex(s => s.toLowerCase() === curVal.trim().toLowerCase());
       setSelIdx(idx >= 0 ? idx : 0);
     } else if (focusedField === 'currency') {
-      const curVal = (document.getElementById('c-currency') as HTMLInputElement)?.value || 'Ã¢â€šÂ¹';
+      const curVal = (document.getElementById('c-currency') as HTMLInputElement)?.value || '₹';
       const idx = uniqueCurrencies.findIndex(c => c.symbol === curVal || c.name.toLowerCase() === curVal.toLowerCase());
       setSelIdx(idx >= 0 ? idx : 0);
     }
@@ -3625,7 +3623,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
         )}
         <div className="form-section-title">Currency</div>
         <div className="form-row"><label style={{width:220}}>Base Currency Symbol</label><span className="colon">:</span>
-          <input id="c-currency" type="text" className="form-input" style={{width:60}} defaultValue="Ã¢â€šÂ¹"
+          <input id="c-currency" type="text" className="form-input" style={{width:60}} defaultValue="₹"
             onFocus={e=>{setFocusFld('currency');setFilter(e.target.value);}}
             onInput={e=>setFilter((e.target as HTMLInputElement).value)}
             onBlur={()=>setTimeout(()=>setFocusFld(null),200)}
@@ -3810,7 +3808,7 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
       <div style={{width:280,borderLeft:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fbfdff'}}>
         <div className="modal-header" style={{fontSize:12}}>List of Groups</div>
         <div style={{flex:1,overflowY:'auto'}}>
-          {TALLY_GROUPS.map((g,i)=><div key={i} className="modal-list-item" style={{fontSize:12}} onMouseDown={e=>{e.preventDefault();const inp=document.getElementById('g-under') as HTMLInputElement;if(inp){inp.value=g;inp.focus();}}}>{g==='Primary'&&<span style={{marginRight:6,color:'#888'}}>Ã¢â„¢Â¦</span>}{g}</div>)}
+          {TALLY_GROUPS.map((g,i)=><div key={i} className="modal-list-item" style={{fontSize:12}} onMouseDown={e=>{e.preventDefault();const inp=document.getElementById('g-under') as HTMLInputElement;if(inp){inp.value=g;inp.focus();}}}>{g==='Primary'&&<span style={{marginRight:6,color:'#888'}}>♦</span>}{g}</div>)}
         </div>
       </div>
       {focus && (
@@ -3838,7 +3836,7 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
             };
             onSave(data);
           }}>
-          Ã¢Å“â€œ Accept (Ctrl+A)
+          ✓ Accept (Ctrl+A)
         </button>
       </div>
     </div>
@@ -3907,7 +3905,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
     if(inp){inp.value=v;if(focus==='country'){setSelCo(v);}if(isUnderField){setUnderValue(v);}}
     setFocus(null);
     setTimeout(() => {
-      // Agar Under field se pick kiya aur Bank OD/OCC group select hua Ã¢â€ â€™ seedha l-od-limit pe focus
+      // Agar Under field se pick kiya aur Bank OD/OCC group select hua → seedha l-od-limit pe focus
       const uv = v.toLowerCase();
       const isODGroup = uv.includes('bank od') || uv.includes('bank occ');
       if (isUnderField && isODGroup) {
@@ -3935,7 +3933,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
     }
   };
 
-  // ledgerFields Ã¢â‚¬â€ l-od-limit is conditionally inserted after l-under when isBankOD
+  // ledgerFields — l-od-limit is conditionally inserted after l-under when isBankOD
   const ledgerFields = [
     'l-name', 'l-alias', 'l-under',
     ...(isBankOD ? ['l-od-limit'] : []),
@@ -3971,7 +3969,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   // Right panel title
   const rightPanelTitle = focus==='under' ? `List of Groups (${list.length})`
     : focus==='country' ? `List of Countries (${list.length})`
-    : focus==='state' ? `List of States Ã¢â‚¬â€ ${selCo} (${list.length})`
+    : focus==='state' ? `List of States — ${selCo} (${list.length})`
     : '';
 
   return (
@@ -3998,7 +3996,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
             defaultValue={activeAlterItem?.groupName||'Sundry Debtors'} autoComplete="off"/>
           <span style={{marginLeft:8,fontSize:11,color:'#888'}}>Alt+C to create</span>
         </div>
-        {/* Set OD Limit Ã¢â‚¬â€ turant Under ke baad, sirf Bank OD/OCC ke liye */}
+        {/* Set OD Limit — turant Under ke baad, sirf Bank OD/OCC ke liye */}
         {isBankOD && (
           <div className="form-row" style={{marginTop:8,background:'#fff8e1',padding:'6px 10px',borderRadius:4,border:'1px solid #ffe082'}}>
             <label style={{width:100,fontWeight:'bold',color:'#8B0000'}}>Set OD Limit</label><span className="colon">:</span>
@@ -4015,7 +4013,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
               placeholder="0.00"/>
             <span style={{marginLeft:8,fontSize:12,color:'#8B0000',fontWeight:'bold'}}>Cr</span>
             {odLimit && parseFloat(odLimit)>0 && (
-              <span style={{marginLeft:12,fontSize:11,color:'#555'}}>= Ã¢â€šÂ¹ {parseFloat(odLimit).toLocaleString('en-IN',{minimumFractionDigits:2})} Cr</span>
+              <span style={{marginLeft:12,fontSize:11,color:'#555'}}>= ₹ {parseFloat(odLimit).toLocaleString('en-IN',{minimumFractionDigits:2})} Cr</span>
             )}
           </div>
         )}
@@ -4089,7 +4087,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
                   onMouseDown={e=>{e.preventDefault();pick(typeof item === 'string' ? item : (item as any).name);}}
                   onMouseEnter={()=>setSelIdx(i)}
                 >
-                  {item==='Primary'&&<span style={{marginRight:6,color:i===selIdx?'#fff':'#888'}}>Ã¢â„¢Â¦</span>}
+                  {item==='Primary'&&<span style={{marginRight:6,color:i===selIdx?'#fff':'#888'}}>♦</span>}
                   {typeof item === 'string' ? item : (item as any).name}
                 </div>
               ))
@@ -4098,7 +4096,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
           {focus==='under' && (
             <div style={{padding:'6px 10px',borderTop:'1px solid #ccd',fontSize:11,color:'#8B4000',background:'#fffbe6',cursor:'pointer'}}
               onMouseDown={e=>{e.preventDefault();onAltC({fieldType:'group',onCreated:n=>{const inp=document.getElementById('l-under') as HTMLInputElement;if(inp)inp.value=n;}});}}>
-              Ã¢Å¡Â¡ Alt+C: Create New Group
+              ⚡ Alt+C: Create New Group
             </div>
           )}
         </div>
@@ -4129,7 +4127,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
             };
             onSave(data);
           }}>
-          Ã¢Å“â€œ Accept (Ctrl+A)
+          ✓ Accept (Ctrl+A)
         </button>
       </div>
     </div>
@@ -4184,7 +4182,7 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDel
       <div style={{width:280,borderLeft:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fbfdff'}}>
         <div className="modal-header" style={{fontSize:12}}>List of Stock Groups</div>
         <div style={{flex:1,overflowY:'auto'}}>
-          {stockGroups.map((g,i)=><div key={i} className="modal-list-item" style={{fontSize:12}} onMouseDown={e=>{e.preventDefault();pick(g.name);}}>{g.name==='Primary'&&<span style={{marginRight:6}}>Ã¢â„¢Â¦</span>}{g.name}</div>)}
+          {stockGroups.map((g,i)=><div key={i} className="modal-list-item" style={{fontSize:12}} onMouseDown={e=>{e.preventDefault();pick(g.name);}}>{g.name==='Primary'&&<span style={{marginRight:6}}>♦</span>}{g.name}</div>)}
         </div>
       </div>
       {focus&&<ListPanel title="List of Stock Groups" items={list} selectedName={list[sel]} onSelect={pick} onAltC={()=>onAltC({fieldType:'stockGroup',onCreated:n=>{const inp=document.getElementById('sg-under') as HTMLInputElement;if(inp)inp.value=n;}})}/>}
@@ -4202,7 +4200,7 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDel
             const data = { name, alias: fv('sg-alias'), under: fv('sg-under') || 'Primary' };
             onSave(data);
           }}>
-          Ã¢Å“â€œ Accept (Ctrl+A)
+          ✓ Accept (Ctrl+A)
         </button>
       </div>
     </div>
@@ -4251,7 +4249,7 @@ function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave,onDel
             const data = { name };
             onSave(data);
           }}>
-          Ã¢Å“â€œ Accept (Ctrl+A)
+          ✓ Accept (Ctrl+A)
         </button>
       </div>
     </div>
@@ -4630,7 +4628,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
           <input id="item-orate" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingRate||'0.00'} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/>
           <span style={{width:60,fontSize:11,textAlign:'center'}}>{typeof currentUnit === 'string' ? currentUnit : (currentUnit as any)?.name || (currentUnit as any)?.symbol || 'Nos'}</span>
           <span style={{width:120,textAlign:'right',fontWeight:'bold',fontSize:13}}>
-            Ã¢â€šÂ¹ {fmt((activeAlterItem?.openingQty||0)*(activeAlterItem?.openingRate||0))}
+            ₹ {fmt((activeAlterItem?.openingQty||0)*(activeAlterItem?.openingRate||0))}
           </span>
         </div>
       </div>
@@ -4678,7 +4676,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                     onMouseEnter={()=>setSel(i)}
                   >
                     <span>
-                      {item==='Primary' && <span style={{marginRight:6,color: i===sel?'#fff':'#888'}}>Ã¢â„¢Â¦</span>}
+                      {item==='Primary' && <span style={{marginRight:6,color: i===sel?'#fff':'#888'}}>♦</span>}
                       {typeof item === 'string' ? item : (item as any).symbol || (item as any).name}
                     </span>
                     {typeof item !== 'string' && (item as any).formalName && <span style={{opacity:0.6,fontSize:11}}>{(item as any).formalName}</span>}
@@ -4689,7 +4687,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
           {(focus==='under'||focus==='units'||focus==='altunit') && (
             <div style={{padding:'6px 10px',borderTop:'1px solid #ccd',fontSize:11,color:'#8B4000',background:'#fffbe6',cursor:'pointer'}}
               onMouseDown={e=>{e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[focus]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[focus]) as HTMLInputElement;if(inp){inp.value=n;if(focus==='units')setCurrentUnit(n);}}});}}>
-              Ã¢Å¡Â¡ Alt+C: Create New
+              ⚡ Alt+C: Create New
             </div>
           )}
         </div>
@@ -4751,7 +4749,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               }
             })();
           }}>
-          {isSaving ? 'Ã¢Å“â€œ Saving...' : 'Ã¢Å“â€œ Accept (Ctrl+A)'}
+          {isSaving ? '✓ Saving...' : '✓ Accept (Ctrl+A)'}
         </button>
       </div>
     </div>
@@ -4825,7 +4823,7 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
               decimalPlaces: parseInt(fv('unit-decimal')) || 0
             });
           }}>
-          Ã¢Å“â€œ Accept (Ctrl+A)
+          ✓ Accept (Ctrl+A)
         </button>
       </div>
     </div>
@@ -4885,7 +4883,7 @@ function GodownCreationForm({activeAlterItem,godowns,onSave,onDelete}:{activeAlt
             const data = { name, alias: fv('gd-alias'), under: (document.getElementById('gd-under') as HTMLSelectElement)?.value || 'Primary' };
             onSave(data);
           }}>
-          Ã¢Å“â€œ Accept (Ctrl+A)
+          ✓ Accept (Ctrl+A)
         </button>
       </div>
     </div>
@@ -4974,7 +4972,7 @@ function CurrencyCreationForm({activeAlterItem,currencies,onSave,onDelete}:{acti
           <input id="cur-sym" ref={ref} autoFocus type="text" className="form-input"
             style={{width:80,fontWeight:'bold',textAlign:'center'}}
             defaultValue={activeAlterItem?.symbol||''}
-            placeholder="Ã¢â€šÂ¹"
+            placeholder="₹"
             onFocus={()=>setShowList(true)}
             onChange={(e)=>{setFilterText(e.target.value); setShowList(true);}}
             onKeyDown={e => {
@@ -5055,7 +5053,7 @@ function CurrencyCreationForm({activeAlterItem,currencies,onSave,onDelete}:{acti
             const data = { symbol: sym, name: fv('cur-name') || sym, isoCode: fv('cur-iso'), paise: fv('cur-paise') };
             onSave(data);
           }}>
-          Ã¢Å“â€œ Accept (Ctrl+A)
+          ✓ Accept (Ctrl+A)
         </button>
       </div>
     </div>
@@ -5126,7 +5124,7 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave,onDelete}:
             const data = { name, type: fsv('vt-type'), abbreviation: fv('vt-abbr'), numberingMethod: fsv('vt-numbering'), startNumber: parseInt(fv('vt-start-no'))||1, width: parseInt(fv('vt-width'))||0, prefillWithZero: fsv('vt-zero')==='Yes', prefix: fv('vt-prefix'), suffix: fv('vt-suffix') };
             onSave(data);
           }}>
-          Ã¢Å“â€œ Accept (Ctrl+A)
+          ✓ Accept (Ctrl+A)
         </button>
       </div>
     </div>
@@ -5136,7 +5134,7 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave,onDelete}:
 // ==================== JOURNAL VOUCHER EXAMPLES DATA ====================
 const JOURNAL_EXAMPLES_DATA = [
   {
-    category: "Ã¢Â­Â Top 16 Essential Journal Examples",
+    category: "⭐ Top 16 Essential Journal Examples",
     items: [
       {
         title: "1. Depreciation",
@@ -5144,7 +5142,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "Depreciation A/c", group: "Indirect Expenses", amount: 0 },
           { type: "To (Cr)", ledger: "Furniture A/c", group: "Fixed Assets", amount: 0 }
         ],
-        note: "Depreciation expense Ã Â¤Â¬Ã Â¤Â¢Ã Â¤Â¼Ã Â¤Â¾ Ã¢â€ â€™ Debit; Furniture Ã Â¤â€¢Ã Â¥â‚¬ book value Ã Â¤â€¢Ã Â¤Â® Ã Â¤Â¹Ã Â¥ÂÃ Â¤Ë† Ã¢â€ â€™ Credit."
+        note: "Depreciation expense बढ़ा → Debit; Furniture की book value कम हुई → Credit."
       },
       {
         title: "2. Outstanding Rent",
@@ -5152,7 +5150,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "Rent Expense A/c", group: "Indirect Expenses", amount: 0 },
           { type: "To (Cr)", ledger: "Outstanding Rent A/c", group: "Current Liabilities", amount: 0 }
         ],
-        note: "Rent expense Ã Â¤Â¹Ã Â¥ÂÃ Â¤â€  Ã¢â€ â€™ Debit; Ã Â¤â€¦Ã Â¤Â­Ã Â¥â‚¬ Ã Â¤Â­Ã Â¥ÂÃ Â¤â€”Ã Â¤Â¤Ã Â¤Â¾Ã Â¤Â¨ Ã Â¤Â¬Ã Â¤Â¾Ã Â¤â€¢Ã Â¥â‚¬ Ã Â¤Â¹Ã Â¥Ë† Ã¢â€ â€™ Liability Credit."
+        note: "Rent expense हुआ → Debit; अभी भुगतान बाकी है → Liability Credit."
       },
       {
         title: "3. Outstanding Salary",
@@ -5176,7 +5174,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "Prepaid Insurance A/c", group: "Current Assets", amount: 0 },
           { type: "To (Cr)", ledger: "Insurance Expense A/c", group: "Indirect Expenses", amount: 0 }
         ],
-        note: "Future period Ã Â¤â€¢Ã Â¤Â¾ expense Ã Â¤Â¹Ã Â¥Ë†, Ã Â¤â€¡Ã Â¤Â¸Ã Â¤Â²Ã Â¤Â¿Ã Â¤Â Asset Ã Â¤Â¬Ã Â¤Â¨Ã Â¤Â¾ Debit Ã Â¤â€¢Ã Â¤Â¿Ã Â¤Â¯Ã Â¤Â¾ Ã Â¤â€”Ã Â¤Â¯Ã Â¤Â¾Ã Â¥Â¤"
+        note: "Future period का expense है, इसलिए Asset बना Debit किया गया।"
       },
       {
         title: "6. Accrued Interest Income",
@@ -5232,7 +5230,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "Electricity Expense A/c", group: "Indirect Expenses", amount: 0 },
           { type: "To (Cr)", ledger: "Capital A/c", group: "Capital Account", amount: 0 }
         ],
-        note: "Owner Ã Â¤Â¨Ã Â¥â€¡ Ã Â¤â€¦Ã Â¤ÂªÃ Â¤Â¨Ã Â¥â‚¬ Ã Â¤Å“Ã Â¥â€¡Ã Â¤Â¬ Ã Â¤Â¸Ã Â¥â€¡ electricity expense Ã Â¤Â¦Ã Â¤Â¿Ã Â¤Â¯Ã Â¤Â¾Ã Â¥Â¤"
+        note: "Owner ने अपनी जेब से electricity expense दिया।"
       },
       {
         title: "13. Customer Balance Written Off",
@@ -5264,7 +5262,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "Provision for Doubtful Debts Expense A/c", group: "Indirect Expenses", amount: 0 },
           { type: "To (Cr)", ledger: "Provision for Doubtful Debts A/c", group: "Provisions", amount: 0 }
         ],
-        note: "Tally Ã Â¤Â®Ã Â¥â€¡Ã Â¤â€š Provisions Ã Â¤Â¸Ã Â¤Â¾Ã Â¤Â®Ã Â¤Â¾Ã Â¤Â¨Ã Â¥ÂÃ Â¤Â¯Ã Â¤Â¤Ã Â¤Æ’ Current Liabilities / Provisions Ã Â¤â€¢Ã Â¥â€¡ Ã Â¤â€¦Ã Â¤â€šÃ Â¤Â¤Ã Â¤Â°Ã Â¥ÂÃ Â¤â€”Ã Â¤Â¤ Ã Â¤Â°Ã Â¤â€“Ã Â¤Â¾ Ã Â¤Å“Ã Â¤Â¾Ã Â¤Â¤Ã Â¤Â¾ Ã Â¤Â¹Ã Â¥Ë†Ã Â¥Â¤"
+        note: "Tally में Provisions सामान्यतः Current Liabilities / Provisions के अंतर्गत रखा जाता है।"
       }
     ]
   },
@@ -5335,7 +5333,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "XYZ Customer A/c", group: "Sundry Debtors", amount: 0 },
           { type: "To (Cr)", ledger: "Bad Debts Recovered A/c", group: "Indirect Incomes", amount: 0 }
         ],
-        note: "Ã Â¤Â¯Ã Â¤Â¦Ã Â¤Â¿ Ã Â¤ÂªÃ Â¤Â¹Ã Â¤Â²Ã Â¥â€¡ bad debt write off Ã Â¤â€¢Ã Â¤Â¿Ã Â¤Â¯Ã Â¤Â¾ Ã Â¤â€”Ã Â¤Â¯Ã Â¤Â¾ Ã Â¤Â¥Ã Â¤Â¾ Ã Â¤â€Ã Â¤Â° Ã Â¤Â¬Ã Â¤Â¾Ã Â¤Â¦ Ã Â¤Â®Ã Â¥â€¡Ã Â¤â€š Ã Â¤ÂªÃ Â¥Ë†Ã Â¤Â¸Ã Â¤Â¾ recover Ã Â¤Â¹Ã Â¥ÂÃ Â¤â€ Ã Â¥Â¤"
+        note: "यदि पहले bad debt write off किया गया था और बाद में पैसा recover हुआ।"
       }
     ]
   },
@@ -5451,7 +5449,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 0 },
           { type: "To (Cr)", ledger: "Installation Charges A/c", group: "Indirect Expenses", amount: 0 }
         ],
-        note: "Installation cost asset Ã Â¤â€¢Ã Â¥â€¹ usable condition Ã Â¤Â®Ã Â¥â€¡Ã Â¤â€š Ã Â¤Â²Ã Â¤Â¾Ã Â¤Â¨Ã Â¥â€¡ Ã Â¤â€¢Ã Â¥â‚¬ directly attributable cost Ã Â¤Â¹Ã Â¥Ë†Ã Â¥Â¤"
+        note: "Installation cost asset को usable condition में लाने की directly attributable cost है।"
       }
     ]
   },
@@ -5472,7 +5470,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "XYZ Supplier A/c", group: "Sundry Creditors", amount: 0 },
           { type: "To (Cr)", ledger: "Purchase Return A/c", group: "Purchase Accounts", amount: 0 }
         ],
-        note: "Purchase Return Ã Â¤â€¢Ã Â¥â€¡ Ã Â¤Â²Ã Â¤Â¿Ã Â¤Â Debit Note (Ctrl+F9) Ã Â¤Â­Ã Â¥â‚¬ appropriate Ã Â¤Â¹Ã Â¥Ë†Ã Â¥Â¤"
+        note: "Purchase Return के लिए Debit Note (Ctrl+F9) भी appropriate है।"
       }
     ]
   },
@@ -5493,7 +5491,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "Sales Return A/c", group: "Sales Accounts", amount: 0 },
           { type: "To (Cr)", ledger: "XYZ Customer A/c", group: "Sundry Debtors", amount: 0 }
         ],
-        note: "Sales Return Ã Â¤â€¢Ã Â¥â€¡ Ã Â¤Â²Ã Â¤Â¿Ã Â¤Â Credit Note (Ctrl+F8) Ã Â¤Â­Ã Â¥â‚¬ appropriate Ã Â¤Â¹Ã Â¥Ë†Ã Â¥Â¤"
+        note: "Sales Return के लिए Credit Note (Ctrl+F8) भी appropriate है।"
       }
     ]
   },
@@ -5560,7 +5558,7 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "By (Dr)", ledger: "Machinery A/c", group: "Fixed Assets", amount: 0 },
           { type: "To (Cr)", ledger: "Direct Cost A/c", group: "Direct Expenses", amount: 0 }
         ],
-        note: "Expense Ã Â¤â€¢Ã Â¥â€¹ asset cost Ã Â¤Â®Ã Â¥â€¡Ã Â¤â€š capitalize Ã Â¤â€¢Ã Â¤Â°Ã Â¤Â¨Ã Â¥â€¡ Ã Â¤â€¢Ã Â¥â€¡ Ã Â¤Â²Ã Â¤Â¿Ã Â¤ÂÃ Â¥Â¤"
+        note: "Expense को asset cost में capitalize करने के लिए।"
       },
       {
         title: "46. Transfer of Profit to Capital",
@@ -5608,8 +5606,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     try {
       setIsScanningInvoice(true);
       const scanMsg = files.length > 1 
-        ? `Ã°Å¸Â¤â€“ AI Scanning ${files.length} Multi-page Invoice Images... Please wait`
-        : `Ã°Å¸Â¤â€“ AI Scanning Purchase Invoice... Please wait`;
+        ? `🤖 AI Scanning ${files.length} Multi-page Invoice Images... Please wait`
+        : `🤖 AI Scanning Purchase Invoice... Please wait`;
       setSaveToast(scanMsg);
 
       const formData = new FormData();
@@ -5695,7 +5693,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           const itemQty = Number(item.qty) || 1;
           const itemRate = Number(item.rate) || 0;
           const parsedUnit = (item.unit || '').trim();
-          const itemUnit = (parsedUnit && parsedUnit !== 'Ã¢â‚¬â€' && parsedUnit !== '-') ? parsedUnit : 'Nos';
+          const itemUnit = (parsedUnit && parsedUnit !== '—' && parsedUnit !== '-') ? parsedUnit : 'Nos';
 
           // Item-level Discount Calculation
           const gross = Math.round(itemQty * itemRate * 100) / 100;
@@ -5817,7 +5815,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           entryType: entryType
         });
 
-        addlInfoSummary.push(`${addlName}: Ã¢â€šÂ¹${rawAmt.toFixed(2)} (${entryType})`);
+        addlInfoSummary.push(`${addlName}: ₹${rawAmt.toFixed(2)} (${entryType})`);
       }
 
       if (newAddlLedgers.length > 0) {
@@ -5825,12 +5823,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       }
 
       const summaryText = [
-        `Ã¢Å“â€¦ Invoice scanned & pre-filled successfully!`,
-        `Ã¢â‚¬Â¢ Supplier: ${finalPartyName}`,
-        `Ã¢â‚¬Â¢ Bill No: ${inv.invoiceNo || 'N/A'}`,
-        `Ã¢â‚¬Â¢ Items Parsed: ${newRows.length}`,
-        newAddlLedgers.length > 0 ? `Ã¢â‚¬Â¢ Additional Charges/Discounts: ${addlInfoSummary.join(', ')}` : '',
-        `Ã¢â‚¬Â¢ Masters Auto-Created: ${createdCount}`
+        `✅ Invoice scanned & pre-filled successfully!`,
+        `• Supplier: ${finalPartyName}`,
+        `• Bill No: ${inv.invoiceNo || 'N/A'}`,
+        `• Items Parsed: ${newRows.length}`,
+        newAddlLedgers.length > 0 ? `• Additional Charges/Discounts: ${addlInfoSummary.join(', ')}` : '',
+        `• Masters Auto-Created: ${createdCount}`
       ].filter(Boolean).join('\n');
 
       alert(summaryText);
@@ -6010,7 +6008,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         return name.toLowerCase() === currentVal.toLowerCase();
       });
       if (idx >= 0) {
-        // accledger has "End of List" at top when filter is empty Ã¢â€ â€™ items start at listSel=1
+        // accledger has "End of List" at top when filter is empty → items start at listSel=1
         const offset = (focus.field === 'accledger' && (!filter || filter.trim() === '')) ? 1 : 0;
         setListSel(idx + offset);
       } else setListSel(0);
@@ -6519,9 +6517,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const listKeyDown=(e:React.KeyboardEvent)=>{
     if(e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();
       if(focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger'){
-        // End of List (bottom) Ã¢â€ â€™ wrap to End of List (top, listSel=0)
+        // End of List (bottom) → wrap to End of List (top, listSel=0)
         if(isEndOfItem) setListSel(0);
-        // Last real item (listSel=N with i+1 offset) Ã¢â€ â€™ End of List bottom (listSel=N+1... but use N as sentinel)
+        // Last real item (listSel=N with i+1 offset) → End of List bottom (listSel=N+1... but use N as sentinel)
         // For item/addl-ledger: items at listSel 1..N, so End of List bottom at listSel>=N+1; use currentList.length+1
         // For accledger: same i+1 offset, last item at listSel=N, End of List bottom at listSel=N+1
         else if(!filter && listSel >= currentList.length) setListSel(currentList.length + 1);
@@ -6530,9 +6528,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     }
     else if(e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();
       if(focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger'){
-        // End of List (top, listSel=0) Ã¢â€ â€™ End of List bottom
+        // End of List (top, listSel=0) → End of List bottom
         if(listSel === 0) setListSel(currentList.length + 1);
-        // End of List (bottom) Ã¢â€ â€™ last real item (listSel=N=currentList.length with i+1 offset)
+        // End of List (bottom) → last real item (listSel=N=currentList.length with i+1 offset)
         else if(isEndOfItem) setListSel(currentList.length);
         else setListSel(p=>p-1);
       } else setListSel(p=>(p-1+Math.max(1,currentList.length))%Math.max(1,currentList.length));
@@ -6687,12 +6685,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           return;
         }
         if (totalDr === 0 || totalCr === 0) {
-          alert(`Journal Voucher must have both:\nÃ¢â‚¬Â¢ By (Debit) entries\nÃ¢â‚¬Â¢ To (Credit) entries`);
+          alert(`Journal Voucher must have both:\n• By (Debit) entries\n• To (Credit) entries`);
           return;
         }
         // 3a. Dr must equal Cr
         if (Math.abs(totalDr - totalCr) > 0.01) {
-          alert(`Journal Voucher is not balanced!\nTotal Debit (By): Ã¢â€šÂ¹${totalDr.toFixed(2)}\nTotal Credit (To): Ã¢â€šÂ¹${totalCr.toFixed(2)}\nDifference: Ã¢â€šÂ¹${Math.abs(totalDr-totalCr).toFixed(2)}\n\nPlease balance Dr = Cr before saving.`);
+          alert(`Journal Voucher is not balanced!\nTotal Debit (By): ₹${totalDr.toFixed(2)}\nTotal Credit (To): ₹${totalCr.toFixed(2)}\nDifference: ₹${Math.abs(totalDr-totalCr).toFixed(2)}\n\nPlease balance Dr = Cr before saving.`);
           return;
         }
       } else {
@@ -6827,7 +6825,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 }}
                 title="Upload single or multiple invoice image pages/PDF to auto-scan & pre-fill items"
               >
-                {isScanningInvoice ? 'Ã¢ÂÂ³ AI Scanning Bill Pages...' : 'Ã°Å¸â€œÂ· Auto Scan Bill (Multi-Page / PDF)'}
+                {isScanningInvoice ? '⏳ AI Scanning Bill Pages...' : '📷 Auto Scan Bill (Multi-Page / PDF)'}
                 <input
                   id="invoice-file-input"
                   type="file"
@@ -6911,7 +6909,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 }}
                 title="Journal Voucher Examples & Rules (Click or Enter)"
               >
-                <span>Ã°Å¸â€œÅ¡</span> Examples
+                <span>📚</span> Examples
               </button>
             )}
             {currentDate} <span onClick={onF2} style={{cursor:'pointer',marginLeft:10,fontSize:11,background:'#fffbe6',padding:'2px 8px',border:'1px solid #f0d060'}}>F2: Change Date</span>
@@ -7022,12 +7020,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 </span>
                 {odExceeded && (
                   <span style={{marginLeft:10,fontSize:10,color:'#c00',background:'#fff0f0',border:'1px solid #f66',padding:'1px 6px',borderRadius:3,fontWeight:'bold'}}>
-                    Ã¢Å¡Â  OD Limit: Ã¢â€šÂ¹{fmt(pLedger!.odLimit!)} exceeded!
+                    ⚠ OD Limit: ₹{fmt(pLedger!.odLimit!)} exceeded!
                   </span>
                 )}
                 {pLedger?.odLimit != null && !odExceeded && (
                   <span style={{marginLeft:10,fontSize:10,color:'#555',opacity:0.75}}>
-                    (OD Limit: Ã¢â€šÂ¹{fmt(pLedger.odLimit)} Cr)
+                    (OD Limit: ₹{fmt(pLedger.odLimit)} Cr)
                   </span>
                 )}
               </div>
@@ -7346,11 +7344,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           updateRow(idx, calculateVoucherRow(row, 'rateInclTax', ri));
                         }}
                         onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation();
-                          // After Rate Incl. Tax Ã¢â€ â€™ always go to Rate (step by step)
+                          // After Rate Incl. Tax → always go to Rate (step by step)
                           setTimeout(()=>document.getElementById(`item-rate-${idx}`)?.focus(), 80);
                         }}}
                       />
-                    ) : (row.itemName ? <div style={{width:'88%', textAlign:'right', color:'#ccc'}}>Ã¢â‚¬â€</div> : null)}
+                    ) : (row.itemName ? <div style={{width:'88%', textAlign:'right', color:'#ccc'}}>—</div> : null)}
                   </div>
                 )}
 
@@ -7423,7 +7421,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           }
                         }}
                       />
-                    ) : (row.itemName ? <div style={{width:'90%', textAlign:'right', color:'#ccc'}}>Ã¢â‚¬â€</div> : null)}
+                    ) : (row.itemName ? <div style={{width:'90%', textAlign:'right', color:'#ccc'}}>—</div> : null)}
                   </div>
                 )}
               </div>
@@ -7497,14 +7495,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           <div style={{borderTop:`2px solid ${vc}`,background:'#f8f8f8',padding:'8px 15px'}}>
             <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:5}}>
               <span style={{fontSize:13,color:'#555'}}>Sub Total:</span>
-              <span style={{width:130,textAlign:'right',fontWeight:'bold'}}>Ã¢â€šÂ¹ {fmt(itemSubtotal)}</span>
+              <span style={{width:130,textAlign:'right',fontWeight:'bold'}}>₹ {fmt(itemSubtotal)}</span>
             </div>
 
             {/* State indicator */}
             {partyName && partyLedger?.state && (
               <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:6,fontSize:11}}>
                 <span style={{background:isInterState?'#fff3e0':'#e8f5e9',padding:'2px 10px',border:`1px solid ${isInterState?'#ff9800':'#4caf50'}`,borderRadius:2,fontWeight:'bold',color:isInterState?'#e65100':'#2e7d32'}}>
-                  {isInterState ? `Ã¢Å¡Â¡ INTER-STATE (${activeCompany?.state} Ã¢â€ â€™ ${partyLedger.state}) Ã¢â‚¬â€ IGST` : `Ã¢Å“â€œ INTRA-STATE (${activeCompany?.state}) Ã¢â‚¬â€ CGST + SGST`}
+                  {isInterState ? `⚡ INTER-STATE (${activeCompany?.state} → ${partyLedger.state}) — IGST` : `✓ INTRA-STATE (${activeCompany?.state}) — CGST + SGST`}
                 </span>
               </div>
             )}
@@ -7515,18 +7513,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 <div key={gi} style={{marginBottom:4}}>
                   {isInterState ? (
                     <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                      <span style={{fontSize:12,color:'#555'}}>IGST @ {g.gstRate}% on Ã¢â€šÂ¹{fmt(displayTaxable)}:</span>
-                      <span style={{width:130,textAlign:'right',fontSize:12}}>Ã¢â€šÂ¹ {fmt(g.igst)}</span>
+                      <span style={{fontSize:12,color:'#555'}}>IGST @ {g.gstRate}% on ₹{fmt(displayTaxable)}:</span>
+                      <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.igst)}</span>
                     </div>
                   ) : (
                     <>
                       <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                        <span style={{fontSize:12,color:'#555'}}>CGST @ {g.gstRate/2}% on Ã¢â€šÂ¹{fmt(displayTaxable)}:</span>
-                        <span style={{width:130,textAlign:'right',fontSize:12}}>Ã¢â€šÂ¹ {fmt(g.cgst)}</span>
+                        <span style={{fontSize:12,color:'#555'}}>CGST @ {g.gstRate/2}% on ₹{fmt(displayTaxable)}:</span>
+                        <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.cgst)}</span>
                       </div>
                       <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                        <span style={{fontSize:12,color:'#555'}}>SGST @ {g.gstRate/2}% on Ã¢â€šÂ¹{fmt(displayTaxable)}:</span>
-                        <span style={{width:130,textAlign:'right',fontSize:12}}>Ã¢â€šÂ¹ {fmt(g.sgst)}</span>
+                        <span style={{fontSize:12,color:'#555'}}>SGST @ {g.gstRate/2}% on ₹{fmt(displayTaxable)}:</span>
+                        <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.sgst)}</span>
                       </div>
                     </>
                   )}
@@ -7536,13 +7534,13 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             {totalTax > 0 && (
               <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:4,borderTop:'1px dashed #ccc',paddingTop:4}}>
                 <span style={{fontSize:12,fontWeight:'bold',color:'#555'}}>Total Tax:</span>
-                <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold'}}>Ã¢â€šÂ¹ {fmt(totalTax)}</span>
+                <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold'}}>₹ {fmt(totalTax)}</span>
               </div>
             )}
             {/* Round Off and other ledgers are now in the main grid list */}
             <div style={{display:'flex',justifyContent:'flex-end',gap:20,borderTop:`1px solid ${vc}`,paddingTop:6}}>
               <span style={{fontSize:15,fontWeight:'bold',color:vc}}>Grand Total:</span>
-              <span style={{width:130,textAlign:'right',fontSize:18,fontWeight:'bold',color:vc}}>Ã¢â€šÂ¹ {fmt(grandTotal)}</span>
+              <span style={{width:130,textAlign:'right',fontSize:18,fontWeight:'bold',color:vc}}>₹ {fmt(grandTotal)}</span>
             </div>
           </div>
         </div>
@@ -7793,7 +7791,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     return (
                       <div style={{paddingLeft:15,marginTop:2,fontSize:11,fontStyle:'italic',color: isExceeded ? '#c00' : liveBal < 0 ? '#b30000' : '#444'}}>
                         Cur Bal: {fmt(absBal)} {balType}
-                        {isExceeded && <span style={{marginLeft:6,color:'#c00',fontWeight:'bold',fontStyle:'normal'}}>Ã¢Å¡Â  OD Exceeded!</span>}
+                        {isExceeded && <span style={{marginLeft:6,color:'#c00',fontWeight:'bold',fontStyle:'normal'}}>⚠ OD Exceeded!</span>}
                       </div>
                     );
                   })()}
@@ -7841,10 +7839,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
                 <div style={{display:'flex',gap:24}}>
                   <span style={{fontSize:12,fontWeight:'bold',color:'#1a7a4a'}}>
-                    Total By (Dr): Ã¢â€šÂ¹ {fmt(accDr)}
+                    Total By (Dr): ₹ {fmt(accDr)}
                   </span>
                   <span style={{fontSize:12,fontWeight:'bold',color:'#8B0000'}}>
-                    Total To (Cr): Ã¢â€šÂ¹ {fmt(accCr)}
+                    Total To (Cr): ₹ {fmt(accCr)}
                   </span>
                 </div>
                 <div style={{
@@ -7855,8 +7853,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   padding:'3px 12px', borderRadius:3
                 }}>
                   {Math.abs(accDr - accCr) < 0.01
-                    ? 'Ã¢Å“â€œ Balanced'
-                    : `Diff: Ã¢â€šÂ¹${fmt(Math.abs(accDr - accCr))} ${accDr > accCr ? 'Dr' : 'Cr'} excess`
+                    ? '✓ Balanced'
+                    : `Diff: ₹${fmt(Math.abs(accDr - accCr))} ${accDr > accCr ? 'Dr' : 'Cr'} excess`
                   }
                 </div>
               </div>
@@ -7871,7 +7869,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               background:'#f5efe6'
             }}>
               <div style={{fontSize:12,fontWeight:'bold',color:'#333'}}>
-                Total Particulars: Ã¢â€šÂ¹ {fmt(accDr || accCr)}
+                Total Particulars: ₹ {fmt(accDr || accCr)}
               </div>
               <div style={{
                 fontSize:16,
@@ -7881,7 +7879,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 borderBottom:'3px double #666',
                 padding:'2px 8px'
               }}>
-                Ã¢â€šÂ¹ {fmt(accDr || accCr)}
+                ₹ {fmt(accDr || accCr)}
               </div>
             </div>
           )}
@@ -7895,11 +7893,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           <textarea id="v-narration" className="form-input" style={{flex:1,height:36,fontSize:12}} value={narration} onChange={e=>setNarration(e.target.value)} placeholder="Enter narration..."
             onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('btn-save-voucher')?.focus();}}}/>
           <button id="btn-save-voucher" style={{background:vc,color:'white',border:'none',padding:'8px 20px',cursor:'pointer',fontWeight:'bold',fontSize:13}} onClick={handleSave}>
-            {activeAlterItem ? 'Ã¢Å“â€œ Update (Ctrl+A)' : 'Ã¢Å“â€œ Save (Ctrl+A)'}
+            {activeAlterItem ? '✓ Update (Ctrl+A)' : '✓ Save (Ctrl+A)'}
           </button>
           {activeAlterItem && (
             <button style={{background:'#c00',color:'white',border:'none',padding:'8px 20px',cursor:'pointer',fontWeight:'bold',fontSize:13}} onClick={()=>setShowDeleteConfirm(true)}>
-              Ã¢Å“â€” Delete (Alt+D)
+              ✗ Delete (Alt+D)
             </button>
           )}
         </div>
@@ -7923,7 +7921,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   color:deleteConfirmSel==='no'?'#333':'#666', borderRadius:2, transition:'all 0.1s'
                 }} onClick={()=>setShowDeleteConfirm(false)}>No</div>
               </div>
-              <div style={{marginTop:15,fontSize:10,color:'#888'}}>Use Ã¢â€ Â Ã¢â€ â€™ arrows and Enter</div>
+              <div style={{marginTop:15,fontSize:10,color:'#888'}}>Use ← → arrows and Enter</div>
             </div>
           </div>
         </div>
@@ -7977,10 +7975,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 }
               });
             }}>
-            Ã¢Å¡Â¡ Alt+C: Create New {focus.field==='item'?'Stock Item':'Ledger'}
+            ⚡ Alt+C: Create New {focus.field==='item'?'Stock Item':'Ledger'}
           </div>
           <div ref={listRef} style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
-            {/* End of List Ã¢â‚¬â€ Available at top for item, addl-ledger, and accledger */}
+            {/* End of List — Available at top for item, addl-ledger, and accledger */}
             {(focus.field==='item' || focus.field==='addl-ledger' || focus.field==='accledger') && (
               <div
                 onMouseDown={e=>{
@@ -8126,7 +8124,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             <div style={{background:'#e8eef4',padding:'8px 18px',display:'flex',justifyContent:'flex-end',gap:10,borderTop:'1px solid #ccd'}}>
               <button className="party-detail-modal-accept-btn" style={{background:'#1c5282',color:'white',border:'none',padding:'6px 22px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
                 onClick={()=>{setShowPartyDetails(false);setShowDispatch(true);}}>
-                Ã¢Å“â€œ Accept (A)
+                ✓ Accept (A)
               </button>
               <button style={{padding:'6px 18px',cursor:'pointer',border:'1px solid #ccc',fontSize:12}}
                 onClick={()=>{setShowPartyDetails(false);focusRefAfterModal();}}>
@@ -8190,7 +8188,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             <div style={{background:'#dde4f0',padding:'10px 20px',display:'flex',justifyContent:'flex-end',gap:10,borderTop:'2px solid #b0bedc'}}>
               <button className="dispatch-detail-modal-accept-btn" style={{background:'#1c5282',color:'white',border:'none',padding:'7px 26px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
                 onClick={()=>{setShowDispatch(false);focusRefAfterModal();}}>
-                Ã¢Å“â€œ Accept (A)
+                ✓ Accept (A)
               </button>
               <button style={{padding:'7px 18px',cursor:'pointer',border:'1px solid #aaa',fontSize:12,background:'#fff'}}
                 onClick={()=>{setShowDispatch(false);focusRefAfterModal();}}>
@@ -8210,7 +8208,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <span>Y: Yes | N: No</span>
             </div>
             <div style={{padding:'20px',fontSize:13,whiteSpace:'pre-wrap',color:'#333',textAlign:'center'}}>
-              <div style={{color:'#1a7a4a',fontWeight:'bold',marginBottom:10,fontSize:14}}>Ã¢Å“â€œ {showPrintPrompt.msg}</div>
+              <div style={{color:'#1a7a4a',fontWeight:'bold',marginBottom:10,fontSize:14}}>✓ {showPrintPrompt.msg}</div>
               <div style={{fontSize:15,fontWeight:'bold',color:'#1c5282'}}>Print? Yes or No</div>
             </div>
             <div style={{background:'#dde4f0',padding:'15px',display:'flex',justifyContent:'center',gap:25,borderTop:'1px solid #ccd'}}>
@@ -8258,7 +8256,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           }}>
             <div>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 'bold', display:'flex', alignItems:'center', gap:6 }}>
-                <span>Ã°Å¸â€œÅ¡</span> Journal Voucher Examples
+                <span>📚</span> Journal Voucher Examples
               </h3>
               <span style={{ fontSize: 11, opacity: 0.9 }}>By (Dr) = Debit | To (Cr) = Credit</span>
             </div>
@@ -8276,14 +8274,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 fontSize: 16
               }}
               title="Close Panel (Esc)"
-            >Ã¢Å“â€¢</button>
+            >✕</button>
           </div>
 
           {/* Search Bar */}
           <div style={{ padding: '10px 14px', background: '#f5efe6', borderBottom: '1px solid #ddd' }}>
             <input
               type="text"
-              placeholder="Ã°Å¸â€Â Search example (Rent, Salary, Depreciation, Loan...)"
+              placeholder="🔍 Search example (Rent, Salary, Depreciation, Loan...)"
               value={journalExampleSearch}
               onChange={e => setJournalExampleSearch(e.target.value)}
               style={{
@@ -8310,10 +8308,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               fontSize: 11,
               color: '#1b5e20'
             }}>
-              <div style={{ fontWeight: 'bold', marginBottom: 3 }}>Ã¢Å¡Â¡ Key Accounting Rules:</div>
-              <div>Ã¢â‚¬Â¢ <b>By / Debit (Dr)</b>: Asset or Expense increases</div>
-              <div>Ã¢â‚¬Â¢ <b>To / Credit (Cr)</b>: Liability, Income or Capital increases</div>
-              <div>Ã¢â‚¬Â¢ <b>Validation</b>: Total By (Dr) = Total To (Cr)</div>
+              <div style={{ fontWeight: 'bold', marginBottom: 3 }}>⚡ Key Accounting Rules:</div>
+              <div>• <b>By / Debit (Dr)</b>: Asset or Expense increases</div>
+              <div>• <b>To / Credit (Cr)</b>: Liability, Income or Capital increases</div>
+              <div>• <b>Validation</b>: Total By (Dr) = Total To (Cr)</div>
             </div>
 
             {JOURNAL_EXAMPLES_DATA.map((cat, cIdx) => {
@@ -8415,26 +8413,26 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           }}
                           title="Click to auto-fill ledgers (Amount = 0)"
                         >
-                          Ã¢Å¡Â¡ Auto Fill
+                          ⚡ Auto Fill
                         </button>
                       </div>
 
                       <div style={{ background: '#fdfbf7', border: '1px solid #efe8da', borderRadius: 4, padding: '6px 8px' }}>
                         {item.entries.map((entry, eIdx) => (
-                          <div key={eIdx} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4, color: "#333" }}>
+                          <div key={eIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4, color: '#333' }}>
                             <div>
                               <span style={{
-                                fontWeight: "bold",
-                                color: entry.type.includes("Dr") ? "#1a7a4a" : "#8B0000",
+                                fontWeight: 'bold',
+                                color: entry.type.includes('Dr') ? '#1a7a4a' : '#8B0000',
                                 minWidth: 48,
-                                display: "inline-block"
+                                display: 'inline-block'
                               }}>
                                 {entry.type}
                               </span>
-                              <span style={{ fontWeight: "600" }}>{entry.ledger}</span>
-                              <span style={{ color: "#666", fontStyle: "italic", marginLeft: 4 }}>({entry.group})</span>
+                              <span style={{ fontWeight: '600' }}>{entry.ledger}</span>
+                              <span style={{ color: '#666', fontStyle: 'italic', marginLeft: 4 }}>({entry.group})</span>
                             </div>
-                            <span style={{ fontWeight: "bold", color: "#888" }}>{"\u20b9"}0.00</span>
+                            <span style={{ fontWeight: 'bold', color: '#888' }}>₹0.00</span>
                           </div>
                         ))}
                       </div>
@@ -8453,7 +8451,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
           {/* Panel Footer */}
           <div style={{ padding: '8px 14px', background: '#f5efe6', borderTop: '1px solid #ddd', fontSize: 11, color: '#555', textAlign: 'center' }}>
-            Click <b>Ã¢Å¡Â¡ Auto Fill</b> on any example to load it directly!
+            Click <b>⚡ Auto Fill</b> on any example to load it directly!
           </div>
         </div>
       )}
@@ -8463,7 +8461,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
 // ==================== REPORTS ====================
 
-// ==================== BALANCE SHEET VIEW Ã¢â‚¬â€ FULLY FUNCTIONAL ====================
+// ==================== BALANCE SHEET VIEW — FULLY FUNCTIONAL ====================
 function BalanceSheetView({
   ledgers, vouchers, currentPeriod, activeCompany, onBack, onDrillDownLedger, onDrillDownGroup, onDrillDownVoucher
 }: {
@@ -8543,47 +8541,20 @@ function BalanceSheetView({
   const f2 = (n:number) => n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
   const endDate = currentPeriod?.end || '31.03.'+new Date().getFullYear();
 
-  const renderCell = (row: BSRow|undefined) => {
-    if (!row) return (<><td style={{borderRight:'1px solid #d0d0d0',padding:'2px 8px'}}></td><td style={{padding:'2px 8px'}}></td></>);
-    if (row.type==='blank') return (<><td style={{borderRight:'1px solid #d0d0d0',padding:'4px 8px'}}>&nbsp;</td><td style={{padding:'4px 8px'}}></td></>);
-    if (row.type==='group-header') return (
-      <><td colSpan={2} style={{padding:'6px 8px 2px 8px',fontWeight:'bold',textDecoration:'underline',fontSize:12,borderRight:'1px solid #d0d0d0',cursor:'pointer'}}
-        onClick={()=>{ if(row.groupName){toggleGroup(row.groupName);onDrillDownGroup(row.groupName);} }}>
-        {row.name}
-      </td></>
-    );
-    if (row.type==='ledger') return (
-      <><td style={{padding:'2px 8px 2px 22px',fontSize:11,borderRight:'1px solid #d0d0d0',cursor:'pointer'}}
-        onClick={()=>{if(row.id)onDrillDownLedger(row.id);}}>
-        {row.name}
-      </td>
-      <td style={{padding:'2px 8px',textAlign:'right',fontSize:11,color:'#cc0000',fontWeight:'500'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    if (row.type==='group-total') return (
-      <><td style={{padding:'1px 8px',borderRight:'1px solid #d0d0d0'}}></td>
-      <td style={{padding:'2px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderTop:'1px solid #888'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    if (row.type==='net-entry') return (
-      <><td style={{padding:'3px 8px 3px 22px',fontSize:11,fontStyle:'italic',borderRight:'1px solid #d0d0d0'}}>{row.name}</td>
-      <td style={{padding:'3px 8px',textAlign:'right',fontSize:11,fontWeight:'bold',color:'#006600'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    return (<><td style={{borderRight:'1px solid #d0d0d0'}}></td><td></td></>);
-  };
-
   return (
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#e8e8e8'}}>
       {/* App bar */}
       <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)',color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <span style={{fontSize:15,fontWeight:'bold'}}>ðŸ“Š Balance Sheet</span>
+          <span style={{fontSize:15,fontWeight:'bold'}}>📊 Balance Sheet</span>
           <span style={{fontSize:11,opacity:0.8}}>As on: {endDate}</span>
           <span style={{fontSize:11,padding:'2px 8px',background:balanced?'#1a7a4a':'#8B0000',borderRadius:3,fontWeight:'bold'}}>
-            {balanced?'âœ” Balanced':`âš  Diff: â‚¹${fmt(Math.abs(totalLiabDisplay-totalAssetDisplay))}`}
+            {balanced?'✔ Balanced':`⚠ Diff: ₹${f2(Math.abs(totalLiabDisplay-totalAssetDisplay))}`}
           </span>
         </div>
         <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>window.print()} style={{padding:'3px 12px',background:'rgba(255,255,255,0.2)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>ðŸ–¨ Print</button>
-          <button onClick={onBack} style={{padding:'3px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>âœ• Close</button>
+          <button onClick={()=>window.print()} style={{padding:'3px 12px',background:'rgba(255,255,255,0.2)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
+          <button onClick={onBack} style={{padding:'3px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
         </div>
       </div>
 
@@ -8651,7 +8622,7 @@ function BalanceSheetView({
                 <td colSpan={2} style={{padding:'4px 12px',fontSize:11,textAlign:'center'}}>For C.A NAME<br/><b>CHARTERED ACCOUNTANTS</b></td>
               </tr>
               <tr>
-                <td colSpan={2} style={{padding:'28px 12px 4px',fontSize:11}}></td>
+                <td colSpan={2} style={{padding:'28px 12px 4px'}}></td>
                 <td colSpan={2} style={{padding:'8px 12px',fontSize:11,textAlign:'center'}}>C.A NAME</td>
               </tr>
               <tr style={{borderTop:'1px solid #999'}}>
@@ -8704,7 +8675,9 @@ function BalanceSheetView({
     return <><td style={{borderRight:'1px solid #ddd'}}></td><td></td></>;
   }
 }
-// ==================== PROFIT & LOSS VIEW Ã¢â‚¬â€ FULLY FUNCTIONAL ====================
+
+
+// ==================== PROFIT & LOSS VIEW — FULLY FUNCTIONAL ====================
 function ProfitLossView({
   ledgers, vouchers, currentPeriod, activeCompany, stockItems = [], onBack, onDrillDownLedger, onDrillDownGroup, onDrillDownVoucher
 }: {
@@ -8841,15 +8814,15 @@ function ProfitLossView({
       {/* App bar */}
       <div style={{background:'linear-gradient(90deg,#5a0a0a,#006600)',color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <span style={{fontSize:15,fontWeight:'bold'}}>ðŸ“ˆ Trading, Profit & Loss Account</span>
+          <span style={{fontSize:15,fontWeight:'bold'}}>📈 Trading, Profit & Loss Account</span>
           <span style={{fontSize:11,opacity:0.8}}>Period: {startDate} to {endDate}</span>
           <span style={{fontSize:11,padding:'2px 8px',background:netProfit>=0?'#1a7a4a':'#8B0000',borderRadius:3,fontWeight:'bold'}}>
-            {netProfit>=0?`âœ” Net Profit: â‚¹${f2(netProfit)}`:`âš  Net Loss: â‚¹${f2(Math.abs(netProfit))}`}
+            {netProfit>=0?`✔ Net Profit: ₹${f2(netProfit)}`:`⚠ Net Loss: ₹${f2(Math.abs(netProfit))}`}
           </span>
         </div>
         <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>window.print()} style={{padding:'3px 12px',background:'rgba(255,255,255,0.2)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>ðŸ–¨ Print</button>
-          <button onClick={onBack} style={{padding:'3px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>âœ• Close</button>
+          <button onClick={()=>window.print()} style={{padding:'3px 12px',background:'rgba(255,255,255,0.2)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
+          <button onClick={onBack} style={{padding:'3px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
         </div>
       </div>
 
@@ -8945,7 +8918,8 @@ function ProfitLossView({
     </div>
   );
 }
-// ==================== TRIAL BALANCE VIEW Ã¢â‚¬â€ FULLY FUNCTIONAL ====================
+
+// ==================== TRIAL BALANCE VIEW — FULLY FUNCTIONAL ====================
 function TrialBalanceView({
   ledgers, vouchers, currentPeriod, onBack, onDrillDownLedger, onDrillDownGroup, onSaveOpeningBalance
 }: {
@@ -9110,7 +9084,7 @@ function TrialBalanceView({
       {/* Title Header */}
       <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div>
-          <div style={{fontSize:16,fontWeight:'bold'}}>Ã¢Å¡â€“Ã¯Â¸Â Trial Balance</div>
+          <div style={{fontSize:16,fontWeight:'bold'}}>⚖️ Trial Balance</div>
           <div style={{fontSize:11,opacity:0.8}}>Period: {currentPeriod?.start || '01-Apr-2026'} to {currentPeriod?.end || '31-Mar-2027'}</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -9122,17 +9096,17 @@ function TrialBalanceView({
           />
           <button onClick={()=>toggleAll(true)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Expand All</button>
           <button onClick={()=>toggleAll(false)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Collapse All</button>
-          <button onClick={()=>window.print()} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Ã°Å¸â€“Â¨ Print</button>
-          <button onClick={onBack} style={{padding:'4px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>Ã¢Å“â€¢ Close</button>
+          <button onClick={()=>window.print()} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
+          <button onClick={onBack} style={{padding:'4px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
         </div>
       </div>
 
       {/* Sub header */}
       <div style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
-        <span>Opening Diff: <b style={{color:Math.abs(totals.opDr-totals.opCr)<1?'#1a7a4a':'#8B0000'}}>Ã¢â€šÂ¹{fmt(Math.abs(totals.opDr-totals.opCr))}</b></span>
-        <span>Txns Total: <b style={{color:'#1c5282'}}>Ã¢â€šÂ¹{fmt(totals.txDr)}</b></span>
-        <span>Closing Diff: <b style={{color:balanced?'#1a7a4a':'#8B0000'}}>{balanced ? 'Ã¢Å“â€œ 0.00 (Balanced)' : `Ã¢â€šÂ¹${fmt(Math.abs(totals.clDr-totals.clCr))}`}</b></span>
-        <span style={{marginLeft:'auto',fontSize:10,color:'#888'}}>Ã¢â€ â€˜ Ã¢â€ â€œ Navigate | Enter: Expand / Drill-down | Click Ã¢Å“ÂÃ¯Â¸Â to update Opening Balance</span>
+        <span>Opening Diff: <b style={{color:Math.abs(totals.opDr-totals.opCr)<1?'#1a7a4a':'#8B0000'}}>₹{fmt(Math.abs(totals.opDr-totals.opCr))}</b></span>
+        <span>Txns Total: <b style={{color:'#1c5282'}}>₹{fmt(totals.txDr)}</b></span>
+        <span>Closing Diff: <b style={{color:balanced?'#1a7a4a':'#8B0000'}}>{balanced ? '✓ 0.00 (Balanced)' : `₹${fmt(Math.abs(totals.clDr-totals.clCr))}`}</b></span>
+        <span style={{marginLeft:'auto',fontSize:10,color:'#888'}}>↑ ↓ Navigate | Enter: Expand / Drill-down | Click ✏️ to update Opening Balance</span>
       </div>
 
       {/* Table */}
@@ -9146,12 +9120,12 @@ function TrialBalanceView({
               <th colSpan={2} style={{padding:'4px 10px',textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.3)',background:'#164268'}}>Closing Balance</th>
             </tr>
             <tr style={{background:'#1c5282',color:'white'}}>
-              <th style={{padding:'4px 10px',textAlign:'right',width:105,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (Ã¢â€šÂ¹)</th>
-              <th style={{padding:'4px 10px',textAlign:'right',width:105,fontSize:11}}>Credit (Ã¢â€šÂ¹)</th>
-              <th style={{padding:'4px 10px',textAlign:'right',width:105,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (Ã¢â€šÂ¹)</th>
-              <th style={{padding:'4px 10px',textAlign:'right',width:105,fontSize:11}}>Credit (Ã¢â€šÂ¹)</th>
-              <th style={{padding:'4px 10px',textAlign:'right',width:115,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (Ã¢â€šÂ¹)</th>
-              <th style={{padding:'4px 10px',textAlign:'right',width:115,fontSize:11}}>Credit (Ã¢â€šÂ¹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:105,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:105,fontSize:11}}>Credit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:105,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:105,fontSize:11}}>Credit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:115,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Debit (₹)</th>
+              <th style={{padding:'4px 10px',textAlign:'right',width:115,fontSize:11}}>Credit (₹)</th>
             </tr>
           </thead>
           <tbody>
@@ -9180,7 +9154,7 @@ function TrialBalanceView({
                     onClick={()=>{ setRowIdx(currentGroupIdx); setExpanded(p=>({...p,[gn]:!p[gn]})); }}
                     onMouseEnter={()=>setRowIdx(currentGroupIdx)}>
                     <td style={{padding:'6px 12px',color: isGrpSelected ? '#000' : '#1c5282'}}>
-                      <span style={{marginRight:6,fontSize:10,color: isGrpSelected ? '#000' : '#666'}}>{isExp ? 'Ã¢â€“Â¼' : 'Ã¢â€“Â¶'}</span>
+                      <span style={{marginRight:6,fontSize:10,color: isGrpSelected ? '#000' : '#666'}}>{isExp ? '▼' : '▶'}</span>
                       {gn}
                       <span style={{fontSize:10,color: isGrpSelected ? '#333' : '#888',fontWeight:'normal',marginLeft:8}}>({rows.length} ledgers)</span>
                     </td>
@@ -9215,7 +9189,7 @@ function TrialBalanceView({
                               onClick={e=>handleStartEdit(r.ledger, e)}
                               title="Update Opening Balance"
                               style={{padding:'1px 6px',fontSize:10,background: isLedgerSelected ? '#fff' : '#f0f4f8',border:'1px solid #ccd',borderRadius:3,cursor:'pointer',color:'#555'}}>
-                              Ã¢Å“ÂÃ¯Â¸Â
+                              ✏️
                             </button>
                           )}
                         </td>
@@ -9238,9 +9212,9 @@ function TrialBalanceView({
                                 <option value="Cr">Cr</option>
                               </select>
                               <button onClick={e=>handleSaveEdit(r.ledger.id, e)} disabled={isSaving} style={{padding:'2px 6px',background:'#1a7a4a',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>
-                                {isSaving?'Ã¢â‚¬Â¦':'Ã¢Å“â€œ'}
+                                {isSaving?'…':'✓'}
                               </button>
-                              <button onClick={handleCancelEdit} style={{padding:'2px 6px',background:'#888',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>Ã¢Å“â€¢</button>
+                              <button onClick={handleCancelEdit} style={{padding:'2px 6px',background:'#888',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>✕</button>
                             </div>
                           </td>
                         ) : (
@@ -9264,19 +9238,19 @@ function TrialBalanceView({
           <tfoot>
             <tr style={{background:'#1c5282',color:'white',fontWeight:'bold',borderTop:'2px solid #333'}}>
               <td style={{padding:'8px 12px',letterSpacing:2}}>T O T A L</td>
-              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>Ã¢â€šÂ¹ {fmt(totals.opDr)}</td>
-              <td style={{textAlign:'right',padding:'8px 10px'}}>Ã¢â€šÂ¹ {fmt(totals.opCr)}</td>
-              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>Ã¢â€šÂ¹ {fmt(totals.txDr)}</td>
-              <td style={{textAlign:'right',padding:'8px 10px'}}>Ã¢â€šÂ¹ {fmt(totals.txCr)}</td>
-              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>Ã¢â€šÂ¹ {fmt(totals.clDr)}</td>
-              <td style={{textAlign:'right',padding:'8px 10px'}}>Ã¢â€šÂ¹ {fmt(totals.clCr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>₹ {fmt(totals.opDr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px'}}>₹ {fmt(totals.opCr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>₹ {fmt(totals.txDr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px'}}>₹ {fmt(totals.txCr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>₹ {fmt(totals.clDr)}</td>
+              <td style={{textAlign:'right',padding:'8px 10px'}}>₹ {fmt(totals.clCr)}</td>
             </tr>
             {!balanced && (
               <tr style={{background:'#fff0f0',color:'#8B0000',fontWeight:'bold'}}>
                 <td style={{padding:'6px 12px'}}>Difference in Closing Balance</td>
                 <td colSpan={4}></td>
                 <td colSpan={2} style={{textAlign:'right',padding:'6px 12px',fontSize:13}}>
-                  Ã¢Å¡Â  Difference: Ã¢â€šÂ¹ {fmt(Math.abs(totals.clDr - totals.clCr))}
+                  ⚠ Difference: ₹ {fmt(Math.abs(totals.clDr - totals.clCr))}
                 </td>
               </tr>
             )}
@@ -9342,8 +9316,8 @@ function getVoucherItemQty(v: Voucher): Record<string, number> {
 
 // Helper: determine if voucher type goes to Debit side in registers (Tally Prime convention)
 function isDebitSideVoucher(type: string): boolean {
-  // Payment, Sales, Debit Note, Contra, Journal Ã¢â€ â€™ Debit column
-  // Receipt, Purchase, Credit Note Ã¢â€ â€™ Credit column
+  // Payment, Sales, Debit Note, Contra, Journal → Debit column
+  // Receipt, Purchase, Credit Note → Credit column
   return ['Payment','Sales','Debit Note','Contra','Journal'].includes(type);
 }
 
@@ -9401,10 +9375,10 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
           {itemCols.length > ITEM_COLS_PER_PAGE && (
             <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.15)',borderRadius:4,padding:'2px 8px'}}>
               <button onClick={()=>setItemColPage(p=>Math.max(0,p-1))} disabled={itemColPage===0}
-                style={{background:'none',border:'none',color:'white',cursor:itemColPage===0?'default':'pointer',fontSize:16,opacity:itemColPage===0?0.4:1,padding:'0 4px'}}>Ã¢â€”â‚¬</button>
-              <span style={{fontSize:11,color:'white'}}>Items {itemColPage*ITEM_COLS_PER_PAGE+1}Ã¢â‚¬â€œ{Math.min((itemColPage+1)*ITEM_COLS_PER_PAGE,itemCols.length)} of {itemCols.length}</span>
+                style={{background:'none',border:'none',color:'white',cursor:itemColPage===0?'default':'pointer',fontSize:16,opacity:itemColPage===0?0.4:1,padding:'0 4px'}}>◀</button>
+              <span style={{fontSize:11,color:'white'}}>Items {itemColPage*ITEM_COLS_PER_PAGE+1}–{Math.min((itemColPage+1)*ITEM_COLS_PER_PAGE,itemCols.length)} of {itemCols.length}</span>
               <button onClick={()=>setItemColPage(p=>Math.min(totalItemPages-1,p+1))} disabled={itemColPage===totalItemPages-1}
-                style={{background:'none',border:'none',color:'white',cursor:itemColPage===totalItemPages-1?'default':'pointer',fontSize:16,opacity:itemColPage===totalItemPages-1?0.4:1,padding:'0 4px'}}>Ã¢â€“Â¶</button>
+                style={{background:'none',border:'none',color:'white',cursor:itemColPage===totalItemPages-1?'default':'pointer',fontSize:16,opacity:itemColPage===totalItemPages-1?0.4:1,padding:'0 4px'}}>▶</button>
             </div>
           )}
           <div style={{fontSize:12}}>{currentPeriod ? `${currentPeriod.start} to ${currentPeriod.end}` : ''}</div>
@@ -9449,8 +9423,8 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
                 <td><span style={{padding:'2px 8px',background:'#dde4f0',fontWeight:'bold',fontSize:11,whiteSpace:'nowrap'}}>{v.type}</span></td>
                 <td style={{fontSize:12,whiteSpace:'nowrap'}}>{v.refNo}</td>
                 {visibleItemCols.map(col => <td key={col.key} style={{textAlign:'center',color:qtyColor,fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
-                <td style={{textAlign:'right',color:'#8B0000',fontWeight:'bold',whiteSpace:'nowrap'}}>{drAmt>0?'Ã¢â€šÂ¹'+fmt(drAmt):''}</td>
-                <td style={{textAlign:'right',color:'#006600',fontWeight:'bold',whiteSpace:'nowrap'}}>{crAmt>0?'Ã¢â€šÂ¹'+fmt(crAmt):''}</td>
+                <td style={{textAlign:'right',color:'#8B0000',fontWeight:'bold',whiteSpace:'nowrap'}}>{drAmt>0?'₹'+fmt(drAmt):''}</td>
+                <td style={{textAlign:'right',color:'#006600',fontWeight:'bold',whiteSpace:'nowrap'}}>{crAmt>0?'₹'+fmt(crAmt):''}</td>
               </tr>;
             })}
           </tbody>
@@ -9466,8 +9440,8 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
                   </td>
                 );
               })}
-              <td style={{textAlign:'right',fontWeight:'bold',color:'#8B0000',padding:'8px 12px'}}>Ã¢â€šÂ¹ {fmt(totalDr)}</td>
-              <td style={{textAlign:'right',fontWeight:'bold',color:'#006600',padding:'8px 12px'}}>Ã¢â€šÂ¹ {fmt(totalCr)}</td>
+              <td style={{textAlign:'right',fontWeight:'bold',color:'#8B0000',padding:'8px 12px'}}>₹ {fmt(totalDr)}</td>
+              <td style={{textAlign:'right',fontWeight:'bold',color:'#006600',padding:'8px 12px'}}>₹ {fmt(totalCr)}</td>
             </tr>
           </tfoot>
         </table>
@@ -9484,7 +9458,7 @@ const REGISTER_COLORS: Record<string,string> = {
   'Debit Note':'#7a3d00','Credit Note':'#00407a'
 };
 
-// Fiscal months in order (Apr Ã¢â€ â€™ Mar)
+// Fiscal months in order (Apr → Mar)
 const FISCAL_MONTHS = ['April','May','June','July','August','September','October','November','December','January','February','March'];
 const FISCAL_MONTH_NUMS = [4,5,6,7,8,9,10,11,12,1,2,3]; // corresponding month numbers (1-based)
 
@@ -9530,11 +9504,11 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
   const typesToMatch = matchTypes[voucherType] || [voucherType];
   const allRows = vouchers.filter(v => typesToMatch.includes(v.type));
 
-  // Tally Prime: Sales/Payment/Debit Note/Contra/Journal Ã¢â€ â€™ Debit column only
-  //              Purchase/Receipt/Credit Note Ã¢â€ â€™ Credit column only
+  // Tally Prime: Sales/Payment/Debit Note/Contra/Journal → Debit column only
+  //              Purchase/Receipt/Credit Note → Credit column only
   const registerIsDebitSide = isDebitSideVoucher(voucherType);
 
-  // Monthly totals Ã¢â‚¬â€ show amount in ONE column based on register type
+  // Monthly totals — show amount in ONE column based on register type
   const monthlyData = FISCAL_MONTHS.map((mName, mi) => {
     const mNum = FISCAL_MONTH_NUMS[mi];
     const mvs = allRows.filter(v => { const d=parseVoucherDate(v.date); return d?.month===mNum; });
@@ -9599,14 +9573,14 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
           {allMonthlyItemCols.length > ITEM_COLS_PER_PAGE && (
             <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.15)',borderRadius:4,padding:'2px 8px'}}>
               <button onClick={()=>setMonthlyItemPage(p=>Math.max(0,p-1))} disabled={monthlyItemPage===0}
-                style={{background:'none',border:'none',color:'white',cursor:monthlyItemPage===0?'default':'pointer',fontSize:16,opacity:monthlyItemPage===0?0.4:1,padding:'0 4px'}}>Ã¢â€”â‚¬</button>
-              <span style={{fontSize:11}}>Items {monthlyItemPage*ITEM_COLS_PER_PAGE+1}Ã¢â‚¬â€œ{Math.min((monthlyItemPage+1)*ITEM_COLS_PER_PAGE,allMonthlyItemCols.length)} / {allMonthlyItemCols.length}</span>
+                style={{background:'none',border:'none',color:'white',cursor:monthlyItemPage===0?'default':'pointer',fontSize:16,opacity:monthlyItemPage===0?0.4:1,padding:'0 4px'}}>◀</button>
+              <span style={{fontSize:11}}>Items {monthlyItemPage*ITEM_COLS_PER_PAGE+1}–{Math.min((monthlyItemPage+1)*ITEM_COLS_PER_PAGE,allMonthlyItemCols.length)} / {allMonthlyItemCols.length}</span>
               <button onClick={()=>setMonthlyItemPage(p=>Math.min(monthlyTotalPages-1,p+1))} disabled={monthlyItemPage===monthlyTotalPages-1}
-                style={{background:'none',border:'none',color:'white',cursor:monthlyItemPage===monthlyTotalPages-1?'default':'pointer',fontSize:16,opacity:monthlyItemPage===monthlyTotalPages-1?0.4:1,padding:'0 4px'}}>Ã¢â€“Â¶</button>
+                style={{background:'none',border:'none',color:'white',cursor:monthlyItemPage===monthlyTotalPages-1?'default':'pointer',fontSize:16,opacity:monthlyItemPage===monthlyTotalPages-1?0.4:1,padding:'0 4px'}}>▶</button>
             </div>
           )}
           <div style={{fontSize:11}}>{currentPeriod.start} to {currentPeriod.end}</div>
-          <div style={{fontSize:11,opacity:0.8}}>Ã¢â€ â€˜Ã¢â€ â€œ: Navigate | Enter: Drill-down | Esc: Back</div>
+          <div style={{fontSize:11,opacity:0.8}}>↑↓: Navigate | Enter: Drill-down | Esc: Back</div>
         </div>
       </div>
       {/* Company sub-header */}
@@ -9752,10 +9726,10 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
           {detailItemCols.length > ITEM_COLS_PER_PAGE && (
             <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.15)',borderRadius:4,padding:'2px 8px'}}>
               <button onClick={()=>setDetailItemPage(p=>Math.max(0,p-1))} disabled={detailItemPage===0}
-                style={{background:'none',border:'none',color:'white',cursor:detailItemPage===0?'default':'pointer',fontSize:16,opacity:detailItemPage===0?0.4:1,padding:'0 4px'}}>Ã¢â€”â‚¬</button>
-              <span style={{fontSize:11}}>Items {detailItemPage*ITEM_COLS_PER_PAGE+1}Ã¢â‚¬â€œ{Math.min((detailItemPage+1)*ITEM_COLS_PER_PAGE,detailItemCols.length)} / {detailItemCols.length}</span>
+                style={{background:'none',border:'none',color:'white',cursor:detailItemPage===0?'default':'pointer',fontSize:16,opacity:detailItemPage===0?0.4:1,padding:'0 4px'}}>◀</button>
+              <span style={{fontSize:11}}>Items {detailItemPage*ITEM_COLS_PER_PAGE+1}–{Math.min((detailItemPage+1)*ITEM_COLS_PER_PAGE,detailItemCols.length)} / {detailItemCols.length}</span>
               <button onClick={()=>setDetailItemPage(p=>Math.min(detailTotalPages-1,p+1))} disabled={detailItemPage===detailTotalPages-1}
-                style={{background:'none',border:'none',color:'white',cursor:detailItemPage===detailTotalPages-1?'default':'pointer',fontSize:16,opacity:detailItemPage===detailTotalPages-1?0.4:1,padding:'0 4px'}}>Ã¢â€“Â¶</button>
+                style={{background:'none',border:'none',color:'white',cursor:detailItemPage===detailTotalPages-1?'default':'pointer',fontSize:16,opacity:detailItemPage===detailTotalPages-1?0.4:1,padding:'0 4px'}}>▶</button>
             </div>
           )}
           <div style={{fontSize:11}}>List of {selMonth?.mName || ''} Vouchers</div>
@@ -9764,7 +9738,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
       </div>
       <div style={{background:'#f0f4f8',borderBottom:'1px solid #ccc',padding:'4px 16px',fontSize:11,display:'flex',justifyContent:'space-between'}}>
         <span>List of All {voucherType} Vouchers</span>
-        <span style={{fontWeight:'bold'}}>{selMonth?.mName} Ã¢â‚¬â€ {detailRows.length} Voucher(s)</span>
+        <span style={{fontWeight:'bold'}}>{selMonth?.mName} — {detailRows.length} Voucher(s)</span>
       </div>
 
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
@@ -9900,7 +9874,7 @@ function SalesRegisterView({vouchers, currentPeriod, onBack, onDrillDown}:{vouch
                 <td style={{textAlign:'right'}}>{fmt(taxable)}</td>
                 <td style={{textAlign:'right',color:'#555'}}>{fmt(cgst)}</td>
                 <td style={{textAlign:'right',color:'#555'}}>{fmt(sgst)}</td>
-                <td style={{textAlign:'right',fontWeight:'bold',color:v.type==='Sales'?'#1c5282':'#c00'}}>Ã¢â€šÂ¹ {fmt(v.total)}</td>
+                <td style={{textAlign:'right',fontWeight:'bold',color:v.type==='Sales'?'#1c5282':'#c00'}}>₹ {fmt(v.total)}</td>
               </tr>;
             })}
           </tbody>
@@ -9908,7 +9882,7 @@ function SalesRegisterView({vouchers, currentPeriod, onBack, onDrillDown}:{vouch
             <tr>
               <td colSpan={4} style={{textAlign:'right',fontWeight:'bold',padding:'8px 12px'}}>Total Net Sales:</td>
               <td colSpan={3}></td>
-              <td style={{textAlign:'right',fontWeight:'bold',fontSize:15,color:'#1c5282',padding:'8px 12px'}}>Ã¢â€šÂ¹ {fmt(total)}</td>
+              <td style={{textAlign:'right',fontWeight:'bold',fontSize:15,color:'#1c5282',padding:'8px 12px'}}>₹ {fmt(total)}</td>
             </tr>
           </tfoot>
         </table>
@@ -9967,7 +9941,7 @@ function PurchaseRegisterView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[
                 <td style={{textAlign:'right'}}>{fmt(taxable)}</td>
                 <td style={{textAlign:'right',color:'#555'}}>{fmt(cgst)}</td>
                 <td style={{textAlign:'right',color:'#555'}}>{fmt(sgst)}</td>
-                <td style={{textAlign:'right',fontWeight:'bold',color:v.type==='Purchase'?'#5a2d82':'#8B0000'}}>Ã¢â€šÂ¹ {fmt(v.total)}</td>
+                <td style={{textAlign:'right',fontWeight:'bold',color:v.type==='Purchase'?'#5a2d82':'#8B0000'}}>₹ {fmt(v.total)}</td>
               </tr>;
             })}
           </tbody>
@@ -9975,7 +9949,7 @@ function PurchaseRegisterView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[
             <tr>
               <td colSpan={4} style={{textAlign:'right',fontWeight:'bold',padding:'8px 12px'}}>Total Net Purchase:</td>
               <td colSpan={3}></td>
-              <td style={{textAlign:'right',fontWeight:'bold',fontSize:15,color:'#5a2d82',padding:'8px 12px'}}>Ã¢â€šÂ¹ {fmt(total)}</td>
+              <td style={{textAlign:'right',fontWeight:'bold',fontSize:15,color:'#5a2d82',padding:'8px 12px'}}>₹ {fmt(total)}</td>
             </tr>
           </tfoot>
         </table>
@@ -10205,7 +10179,7 @@ function LedgerReportView({ledgers,vouchers,preselectedId,onBack,onDrillDown}:{l
   );
 }
 
-// ==================== STOCK SUMMARY VIEW Ã¢â‚¬â€ FULLY FUNCTIONAL ====================
+// ==================== STOCK SUMMARY VIEW — FULLY FUNCTIONAL ====================
 function StockSummaryView({
   stockItems, stockGroups = [], vouchers, currentPeriod, onBack, onDrillDown, onDrillDownVoucher, onSaveOpeningStock
 }: {
@@ -10429,7 +10403,7 @@ function StockSummaryView({
       {/* Title Bar */}
       <div style={{background:'linear-gradient(90deg,#1c5282,#2b6cb0)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div>
-          <div style={{fontSize:16,fontWeight:'bold'}}>Ã°Å¸â€œÂ¦ Stock Summary</div>
+          <div style={{fontSize:16,fontWeight:'bold'}}>📦 Stock Summary</div>
           <div style={{fontSize:11,opacity:0.8}}>Period: {currentPeriod?.start || '01-Apr-2026'} to {currentPeriod?.end || '31-Mar-2027'}</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -10441,19 +10415,19 @@ function StockSummaryView({
           />
           <button onClick={()=>toggleAll(true)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Expand All</button>
           <button onClick={()=>toggleAll(false)} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Collapse All</button>
-          <button onClick={()=>window.print()} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>Ã°Å¸â€“Â¨ Print</button>
-          <button onClick={onBack} style={{padding:'4px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>Ã¢Å“â€¢ Close</button>
+          <button onClick={()=>window.print()} style={{padding:'4px 10px',background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
+          <button onClick={onBack} style={{padding:'4px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
         </div>
       </div>
 
       {/* Sub header */}
       <div style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
         <span>Items: <b style={{color:'#1c5282'}}>{stockItems.length}</b></span>
-        <span>Total Opening Val: <b style={{color:'#555'}}>Ã¢â€šÂ¹{fmt(grandTotals.opVal)}</b></span>
-        <span>Total Inward Val: <b style={{color:'#006600'}}>Ã¢â€šÂ¹{fmt(grandTotals.inVal)}</b></span>
-        <span>Total Outward Val: <b style={{color:'#8B0000'}}>Ã¢â€šÂ¹{fmt(grandTotals.outVal)}</b></span>
-        <span>Total Closing Stock Value: <b style={{color:'#1c5282'}}>Ã¢â€šÂ¹{fmt(grandTotals.clVal)}</b></span>
-        <span style={{marginLeft:'auto',fontSize:10,color:'#888'}}>Ã¢â€ â€˜ Ã¢â€ â€œ Navigate | Enter: Item Movement &amp; Vouchers | Click Ã¢Å“ÂÃ¯Â¸Â to update Opening Stock</span>
+        <span>Total Opening Val: <b style={{color:'#555'}}>₹{fmt(grandTotals.opVal)}</b></span>
+        <span>Total Inward Val: <b style={{color:'#006600'}}>₹{fmt(grandTotals.inVal)}</b></span>
+        <span>Total Outward Val: <b style={{color:'#8B0000'}}>₹{fmt(grandTotals.outVal)}</b></span>
+        <span>Total Closing Stock Value: <b style={{color:'#1c5282'}}>₹{fmt(grandTotals.clVal)}</b></span>
+        <span style={{marginLeft:'auto',fontSize:10,color:'#888'}}>↑ ↓ Navigate | Enter: Item Movement &amp; Vouchers | Click ✏️ to update Opening Stock</span>
       </div>
 
       {/* Table */}
@@ -10471,15 +10445,15 @@ function StockSummaryView({
             </tr>
             <tr style={{background:'#1c5282',color:'white'}}>
               <th style={{padding:'4px 8px',textAlign:'right',width:70,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Qty</th>
-              <th style={{padding:'4px 8px',textAlign:'right',width:75,fontSize:11}}>Rate (Ã¢â€šÂ¹)</th>
-              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (Ã¢â€šÂ¹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:75,fontSize:11}}>Rate (₹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (₹)</th>
               <th style={{padding:'4px 8px',textAlign:'right',width:70,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Qty</th>
-              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (Ã¢â€šÂ¹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (₹)</th>
               <th style={{padding:'4px 8px',textAlign:'right',width:70,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Qty</th>
-              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (Ã¢â€šÂ¹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:85,fontSize:11}}>Value (₹)</th>
               <th style={{padding:'4px 8px',textAlign:'right',width:75,borderLeft:'1px solid rgba(255,255,255,0.3)',fontSize:11}}>Qty</th>
               <th style={{padding:'4px 8px',textAlign:'right',width:80,fontSize:11}}>Avg Rate</th>
-              <th style={{padding:'4px 8px',textAlign:'right',width:95,fontSize:11}}>Value (Ã¢â€šÂ¹)</th>
+              <th style={{padding:'4px 8px',textAlign:'right',width:95,fontSize:11}}>Value (₹)</th>
             </tr>
           </thead>
           <tbody>
@@ -10506,7 +10480,7 @@ function StockSummaryView({
                     onClick={()=>{ setRowIdx(currentGroupIdx); setExpanded(p=>({...p,[gn]:!p[gn]})); }}
                     onMouseEnter={()=>setRowIdx(currentGroupIdx)}>
                     <td colSpan={3} style={{padding:'6px 12px',color: isGrpSelected ? '#000' : '#1c5282'}}>
-                      <span style={{marginRight:6,fontSize:10,color: isGrpSelected ? '#000' : '#666'}}>{isExp ? 'Ã¢â€“Â¼' : 'Ã¢â€“Â¶'}</span>
+                      <span style={{marginRight:6,fontSize:10,color: isGrpSelected ? '#000' : '#666'}}>{isExp ? '▼' : '▶'}</span>
                       {gn}
                       <span style={{fontSize:10,color: isGrpSelected ? '#333' : '#888',fontWeight:'normal',marginLeft:8}}>({items.length} items)</span>
                     </td>
@@ -10517,7 +10491,7 @@ function StockSummaryView({
                     <td></td>
                     <td style={{textAlign:'right',padding:'6px 8px',color: isGrpSelected ? '#000' : '#8B0000',borderLeft:'1px solid #dde',fontSize:11}}>{grpOutVal>0?fmt(grpOutVal):'-'}</td>
                     <td colSpan={2} style={{borderLeft:'1px solid #dde'}}></td>
-                    <td style={{textAlign:'right',padding:'6px 8px',fontWeight:'bold',color: isGrpSelected ? '#000' : '#1c5282',fontSize:11}}>Ã¢â€šÂ¹ {fmt(grpClVal)}</td>
+                    <td style={{textAlign:'right',padding:'6px 8px',fontWeight:'bold',color: isGrpSelected ? '#000' : '#1c5282',fontSize:11}}>₹ {fmt(grpClVal)}</td>
                   </tr>
 
                   {/* Stock Items Rows */}
@@ -10545,7 +10519,7 @@ function StockSummaryView({
                               onClick={e=>handleStartEdit(it, e)}
                               title="Update Opening Stock & Rate"
                               style={{padding:'1px 6px',fontSize:10,background: isItemSelected ? '#fff' : '#f0f4f8',border:'1px solid #ccd',borderRadius:3,cursor:'pointer',color:'#555'}}>
-                              Ã¢Å“ÂÃ¯Â¸Â
+                              ✏️
                             </button>
                           )}
                         </td>
@@ -10571,9 +10545,9 @@ function StockSummaryView({
                                 style={{width:55,padding:'2px 4px',fontSize:11,border:'1px solid #999',borderRadius:2}}
                               />
                               <button onClick={e=>handleSaveEdit(it.id, e)} disabled={isSaving} style={{padding:'2px 6px',background:'#1a7a4a',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>
-                                {isSaving?'Ã¢â‚¬Â¦':'Ã¢Å“â€œ'}
+                                {isSaving?'…':'✓'}
                               </button>
-                              <button onClick={handleCancelEdit} style={{padding:'2px 6px',background:'#888',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>Ã¢Å“â€¢</button>
+                              <button onClick={handleCancelEdit} style={{padding:'2px 6px',background:'#888',color:'white',border:'none',borderRadius:2,fontSize:10,cursor:'pointer'}}>✕</button>
                             </div>
                           </td>
                         ) : (
@@ -10598,7 +10572,7 @@ function StockSummaryView({
                         </td>
                         <td style={{textAlign:'right',padding:'5px 8px',fontSize:11}}>{st.clRate > 0 ? fmt(st.clRate) : '-'}</td>
                         <td style={{textAlign:'right',padding:'5px 8px',fontWeight:'bold',color: isItemSelected ? '#000' : (isNegative?'#8B0000':'#1c5282'),fontSize:11}}>
-                          Ã¢â€šÂ¹ {fmt(st.clVal)}
+                          ₹ {fmt(st.clVal)}
                         </td>
                       </tr>
                     );
@@ -10611,13 +10585,13 @@ function StockSummaryView({
             <tr style={{background:'#1c5282',color:'white',fontWeight:'bold',borderTop:'2px solid #333'}}>
               <td colSpan={3} style={{padding:'8px 12px',letterSpacing:2}}>T O T A L</td>
               <td colSpan={2} style={{borderLeft:'1px solid rgba(255,255,255,0.3)'}}></td>
-              <td style={{textAlign:'right',padding:'8px 8px'}}>Ã¢â€šÂ¹ {fmt(grandTotals.opVal)}</td>
+              <td style={{textAlign:'right',padding:'8px 8px'}}>₹ {fmt(grandTotals.opVal)}</td>
               <td style={{textAlign:'right',padding:'8px 8px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>{fmt(grandTotals.inQty)}</td>
-              <td style={{textAlign:'right',padding:'8px 8px'}}>Ã¢â€šÂ¹ {fmt(grandTotals.inVal)}</td>
+              <td style={{textAlign:'right',padding:'8px 8px'}}>₹ {fmt(grandTotals.inVal)}</td>
               <td style={{textAlign:'right',padding:'8px 8px',borderLeft:'1px solid rgba(255,255,255,0.3)'}}>{fmt(grandTotals.outQty)}</td>
-              <td style={{textAlign:'right',padding:'8px 8px'}}>Ã¢â€šÂ¹ {fmt(grandTotals.outVal)}</td>
+              <td style={{textAlign:'right',padding:'8px 8px'}}>₹ {fmt(grandTotals.outVal)}</td>
               <td colSpan={2} style={{borderLeft:'1px solid rgba(255,255,255,0.3)'}}></td>
-              <td style={{textAlign:'right',padding:'8px 8px',fontSize:13}}>Ã¢â€šÂ¹ {fmt(grandTotals.clVal)}</td>
+              <td style={{textAlign:'right',padding:'8px 8px',fontSize:13}}>₹ {fmt(grandTotals.clVal)}</td>
             </tr>
           </tfoot>
         </table>
@@ -10630,18 +10604,18 @@ function StockSummaryView({
             {/* Modal Header */}
             <div style={{background:'#1c5282',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div>
-                <div style={{fontSize:15,fontWeight:'bold'}}>Ã°Å¸â€œÅ  Item Movement: {selectedItemForMovement.name}</div>
+                <div style={{fontSize:15,fontWeight:'bold'}}>📊 Item Movement: {selectedItemForMovement.name}</div>
                 <div style={{fontSize:11,opacity:0.8}}>Group: {selectedItemForMovement.under} | Unit: {getUnitSymbol(selectedItemForMovement.unit)} | GST: {selectedItemForMovement.gstRate}%</div>
               </div>
-              <button onClick={()=>setSelectedItemForMovement(null)} style={{background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,padding:'4px 12px',cursor:'pointer',fontSize:12}}>Ã¢Å“â€¢ Close</button>
+              <button onClick={()=>setSelectedItemForMovement(null)} style={{background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,padding:'4px 12px',cursor:'pointer',fontSize:12}}>✕ Close</button>
             </div>
 
             {/* Modal Stats Summary */}
             <div style={{background:'#f0f4f8',padding:'8px 20px',display:'flex',gap:20,fontSize:11,borderBottom:'1px solid #dde'}}>
-              <span>Opening: <b>{movementData.opQty}</b> @ Ã¢â€šÂ¹{fmt(movementData.opRate)}</span>
-              <span>Total Inward: <b style={{color:'#006600'}}>{movementData.inQty}</b> (Ã¢â€šÂ¹{fmt(movementData.inVal)})</span>
-              <span>Total Outward: <b style={{color:'#8B0000'}}>{movementData.outQty}</b> (Ã¢â€šÂ¹{fmt(movementData.outVal)})</span>
-              <span>Closing: <b style={{color:'#1c5282'}}>{movementData.clQty}</b> @ Ã¢â€šÂ¹{fmt(movementData.clRate)} (<b>Ã¢â€šÂ¹{fmt(movementData.clVal)}</b>)</span>
+              <span>Opening: <b>{movementData.opQty}</b> @ ₹{fmt(movementData.opRate)}</span>
+              <span>Total Inward: <b style={{color:'#006600'}}>{movementData.inQty}</b> (₹{fmt(movementData.inVal)})</span>
+              <span>Total Outward: <b style={{color:'#8B0000'}}>{movementData.outQty}</b> (₹{fmt(movementData.outVal)})</span>
+              <span>Closing: <b style={{color:'#1c5282'}}>{movementData.clQty}</b> @ ₹{fmt(movementData.clRate)} (<b>₹{fmt(movementData.clVal)}</b>)</span>
             </div>
 
             {/* Modal Transactions Table */}
@@ -10655,20 +10629,20 @@ function StockSummaryView({
                     <th style={{padding:'6px 8px',textAlign:'center',width:80}}>Vch No</th>
                     <th style={{padding:'6px 10px',textAlign:'right',width:80}}>Inward Qty</th>
                     <th style={{padding:'6px 10px',textAlign:'right',width:80}}>Outward Qty</th>
-                    <th style={{padding:'6px 10px',textAlign:'right',width:85}}>Rate (Ã¢â€šÂ¹)</th>
-                    <th style={{padding:'6px 10px',textAlign:'right',width:95}}>Amount (Ã¢â€šÂ¹)</th>
+                    <th style={{padding:'6px 10px',textAlign:'right',width:85}}>Rate (₹)</th>
+                    <th style={{padding:'6px 10px',textAlign:'right',width:95}}>Amount (₹)</th>
                     <th style={{padding:'6px 10px',textAlign:'right',width:85}}>Balance Qty</th>
                   </tr>
                 </thead>
                 <tbody>
                   {/* Opening Balance Row */}
                   <tr style={{background:'#fafafa',borderBottom:'1px solid #eee',fontStyle:'italic'}}>
-                    <td style={{padding:'6px 10px',color:'#666'}}>Ã¢â‚¬â€</td>
+                    <td style={{padding:'6px 10px',color:'#666'}}>—</td>
                     <td colSpan={3} style={{padding:'6px 10px',fontWeight:'bold',color:'#555'}}>Opening Balance</td>
                     <td style={{textAlign:'right',padding:'6px 10px'}}>{movementData.opQty}</td>
-                    <td style={{textAlign:'right',padding:'6px 10px'}}>Ã¢â‚¬â€</td>
+                    <td style={{textAlign:'right',padding:'6px 10px'}}>—</td>
                     <td style={{textAlign:'right',padding:'6px 10px'}}>{fmt(movementData.opRate)}</td>
-                    <td style={{textAlign:'right',padding:'6px 10px'}}>Ã¢â€šÂ¹ {fmt(movementData.opVal)}</td>
+                    <td style={{textAlign:'right',padding:'6px 10px'}}>₹ {fmt(movementData.opVal)}</td>
                     <td style={{textAlign:'right',padding:'6px 10px',fontWeight:'bold',color:'#1c5282'}}>{movementData.opQty}</td>
                   </tr>
 
@@ -10700,7 +10674,7 @@ function StockSummaryView({
                           <td style={{textAlign:'right',padding:'5px 10px',color:'#006600',fontWeight:'bold'}}>{isInward ? fmt(q) : ''}</td>
                           <td style={{textAlign:'right',padding:'5px 10px',color:'#8B0000',fontWeight:'bold'}}>{!isInward ? fmt(q) : ''}</td>
                           <td style={{textAlign:'right',padding:'5px 10px'}}>{fmt(ie.rate || 0)}</td>
-                          <td style={{textAlign:'right',padding:'5px 10px',fontWeight:'bold'}}>Ã¢â€šÂ¹ {fmt(amt)}</td>
+                          <td style={{textAlign:'right',padding:'5px 10px',fontWeight:'bold'}}>₹ {fmt(amt)}</td>
                           <td style={{textAlign:'right',padding:'5px 10px',fontWeight:'bold',color:runningQty<0?'#8B0000':'#1c5282'}}>{fmt(runningQty)}</td>
                         </tr>
                       );
@@ -10712,7 +10686,7 @@ function StockSummaryView({
 
             {/* Modal Footer */}
             <div style={{background:'#f0f4f8',padding:'8px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:'1px solid #dde'}}>
-              <span style={{fontSize:11,color:'#666'}}>Ã°Å¸â€™Â¡ Click on any transaction voucher to open and edit the voucher directly</span>
+              <span style={{fontSize:11,color:'#666'}}>💡 Click on any transaction voucher to open and edit the voucher directly</span>
               <button onClick={()=>setSelectedItemForMovement(null)} style={{padding:'5px 16px',background:'#1c5282',color:'white',border:'none',borderRadius:3,cursor:'pointer',fontSize:12}}>Close</button>
             </div>
           </div>
@@ -10758,9 +10732,9 @@ function OutstandingView({ledgers,vouchers,onBack,onDrillDown}:{ledgers:Ledger[]
           <table className="report-table" style={{width:'100%'}}>
             <thead><tr><th>Party Name</th><th style={{textAlign:'right'}}>Amount</th><th style={{textAlign:'right'}}>Due (days)</th></tr></thead>
             <tbody>
-              {debtors.map((l,i)=>{const b=bal(l);return b!==0?<tr key={i} style={{cursor:'pointer', background: panel==='debtors'&&i===rowIdx?'#ffd700':'', color: panel==='debtors'&&i===rowIdx?'#000':'inherit'}} onClick={()=>{setPanel('debtors');setRowIdx(i);onDrillDown?.(l.id);}} onMouseEnter={()=>{setPanel('debtors');setRowIdx(i);}}><td style={{fontWeight:'bold'}}>{l.name}</td><td style={{textAlign:'right',fontWeight:'bold',color:panel==='debtors'&&i===rowIdx?'#000':'#8B0000'}}>Ã¢â€šÂ¹ {fmt(Math.abs(b))}</td><td style={{textAlign:'right',fontSize:12,color:panel==='debtors'&&i===rowIdx?'#000':'#555'}}>14 days</td></tr>:null;})}
+              {debtors.map((l,i)=>{const b=bal(l);return b!==0?<tr key={i} style={{cursor:'pointer', background: panel==='debtors'&&i===rowIdx?'#ffd700':'', color: panel==='debtors'&&i===rowIdx?'#000':'inherit'}} onClick={()=>{setPanel('debtors');setRowIdx(i);onDrillDown?.(l.id);}} onMouseEnter={()=>{setPanel('debtors');setRowIdx(i);}}><td style={{fontWeight:'bold'}}>{l.name}</td><td style={{textAlign:'right',fontWeight:'bold',color:panel==='debtors'&&i===rowIdx?'#000':'#8B0000'}}>₹ {fmt(Math.abs(b))}</td><td style={{textAlign:'right',fontSize:12,color:panel==='debtors'&&i===rowIdx?'#000':'#555'}}>14 days</td></tr>:null;})}
             </tbody>
-            <tfoot><tr><td style={{fontWeight:'bold'}}>Total Receivable</td><td style={{textAlign:'right',fontWeight:'bold',color:'#8B0000',fontSize:15}}>Ã¢â€šÂ¹ {fmt(Math.abs(debtors.reduce((s,l)=>s+bal(l),0)))}</td><td></td></tr></tfoot>
+            <tfoot><tr><td style={{fontWeight:'bold'}}>Total Receivable</td><td style={{textAlign:'right',fontWeight:'bold',color:'#8B0000',fontSize:15}}>₹ {fmt(Math.abs(debtors.reduce((s,l)=>s+bal(l),0)))}</td><td></td></tr></tfoot>
           </table>
         </div>
         <div style={{flex:1, background:panel==='creditors'?'#fff':'#f0f0f0'}}>
@@ -10768,9 +10742,9 @@ function OutstandingView({ledgers,vouchers,onBack,onDrillDown}:{ledgers:Ledger[]
           <table className="report-table" style={{width:'100%'}}>
             <thead><tr><th>Party Name</th><th style={{textAlign:'right'}}>Amount</th><th style={{textAlign:'right'}}>Due (days)</th></tr></thead>
             <tbody>
-              {creditors.map((l,i)=>{const b=bal(l);return b!==0?<tr key={i} style={{cursor:'pointer', background: panel==='creditors'&&i===rowIdx?'#ffd700':'', color: panel==='creditors'&&i===rowIdx?'#000':'inherit'}} onClick={()=>{setPanel('creditors');setRowIdx(i);onDrillDown?.(l.id);}} onMouseEnter={()=>{setPanel('creditors');setRowIdx(i);}}><td style={{fontWeight:'bold'}}>{l.name}</td><td style={{textAlign:'right',fontWeight:'bold',color:panel==='creditors'&&i===rowIdx?'#000':'#006600'}}>Ã¢â€šÂ¹ {fmt(Math.abs(b))}</td><td style={{textAlign:'right',fontSize:12,color:panel==='creditors'&&i===rowIdx?'#000':'#555'}}>21 days</td></tr>:null;})}
+              {creditors.map((l,i)=>{const b=bal(l);return b!==0?<tr key={i} style={{cursor:'pointer', background: panel==='creditors'&&i===rowIdx?'#ffd700':'', color: panel==='creditors'&&i===rowIdx?'#000':'inherit'}} onClick={()=>{setPanel('creditors');setRowIdx(i);onDrillDown?.(l.id);}} onMouseEnter={()=>{setPanel('creditors');setRowIdx(i);}}><td style={{fontWeight:'bold'}}>{l.name}</td><td style={{textAlign:'right',fontWeight:'bold',color:panel==='creditors'&&i===rowIdx?'#000':'#006600'}}>₹ {fmt(Math.abs(b))}</td><td style={{textAlign:'right',fontSize:12,color:panel==='creditors'&&i===rowIdx?'#000':'#555'}}>21 days</td></tr>:null;})}
             </tbody>
-            <tfoot><tr><td style={{fontWeight:'bold'}}>Total Payable</td><td style={{textAlign:'right',fontWeight:'bold',color:'#006600',fontSize:15}}>Ã¢â€šÂ¹ {fmt(Math.abs(creditors.reduce((s,l)=>s+bal(l),0)))}</td><td></td></tr></tfoot>
+            <tfoot><tr><td style={{fontWeight:'bold'}}>Total Payable</td><td style={{textAlign:'right',fontWeight:'bold',color:'#006600',fontSize:15}}>₹ {fmt(Math.abs(creditors.reduce((s,l)=>s+bal(l),0)))}</td><td></td></tr></tfoot>
           </table>
         </div>
       </div>
@@ -10778,7 +10752,7 @@ function OutstandingView({ledgers,vouchers,onBack,onDrillDown}:{ledgers:Ledger[]
   );
 }
 
-// ==================== CHART OF ACCOUNTS Ã¢â‚¬â€ FULLY CALCULATED ====================
+// ==================== CHART OF ACCOUNTS — FULLY CALCULATED ====================
 function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];vouchers:Voucher[];onBack:()=>void}) {
   const [search, setSearch] = useState('');
   const grp = useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
@@ -10847,9 +10821,9 @@ function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];voucher
       <div style={{border:`2px solid ${sec.color}`, overflow:'hidden', marginBottom:0, borderRadius:4}}>
         {/* Section Header */}
         <div style={{background:sec.color, color:'white', padding:'7px 14px', fontWeight:'bold', fontSize:13, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-          <span>Ã¢â€“Âª {sec.title}</span>
+          <span>▪ {sec.title}</span>
           <span style={{fontSize:12, fontFamily:'monospace', opacity:0.95}}>
-            {secTotalCr !== 0 ? `${fmt(Math.abs(secTotalCr))} ${secTotalCr > 0 ? sec.side : (sec.side==='Dr'?'Cr':'Dr')}` : 'Ã¢â‚¬â€'}
+            {secTotalCr !== 0 ? `${fmt(Math.abs(secTotalCr))} ${secTotalCr > 0 ? sec.side : (sec.side==='Dr'?'Cr':'Dr')}` : '—'}
           </span>
         </div>
 
@@ -10871,9 +10845,9 @@ function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];voucher
                 display:'flex', justifyContent:'space-between', alignItems:'center',
                 borderBottom:`1px solid ${sec.color}44`
               }}>
-                <span style={{color:sec.color}}>Ã¢â€“Â¶ {gn}</span>
+                <span style={{color:sec.color}}>▶ {gn}</span>
                 <span style={{color: groupBalDisp>=0 ? sec.color : '#888', fontSize:11, fontFamily:'monospace'}}>
-                  {groupBalDisp !== 0 ? `${fmt(Math.abs(groupBalDisp))} ${groupBalDisp>=0?sec.side:(sec.side==='Dr'?'Cr':'Dr')}` : 'Ã¢â‚¬â€'}
+                  {groupBalDisp !== 0 ? `${fmt(Math.abs(groupBalDisp))} ${groupBalDisp>=0?sec.side:(sec.side==='Dr'?'Cr':'Dr')}` : '—'}
                 </span>
               </div>
 
@@ -10895,7 +10869,7 @@ function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];voucher
                     }}>
                       {balance!==0
                         ? `${fmt(Math.abs(balance))} ${balance>0?'Dr':'Cr'}`
-                        : 'Ã¢â‚¬â€'}
+                        : '—'}
                     </span>
                   </div>
                 );
@@ -10923,7 +10897,7 @@ function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];voucher
     <div style={{height:'100%', overflowY:'auto', background:'#f5f7fa'}}>
       {/* Title Bar */}
       <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)', color:'white', padding:'10px 20px', fontWeight:'bold', fontSize:15, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <span>Ã°Å¸â€œÅ  Chart of Accounts</span>
+        <span>📊 Chart of Accounts</span>
         <div style={{display:'flex', gap:10, alignItems:'center'}}>
           <input
             value={search}
@@ -10931,16 +10905,16 @@ function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];voucher
             placeholder="Search ledger..."
             style={{padding:'3px 10px', borderRadius:3, border:'1px solid #aad', fontSize:12, background:'rgba(255,255,255,0.15)', color:'white', outline:'none', width:160}}
           />
-          <button onClick={onBack} style={{padding:'3px 12px', background:'rgba(255,255,255,0.15)', color:'white', border:'1px solid rgba(255,255,255,0.4)', borderRadius:3, cursor:'pointer', fontSize:12}}>Ã¢Å“â€¢ Close</button>
+          <button onClick={onBack} style={{padding:'3px 12px', background:'rgba(255,255,255,0.15)', color:'white', border:'1px solid rgba(255,255,255,0.4)', borderRadius:3, cursor:'pointer', fontSize:12}}>✕ Close</button>
         </div>
       </div>
 
       {/* Company Info Summary */}
       <div style={{background:'#fff', borderBottom:'1px solid #dde', padding:'6px 20px', display:'flex', gap:30, fontSize:12, color:'#555'}}>
-        <span>Ã°Å¸â€œÂ Total Ledgers: <b style={{color:'#1c5282'}}>{ledgers.length}</b></span>
-        <span>Ã°Å¸â€œâ€š Groups Used: <b style={{color:'#1c5282'}}>{Object.keys(grp).length}</b></span>
+        <span>📁 Total Ledgers: <b style={{color:'#1c5282'}}>{ledgers.length}</b></span>
+        <span>📂 Groups Used: <b style={{color:'#1c5282'}}>{Object.keys(grp).length}</b></span>
         <span style={{marginLeft:'auto', fontWeight:'bold', color:balanced?'#1a7a4a':'#d9534f'}}>
-          {balanced ? 'Ã¢Å“â€œ Books are Balanced' : `Ã¢Å¡Â  Difference: ${fmt(Math.abs(difference))}`}
+          {balanced ? '✓ Books are Balanced' : `⚠ Difference: ${fmt(Math.abs(difference))}`}
         </span>
       </div>
 
@@ -10955,7 +10929,7 @@ function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];voucher
         {/* === NET PROFIT ROW (bridges P&L into Balance Sheet) === */}
         <div style={{background:'#fff', border:'2px solid #2c7a2c', borderRadius:4, padding:'8px 16px', marginBottom:12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div>
-            <div style={{fontWeight:'bold', fontSize:13, color:'#145214'}}>Net {netProfit>=0?'Profit':'Loss'} (Income Ã¢Ë†â€™ Expenses)</div>
+            <div style={{fontWeight:'bold', fontSize:13, color:'#145214'}}>Net {netProfit>=0?'Profit':'Loss'} (Income − Expenses)</div>
             <div style={{fontSize:11, color:'#666', marginTop:2}}>
               Income: {fmt(netIncomeCr)} Cr &nbsp;|&nbsp; Expenses: {fmt(netExpDr)} Dr
             </div>
@@ -10997,8 +10971,8 @@ function ChartOfAccountsView({ledgers,vouchers,onBack}:{ledgers:Ledger[];voucher
             borderTop:'1px solid rgba(255,255,255,0.2)'
           }}>
             {balanced
-              ? `Ã¢Å“â€œ Assets (${fmt(assetsNet)}) = Liabilities (${fmt(liabsNet)}) + Net Profit (${fmt(netProfit)}) Ã¢â‚¬â€ BALANCED`
-              : `Ã¢Å¡Â  Difference of ${fmt(Math.abs(difference))} Ã¢â‚¬â€ UNBALANCED (check entries)`
+              ? `✓ Assets (${fmt(assetsNet)}) = Liabilities (${fmt(liabsNet)}) + Net Profit (${fmt(netProfit)}) — BALANCED`
+              : `⚠ Difference of ${fmt(Math.abs(difference))} — UNBALANCED (check entries)`
             }
           </div>
         </div>
@@ -11064,7 +11038,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
 
   if (!v) return (
     <div style={{padding:40,textAlign:'center',color:'#888',fontSize:15}}>
-      <div style={{fontSize:40,marginBottom:15}}>Ã°Å¸â€“Â¨Ã¯Â¸Â</div>
+      <div style={{fontSize:40,marginBottom:15}}>🖨️</div>
       <div>No voucher found to print.</div>
       <div style={{fontSize:12,marginTop:8}}>Create a voucher first, then click P: Print</div>
     </div>
@@ -11074,8 +11048,8 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
   const hsnMap = new Map<string,{hsnCode:string;taxable:number;cgst:number;sgst:number;igst:number;total:number;rate:number}>();
   v.inventoryEntries.forEach(e=>{
     const r = e.gstRate;
-    const hsnKey = (e.hsnCode||'Ã¢â‚¬â€') + '_' + r;
-    const existing = hsnMap.get(hsnKey)||{hsnCode:e.hsnCode||'Ã¢â‚¬â€',taxable:0,cgst:0,sgst:0,igst:0,total:0,rate:r};
+    const hsnKey = (e.hsnCode||'—') + '_' + r;
+    const existing = hsnMap.get(hsnKey)||{hsnCode:e.hsnCode||'—',taxable:0,cgst:0,sgst:0,igst:0,total:0,rate:r};
     const taxable = e.amount;
     const c = isInterState?0:Math.round(taxable*r/200*100)/100;
     const s = isInterState?0:Math.round(taxable*r/200*100)/100;
@@ -11150,16 +11124,16 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
           <thead>
             <tr>
               <th style={{...tdH,textAlign:'left'}}>Account</th>
-              <th style={{...tdH,width:120,textAlign:'right'}}>Dr Amount (Ã¢â€šÂ¹)</th>
-              <th style={{...tdH,width:120,textAlign:'right'}}>Cr Amount (Ã¢â€šÂ¹)</th>
+              <th style={{...tdH,width:120,textAlign:'right'}}>Dr Amount (₹)</th>
+              <th style={{...tdH,width:120,textAlign:'right'}}>Cr Amount (₹)</th>
             </tr>
           </thead>
           <tbody>
             {v.entries.filter(e => getEntryLedgerName(e)).map((e,i)=>(
               <tr key={i}>
                 <td style={tdB}>{getEntryLedgerName(e)}</td>
-                <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Dr'?fmt(e.amount):'Ã¢â‚¬â€'}</td>
-                <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Cr'?fmt(e.amount):'Ã¢â‚¬â€'}</td>
+                <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Dr'?fmt(e.amount):'—'}</td>
+                <td style={{...tdB,textAlign:'right'}}>{e.entryType==='Cr'?fmt(e.amount):'—'}</td>
               </tr>
             ))}
             {Array.from({length:Math.max(0,5-v.entries.length)}).map((_,i)=>(
@@ -11169,8 +11143,8 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
           <tfoot>
             <tr style={{fontWeight:'bold',borderTop:'1px solid #000'}}>
               <td style={{...tdB,textAlign:'right'}}>Total</td>
-              <td style={{...tdB,textAlign:'right',fontSize:13}}>Ã¢â€šÂ¹ {fmt(totalDr)}</td>
-              <td style={{...tdB,textAlign:'right',fontSize:13}}>Ã¢â€šÂ¹ {fmt(totalCr)}</td>
+              <td style={{...tdB,textAlign:'right',fontSize:13}}>₹ {fmt(totalDr)}</td>
+              <td style={{...tdB,textAlign:'right',fontSize:13}}>₹ {fmt(totalCr)}</td>
             </tr>
           </tfoot>
         </table>
@@ -11226,7 +11200,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
         'andhra pradesh_old': '28', 'karnataka': '29', 'goa': '30', 'lakshadweep': '31', 'kerala': '32', 'tamil nadu': '33',
         'puducherry': '34', 'andaman & nicobar islands': '35', 'telangana': '36', 'andhra pradesh': '37', 'ladakh': '38'
       };
-      return codes[s.toLowerCase().trim()] || 'Ã¢â‚¬â€';
+      return codes[s.toLowerCase().trim()] || '—';
     };
     
     // Calculations
@@ -11294,17 +11268,17 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{v.date}</b></div>
             {isPurchaseType ? (
               <>
-                <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Supplier Invoice No. &amp; Date<br/><b>{supplierInvNo||'Ã¢â‚¬â€'}</b>{supplierInvDate?<span style={{fontSize:9}}> dt. {supplierInvDate}</span>:''}</div>
-                <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Other References<br/><b>{v.refNo||'Ã¢â‚¬â€'}</b></div>
+                <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Supplier Invoice No. &amp; Date<br/><b>{supplierInvNo||'—'}</b>{supplierInvDate?<span style={{fontSize:9}}> dt. {supplierInvDate}</span>:''}</div>
+                <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Other References<br/><b>{v.refNo||'—'}</b></div>
               </>
             ) : (
               <>
-                <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Delivery Note<br/><b>{dd?.deliveryNoteNo||'Ã¢â‚¬â€'}</b></div>
-                <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Mode/Terms of Payment<br/><b>{pd?.termsOfDelivery||'Ã¢â‚¬â€'}</b></div>
+                <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Delivery Note<br/><b>{dd?.deliveryNoteNo||'—'}</b></div>
+                <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Mode/Terms of Payment<br/><b>{pd?.termsOfDelivery||'—'}</b></div>
               </>
             )}
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>Reference No. &amp; Date.<br/><b>{v.refNo||'Ã¢â‚¬â€'}</b></div>
-            <div style={{padding:'5px 10px'}}>Bill of Lading/LR-RR No.<br/><b>{dd?.billOfLadingNo||'Ã¢â‚¬â€'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000'}}>Reference No. &amp; Date.<br/><b>{v.refNo||'—'}</b></div>
+            <div style={{padding:'5px 10px'}}>Bill of Lading/LR-RR No.<br/><b>{dd?.billOfLadingNo||'—'}</b></div>
           </div>
         </div>
 
@@ -11325,9 +11299,9 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 // Sales: Consignee = Ship-to party
                 <>
                   <div style={{fontWeight:'bold', fontSize:12}}>{pd?.shipName || v.partyName}</div>
-                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.shipAddress || pd?.buyerAddress || partyLedger?.address || 'Ã¢â‚¬â€'}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.shipGstin || pd?.buyerGstin || partyLedger?.gstin || 'Ã¢â‚¬â€'}</b></div>
-                  <div style={{fontSize:10}}>State Name : {pd?.shipState || pd?.buyerState || partyLedger?.state || 'Ã¢â‚¬â€'}, Code : {stateCode(pd?.shipState || pd?.buyerState || partyLedger?.state || '')}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.shipAddress || pd?.buyerAddress || partyLedger?.address || '—'}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.shipGstin || pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{fontSize:10}}>State Name : {pd?.shipState || pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.shipState || pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               )}
             </div>
@@ -11337,30 +11311,30 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <>
                   <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Supplier (Bill from)</div>
                   <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
-                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || partyLedger?.address || 'Ã¢â‚¬â€'}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || partyLedger?.gstin || 'Ã¢â‚¬â€'}</b></div>
-                  <div style={{fontSize:10}}>State Name : {pd?.buyerState || partyLedger?.state || 'Ã¢â‚¬â€'}, Code : {stateCode(pd?.buyerState || partyLedger?.state || '')}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || partyLedger?.address || '—'}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{fontSize:10}}>State Name : {pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               ) : (
                 // Sales: Buyer (Bill to) = Party
                 <>
                   <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Buyer (Bill to)</div>
                   <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
-                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || partyLedger?.address || 'Ã¢â‚¬â€'}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || partyLedger?.gstin || 'Ã¢â‚¬â€'}</b></div>
-                  <div style={{fontSize:10}}>State Name : {pd?.buyerState || partyLedger?.state || 'Ã¢â‚¬â€'}, Code : {stateCode(pd?.buyerState || partyLedger?.state || '')}</div>
+                  <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || partyLedger?.address || '—'}</div>
+                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{fontSize:10}}>State Name : {pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               )}
             </div>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>{isPurchaseType?'Purchase Order No.':'Buyer\'s Order No.'}<br/><b>{pd?.buyerOrderNo || 'Ã¢â‚¬â€'}</b></div>
-            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{pd?.buyerOrderDate || 'Ã¢â‚¬â€'}</b></div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatch Doc No.<br/><b>{dd?.dispatchDocNo || 'Ã¢â‚¬â€'}</b></div>
-            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Motor Vehicle No.<br/><b>{dd?.motorVehicleNo || 'Ã¢â‚¬â€'}</b></div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatched through<br/><b>{dd?.dispatchedThrough || 'Ã¢â‚¬â€'}</b></div>
-            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Destination<br/><b>{dd?.destination || 'Ã¢â‚¬â€'}</b></div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', gridColumn:'span 2', minHeight:60}}>Carrier Name/Agent<br/><b>{dd?.carrierNameAgent || 'Ã¢â‚¬â€'}</b> &nbsp;&nbsp; Terms of Delivery: <b>{pd?.termsOfDelivery || 'Ã¢â‚¬â€'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>{isPurchaseType?'Purchase Order No.':'Buyer\'s Order No.'}<br/><b>{pd?.buyerOrderNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{pd?.buyerOrderDate || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatch Doc No.<br/><b>{dd?.dispatchDocNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Motor Vehicle No.<br/><b>{dd?.motorVehicleNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatched through<br/><b>{dd?.dispatchedThrough || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Destination<br/><b>{dd?.destination || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', gridColumn:'span 2', minHeight:60}}>Carrier Name/Agent<br/><b>{dd?.carrierNameAgent || '—'}</b> &nbsp;&nbsp; Terms of Delivery: <b>{pd?.termsOfDelivery || '—'}</b></div>
           </div>
 
         </div>
@@ -11396,7 +11370,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 {showInclRate && <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{fmt(e.rateInclTax)}</td>}
                 <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{fmt(e.rate)}</td>
                 <td style={{...tdB, textAlign:'center', borderTop:'none', borderBottom:'none'}}>{e.unit}</td>
-                {showDiscount && <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{e.discountPerc > 0 ? e.discountPerc + '%' : 'Ã¢â‚¬â€'}</td>}
+                {showDiscount && <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{e.discountPerc > 0 ? e.discountPerc + '%' : '—'}</td>}
                 <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none', fontWeight:'bold'}}>{fmt(e.amount)}</td>
                 {showAmtIncl && <td style={{...tdB, textAlign:'right', borderTop:'none', borderBottom:'none'}}>{fmt(e.amountInclTax)}</td>}
               </tr>
@@ -11463,8 +11437,8 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
               <td style={tdB}/>
               <td style={tdB}/>
               {showDiscount&&<td style={tdB}/>}
-              <td style={{...tdB, textAlign:'right', fontSize:13}}>Ã¢â€šÂ¹ {fmt(v.total)}</td>
-              {showAmtIncl&&<td style={{...tdB, textAlign:'right', fontSize:13}}>Ã¢â€šÂ¹ {fmt((v?.inventoryEntries||[]).reduce((s:number,e:any)=>s+(e.amountInclTax||0),0))}</td>}
+              <td style={{...tdB, textAlign:'right', fontSize:13}}>₹ {fmt(v.total)}</td>
+              {showAmtIncl&&<td style={{...tdB, textAlign:'right', fontSize:13}}>₹ {fmt((v?.inventoryEntries||[]).reduce((s:number,e:any)=>s+(e.amountInclTax||0),0))}</td>}
             </tr>
           </tfoot>
         </table>
@@ -11501,9 +11475,9 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <tr key={idx}>
                   <td style={{...tdB, textAlign:'center'}}>{hr.hsnCode}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.taxable)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.rate/2 + '%') : (isInterState ? 'Ã¢â‚¬â€' : '0%')}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.rate/2 + '%') : (isInterState ? '—' : '0%')}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? (hr.rate/2 + '%') : (isInterState ? 'Ã¢â‚¬â€' : '0%')}</td>
+                  <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? (hr.rate/2 + '%') : (isInterState ? '—' : '0%')}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.sgst)}</td>
                   <td style={{...tdB, textAlign:'center'}}>{hr.igst > 0 ? (hr.rate + '%') : (isInterState ? hr.rate + '%' : '0%')}</td>
                   <td style={{...tdB, textAlign:'right'}}>{fmt(hr.igst)}</td>
@@ -11918,7 +11892,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
     <div className="print-preview-main" style={{display:'flex',height:'100%',overflow:'hidden',background:'#eef2f6'}}>
       <div className="no-print" style={{width:240,borderRight:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fff'}}>
         <div style={{background:'#1c5282',color:'white',padding:'10px 15px',fontWeight:'bold'}}>Print Dashboard</div>
-        <div style={{padding:'10px'}}><button onClick={()=>setShowOptions(true)} style={{width:'100%',background:'#1a7a4a',color:'white',padding:'10px',cursor:'pointer'}}>Ã°Å¸â€“Â¨Ã¯Â¸Â Print Invoice (P)</button></div>
+        <div style={{padding:'10px'}}><button onClick={()=>setShowOptions(true)} style={{width:'100%',background:'#1a7a4a',color:'white',padding:'10px',cursor:'pointer'}}>🖨️ Print Invoice (P)</button></div>
         <div style={{flex:1,overflowY:'auto'}}>
           {allPrintableVouchers.map((sv,i)=>(
             <div key={i} onClick={()=>onSelectVoucher(sv)} style={{padding:'10px',cursor:'pointer',borderBottom:'1px solid #eee',background:v.id===sv.id?'#e3efff':'transparent'}}>
@@ -12051,7 +12025,7 @@ function AlterListView({type,ledgers,companies,groups,stockGroups,units,voucherT
           {filtered.length===0&&<div style={{padding:25,textAlign:'center',color:'#888'}}>No {type}s found.</div>}
         </div>
         <div style={{background:'#e2eaf2',padding:'6px 12px',fontSize:11,color:'#555',borderTop:'1px solid #ccc',textAlign:'center'}}>
-          Ã¢â€ â€˜/Ã¢â€ â€œ: Navigate | Enter: Select | Esc: Back
+          ↑/↓: Navigate | Enter: Select | Esc: Back
         </div>
       </div>
     </div>
@@ -12081,8 +12055,8 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
         position: 'relative'
       }} onClick={e=>e.stopPropagation()}>
         <div className="modal-header" style={{background:'#1c5282', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0}}>
-          <span>Ã¢Å¡Â¡ Quick {titles[ctx.fieldType] || 'Master'} {ctx.activeAlterItem ? 'Alteration' : 'Creation'}</span>
-          <button onClick={onClose} style={{background:'transparent', border:'none', color:'white', cursor:'pointer', fontSize:18}}>Ã¢Å“â€¢</button>
+          <span>⚡ Quick {titles[ctx.fieldType] || 'Master'} {ctx.activeAlterItem ? 'Alteration' : 'Creation'}</span>
+          <button onClick={onClose} style={{background:'transparent', border:'none', color:'white', cursor:'pointer', fontSize:18}}>✕</button>
         </div>
         
         <div style={{flex:1, overflowY:'auto', background:'#fff'}}>
@@ -12629,8 +12603,8 @@ function GSTR1ReportView({
   // GENERIC VOUCHER DRILL-DOWN for B2CL, B2CS, CDNR, CDNUR
   if (['b2cl','b2cs','cdnr','cdnur'].includes(drillDown || '')) {
     const sectionLabels: Record<string,string> = {
-      'b2cl': 'B2C (Large) Invoices - Unregistered Inter-State > Ã¢â€šÂ¹2.5L',
-      'b2cs': 'B2C (Small) Invoices - Unregistered Intra-State / Ã¢â€°Â¤ Ã¢â€šÂ¹2.5L',
+      'b2cl': 'B2C (Large) Invoices - Unregistered Inter-State > ₹2.5L',
+      'b2cs': 'B2C (Small) Invoices - Unregistered Intra-State / ≤ ₹2.5L',
       'cdnr': 'Credit/Debit Notes (Registered)',
       'cdnur': 'Credit/Debit Notes (Unregistered)',
     };
@@ -12644,7 +12618,7 @@ function GSTR1ReportView({
         <div style={{flex:1, overflowY:'auto'}}>
           {vcList.length === 0 ? (
             <div style={{padding:40,textAlign:'center',color:'#888',fontSize:14}}>
-              <div style={{fontSize:36,marginBottom:10}}>Ã°Å¸â€œâ€¹</div>
+              <div style={{fontSize:36,marginBottom:10}}>📋</div>
               No vouchers found in this category.
             </div>
           ) : (
@@ -12860,7 +12834,7 @@ function GSTR3BReportView({vouchers, goBack}: {vouchers: Voucher[], goBack: () =
           <button onClick={()=>setDrillDown(null)} className="tally-btn-sm">Esc: Back</button>
         </div>
         <div style={{padding:20}}>
-          <p>Total Outward Tax (GST Payable): Ã¢â€šÂ¹ {salesTax.toLocaleString('en-IN')}</p>
+          <p>Total Outward Tax (GST Payable): ₹ {salesTax.toLocaleString('en-IN')}</p>
         </div>
       </div>
     );
@@ -12872,15 +12846,15 @@ function GSTR3BReportView({vouchers, goBack}: {vouchers: Voucher[], goBack: () =
       <div style={{padding:20}}>
         <div style={{display:'flex',justifyContent:'space-between',padding:10,borderBottom:'1px solid #eee',cursor:'pointer'}} onClick={()=>setDrillDown('outward')}>
           <span>3.1 Outward Taxable Supplies</span>
-          <span style={{fontWeight:'bold'}}>Ã¢â€šÂ¹ {salesTax.toLocaleString('en-IN')}</span>
+          <span style={{fontWeight:'bold'}}>₹ {salesTax.toLocaleString('en-IN')}</span>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',padding:10,borderBottom:'1px solid #eee'}}>
           <span>4. Eligible ITC (Inward)</span>
-          <span style={{fontWeight:'bold'}}>Ã¢â€šÂ¹ {purchaseTax.toLocaleString('en-IN')}</span>
+          <span style={{fontWeight:'bold'}}>₹ {purchaseTax.toLocaleString('en-IN')}</span>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',padding:10,background:'#f9f9f9',marginTop:10}}>
           <span style={{fontWeight:'bold'}}>Net GST Payable</span>
-          <span style={{fontWeight:'bold',color:'#d93025'}}>Ã¢â€šÂ¹ {(salesTax - purchaseTax).toLocaleString('en-IN')}</span>
+          <span style={{fontWeight:'bold',color:'#d93025'}}>₹ {(salesTax - purchaseTax).toLocaleString('en-IN')}</span>
         </div>
       </div>
     </div>
@@ -12912,7 +12886,7 @@ function RoleManagementView({goBack}: {goBack: () => void}) {
             {users.map(u => (
               <tr key={u.id} style={{borderBottom:'1px solid #eee'}}>
                 <td style={{padding:10}}>{u.username}</td>
-                <td style={{padding:10}}>{u.email || 'Ã¢â‚¬â€'}</td>
+                <td style={{padding:10}}>{u.email || '—'}</td>
                 <td style={{padding:10}}><span style={{background:'#e8f5e9',padding:'2px 8px',borderRadius:10,fontSize:11,color:'#2e7d32'}}>{u.role}</span></td>
                 <td style={{padding:10,textAlign:'center'}}><button style={{fontSize:11,color:'#1c5282',border:'none',background:'transparent',cursor:'pointer'}}>Edit</button></td>
               </tr>
@@ -12925,7 +12899,7 @@ function RoleManagementView({goBack}: {goBack: () => void}) {
   );
 }
 
-// ==================== DATA EXCHANGE VIEW Ã¢â‚¬â€ FULLY FUNCTIONAL ====================
+// ==================== DATA EXCHANGE VIEW — FULLY FUNCTIONAL ====================
 function DataExchangeView({
   goBack, ledgers, vouchers, stockItems, activeCompany, onDataImported
 }: {
@@ -12948,7 +12922,7 @@ function DataExchangeView({
 
   const clearLog = () => setLog([]);
 
-  // Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€ CSV / JSON helpers Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€
+  // ——— CSV / JSON helpers ———
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -12994,7 +12968,7 @@ function DataExchangeView({
     try { return authClient.getToken() || ''; } catch { return ''; }
   };
 
-  // Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€ EXPORTS Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€
+  // ——— EXPORTS ———
   const exportLedgersCSV = () => {
     if (!ledgers.length) { addLog('warn','No ledgers to export.'); return; }
     const headers = ['Name','GroupName','Alias','OpeningBalance','BalanceType','Address','State','PinCode','GSTIN','PAN','Phone','Email','BankName','AccountNo','IFSC'];
@@ -13007,7 +12981,7 @@ function DataExchangeView({
     }));
     const csv = toCsv(rows, headers);
     downloadBlob(new Blob([csv], {type:'text/csv'}), `Ledgers_${activeCompany?.name||'Company'}_${new Date().toISOString().slice(0,10)}.csv`);
-    addLog('ok', `Ã¢Å“â€œ Exported ${ledgers.length} ledgers to CSV.`);
+    addLog('ok', `✓ Exported ${ledgers.length} ledgers to CSV.`);
   };
 
   const exportVouchersCSV = () => {
@@ -13026,7 +13000,7 @@ function DataExchangeView({
     }
     const csv = toCsv(rows, headers);
     downloadBlob(new Blob([csv], {type:'text/csv'}), `Vouchers_${activeCompany?.name||'Company'}_${new Date().toISOString().slice(0,10)}.csv`);
-    addLog('ok', `Ã¢Å“â€œ Exported ${vouchers.length} vouchers (${rows.length} entries) to CSV.`);
+    addLog('ok', `✓ Exported ${vouchers.length} vouchers (${rows.length} entries) to CSV.`);
   };
 
   const exportFullJSON = () => {
@@ -13040,16 +13014,16 @@ function DataExchangeView({
     };
     const json = JSON.stringify(data, null, 2);
     downloadBlob(new Blob([json], {type:'application/json'}), `FullBackup_${activeCompany?.name||'Company'}_${new Date().toISOString().slice(0,10)}.json`);
-    addLog('ok', `Ã¢Å“â€œ Full backup exported: ${ledgers.length} ledgers, ${vouchers.length} vouchers, ${stockItems.length} stock items.`);
+    addLog('ok', `✓ Full backup exported: ${ledgers.length} ledgers, ${vouchers.length} vouchers, ${stockItems.length} stock items.`);
   };
 
   const exportLedgersJSON = () => {
     const data = { exportedAt: new Date().toISOString(), company: activeCompany?.name, ledgers };
     downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}), `Ledgers_${activeCompany?.name||'Company'}.json`);
-    addLog('ok', `Ã¢Å“â€œ Exported ${ledgers.length} ledgers to JSON.`);
+    addLog('ok', `✓ Exported ${ledgers.length} ledgers to JSON.`);
   };
 
-  // Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€ IMPORTS Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€
+  // ——— IMPORTS ———
   const handleImport = async () => {
     if (!importFile) { addLog('err','Please select a file first.'); return; }
     if (!activeCompany?.id) { addLog('err','No active company. Please open a company first.'); return; }
@@ -13150,7 +13124,7 @@ function DataExchangeView({
       }
     }
 
-    addLog('ok', `Ã¢Å“â€œ Import complete: ${created} created, ${skipped} skipped (duplicates), ${failed} failed.`);
+    addLog('ok', `✓ Import complete: ${created} created, ${skipped} skipped (duplicates), ${failed} failed.`);
     if (created > 0) {
       addLog('info', 'Reloading data...');
       setTimeout(() => onDataImported(), 1500);
@@ -13223,7 +13197,7 @@ function DataExchangeView({
       const totalDr = validEntries.filter(e=>e.entryType==='Dr').reduce((s,e)=>s+e.amount,0);
       const totalCr = validEntries.filter(e=>e.entryType==='Cr').reduce((s,e)=>s+e.amount,0);
       if (Math.abs(totalDr - totalCr) > 0.01) {
-        addLog('warn', `  Voucher ${vNo}: Dr(${totalDr}) Ã¢â€°Â  Cr(${totalCr}) Ã¢â‚¬â€ still importing`);
+        addLog('warn', `  Voucher ${vNo}: Dr(${totalDr}) ≠ Cr(${totalCr}) — still importing`);
       }
 
       try {
@@ -13246,7 +13220,7 @@ function DataExchangeView({
       }
     }
 
-    addLog('ok', `Ã¢Å“â€œ Voucher import complete: ${created} created, ${failed} failed.`);
+    addLog('ok', `✓ Voucher import complete: ${created} created, ${failed} failed.`);
     if (created > 0) setTimeout(() => onDataImported(), 1500);
   };
 
@@ -13333,14 +13307,14 @@ function DataExchangeView({
       addLog('ok', `  Vouchers: ${vCreated} created`);
     }
 
-    addLog('ok', `Ã¢Å“â€œ JSON import complete: ${lCreated} ledgers + ${vCreated} vouchers imported.`);
+    addLog('ok', `✓ JSON import complete: ${lCreated} ledgers + ${vCreated} vouchers imported.`);
     if (lCreated + vCreated > 0) {
       addLog('info', 'Reloading application data...');
       setTimeout(() => onDataImported(), 1500);
     }
   };
 
-  // Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€ UI COLORS Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€
+  // ——— UI COLORS ———
   const C = { blue:'#1c5282', green:'#1a7a4a', red:'#8B0000', orange:'#b35900', bg:'#f5f7fa' };
 
   const btnStyle = (color: string): React.CSSProperties => ({
@@ -13351,22 +13325,22 @@ function DataExchangeView({
 
   const logColor: Record<string,string> = {info:'#555', ok:'#145214', warn:'#7a4a00', err:'#8B0000'};
   const logBg:    Record<string,string> = {info:'#f0f4ff', ok:'#e8f5e8', warn:'#fdf6e3', err:'#fff0f0'};
-  const logIcon:  Record<string,string> = {info:'Ã¢â€žÂ¹', ok:'Ã¢Å“â€œ', warn:'Ã¢Å¡Â ', err:'Ã¢Å“â€”'};
+  const logIcon:  Record<string,string> = {info:'ℹ', ok:'✓', warn:'⚠', err:'✗'};
 
   return (
     <div style={{height:'100%', overflowY:'auto', background:C.bg, display:'flex', flexDirection:'column'}}>
       {/* Header */}
       <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)', color:'white', padding:'10px 20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <span style={{fontWeight:'bold', fontSize:15}}>Ã°Å¸â€â€ž Data Exchange</span>
-        <button onClick={goBack} style={{padding:'3px 14px', background:'rgba(255,255,255,0.15)', color:'white', border:'1px solid rgba(255,255,255,0.4)', borderRadius:3, cursor:'pointer', fontSize:12}}>Ã¢Å“â€¢ Close</button>
+        <span style={{fontWeight:'bold', fontSize:15}}>🔄 Data Exchange</span>
+        <button onClick={goBack} style={{padding:'3px 14px', background:'rgba(255,255,255,0.15)', color:'white', border:'1px solid rgba(255,255,255,0.4)', borderRadius:3, cursor:'pointer', fontSize:12}}>✕ Close</button>
       </div>
 
       {/* Company Context Bar */}
       <div style={{background:'#fff', borderBottom:'1px solid #dde', padding:'5px 20px', fontSize:12, color:'#555', display:'flex', gap:20}}>
-        <span>Ã°Å¸ÂÂ¢ Company: <b style={{color:C.blue}}>{activeCompany?.name || 'Ã¢â‚¬â€ No company selected Ã¢â‚¬â€'}</b></span>
-        <span>Ã°Å¸â€œÂ Ledgers: <b>{ledgers.length}</b></span>
-        <span>Ã°Å¸â€œâ€ž Vouchers: <b>{vouchers.length}</b></span>
-        <span>Ã°Å¸â€œÂ¦ Stock Items: <b>{stockItems.length}</b></span>
+        <span>🏢 Company: <b style={{color:C.blue}}>{activeCompany?.name || '— No company selected —'}</b></span>
+        <span>📁 Ledgers: <b>{ledgers.length}</b></span>
+        <span>📄 Vouchers: <b>{vouchers.length}</b></span>
+        <span>📦 Stock Items: <b>{stockItems.length}</b></span>
       </div>
 
       {/* Tabs */}
@@ -13379,7 +13353,7 @@ function DataExchangeView({
             fontWeight: tab===t ? 'bold' : 'normal',
             cursor:'pointer', fontSize:13, textTransform:'capitalize'
           }}>
-            {t === 'export' ? 'Ã°Å¸â€œÂ¤ Export Data' : 'Ã°Å¸â€œÂ¥ Import Data'}
+            {t === 'export' ? '📤 Export Data' : '📥 Import Data'}
           </button>
         ))}
       </div>
@@ -13393,22 +13367,22 @@ function DataExchangeView({
               {/* Export Cards */}
               {[
                 {
-                  icon:'Ã°Å¸â€œâ€¹', title:'Export Ledgers (CSV)',
+                  icon:'📋', title:'Export Ledgers (CSV)',
                   desc:'Download all ledgers with group, opening balance, GST details, and contact information. Compatible with Excel / Google Sheets.',
                   action: exportLedgersCSV, color: C.blue, count: `${ledgers.length} ledgers`
                 },
                 {
-                  icon:'Ã°Å¸â€œÅ ', title:'Export Vouchers (CSV)',
+                  icon:'📊', title:'Export Vouchers (CSV)',
                   desc:'Download all voucher entries with date, type, party name, ledger name, Dr/Cr, and amount. Each entry on a separate row.',
                   action: exportVouchersCSV, color: '#5a2d82', count: `${vouchers.length} vouchers`
                 },
                 {
-                  icon:'Ã°Å¸â€™Â¾', title:'Export Ledgers (JSON)',
+                  icon:'💾', title:'Export Ledgers (JSON)',
                   desc:'Download ledgers in JSON format for structured data exchange or custom integration.',
                   action: exportLedgersJSON, color: C.orange, count: `${ledgers.length} ledgers`
                 },
                 {
-                  icon:'Ã°Å¸â€”â€žÃ¯Â¸Â', title:'Full Backup (JSON)',
+                  icon:'🗄️', title:'Full Backup (JSON)',
                   desc:'Export complete data backup including all ledgers, vouchers, and stock items. Use this for migration or full data restore.',
                   action: exportFullJSON, color: C.green, count: `${ledgers.length} ledgers + ${vouchers.length} vouchers + ${stockItems.length} items`
                 },
@@ -13420,7 +13394,7 @@ function DataExchangeView({
                     <div style={{fontSize:12, color:'#666', marginBottom:8, lineHeight:1.5}}>{card.desc}</div>
                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                       <span style={{fontSize:11, color:'#888', background:'#f0f4ff', padding:'2px 8px', borderRadius:3}}>{card.count}</span>
-                      <button style={btnStyle(card.color)} onClick={()=>{clearLog(); card.action();}}>Ã¢Â¬â€¡ Download</button>
+                      <button style={btnStyle(card.color)} onClick={()=>{clearLog(); card.action();}}>⬇ Download</button>
                     </div>
                   </div>
                 </div>
@@ -13428,7 +13402,7 @@ function DataExchangeView({
             </div>
           ) : (
             <div style={{background:'#fff', border:'1px solid #dde', borderRadius:6, padding:'16px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
-              <div style={{fontWeight:'bold', fontSize:14, color:'#1c3e5a', marginBottom:12}}>Ã°Å¸â€œÂ¥ Import Configuration</div>
+              <div style={{fontWeight:'bold', fontSize:14, color:'#1c3e5a', marginBottom:12}}>📥 Import Configuration</div>
 
               {/* Import Type */}
               <div style={{marginBottom:14}}>
@@ -13461,18 +13435,18 @@ function DataExchangeView({
                     onChange={e=>setImportFile(e.target.files?.[0]||null)}
                     style={{display:'none'}}
                   />
-                  <button style={{...btnStyle(C.blue), flex:1}} onClick={()=>fileRef.current?.click()}>Ã°Å¸â€œÂ Choose File...</button>
+                  <button style={{...btnStyle(C.blue), flex:1}} onClick={()=>fileRef.current?.click()}>📁 Choose File...</button>
                   {importFile && <span style={{fontSize:11, color:'#555', maxWidth:140, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{importFile.name}</span>}
                 </div>
-                {importFile && <div style={{fontSize:11, color:'#1a7a4a', marginTop:4}}>Ã¢Å“â€œ {importFile.name} ({(importFile.size/1024).toFixed(1)} KB)</div>}
+                {importFile && <div style={{fontSize:11, color:'#1a7a4a', marginTop:4}}>✓ {importFile.name} ({(importFile.size/1024).toFixed(1)} KB)</div>}
               </div>
 
               {/* Warnings */}
               <div style={{background:'#fff9e6', border:'1px solid #f5c518', borderRadius:4, padding:'8px 12px', fontSize:11, color:'#7a5c00', marginBottom:14}}>
-                <b>Ã¢Å¡Â  Notes:</b><br/>
-                Ã¢â‚¬Â¢ Existing ledgers with the same name will be skipped (no duplicates)<br/>
-                Ã¢â‚¬Â¢ Vouchers require all ledger names to exist in the company<br/>
-                Ã¢â‚¬Â¢ JSON restore will reload the page after completion
+                <b>⚠ Notes:</b><br/>
+                • Existing ledgers with the same name will be skipped (no duplicates)<br/>
+                • Vouchers require all ledger names to exist in the company<br/>
+                • JSON restore will reload the page after completion
               </div>
 
               <button
@@ -13480,22 +13454,22 @@ function DataExchangeView({
                 onClick={handleImport}
                 disabled={busy || !importFile || !activeCompany}
               >
-                {busy ? 'Ã¢ÂÂ³ Importing...' : 'Ã¢Â¬â€  Start Import'}
+                {busy ? '⏳ Importing...' : '⬆ Start Import'}
               </button>
             </div>
           )}
         </div>
 
-        {/* RIGHT PANEL Ã¢â‚¬â€ Activity Log */}
+        {/* RIGHT PANEL — Activity Log */}
         <div style={{display:'flex', flexDirection:'column', gap:0}}>
           <div style={{background:'#1c3e5a', color:'white', padding:'7px 12px', fontSize:12, fontWeight:'bold', borderRadius:'6px 6px 0 0', display:'flex', justifyContent:'space-between'}}>
-            <span>Ã°Å¸â€œâ€¹ Activity Log</span>
+            <span>📋 Activity Log</span>
             {log.length > 0 && <button onClick={clearLog} style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:10}}>Clear</button>}
           </div>
           <div style={{flex:1, background:'#fff', border:'1px solid #dde', borderTop:'none', borderRadius:'0 0 6px 6px', minHeight:300, padding:8, overflowY:'auto', display:'flex', flexDirection:'column', gap:4}}>
             {log.length === 0 ? (
               <div style={{textAlign:'center', color:'#aaa', fontSize:12, paddingTop:40}}>
-                {tab==='export' ? 'Ã¢Â¬â€¡ Click Download to start export' : 'Ã¢Â¬â€  Select file and click Import'}
+                {tab==='export' ? '⬇ Click Download to start export' : '⬆ Select file and click Import'}
               </div>
             ) : log.map((entry, i) => (
               <div key={i} style={{fontSize:11, padding:'3px 8px', borderRadius:3, background:logBg[entry.type], color:logColor[entry.type], display:'flex', gap:6, alignItems:'flex-start'}}>
@@ -13505,7 +13479,7 @@ function DataExchangeView({
             ))}
             {busy && (
               <div style={{textAlign:'center', padding:'10px', color:'#555', fontSize:12}}>
-                <span style={{display:'inline-block', animation:'spin 1s linear infinite'}}>Ã¢ÂÂ³</span> Processing...
+                <span style={{display:'inline-block', animation:'spin 1s linear infinite'}}>⏳</span> Processing...
               </div>
             )}
           </div>
@@ -13515,3 +13489,4 @@ function DataExchangeView({
     </div>
   );
 }
+
