@@ -581,6 +581,18 @@ export default function App() {
     caMno: '',
     place: '',
     signatoryTitle: 'PARTNER',
+    partners: [] as {
+      id: string;
+      name: string;
+      sharePct: number;
+      openingBal: number;
+      addition: number;
+      salary: number;
+      interestRate: number;
+      interestAmt?: number;
+      withdrawalsAmt: number;
+      withdrawalsNature: string;
+    }[],
   });
 
   useEffect(() => {
@@ -742,14 +754,42 @@ export default function App() {
       alert('Pehle ek company select karein!');
       return;
     }
-    setFinalBSForm(f => ({
-      ...f,
-      asOnDate: f.asOnDate || currentPeriod?.end || '31-Mar-2026',
-      fromDate: f.fromDate || currentPeriod?.start || '01-Apr-2025',
-      toDate:   f.toDate   || currentPeriod?.end || '31-Mar-2026',
-      place:    f.place    || activeCompany.state || '',
-      signatoryTitle: f.signatoryTitle || 'PARTNER',
-    }));
+    const capLedgers = ledgers.filter(l => ['Capital Account', 'Reserves & Surplus'].includes(l.groupName) && l.name !== 'Profit & Loss A/c');
+
+    setFinalBSForm(f => {
+      let initialPartners = f.partners;
+      if (!initialPartners || initialPartners.length === 0) {
+        if (capLedgers.length > 0) {
+          const pct = Math.floor((100 / capLedgers.length) * 100) / 100;
+          initialPartners = capLedgers.map((l, idx) => ({
+            id: String(l.id || idx),
+            name: l.name,
+            sharePct: idx === capLedgers.length - 1 ? 100 - (pct * (capLedgers.length - 1)) : pct,
+            openingBal: l.openingBalance ?? 0,
+            addition: 0,
+            salary: 0,
+            interestRate: 12,
+            interestAmt: undefined,
+            withdrawalsAmt: 0,
+            withdrawalsNature: '',
+          }));
+        } else {
+          initialPartners = [
+            { id: '1', name: 'PARTNER 1', sharePct: 50, openingBal: 0, addition: 0, salary: 0, interestRate: 12, interestAmt: undefined, withdrawalsAmt: 0, withdrawalsNature: '' },
+            { id: '2', name: 'PARTNER 2', sharePct: 50, openingBal: 0, addition: 0, salary: 0, interestRate: 12, interestAmt: undefined, withdrawalsAmt: 0, withdrawalsNature: '' },
+          ];
+        }
+      }
+      return {
+        ...f,
+        asOnDate: f.asOnDate || currentPeriod?.end || '31-Mar-2026',
+        fromDate: f.fromDate || currentPeriod?.start || '01-Apr-2025',
+        toDate:   f.toDate   || currentPeriod?.end || '31-Mar-2026',
+        place:    f.place    || activeCompany.state || '',
+        signatoryTitle: f.signatoryTitle || 'PARTNER',
+        partners: initialPartners,
+      };
+    });
     setShowFinalBSModal(true);
   };
 
@@ -760,17 +800,21 @@ export default function App() {
     }
     setFinalBSExporting(true);
     try {
-      const params = new URLSearchParams({
-        companyId: String(activeCompany.id),
-        ...(finalBSForm.asOnDate ? { asOnDate: finalBSForm.asOnDate } : {}),
-        ...(finalBSForm.fromDate ? { fromDate: finalBSForm.fromDate } : {}),
-        ...(finalBSForm.toDate   ? { toDate: finalBSForm.toDate }   : {}),
-        ...(finalBSForm.caName   ? { caName: finalBSForm.caName }   : {}),
-        ...(finalBSForm.caMno    ? { caMno: finalBSForm.caMno }     : {}),
-        ...(finalBSForm.place    ? { place: finalBSForm.place }     : {}),
-        ...(finalBSForm.signatoryTitle ? { signatoryTitle: finalBSForm.signatoryTitle } : {}),
+      const res = await fetch('/api/reports/export-excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: String(activeCompany.id),
+          asOnDate: finalBSForm.asOnDate,
+          fromDate: finalBSForm.fromDate,
+          toDate: finalBSForm.toDate,
+          caName: finalBSForm.caName,
+          caMno: finalBSForm.caMno,
+          place: finalBSForm.place,
+          signatoryTitle: finalBSForm.signatoryTitle,
+          partnersData: finalBSForm.partners,
+        }),
       });
-      const res = await fetch(`/api/reports/export-excel?${params.toString()}`);
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || 'Export failed');
@@ -3187,11 +3231,55 @@ export default function App() {
         </div>
         );
       })()}
-      {showFinalBSModal && (
+      {showFinalBSModal && (() => {
+        const modalNetProfit = (() => {
+          if (!ledgers.length) return 0;
+          const incGroups = ['Sales Accounts', 'Direct Incomes', 'Income (Direct)', 'Indirect Incomes', 'Income (Indirect)'];
+          const expGroups = ['Purchase Accounts', 'Direct Expenses', 'Expenses (Direct)', 'Indirect Expenses', 'Expenses (Indirect)'];
+          let inc = 0;
+          let exp = 0;
+          for (const l of ledgers) {
+            if (incGroups.includes(l.groupName)) {
+              let bal = l.balanceType === 'Cr' ? (l.openingBalance ?? 0) : -(l.openingBalance ?? 0);
+              for (const v of filteredVouchers) {
+                for (const e of (v.entries || [])) {
+                  if (e.ledgerId === l.id) bal += (e.entryType === 'Cr' ? e.amount : -e.amount);
+                }
+              }
+              inc += bal;
+            } else if (expGroups.includes(l.groupName)) {
+              let bal = l.balanceType === 'Dr' ? (l.openingBalance ?? 0) : -(l.openingBalance ?? 0);
+              for (const v of filteredVouchers) {
+                for (const e of (v.entries || [])) {
+                  if (e.ledgerId === l.id) bal += (e.entryType === 'Dr' ? e.amount : -e.amount);
+                }
+              }
+              exp += bal;
+            }
+          }
+          return inc - exp;
+        })();
+
+        const totalPartnerShare = (finalBSForm.partners || []).reduce((s, p) => s + (Number(p.sharePct) || 0), 0);
+        const totalPartnerClosing = (finalBSForm.partners || []).reduce((s, p) => {
+          const sPct = Number(p.sharePct) || 0;
+          const oBal = Number(p.openingBal) || 0;
+          const addn = Number(p.addition) || 0;
+          const sal = Number(p.salary) || 0;
+          const iRate = p.interestRate !== undefined ? Number(p.interestRate) : 12;
+          const iAmt = (p.interestAmt !== undefined && p.interestAmt !== null && String(p.interestAmt) !== '')
+            ? Number(p.interestAmt)
+            : Math.round((oBal * (iRate / 100)) * 100) / 100;
+          const pShare = Math.round((modalNetProfit * (sPct / 100)) * 100) / 100;
+          const tot = oBal + addn + sal + iAmt + pShare;
+          return s + (tot - (Number(p.withdrawalsAmt) || 0));
+        }, 0);
+
+        return (
         <div className="modal-overlay" onClick={()=>setShowFinalBSModal(false)}>
-          <div className="modal-box" style={{width:540, maxHeight:'90vh', overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+          <div className="modal-box" style={{width:780, maxWidth:'95vw', maxHeight:'92vh', overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header" style={{background:'linear-gradient(135deg, #1c5282, #2980b9)', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 16px', color:'#fff'}}>
-              <span style={{fontWeight:'bold', fontSize:14}}>📊 Final Balance Sheet & P&L (CA Excel Format)</span>
+              <span style={{fontWeight:'bold', fontSize:14}}>📊 Final Balance Sheet & P&L (CA Excel Format — 4 Sheets)</span>
               <span style={{cursor:'pointer', fontSize:16, fontWeight:'bold'}} onClick={()=>setShowFinalBSModal(false)}>✕</span>
             </div>
             <div style={{padding:20}}>
@@ -3320,12 +3408,235 @@ export default function App() {
                 </div>
               </div>
 
+              {/* ─── PARTNERS CAPITAL ACCOUNT (ANNEXURE "A") ─── */}
+              {finalBSForm.signatoryTitle.toUpperCase() === 'PARTNER' && (
+                <div style={{border:'1px solid #b8daff', borderRadius:8, background:'#f4f8fd', padding:'12px 14px', marginBottom:16}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+                    <div>
+                      <span style={{fontWeight:'bold', fontSize:13, color:'#1c5282'}}>👥 Partners Capital Account (Annexure "A" Sheet)</span>
+                      <div style={{fontSize:11, color:'#555', marginTop:2}}>
+                        Har partner ka naam aur Share % daalein — Net Profit/Loss percentage ke hisaab se auto-calculate hoga.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFinalBSForm(f => ({
+                          ...f,
+                          partners: [
+                            ...(f.partners || []),
+                            {
+                              id: String(Date.now()),
+                              name: `PARTNER ${(f.partners || []).length + 1}`,
+                              sharePct: 0,
+                              openingBal: 0,
+                              addition: 0,
+                              salary: 0,
+                              interestRate: 12,
+                              withdrawalsAmt: 0,
+                              withdrawalsNature: '',
+                            }
+                          ]
+                        }));
+                      }}
+                      style={{background:'#1c5282', color:'#fff', border:'none', borderRadius:4, padding:'5px 12px', fontSize:11, cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:4}}
+                    >
+                      + Add Partner
+                    </button>
+                  </div>
+
+                  {/* Summary bar */}
+                  <div style={{display:'flex', gap:12, alignItems:'center', background:'#fff', border:'1px solid #d0e0f0', borderRadius:6, padding:'8px 12px', marginBottom:12, fontSize:11, flexWrap:'wrap'}}>
+                    <div>
+                      Total Share: <b style={{color: totalPartnerShare === 100 ? '#1a7a4a' : '#c0392b', fontSize:12}}>
+                        {totalPartnerShare}%
+                      </b> {totalPartnerShare === 100 ? <span style={{color:'#1a7a4a'}}>✓ (100% OK)</span> : <span style={{color:'#c0392b'}}>⚠ (Total 100% hona chahiye)</span>}
+                    </div>
+                    <div>
+                      Net Profit to Distribute: <b style={{color: modalNetProfit >= 0 ? '#1a7a4a' : '#c0392b'}}>{fmt(modalNetProfit)}</b>
+                    </div>
+                    <div style={{marginLeft:'auto', color:'#1c5282', fontWeight:'bold'}}>
+                      Total Closing Capital: {fmt(totalPartnerClosing)}
+                    </div>
+                  </div>
+
+                  {/* Partners list */}
+                  <div style={{display:'flex', flexDirection:'column', gap:10}}>
+                    {(finalBSForm.partners || []).map((partner, pIdx) => {
+                      const sharePct = Number(partner.sharePct) || 0;
+                      const openingBal = Number(partner.openingBal) || 0;
+                      const addition = Number(partner.addition) || 0;
+                      const salary = Number(partner.salary) || 0;
+                      const interestRate = partner.interestRate !== undefined ? Number(partner.interestRate) : 12;
+                      const interestAmt = (partner.interestAmt !== undefined && partner.interestAmt !== null && String(partner.interestAmt) !== '')
+                        ? Number(partner.interestAmt)
+                        : Math.round((openingBal * (interestRate / 100)) * 100) / 100;
+                      const profitShare = Math.round((modalNetProfit * (sharePct / 100)) * 100) / 100;
+                      const total = openingBal + addition + salary + interestAmt + profitShare;
+                      const withdrawalsAmt = Number(partner.withdrawalsAmt) || 0;
+                      const closingBal = total - withdrawalsAmt;
+
+                      return (
+                        <div key={partner.id || pIdx} style={{background:'#fff', border:'1px solid #c8dcf0', borderRadius:6, padding:'10px 12px', boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8, gap:8}}>
+                            <div style={{display:'flex', alignItems:'center', gap:8, flex:1}}>
+                              <span style={{fontSize:11, fontWeight:'bold', color:'#1c5282', background:'#eaf2f8', padding:'2px 6px', borderRadius:3}}>#{pIdx + 1}</span>
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{flex:1, fontWeight:'bold', fontSize:12}}
+                                value={partner.name}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setFinalBSForm(f => ({
+                                    ...f,
+                                    partners: f.partners.map((p, i) => i === pIdx ? { ...p, name: val } : p)
+                                  }));
+                                }}
+                                placeholder="Partner Name (e.g. MAU HANIF S/O ABDUL RAHIM)"
+                              />
+                              <div style={{display:'flex', alignItems:'center', gap:4, background:'#f0f7ff', border:'1px solid #cce3f8', borderRadius:4, padding:'2px 6px'}}>
+                                <span style={{fontSize:11, fontWeight:'bold', color:'#333'}}>Share:</span>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  style={{width:55, textAlign:'center', fontWeight:'bold', color:'#1c5282', padding:'2px 4px', height:24}}
+                                  value={partner.sharePct}
+                                  onChange={e => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setFinalBSForm(f => ({
+                                      ...f,
+                                      partners: f.partners.map((p, i) => i === pIdx ? { ...p, sharePct: val } : p)
+                                    }));
+                                  }}
+                                  placeholder="%"
+                                />
+                                <span style={{fontSize:11, fontWeight:'bold'}}>%</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFinalBSForm(f => ({
+                                  ...f,
+                                  partners: f.partners.filter((_, i) => i !== pIdx)
+                                }));
+                              }}
+                              style={{background:'none', border:'none', color:'#d93025', fontSize:16, cursor:'pointer', padding:'0 6px', fontWeight:'bold'}}
+                              title="Delete Partner"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:8, fontSize:11}}>
+                            <div>
+                              <label style={{color:'#666', display:'block', marginBottom:2, fontSize:10, fontWeight:'600'}}>Opening Bal (₹)</label>
+                              <input
+                                type="number"
+                                className="form-input"
+                                style={{width:'100%', fontSize:11}}
+                                value={partner.openingBal}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setFinalBSForm(f => ({
+                                    ...f,
+                                    partners: f.partners.map((p, i) => i === pIdx ? { ...p, openingBal: val } : p)
+                                  }));
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{color:'#666', display:'block', marginBottom:2, fontSize:10, fontWeight:'600'}}>Addition (₹)</label>
+                              <input
+                                type="number"
+                                className="form-input"
+                                style={{width:'100%', fontSize:11}}
+                                value={partner.addition}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setFinalBSForm(f => ({
+                                    ...f,
+                                    partners: f.partners.map((p, i) => i === pIdx ? { ...p, addition: val } : p)
+                                  }));
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{color:'#666', display:'block', marginBottom:2, fontSize:10, fontWeight:'600'}}>Salary/Remun. (₹)</label>
+                              <input
+                                type="number"
+                                className="form-input"
+                                style={{width:'100%', fontSize:11}}
+                                value={partner.salary}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setFinalBSForm(f => ({
+                                    ...f,
+                                    partners: f.partners.map((p, i) => i === pIdx ? { ...p, salary: val } : p)
+                                  }));
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{color:'#666', display:'block', marginBottom:2, fontSize:10, fontWeight:'600'}}>Interest @ 12% (₹)</label>
+                              <input
+                                type="number"
+                                className="form-input"
+                                style={{width:'100%', fontSize:11}}
+                                value={partner.interestAmt !== undefined ? partner.interestAmt : interestAmt}
+                                onChange={e => {
+                                  const val = e.target.value === '' ? undefined : parseFloat(e.target.value) || 0;
+                                  setFinalBSForm(f => ({
+                                    ...f,
+                                    partners: f.partners.map((p, i) => i === pIdx ? { ...p, interestAmt: val } : p)
+                                  }));
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{color:'#666', display:'block', marginBottom:2, fontSize:10, fontWeight:'600'}}>Withdrawals (₹)</label>
+                              <input
+                                type="number"
+                                className="form-input"
+                                style={{width:'100%', fontSize:11}}
+                                value={partner.withdrawalsAmt}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setFinalBSForm(f => ({
+                                    ...f,
+                                    partners: f.partners.map((p, i) => i === pIdx ? { ...p, withdrawalsAmt: val } : p)
+                                  }));
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{marginTop:8, paddingTop:6, borderTop:'1px dashed #e0e8f0', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:11, background:'#fafcff', padding:'6px 8px', borderRadius:4}}>
+                            <span style={{color:'#444'}}>
+                              Profit Share ({sharePct}%): <b style={{color: profitShare >= 0 ? '#1a7a4a' : '#c0392b'}}>₹{fmt(profitShare)}</b>
+                            </span>
+                            <span style={{color:'#444'}}>
+                              Total: <b>₹{fmt(total)}</b>
+                            </span>
+                            <span style={{color:'#1c5282', fontWeight:'bold'}}>
+                              Closing Balance: ₹{fmt(closingBal)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div style={{background:'#f6fff6', border:'1px solid #b2dfb2', borderRadius:6, padding:'10px 14px', fontSize:12, color:'#2a6a2a', marginBottom:16}}>
-                📋 <b>Exported Excel Features:</b>
-                <ul style={{margin:'4px 0 0 16px', padding:0}}>
-                  <li><b>Sheet 1: Balance Sheet</b> — Liabilities & Assets in exact CA firm layout</li>
+                📋 <b>Exported Excel Features (4 Comprehensive CA Statements):</b>
+                <ul style={{margin:'4px 0 0 16px', padding:0, lineHeight:1.6}}>
+                  <li><b>Sheet 1: Balance Sheet</b> — Liabilities & Assets with Annexure "A" (Capital) & Annexure "B" (Fixed Assets) links</li>
                   <li><b>Sheet 2: Profit & Loss</b> — Trading Account + P&L with Gross & Net Profit</li>
-                  <li>Bold headings, Red negative values, double underline totals, "compiled on...", signatures</li>
+                  <li><b>Sheet 3: Annexure "A" (Partners Capital Account)</b> — Detailed partner statement, % profit distribution, salary, interest, withdrawals & closing balances</li>
+                  <li><b>Sheet 4: Annexure "B" (Fixed Assets Schedule)</b> — Fixed assets with Opening, Additions before/after 30.09, Depreciation & Closing balances</li>
                 </ul>
               </div>
 
@@ -3343,13 +3654,14 @@ export default function App() {
                   disabled={finalBSExporting}
                   style={{background:'#1a7a4a', color:'#fff', fontWeight:'bold', display:'flex', alignItems:'center', gap:6}}
                 >
-                  {finalBSExporting ? '⏳ Generating Excel...' : '📊 Download CA Excel'}
+                  {finalBSExporting ? '⏳ Generating Excel...' : '📊 Download CA Excel (4 Sheets)'}
                 </button>
               </div>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showUpgradeModal && currentUser && (
         <PlanUpgradeModal
