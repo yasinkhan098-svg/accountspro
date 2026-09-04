@@ -133,6 +133,15 @@ export async function GET(req: Request) {
     const caName    = searchParams.get('caName') || 'C.A NAME';
     const caMno     = searchParams.get('caMno')  || '000000';
     const place     = searchParams.get('place')  || '';
+    const rawSignatory = searchParams.get('signatoryTitle') || 'PARTNER';
+
+    let signatoryTitle = (rawSignatory || 'PARTNER').trim();
+    if (signatoryTitle.toLowerCase() === 'proprietorship') {
+      signatoryTitle = 'PROPRIETOR';
+    } else if (signatoryTitle.toLowerCase() === 'partnership') {
+      signatoryTitle = 'PARTNER';
+    }
+    signatoryTitle = signatoryTitle.toUpperCase();
 
     if (!companyId) {
       return NextResponse.json({ success: false, error: 'companyId required' }, { status: 400 });
@@ -464,7 +473,7 @@ export async function GET(req: Request) {
     bsRow++;
 
     const partnerR = wsBS.getRow(bsRow);
-    partnerR.getCell(1).value = 'PARTNER';
+    partnerR.getCell(1).value = signatoryTitle;
     partnerR.getCell(1).alignment = { horizontal: 'center' };
     partnerR.getCell(1).font = { bold: true, name: 'Arial', size: 10 };
     partnerR.getCell(3).value = `M.No. ${caMno}`;
@@ -663,7 +672,7 @@ export async function GET(req: Request) {
     plRow++;
 
     const plPartnerR = wsPL.getRow(plRow);
-    plPartnerR.getCell(1).value = 'PARTNER';
+    plPartnerR.getCell(1).value = signatoryTitle;
     plPartnerR.getCell(1).alignment = { horizontal: 'center' };
     plPartnerR.getCell(1).font = { bold: true, name: 'Arial', size: 10 };
     plPartnerR.getCell(3).value = `M.No. ${caMno}`;

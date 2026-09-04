@@ -580,6 +580,7 @@ export default function App() {
     caName: '',
     caMno: '',
     place: '',
+    signatoryTitle: 'PARTNER',
   });
 
   useEffect(() => {
@@ -747,6 +748,7 @@ export default function App() {
       fromDate: f.fromDate || currentPeriod?.start || '01-Apr-2025',
       toDate:   f.toDate   || currentPeriod?.end || '31-Mar-2026',
       place:    f.place    || activeCompany.state || '',
+      signatoryTitle: f.signatoryTitle || 'PARTNER',
     }));
     setShowFinalBSModal(true);
   };
@@ -766,6 +768,7 @@ export default function App() {
         ...(finalBSForm.caName   ? { caName: finalBSForm.caName }   : {}),
         ...(finalBSForm.caMno    ? { caMno: finalBSForm.caMno }     : {}),
         ...(finalBSForm.place    ? { place: finalBSForm.place }     : {}),
+        ...(finalBSForm.signatoryTitle ? { signatoryTitle: finalBSForm.signatoryTitle } : {}),
       });
       const res = await fetch(`/api/reports/export-excel?${params.toString()}`);
       if (!res.ok) {
@@ -2574,8 +2577,8 @@ export default function App() {
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
             {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} onSaveMaster={saveMaster} />}
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
-            {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} activeCompany={activeCompany} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} />}
-            {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} activeCompany={activeCompany} stockItems={stockItems} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} />}
+            {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} activeCompany={activeCompany} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} signatoryTitle={finalBSForm.signatoryTitle} />}
+            {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} activeCompany={activeCompany} stockItems={stockItems} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} signatoryTitle={finalBSForm.signatoryTitle} />}
             {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onSaveOpeningBalance={async (ledgerId, ob, bt) => { const token = authClient.getToken(); const res = await fetch('/api/ledgers', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:ledgerId,openingBalance:ob,balanceType:bt})}); const d = await res.json(); if(d.success){setAllLedgers(p=>p.map(x=>x.id===ledgerId?{...x,openingBalance:ob,balanceType:bt}:x));} }} />}
             {screen==='SALES_REGISTER'       && <UniversalRegisterView voucherType='Sales'       vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='QUOTATION_REGISTER'   && <UniversalRegisterView voucherType='Sales Quotation' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
@@ -3248,7 +3251,7 @@ export default function App() {
 
               <div style={{borderTop:'1px solid #eee', paddingTop:12, marginBottom:16}}>
                 <div style={{fontSize:11, fontWeight:'bold', color:'#777', textTransform:'uppercase', marginBottom:8}}>Chartered Accountant / Signatory Details</div>
-                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12}}>
                   <div>
                     <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>CA / Firm Name</label>
                     <input 
@@ -3270,6 +3273,49 @@ export default function App() {
                       onChange={e => setFinalBSForm(f => ({ ...f, caMno: e.target.value }))}
                       placeholder="e.g. 054321"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>
+                    Firm Signatory Title (Excel Signature me kya likha ho)
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    style={{width:'100%', fontWeight:'bold', textTransform:'uppercase'}} 
+                    value={finalBSForm.signatoryTitle} 
+                    onChange={e => setFinalBSForm(f => ({ ...f, signatoryTitle: e.target.value }))}
+                    placeholder="e.g. PARTNER ya PROPRIETOR"
+                  />
+                  <div style={{display:'flex', gap:6, marginTop:6, flexWrap:'wrap'}}>
+                    {[
+                      { label: '🤝 PARTNER (Partnership)', val: 'PARTNER' },
+                      { label: '👤 PROPRIETOR (Proprietorship)', val: 'PROPRIETOR' },
+                      { label: '🏢 DIRECTOR (Company)', val: 'DIRECTOR' },
+                      { label: '✍️ AUTH. SIGNATORY', val: 'AUTH. SIGNATORY' },
+                    ].map(opt => (
+                      <button
+                        key={opt.val}
+                        type="button"
+                        onClick={() => setFinalBSForm(f => ({ ...f, signatoryTitle: opt.val }))}
+                        style={{
+                          fontSize: 11,
+                          padding: '4px 10px',
+                          borderRadius: 4,
+                          border: finalBSForm.signatoryTitle.toUpperCase() === opt.val ? '1px solid #1c5282' : '1px solid #ccc',
+                          background: finalBSForm.signatoryTitle.toUpperCase() === opt.val ? '#eaf2f8' : '#f8f9fa',
+                          color: finalBSForm.signatoryTitle.toUpperCase() === opt.val ? '#1c5282' : '#444',
+                          fontWeight: finalBSForm.signatoryTitle.toUpperCase() === opt.val ? 'bold' : 'normal',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{fontSize:11, color:'#666', marginTop:5}}>
+                    💡 Partnership firm ke liye <b>PARTNER</b> aur Proprietorship firm ke liye <b>PROPRIETOR</b> select karein ya manchaaha title type karein.
                   </div>
                 </div>
               </div>
@@ -8463,7 +8509,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
 // ==================== BALANCE SHEET VIEW — FULLY FUNCTIONAL ====================
 function BalanceSheetView({
-  ledgers, vouchers, currentPeriod, activeCompany, onBack, onDrillDownLedger, onDrillDownGroup, onDrillDownVoucher
+  ledgers, vouchers, currentPeriod, activeCompany, onBack, onDrillDownLedger, onDrillDownGroup, onDrillDownVoucher, signatoryTitle
 }: {
   ledgers: Ledger[]; vouchers: Voucher[];
   currentPeriod?: {start:string;end:string};
@@ -8472,6 +8518,7 @@ function BalanceSheetView({
   onDrillDownLedger: (id:number)=>void;
   onDrillDownGroup: (name:string)=>void;
   onDrillDownVoucher?: (v:Voucher)=>void;
+  signatoryTitle?: string;
 }) {
   const compName = activeCompany?.name ? (activeCompany.name.toUpperCase().startsWith('M/S') ? activeCompany.name.toUpperCase() : `M/S ${activeCompany.name.toUpperCase()}`) : 'M/S AIMAN POLYMERS';
   const compAddr = activeCompany?.address || 'KHATIMA ROAD, NEAR CHC, SITARGANJ, DISTT-US NAGAR (UTTARAKHAND) 262405';
@@ -8815,7 +8862,7 @@ function BalanceSheetView({
                 <td colSpan={2} style={{padding:'8px 12px',fontSize:11,textAlign:'center'}}>C.A NAME</td>
               </tr>
               <tr style={{borderTop:'1px solid #999'}}>
-                <td colSpan={2} style={{padding:'4px 12px',fontSize:11,fontWeight:'bold',textAlign:'center'}}>PARTNER</td>
+                <td colSpan={2} style={{padding:'4px 12px',fontSize:11,fontWeight:'bold',textAlign:'center'}}>{(signatoryTitle || 'PARTNER').toUpperCase()}</td>
                 <td colSpan={2} style={{padding:'4px 12px',fontSize:11,textAlign:'center'}}>
                   <span style={{border:'1px solid #333',padding:'2px 24px'}}>M.No. 000000</span>
                 </td>
@@ -8832,7 +8879,7 @@ function BalanceSheetView({
 
 // ==================== PROFIT & LOSS VIEW — FULLY FUNCTIONAL ====================
 function ProfitLossView({
-  ledgers, vouchers, currentPeriod, activeCompany, stockItems = [], onBack, onDrillDownLedger, onDrillDownGroup, onDrillDownVoucher
+  ledgers, vouchers, currentPeriod, activeCompany, stockItems = [], onBack, onDrillDownLedger, onDrillDownGroup, onDrillDownVoucher, signatoryTitle
 }: {
   ledgers: Ledger[]; vouchers: Voucher[];
   currentPeriod?: {start:string;end:string};
@@ -8842,6 +8889,7 @@ function ProfitLossView({
   onDrillDownLedger: (id:number)=>void;
   onDrillDownGroup: (name:string)=>void;
   onDrillDownVoucher?: (v:any)=>void;
+  signatoryTitle?: string;
 }) {
   const compName = activeCompany?.name ? (activeCompany.name.toUpperCase().startsWith('M/S') ? activeCompany.name.toUpperCase() : `M/S ${activeCompany.name.toUpperCase()}`) : 'M/S AIMAN POLYMERS';
   const compAddr = activeCompany?.address || 'KHATIMA ROAD, NEAR CHC, SITARGANJ, DISTT-US NAGAR (UTTARAKHAND) 262405';
@@ -9274,7 +9322,7 @@ function ProfitLossView({
                 <td colSpan={2} style={{padding:'8px 12px',fontSize:11,textAlign:'center'}}>C.A NAME</td>
               </tr>
               <tr style={{borderTop:'1px solid #999'}}>
-                <td colSpan={2} style={{padding:'4px 12px',fontSize:11,fontWeight:'bold',textAlign:'center'}}>PARTNER</td>
+                <td colSpan={2} style={{padding:'4px 12px',fontSize:11,fontWeight:'bold',textAlign:'center'}}>{(signatoryTitle || 'PARTNER').toUpperCase()}</td>
                 <td colSpan={2} style={{padding:'4px 12px',fontSize:11,textAlign:'center'}}><span style={{border:'1px solid #333',padding:'2px 24px'}}>M.No. 000000</span></td>
               </tr>
               <tr><td colSpan={4} style={{padding:'12px'}}></td></tr>
