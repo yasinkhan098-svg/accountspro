@@ -8480,6 +8480,8 @@ function BalanceSheetView({
   const grp = useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
   const [expanded, setExpanded] = useState<Record<string,boolean>>({});
   const toggleGroup = (name:string) => setExpanded(p=>({...p,[name]:!p[name]}));
+  const [col, setCol] = useState<'left'|'right'>('left');
+  const [rowIdx, setRowIdx] = useState<number>(0);
 
   // ---- TALLY GROUP CLASSIFICATIONS ----
   const liabGroups  = ['Capital Account','Reserves & Surplus','Retained Earnings','Secured Loans','Unsecured Loans','Loans (Liability)','Sundry Creditors','Current Liabilities','Provisions','Duties & Taxes','Branch / Divisions'];
@@ -8532,14 +8534,160 @@ function BalanceSheetView({
 
   const maxRows = Math.max(liabRows.length, assetRows.length);
 
+  const isDrillableBS = (row?: BSRow): boolean => {
+    if (!row) return false;
+    if (row.type === 'ledger' && row.id !== undefined) return true;
+    if (row.type === 'group-header' && !!row.groupName) return true;
+    return false;
+  };
+
+  const leftSelectableIndices = useMemo(() => {
+    const arr: number[] = [];
+    liabRows.forEach((r, i) => { if (isDrillableBS(r)) arr.push(i); });
+    return arr;
+  }, [liabRows]);
+
+  const rightSelectableIndices = useMemo(() => {
+    const arr: number[] = [];
+    assetRows.forEach((r, i) => { if (isDrillableBS(r)) arr.push(i); });
+    return arr;
+  }, [assetRows]);
+
+  // Ensure rowIdx points to a valid selectable index on active column
+  useEffect(() => {
+    const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
+    if (list.length > 0 && !list.includes(rowIdx)) {
+      const closest = list.reduce((prev, curr) =>
+        Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
+      );
+      setRowIdx(closest);
+    }
+  }, [col, leftSelectableIndices, rightSelectableIndices]);
+
+  // Scroll into view on selection change
+  useEffect(() => {
+    const el = document.getElementById(`bs-cell-${col}-${rowIdx}`);
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [col, rowIdx]);
+
   useEffect(()=>{
-    const onKey = (e: KeyboardEvent) => { if(e.key==='Escape'){e.preventDefault();onBack();} };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onBack();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
+        if (list.length > 0) {
+          const currPos = list.indexOf(rowIdx);
+          if (currPos > 0) {
+            setRowIdx(list[currPos - 1]);
+          } else if (currPos === -1) {
+            const prev = [...list].reverse().find(idx => idx < rowIdx);
+            setRowIdx(prev !== undefined ? prev : list[0]);
+          }
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
+        if (list.length > 0) {
+          const currPos = list.indexOf(rowIdx);
+          if (currPos !== -1 && currPos < list.length - 1) {
+            setRowIdx(list[currPos + 1]);
+          } else if (currPos === -1) {
+            const next = list.find(idx => idx > rowIdx);
+            setRowIdx(next !== undefined ? next : list[list.length - 1]);
+          }
+        }
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (col === 'right') {
+          setCol('left');
+          if (leftSelectableIndices.length > 0) {
+            if (!leftSelectableIndices.includes(rowIdx)) {
+              const closest = leftSelectableIndices.reduce((prev, curr) =>
+                Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
+              );
+              setRowIdx(closest);
+            }
+          }
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (col === 'left') {
+          setCol('right');
+          if (rightSelectableIndices.length > 0) {
+            if (!rightSelectableIndices.includes(rowIdx)) {
+              const closest = rightSelectableIndices.reduce((prev, curr) =>
+                Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
+              );
+              setRowIdx(closest);
+            }
+          }
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const row = col === 'left' ? liabRows[rowIdx] : assetRows[rowIdx];
+        if (row && isDrillableBS(row)) {
+          if (row.type === 'ledger' && row.id !== undefined) {
+            onDrillDownLedger(row.id);
+          } else if (row.type === 'group-header' && row.groupName) {
+            toggleGroup(row.groupName);
+            onDrillDownGroup(row.groupName);
+          }
+        }
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onBack]);
+  }, [col, rowIdx, leftSelectableIndices, rightSelectableIndices, liabRows, assetRows, onBack, onDrillDownLedger, onDrillDownGroup]);
 
   const f2 = (n:number) => n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
   const endDate = currentPeriod?.end || '31.03.'+new Date().getFullYear();
+
+  function renderRow_l(row: BSRow|undefined, i: number, isSel: boolean): React.ReactNode {
+    if (!row) return <><td style={{borderRight:'2px solid #555',padding:'2px 8px'}}></td><td style={{borderRight:'2px solid #555'}}></td></>;
+    if (row.type==='blank') return <><td style={{borderRight:'2px solid #555',padding:'4px 8px'}}>&nbsp;</td><td style={{borderRight:'2px solid #555'}}></td></>;
+    if (row.type==='ledger') return (
+      <><td id={`bs-cell-left-${i}`} style={{padding:'2px 8px 2px 22px',fontSize:11,borderRight:'1px solid #ddd',cursor:'pointer',background:isSel?'#ffd700':'transparent',color:isSel?'#000':'inherit',fontWeight:isSel?'bold':'normal'}}
+        onClick={()=>{setCol('left'); setRowIdx(i); if(row.id)onDrillDownLedger(row.id);}}
+        onMouseEnter={()=>{setCol('left'); setRowIdx(i);}}>{row.name}</td>
+      <td style={{padding:'2px 8px',textAlign:'right',fontSize:11,color:isSel?'#000':'#cc0000',fontWeight:isSel?'bold':'500',borderRight:'2px solid #555',background:isSel?'#ffd700':'transparent',cursor:'pointer'}}
+        onClick={()=>{setCol('left'); setRowIdx(i); if(row.id)onDrillDownLedger(row.id);}}
+        onMouseEnter={()=>{setCol('left'); setRowIdx(i);}}>{row.amount!==undefined?f2(row.amount):''}</td></>
+    );
+    if (row.type==='group-total') return (
+      <><td style={{padding:'1px 8px',borderRight:'1px solid #ddd'}}></td>
+      <td style={{padding:'2px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderTop:'1px solid #888',borderRight:'2px solid #555'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
+    );
+    if (row.type==='net-entry') return (
+      <><td style={{padding:'3px 8px 3px 22px',fontSize:11,fontStyle:'italic',borderRight:'1px solid #ddd'}}>{row.name}</td>
+      <td style={{padding:'3px 8px',textAlign:'right',fontSize:11,fontWeight:'bold',color:'#006600',borderRight:'2px solid #555'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
+    );
+    return <><td style={{borderRight:'2px solid #555'}}></td><td style={{borderRight:'2px solid #555'}}></td></>;
+  }
+
+  function renderRow_r(row: BSRow|undefined, i: number, isSel: boolean): React.ReactNode {
+    if (!row) return <><td style={{borderRight:'1px solid #ddd',padding:'2px 8px'}}></td><td style={{padding:'2px 8px'}}></td></>;
+    if (row.type==='blank') return <><td style={{borderRight:'1px solid #ddd',padding:'4px 8px'}}>&nbsp;</td><td style={{padding:'4px 8px'}}></td></>;
+    if (row.type==='ledger') return (
+      <><td id={`bs-cell-right-${i}`} style={{padding:'2px 8px 2px 22px',fontSize:11,borderRight:'1px solid #ddd',cursor:'pointer',background:isSel?'#ffd700':'transparent',color:isSel?'#000':'inherit',fontWeight:isSel?'bold':'normal'}}
+        onClick={()=>{setCol('right'); setRowIdx(i); if(row.id)onDrillDownLedger(row.id);}}
+        onMouseEnter={()=>{setCol('right'); setRowIdx(i);}}>{row.name}</td>
+      <td style={{padding:'2px 8px',textAlign:'right',fontSize:11,color:isSel?'#000':'#cc0000',fontWeight:isSel?'bold':'500',background:isSel?'#ffd700':'transparent',cursor:'pointer'}}
+        onClick={()=>{setCol('right'); setRowIdx(i); if(row.id)onDrillDownLedger(row.id);}}
+        onMouseEnter={()=>{setCol('right'); setRowIdx(i);}}>{row.amount!==undefined?f2(row.amount):''}</td></>
+    );
+    if (row.type==='group-total') return (
+      <><td style={{padding:'1px 8px',borderRight:'1px solid #ddd'}}></td>
+      <td style={{padding:'2px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderTop:'1px solid #888'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
+    );
+    if (row.type==='net-entry') return (
+      <><td style={{padding:'3px 8px 3px 22px',fontSize:11,fontStyle:'italic',borderRight:'1px solid #ddd'}}>{row.name}</td>
+      <td style={{padding:'3px 8px',textAlign:'right',fontSize:11,fontWeight:'bold',color:'#006600'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
+    );
+    return <><td style={{borderRight:'1px solid #ddd'}}></td><td></td></>;
+  }
 
   return (
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#e8e8e8'}}>
@@ -8582,23 +8730,64 @@ function BalanceSheetView({
                 const r = assetRows[i];
                 const lIsHeader = l?.type==='group-header';
                 const rIsHeader = r?.type==='group-header';
+                const isSelL = col === 'left' && rowIdx === i && isDrillableBS(l);
+                const isSelR = col === 'right' && rowIdx === i && isDrillableBS(r);
                 return (
                   <tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
                     {lIsHeader ? (
-                      <td colSpan={2} style={{padding:'6px 8px 2px 8px',fontWeight:'bold',textDecoration:'underline',fontSize:12,borderRight:'2px solid #555',cursor:'pointer'}}
-                        onClick={()=>{if(l.groupName){toggleGroup(l.groupName);onDrillDownGroup(l.groupName);}}}>
+                      <td colSpan={2}
+                        id={`bs-cell-left-${i}`}
+                        style={{
+                          padding:'6px 8px 2px 8px',
+                          fontWeight:'bold',
+                          textDecoration:'underline',
+                          fontSize:12,
+                          borderRight:'2px solid #555',
+                          cursor:'pointer',
+                          background: isSelL ? '#ffd700' : 'transparent',
+                          color: isSelL ? '#000' : 'inherit'
+                        }}
+                        onClick={()=>{
+                          setCol('left');
+                          setRowIdx(i);
+                          if(l.groupName){toggleGroup(l.groupName);onDrillDownGroup(l.groupName);}
+                        }}
+                        onMouseEnter={()=>{
+                          setCol('left');
+                          setRowIdx(i);
+                        }}
+                      >
                         {l.name} {l.groupName && (expanded[l.groupName]?'▼':'▶')}
                       </td>
                     ) : (
-                      renderRow_l(l)
+                      renderRow_l(l, i, isSelL)
                     )}
                     {rIsHeader ? (
-                      <td colSpan={2} style={{padding:'6px 8px 2px 8px',fontWeight:'bold',textDecoration:'underline',fontSize:12,cursor:'pointer'}}
-                        onClick={()=>{if(r.groupName){toggleGroup(r.groupName);onDrillDownGroup(r.groupName);}}}>
+                      <td colSpan={2}
+                        id={`bs-cell-right-${i}`}
+                        style={{
+                          padding:'6px 8px 2px 8px',
+                          fontWeight:'bold',
+                          textDecoration:'underline',
+                          fontSize:12,
+                          cursor:'pointer',
+                          background: isSelR ? '#ffd700' : 'transparent',
+                          color: isSelR ? '#000' : 'inherit'
+                        }}
+                        onClick={()=>{
+                          setCol('right');
+                          setRowIdx(i);
+                          if(r.groupName){toggleGroup(r.groupName);onDrillDownGroup(r.groupName);}
+                        }}
+                        onMouseEnter={()=>{
+                          setCol('right');
+                          setRowIdx(i);
+                        }}
+                      >
                         {r.name} {r.groupName && (expanded[r.groupName]?'▼':'▶')}
                       </td>
                     ) : (
-                      renderRow_r(r)
+                      renderRow_r(r, i, isSelR)
                     )}
                   </tr>
                 );
@@ -8638,42 +8827,6 @@ function BalanceSheetView({
       </div>
     </div>
   );
-
-  function renderRow_l(row: BSRow|undefined): React.ReactNode {
-    if (!row) return <><td style={{borderRight:'2px solid #555',padding:'2px 8px'}}></td><td style={{borderRight:'2px solid #555'}}></td></>;
-    if (row.type==='blank') return <><td style={{borderRight:'2px solid #555',padding:'4px 8px'}}>&nbsp;</td><td style={{borderRight:'2px solid #555'}}></td></>;
-    if (row.type==='ledger') return (
-      <><td style={{padding:'2px 8px 2px 22px',fontSize:11,borderRight:'1px solid #ddd',cursor:'pointer'}} onClick={()=>{if(row.id)onDrillDownLedger(row.id);}}>{row.name}</td>
-      <td style={{padding:'2px 8px',textAlign:'right',fontSize:11,color:'#cc0000',fontWeight:'500',borderRight:'2px solid #555'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    if (row.type==='group-total') return (
-      <><td style={{padding:'1px 8px',borderRight:'1px solid #ddd'}}></td>
-      <td style={{padding:'2px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderTop:'1px solid #888',borderRight:'2px solid #555'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    if (row.type==='net-entry') return (
-      <><td style={{padding:'3px 8px 3px 22px',fontSize:11,fontStyle:'italic',borderRight:'1px solid #ddd'}}>{row.name}</td>
-      <td style={{padding:'3px 8px',textAlign:'right',fontSize:11,fontWeight:'bold',color:'#006600',borderRight:'2px solid #555'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    return <><td style={{borderRight:'2px solid #555'}}></td><td style={{borderRight:'2px solid #555'}}></td></>;
-  }
-
-  function renderRow_r(row: BSRow|undefined): React.ReactNode {
-    if (!row) return <><td style={{borderRight:'1px solid #ddd',padding:'2px 8px'}}></td><td style={{padding:'2px 8px'}}></td></>;
-    if (row.type==='blank') return <><td style={{borderRight:'1px solid #ddd',padding:'4px 8px'}}>&nbsp;</td><td style={{padding:'4px 8px'}}></td></>;
-    if (row.type==='ledger') return (
-      <><td style={{padding:'2px 8px 2px 22px',fontSize:11,borderRight:'1px solid #ddd',cursor:'pointer'}} onClick={()=>{if(row.id)onDrillDownLedger(row.id);}}>{row.name}</td>
-      <td style={{padding:'2px 8px',textAlign:'right',fontSize:11,color:'#cc0000',fontWeight:'500'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    if (row.type==='group-total') return (
-      <><td style={{padding:'1px 8px',borderRight:'1px solid #ddd'}}></td>
-      <td style={{padding:'2px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderTop:'1px solid #888'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    if (row.type==='net-entry') return (
-      <><td style={{padding:'3px 8px 3px 22px',fontSize:11,fontStyle:'italic',borderRight:'1px solid #ddd'}}>{row.name}</td>
-      <td style={{padding:'3px 8px',textAlign:'right',fontSize:11,fontWeight:'bold',color:'#006600'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
-    );
-    return <><td style={{borderRight:'1px solid #ddd'}}></td><td></td></>;
-  }
 }
 
 
@@ -8695,6 +8848,9 @@ function ProfitLossView({
   const compPlace = activeCompany?.city?.toUpperCase() || 'SITARGANJ';
 
   const grp = useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
+
+  const [col, setCol] = useState<'left'|'right'>('left');
+  const [rowIdx, setRowIdx] = useState<number>(0);
 
   const directExpGroups   = ['Purchase Accounts','Direct Expenses','Expenses (Direct)'];
   const directIncGroups   = ['Sales Accounts','Direct Incomes','Income (Direct)'];
@@ -8746,18 +8902,12 @@ function ProfitLossView({
   const startDate=currentPeriod?.start||'01.04.'+(new Date().getFullYear()-1);
   const endDate  =currentPeriod?.end  ||'31.03.'+new Date().getFullYear();
 
-  useEffect(()=>{
-    const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();onBack();}};
-    window.addEventListener('keydown',onKey);
-    return ()=>window.removeEventListener('keydown',onKey);
-  },[onBack]);
-
-  type TRow={label:string;amt?:number;isSub?:boolean;isBold?:boolean;id?:number};
+  type TRow={label:string;amt?:number;isSub?:boolean;isBold?:boolean;id?:number;groupName?:string;};
 
   // Trading Dr side
   const dirExpRows:TRow[]=[
-    {label:'To Opening Stock',amt:openingStockValue},
-    {label:'To Purchase',     amt:netPurchases},
+    {label:'To Opening Stock',amt:openingStockValue,groupName:'Stock-in-hand'},
+    {label:'To Purchase',     amt:netPurchases,groupName:'Purchase Accounts'},
   ];
   // Add each Direct Expense ledger
   for (const gn of directExpGroups) {
@@ -8769,8 +8919,8 @@ function ProfitLossView({
 
   // Trading Cr side
   const dirIncRows:TRow[]=[
-    {label:'By Sales',         amt:netSales},
-    {label:'By Closing Stock', amt:closingStockValue},
+    {label:'By Sales',         amt:netSales,groupName:'Sales Accounts'},
+    {label:'By Closing Stock', amt:closingStockValue,groupName:'Stock-in-hand'},
   ];
   if(grossProfit<0) dirIncRows.push({label:'By Gross Loss',amt:Math.abs(grossProfit),isBold:true});
 
@@ -8796,18 +8946,232 @@ function ProfitLossView({
   const maxTrd=Math.max(dirExpRows.length,dirIncRows.length);
   const maxPLR=Math.max(indExpRows.length,indIncRows.length);
 
-  const tdL=(row:TRow|undefined,bdr:string)=>!row?(
-    <><td style={{borderRight:'1px solid #ddd',padding:'3px 8px',width:'33%'}}></td><td style={{padding:'3px 8px',width:'17%',borderRight:bdr,textAlign:'right'}}></td></>
-  ):(
-    <><td style={{padding:row.isSub?'3px 8px 3px 22px':'3px 8px',fontSize:12,borderRight:'1px solid #ddd',fontWeight:row.isBold?'bold':'normal',width:'33%',cursor:row.id?'pointer':'default'}} onClick={()=>{if(row.id)onDrillDownLedger(row.id);}}>{row.label}</td>
-    <td style={{padding:'3px 8px',textAlign:'right',fontSize:12,color:'#cc0000',fontWeight:row.isBold?'bold':'500',borderRight:bdr,width:'17%'}}>{row.amt!==undefined?f2(row.amt):''}</td></>
-  );
-  const tdR=(row:TRow|undefined)=>!row?(
-    <><td style={{borderRight:'1px solid #ddd',padding:'3px 8px',width:'33%'}}></td><td style={{padding:'3px 8px',width:'17%',textAlign:'right'}}></td></>
-  ):(
-    <><td style={{padding:row.isSub?'3px 8px 3px 22px':'3px 8px',fontSize:12,borderRight:'1px solid #ddd',fontWeight:row.isBold?'bold':'normal',width:'33%',cursor:row.id?'pointer':'default'}} onClick={()=>{if(row.id)onDrillDownLedger(row.id);}}>{row.label}</td>
-    <td style={{padding:'3px 8px',textAlign:'right',fontSize:12,color:'#cc0000',fontWeight:row.isBold?'bold':'500',width:'17%'}}>{row.amt!==undefined?f2(row.amt):''}</td></>
-  );
+  const isDrillablePL = (row?: TRow): boolean => {
+    if (!row) return false;
+    if (row.id !== undefined) return true;
+    if (row.groupName) return true;
+    return false;
+  };
+
+  const getRowAt = (c: 'left'|'right', idx: number): TRow | undefined => {
+    if (idx < maxTrd) {
+      return c === 'left' ? dirExpRows[idx] : dirIncRows[idx];
+    } else {
+      const plIdx = idx - maxTrd;
+      return c === 'left' ? indExpRows[plIdx] : indIncRows[plIdx];
+    }
+  };
+
+  const leftSelectableIndices = useMemo(() => {
+    const arr: number[] = [];
+    for (let idx = 0; idx < maxTrd + maxPLR; idx++) {
+      const r = getRowAt('left', idx);
+      if (isDrillablePL(r)) arr.push(idx);
+    }
+    return arr;
+  }, [maxTrd, maxPLR, dirExpRows, indExpRows]);
+
+  const rightSelectableIndices = useMemo(() => {
+    const arr: number[] = [];
+    for (let idx = 0; idx < maxTrd + maxPLR; idx++) {
+      const r = getRowAt('right', idx);
+      if (isDrillablePL(r)) arr.push(idx);
+    }
+    return arr;
+  }, [maxTrd, maxPLR, dirIncRows, indIncRows]);
+
+  // Ensure rowIdx points to a valid selectable index on active column
+  useEffect(() => {
+    const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
+    if (list.length > 0 && !list.includes(rowIdx)) {
+      const closest = list.reduce((prev, curr) =>
+        Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
+      );
+      setRowIdx(closest);
+    }
+  }, [col, leftSelectableIndices, rightSelectableIndices]);
+
+  // Scroll into view on selection change
+  useEffect(() => {
+    const el = document.getElementById(`pl-cell-${col}-${rowIdx}`);
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [col, rowIdx]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onBack();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
+        if (list.length > 0) {
+          const currPos = list.indexOf(rowIdx);
+          if (currPos > 0) {
+            setRowIdx(list[currPos - 1]);
+          } else if (currPos === -1) {
+            const prev = [...list].reverse().find(idx => idx < rowIdx);
+            setRowIdx(prev !== undefined ? prev : list[0]);
+          }
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
+        if (list.length > 0) {
+          const currPos = list.indexOf(rowIdx);
+          if (currPos !== -1 && currPos < list.length - 1) {
+            setRowIdx(list[currPos + 1]);
+          } else if (currPos === -1) {
+            const next = list.find(idx => idx > rowIdx);
+            setRowIdx(next !== undefined ? next : list[list.length - 1]);
+          }
+        }
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (col === 'right') {
+          setCol('left');
+          if (leftSelectableIndices.length > 0) {
+            if (!leftSelectableIndices.includes(rowIdx)) {
+              const closest = leftSelectableIndices.reduce((prev, curr) =>
+                Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
+              );
+              setRowIdx(closest);
+            }
+          }
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (col === 'left') {
+          setCol('right');
+          if (rightSelectableIndices.length > 0) {
+            if (!rightSelectableIndices.includes(rowIdx)) {
+              const closest = rightSelectableIndices.reduce((prev, curr) =>
+                Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
+              );
+              setRowIdx(closest);
+            }
+          }
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const target = getRowAt(col, rowIdx);
+        if (target && isDrillablePL(target)) {
+          if (target.id !== undefined) {
+            onDrillDownLedger(target.id);
+          } else if (target.groupName) {
+            onDrillDownGroup(target.groupName);
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [col, rowIdx, leftSelectableIndices, rightSelectableIndices, onBack, onDrillDownLedger, onDrillDownGroup, maxTrd, dirExpRows, dirIncRows, indExpRows, indIncRows]);
+
+  const tdL = (row: TRow|undefined, bdr: string, globalIdx: number) => {
+    if (!row) return <><td style={{borderRight:'1px solid #ddd',padding:'3px 8px',width:'33%'}}></td><td style={{padding:'3px 8px',width:'17%',borderRight:bdr,textAlign:'right'}}></td></>;
+    const drillable = isDrillablePL(row);
+    const isSel = col === 'left' && rowIdx === globalIdx && drillable;
+
+    const handleAction = () => {
+      if (!drillable) return;
+      setCol('left');
+      setRowIdx(globalIdx);
+      if (row.id !== undefined) onDrillDownLedger(row.id);
+      else if (row.groupName) onDrillDownGroup(row.groupName);
+    };
+
+    return (
+      <>
+        <td
+          id={drillable ? `pl-cell-left-${globalIdx}` : undefined}
+          style={{
+            padding: row.isSub ? '3px 8px 3px 22px' : '3px 8px',
+            fontSize: 12,
+            borderRight: '1px solid #ddd',
+            fontWeight: isSel ? 'bold' : (row.isBold ? 'bold' : 'normal'),
+            width: '33%',
+            cursor: drillable ? 'pointer' : 'default',
+            background: isSel ? '#ffd700' : 'transparent',
+            color: isSel ? '#000' : 'inherit'
+          }}
+          onClick={handleAction}
+          onMouseEnter={() => { if (drillable) { setCol('left'); setRowIdx(globalIdx); } }}
+        >
+          {row.label}
+        </td>
+        <td
+          style={{
+            padding: '3px 8px',
+            textAlign: 'right',
+            fontSize: 12,
+            color: isSel ? '#000' : '#cc0000',
+            fontWeight: isSel ? 'bold' : (row.isBold ? 'bold' : '500'),
+            borderRight: bdr,
+            width: '17%',
+            background: isSel ? '#ffd700' : 'transparent',
+            cursor: drillable ? 'pointer' : 'default'
+          }}
+          onClick={handleAction}
+          onMouseEnter={() => { if (drillable) { setCol('left'); setRowIdx(globalIdx); } }}
+        >
+          {row.amt !== undefined ? f2(row.amt) : ''}
+        </td>
+      </>
+    );
+  };
+
+  const tdR = (row: TRow|undefined, globalIdx: number) => {
+    if (!row) return <><td style={{borderRight:'1px solid #ddd',padding:'3px 8px',width:'33%'}}></td><td style={{padding:'3px 8px',width:'17%',textAlign:'right'}}></td></>;
+    const drillable = isDrillablePL(row);
+    const isSel = col === 'right' && rowIdx === globalIdx && drillable;
+
+    const handleAction = () => {
+      if (!drillable) return;
+      setCol('right');
+      setRowIdx(globalIdx);
+      if (row.id !== undefined) onDrillDownLedger(row.id);
+      else if (row.groupName) onDrillDownGroup(row.groupName);
+    };
+
+    return (
+      <>
+        <td
+          id={drillable ? `pl-cell-right-${globalIdx}` : undefined}
+          style={{
+            padding: row.isSub ? '3px 8px 3px 22px' : '3px 8px',
+            fontSize: 12,
+            borderRight: '1px solid #ddd',
+            fontWeight: isSel ? 'bold' : (row.isBold ? 'bold' : 'normal'),
+            width: '33%',
+            cursor: drillable ? 'pointer' : 'default',
+            background: isSel ? '#ffd700' : 'transparent',
+            color: isSel ? '#000' : 'inherit'
+          }}
+          onClick={handleAction}
+          onMouseEnter={() => { if (drillable) { setCol('right'); setRowIdx(globalIdx); } }}
+        >
+          {row.label}
+        </td>
+        <td
+          style={{
+            padding: '3px 8px',
+            textAlign: 'right',
+            fontSize: 12,
+            color: isSel ? '#000' : '#cc0000',
+            fontWeight: isSel ? 'bold' : (row.isBold ? 'bold' : '500'),
+            width: '17%',
+            background: isSel ? '#ffd700' : 'transparent',
+            cursor: drillable ? 'pointer' : 'default'
+          }}
+          onClick={handleAction}
+          onMouseEnter={() => { if (drillable) { setCol('right'); setRowIdx(globalIdx); } }}
+        >
+          {row.amt !== undefined ? f2(row.amt) : ''}
+        </td>
+      </>
+    );
+  };
 
   return (
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#e8e8e8'}}>
@@ -8834,7 +9198,7 @@ function ProfitLossView({
               {/* Company Header */}
               <tr><td colSpan={4} style={{padding:'8px 12px 1px',fontWeight:'bold',fontSize:13}}>{compName}</td></tr>
               <tr><td colSpan={4} style={{padding:'1px 12px 2px',fontSize:11}}>{compAddr}</td></tr>
-              <tr><td colSpan={4} style={{padding:'2px 12px 8px',fontWeight:'bold',fontSize:12,borderBottom:'2px solid #000'}}>TRADING, PROFIT &amp; LOSS  ACCOUNT FROM {startDate} TO {endDate}</td></tr>
+              <tr><td colSpan={4} style={{padding:'2px 12px 8px',fontWeight:'bold',fontSize:12,borderBottom:'2px solid #000'}}>TRADING, PROFIT &amp; LOSS ACCOUNT FROM {startDate} TO {endDate}</td></tr>
               {/* Column Headers */}
               <tr style={{background:'#f0f0f0'}}>
                 <th style={{padding:'5px 8px',textAlign:'left',width:'33%',borderRight:'1px solid #aaa',borderBottom:'1px solid #aaa',fontSize:12}}>PARTICULARS</th>
@@ -8845,8 +9209,8 @@ function ProfitLossView({
               {/* ===== TRADING ROWS ===== */}
               {Array.from({length:maxTrd}).map((_,i)=>(
                 <tr key={'tr-'+i} style={{borderBottom:'1px solid #f4f4f4'}}>
-                  {tdL(dirExpRows[i],'2px solid #555')}
-                  {tdR(dirIncRows[i])}
+                  {tdL(dirExpRows[i],'2px solid #555', i)}
+                  {tdR(dirIncRows[i], i)}
                 </tr>
               ))}
               {/* Trading Total */}
@@ -8857,12 +9221,15 @@ function ProfitLossView({
                 <td style={{padding:'5px 8px',textAlign:'right',fontWeight:'bold',fontSize:12}}>{f2(totalTrading)}</td>
               </tr>
               {/* ===== P&L ROWS ===== */}
-              {Array.from({length:maxPLR}).map((_,i)=>(
-                <tr key={'pl-'+i} style={{borderBottom:'1px solid #f4f4f4'}}>
-                  {tdL(indExpRows[i],'2px solid #555')}
-                  {tdR(indIncRows[i])}
-                </tr>
-              ))}
+              {Array.from({length:maxPLR}).map((_,i)=>{
+                const globalIdx = maxTrd + i;
+                return (
+                  <tr key={'pl-'+i} style={{borderBottom:'1px solid #f4f4f4'}}>
+                    {tdL(indExpRows[i],'2px solid #555', globalIdx)}
+                    {tdR(indIncRows[i], globalIdx)}
+                  </tr>
+                );
+              })}
               {/* P&L Total */}
               <tr style={{borderTop:'2px solid #888',borderBottom:'2px solid #888',background:'#f8f8f8'}}>
                 <td style={{padding:'5px 8px',borderRight:'1px solid #aaa'}}></td>
