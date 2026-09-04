@@ -775,8 +775,8 @@ export default function App() {
           }));
         } else {
           initialPartners = [
-            { id: '1', name: 'PARTNER 1', sharePct: 50, openingBal: 0, addition: 0, salary: 0, interestRate: 12, interestAmt: undefined, withdrawalsAmt: 0, withdrawalsNature: '' },
-            { id: '2', name: 'PARTNER 2', sharePct: 50, openingBal: 0, addition: 0, salary: 0, interestRate: 12, interestAmt: undefined, withdrawalsAmt: 0, withdrawalsNature: '' },
+            { id: '1', name: '', sharePct: 50, openingBal: 0, addition: 0, salary: 0, interestRate: 12, interestAmt: undefined, withdrawalsAmt: 0, withdrawalsNature: '' },
+            { id: '2', name: '', sharePct: 50, openingBal: 0, addition: 0, salary: 0, interestRate: 12, interestAmt: undefined, withdrawalsAmt: 0, withdrawalsNature: '' },
           ];
         }
       }
@@ -3427,7 +3427,7 @@ export default function App() {
                             ...(f.partners || []),
                             {
                               id: String(Date.now()),
-                              name: `PARTNER ${(f.partners || []).length + 1}`,
+                              name: '',
                               sharePct: 0,
                               openingBal: 0,
                               addition: 0,
@@ -3493,7 +3493,7 @@ export default function App() {
                                     partners: f.partners.map((p, i) => i === pIdx ? { ...p, name: val } : p)
                                   }));
                                 }}
-                                placeholder="Partner Name (e.g. MAU HANIF S/O ABDUL RAHIM)"
+                                placeholder={pIdx === 0 ? "Partner 1 (e.g. SHABBIR S/O YASIN)" : `Partner ${pIdx + 1} (e.g. SHABBIR S/O YASIN)`}
                               />
                               <div style={{display:'flex', alignItems:'center', gap:4, background:'#f0f7ff', border:'1px solid #cce3f8', borderRadius:4, padding:'2px 6px'}}>
                                 <span style={{fontSize:11, fontWeight:'bold', color:'#333'}}>Share:</span>

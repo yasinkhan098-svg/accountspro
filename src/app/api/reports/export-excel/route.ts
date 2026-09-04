@@ -348,8 +348,8 @@ async function generateExcelResponse(req: Request, postBody?: any) {
       }
     }
 
-    const calculatedPartners = partnersList.map((p: any) => {
-      const name = String(p.name || 'PARTNER').toUpperCase();
+    const calculatedPartners = partnersList.map((p: any, idx: number) => {
+      const name = (p.name && String(p.name).trim()) ? String(p.name).trim().toUpperCase() : `PARTNER ${idx + 1}`;
       const sharePct = Number(p.sharePct || 0);
       const openingBal = Number(p.openingBal || 0);
       const addition = Number(p.addition || 0);
