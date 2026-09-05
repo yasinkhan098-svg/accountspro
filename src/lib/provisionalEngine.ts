@@ -22,6 +22,16 @@ export interface PartnerItem {
   closingBal?: number;
 }
 
+export interface FixedAssetScheduleItem {
+  name: string;
+  openingBal: number;
+  additionBefore: number;
+  additionAfter: number;
+  depreciation: number;
+  depRate?: number;
+  closingBal: number;
+}
+
 export interface BaseFinancials {
   salesItems: FinancialItem[];
   salesTotal: number;
@@ -47,6 +57,7 @@ export interface BaseFinancials {
   currLiabTotal: number;
   fixedAssetItems: FinancialItem[];
   fixedAssetTotal: number;
+  fixedAssetSchedule: FixedAssetScheduleItem[];
   investmentItems: FinancialItem[];
   investmentTotal: number;
   currAssetItems: FinancialItem[];
@@ -64,6 +75,8 @@ export interface ProjectionConfig {
   labourGrowthPct: number;     // e.g. 17.56
   deprReductionPct: number;    // e.g. 14.98
   ccLimitGrowthPct: number;     // e.g. 8.61
+  interestRatePct?: number;     // e.g. 8.0 (from 8a) or 12.0
+  drawingsGrowthPct?: number;   // e.g. 28.99 (from 3a -> 8a: 69k to 89k)
 }
 
 export interface ProjectedYearResult extends BaseFinancials {
@@ -224,13 +237,80 @@ export function computeBaseFinancials(
     };
   });
 
+  // ── Fixed Assets Schedule (Annexure B) ──
+  const faLedgers = ledgers.filter(l => FIXED_ASSET_GROUPS.includes(l.groupName));
+  let fixedAssetSchedule: FixedAssetScheduleItem[] = faLedgers.map(l => {
+    const ob = Number(l.openingBalance ?? l.openingBal) || 0;
+    const openingBal = l.balanceType === 'Cr' ? -ob : ob;
+    let additionBefore = 0;
+    let additionAfter = 0;
+    let depreciation = 0;
+
+    for (const v of (vouchers || [])) {
+      for (const e of (v.entries || [])) {
+        if (Number(e.ledgerId) === Number(l.id)) {
+          if (e.entryType === 'Dr') {
+            const vDate = new Date(v.date);
+            const vMonth = vDate.getMonth();
+            if (vMonth <= 8) additionBefore += Number(e.amount) || 0;
+            else additionAfter += Number(e.amount) || 0;
+          } else {
+            depreciation += Number(e.amount) || 0;
+          }
+        }
+      }
+    }
+
+    const lowerName = (l.name || '').toLowerCase();
+    const depRate = lowerName.includes('furniture') ? 10 : 15;
+
+    const { balance } = computeLedgerBalance(l, vouchers);
+    let closingBal = balance;
+    if (depreciation === 0 && openingBal > closingBal && closingBal > 0) {
+      depreciation = r2(openingBal - closingBal);
+    } else if (closingBal === 0 && openingBal > 0 && depreciation === 0) {
+      depreciation = r2(openingBal * (depRate / 100));
+      closingBal = r2(openingBal - depreciation);
+    } else if (depreciation === 0 && openingBal === closingBal && openingBal > 0) {
+      depreciation = r2(openingBal * (depRate / 100));
+      closingBal = r2(openingBal - depreciation);
+    }
+
+    return {
+      name: l.name,
+      openingBal: r2(openingBal),
+      additionBefore: r2(additionBefore),
+      additionAfter: r2(additionAfter),
+      depreciation: r2(depreciation),
+      depRate,
+      closingBal: r2(closingBal),
+    };
+  }).filter(fa => fa.openingBal > 0 || fa.closingBal > 0 || fa.depreciation > 0);
+
+  if (fixedAssetSchedule.length === 0 && fixedAssetItems.length > 0) {
+    fixedAssetSchedule = fixedAssetItems.map(i => {
+      const depRate = i.name.toLowerCase().includes('furniture') ? 10 : 15;
+      const dep = r2(i.amount * (depRate / 100));
+      return {
+        name: i.name,
+        openingBal: i.amount,
+        additionBefore: 0,
+        additionAfter: 0,
+        depreciation: dep,
+        depRate,
+        closingBal: r2(i.amount - dep),
+      };
+    });
+  }
+
   const annexAClosingTotal = r2(partners.reduce((s, p) => s + (p.closingBal || 0), 0));
   const capitalTotal = annexAClosingTotal !== 0 ? annexAClosingTotal : r2(sum(capitalItems));
   const securedTotal = r2(sum(securedItems));
   const unsecuredTotal = r2(sum(unsecuredItems));
   const currLiabTotal = r2(sum(currLiabItems));
 
-  const fixedAssetTotal = r2(sum(fixedAssetItems));
+  const annexBClosingTotal = r2(fixedAssetSchedule.reduce((s, fa) => s + fa.closingBal, 0));
+  const fixedAssetTotal = annexBClosingTotal !== 0 ? annexBClosingTotal : r2(sum(fixedAssetItems));
   const investmentTotal = r2(sum(investmentItems));
   const currAssetTotal = r2(sum(currAssetItems));
 
@@ -262,6 +342,7 @@ export function computeBaseFinancials(
     currLiabTotal,
     fixedAssetItems,
     fixedAssetTotal,
+    fixedAssetSchedule,
     investmentItems,
     investmentTotal,
     currAssetItems,
@@ -354,16 +435,57 @@ export function generateProvisionalProjections(
         }))
       : [{ name: 'To Purchase', amount: projPurchaseTotal }];
 
+    // 6.5 Fixed Assets Schedule Projection (Annexure B)
+    const projFixedAssetSchedule: FixedAssetScheduleItem[] = (currentBase.fixedAssetSchedule && currentBase.fixedAssetSchedule.length > 0)
+      ? currentBase.fixedAssetSchedule.map(fa => {
+          const oBal = r2(fa.closingBal !== undefined ? fa.closingBal : fa.openingBal);
+          const depRate = fa.depRate ?? (fa.name.toLowerCase().includes('furniture') ? 10 : 15);
+          const dep = r2(oBal * (depRate / 100));
+          const cBal = r2(oBal - dep);
+          return {
+            name: fa.name,
+            openingBal: oBal,
+            additionBefore: 0,
+            additionAfter: 0,
+            depreciation: dep,
+            depRate,
+            closingBal: cBal,
+          };
+        })
+      : currentBase.fixedAssetItems.map(i => {
+          const depRate = i.name.toLowerCase().includes('furniture') ? 10 : 15;
+          const oBal = i.amount;
+          const dep = r2(oBal * (depRate / 100));
+          const cBal = r2(oBal - dep);
+          return {
+            name: i.name,
+            openingBal: oBal,
+            additionBefore: 0,
+            additionAfter: 0,
+            depreciation: dep,
+            depRate,
+            closingBal: cBal,
+          };
+        });
+
+    const projDepreciationTotal = r2(projFixedAssetSchedule.reduce((s, fa) => s + fa.depreciation, 0));
+    const projFixedAssetTotal = r2(projFixedAssetSchedule.reduce((s, fa) => s + fa.closingBal, 0));
+    const projFixedAssetItems: FinancialItem[] = projFixedAssetSchedule.map(fa => ({
+      name: fa.name,
+      amount: fa.closingBal,
+    }));
+
     // 7. Indirect Expenses
     const adminInflation = 1 + (config.expenseInflationPct / 100);
     const deprReduction  = 1 - (config.deprReductionPct / 100);
     const ccLimitGrowth  = 1 + (config.ccLimitGrowthPct / 100);
 
+    const hasDeprItem = currentBase.indirectExpItems.some(i => i.name.toLowerCase().includes('deprec'));
     const projIndirectExpItems: FinancialItem[] = currentBase.indirectExpItems.map(i => {
       const lower = i.name.toLowerCase();
       if (lower.includes('deprec')) {
-        // WDV depreciation naturally reduces
-        return { name: i.name, amount: r2(i.amount * deprReduction) };
+        // Exact Depreciation from Annexure B Schedule
+        return { name: i.name, amount: projDepreciationTotal > 0 ? projDepreciationTotal : r2(i.amount * deprReduction) };
       } else if (lower.includes('cc') || lower.includes('cash credit')) {
         // Bank CC interest corresponds to CC limit
         return { name: i.name, amount: r2(i.amount * ccLimitGrowth) };
@@ -375,6 +497,10 @@ export function generateProvisionalProjections(
         return { name: i.name, amount: r2(i.amount * adminInflation) };
       }
     });
+
+    if (!hasDeprItem && projDepreciationTotal > 0) {
+      projIndirectExpItems.push({ name: 'To Depreciation', amount: projDepreciationTotal });
+    }
     const projIndirectExpTotal = r2(sum(projIndirectExpItems));
 
     // 8. Indirect Incomes (Scrap income etc.)
@@ -388,15 +514,19 @@ export function generateProvisionalProjections(
 
     // 10. Partners Capital Appropriation (Annexure A)
     const prevClosingCapital = currentBase.capitalTotal;
+    const drawingsGrowth = 1 + ((config.drawingsGrowthPct ?? 28.99) / 100);
+    const targetInterestRate = config.interestRatePct !== undefined ? config.interestRatePct : 8.0;
+
     const projPartners: PartnerItem[] = currentBase.partners.map(p => {
       const sPct = Number(p.sharePct) || 0;
       // Opening Capital of Year t is exactly Closing Balance of Year t-1
-      const oBal = r2(p.closingBal || (prevClosingCapital * (sPct / 100)));
+      const oBal = r2(p.closingBal !== undefined ? p.closingBal : (prevClosingCapital * (sPct / 100)));
       const addn = 0;
       // Partner salary remains fixed as per deed
       const sal  = Number(p.salary) || 0;
-      const iRate = 12;
-      const iAmt = r2(oBal * 0.12);
+      const iRate = config.interestRatePct !== undefined ? config.interestRatePct : (p.interestRate !== undefined ? p.interestRate : targetInterestRate);
+      const iAmt = r2(oBal * (iRate / 100));
+      const wAmt = r2((Number(p.withdrawalsAmt) || 0) * drawingsGrowth);
       return {
         id: p.id,
         name: p.name,
@@ -408,7 +538,7 @@ export function generateProvisionalProjections(
         interestAmt: iAmt,
         profitShare: 0,
         total: 0,
-        withdrawalsAmt: Number(p.withdrawalsAmt) || 0,
+        withdrawalsAmt: wAmt,
         withdrawalsNature: p.withdrawalsNature || '',
         closingBal: 0,
       };
@@ -475,10 +605,6 @@ export function generateProvisionalProjections(
     const projTotalLiab      = r2(projCapitalTotal + projSecuredTotal + projUnsecuredTotal + projCurrLiabTotal);
 
     // Assets Projection
-    // Fixed Assets: Maintained constant or adjusted by additions/depreciation
-    const projFixedAssetItems: FinancialItem[] = currentBase.fixedAssetItems.map(i => ({ ...i }));
-    const projFixedAssetTotal = r2(sum(projFixedAssetItems));
-
     // Security Deposits
     const projInvestmentItems: FinancialItem[] = currentBase.investmentItems.map(i => {
       const lower = i.name.toLowerCase();
@@ -559,6 +685,7 @@ export function generateProvisionalProjections(
       currLiabTotal: projCurrLiabTotal,
       fixedAssetItems: projFixedAssetItems,
       fixedAssetTotal: projFixedAssetTotal,
+      fixedAssetSchedule: projFixedAssetSchedule,
       investmentItems: projInvestmentItems,
       investmentTotal: projInvestmentTotal,
       currAssetItems: projCurrAssetItems,

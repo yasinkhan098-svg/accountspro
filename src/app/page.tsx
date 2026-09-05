@@ -587,7 +587,7 @@ export default function App() {
     fromDate: '',
     toDate: '',
   });
-  const [projectionConfig, setProjectionConfig] = useState({
+  const [projectionConfig, setProjectionConfig] = useState<ProjectionConfig>({
     salesGrowthPct: 70.98,
     gpMarginPct: 14.42,
     stockGrowthPct: 3.51,
@@ -595,6 +595,8 @@ export default function App() {
     labourGrowthPct: 17.56,
     deprReductionPct: 14.98,
     ccLimitGrowthPct: 8.61,
+    interestRatePct: 8.0,
+    drawingsGrowthPct: 28.99,
   });
   const [finalBSForm, setFinalBSForm] = useState({
     asOnDate: '',
@@ -3550,6 +3552,34 @@ export default function App() {
                         onChange={e => setProjectionConfig(c => ({ ...c, deprReductionPct: parseFloat(e.target.value) || 0 }))}
                       />
                     </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#334155', display:'block', marginBottom:2}}>
+                        Interest on Capital Rate %:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        className="form-input"
+                        style={{width:'100%', fontSize:12, fontWeight:'bold', color:'#1e40af'}}
+                        value={projectionConfig.interestRatePct ?? 8.0}
+                        onChange={e => setProjectionConfig(c => ({ ...c, interestRatePct: parseFloat(e.target.value) || 0 }))}
+                        placeholder="8.0 (from 8a)"
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#334155', display:'block', marginBottom:2}}>
+                        Partners Drawings Growth %:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        className="form-input"
+                        style={{width:'100%', fontSize:12}}
+                        value={projectionConfig.drawingsGrowthPct ?? 28.99}
+                        onChange={e => setProjectionConfig(c => ({ ...c, drawingsGrowthPct: parseFloat(e.target.value) || 0 }))}
+                        placeholder="28.99 (69k to 89k)"
+                      />
+                    </div>
                   </div>
 
                   {/* Target Dates for Projected Year */}
@@ -3651,6 +3681,44 @@ export default function App() {
                   </div>
                   <div style={{fontWeight:'bold', background:'#d1fae5', padding:'2px 8px', borderRadius:4}}>
                     Difference: ₹0.00
+                  </div>
+                </div>
+              )}
+
+              {/* ─── PROVISIONAL FIXED ASSETS SCHEDULE (ANNEXURE "B" PREVIEW — Image 7a) ─── */}
+              {isProvisional && currentProj.fixedAssetSchedule && currentProj.fixedAssetSchedule.length > 0 && (
+                <div style={{border:'1px solid #bfdbfe', background:'#f8faff', borderRadius:8, padding:'12px 14px', marginBottom:16}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8, flexWrap:'wrap', gap:6}}>
+                    <span style={{fontWeight:'bold', fontSize:12, color:'#1e40af'}}>
+                      🏢 Projected Fixed Assets Schedule (Annexure "B" — Image 7a)
+                    </span>
+                    <span style={{fontSize:11, color:'#2563eb', fontWeight:'bold', background:'#dbeafe', padding:'2px 8px', borderRadius:4}}>
+                      Total Closing FA: ₹{fmt(currentProj.fixedAssetTotal)} | Depreciation: ₹{fmt(currentProj.fixedAssetSchedule.reduce((s, fa) => s + fa.depreciation, 0))}
+                    </span>
+                  </div>
+                  <div style={{overflowX:'auto'}}>
+                    <table style={{width:'100%', borderCollapse:'collapse', fontSize:11, background:'#fff', borderRadius:4, overflow:'hidden', boxShadow:'0 1px 2px rgba(0,0,0,0.03)'}}>
+                      <thead>
+                        <tr style={{background:'#eff6ff', color:'#1e3a8a'}}>
+                          <th style={{padding:'6px 10px', textAlign:'left', borderBottom:'1px solid #bfdbfe'}}>Particulars</th>
+                          <th style={{padding:'6px 10px', textAlign:'right', borderBottom:'1px solid #bfdbfe'}}>Opening Bal</th>
+                          <th style={{padding:'6px 10px', textAlign:'center', borderBottom:'1px solid #bfdbfe'}}>Rate</th>
+                          <th style={{padding:'6px 10px', textAlign:'right', borderBottom:'1px solid #bfdbfe'}}>Depreciation</th>
+                          <th style={{padding:'6px 10px', textAlign:'right', borderBottom:'1px solid #bfdbfe'}}>Closing Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentProj.fixedAssetSchedule.map((fa, i) => (
+                          <tr key={i} style={{borderBottom:'1px solid #f1f5f9'}}>
+                            <td style={{padding:'6px 10px', fontWeight:'bold', color:'#334155'}}>{fa.name}</td>
+                            <td style={{padding:'6px 10px', textAlign:'right', color:'#475569'}}>₹{fmt(fa.openingBal)}</td>
+                            <td style={{padding:'6px 10px', textAlign:'center', color:'#64748b'}}>{fa.depRate ?? 15}%</td>
+                            <td style={{padding:'6px 10px', textAlign:'right', color:'#dc2626'}}>₹{fmt(fa.depreciation)}</td>
+                            <td style={{padding:'6px 10px', textAlign:'right', fontWeight:'bold', color:'#1e40af'}}>₹{fmt(fa.closingBal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}

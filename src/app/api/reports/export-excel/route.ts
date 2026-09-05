@@ -295,7 +295,8 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     let indirectIncItems  = buildIncome(ledgers, INDIRECT_INC_GROUPS, plVouchers);
 
     // If client supplied projected data (from interactive projection mode), use it
-    const proj = postBody?.projectedData;
+    const projectedData = postBody?.projectedData;
+    const proj = projectedData;
     if (proj) {
       if (proj.capitalItems && Array.isArray(proj.capitalItems)) capitalItems = proj.capitalItems;
       if (proj.securedItems && Array.isArray(proj.securedItems)) securedItems = proj.securedItems;
@@ -372,77 +373,104 @@ async function generateExcelResponse(req: Request, postBody?: any) {
       }
     }
 
-    const calculatedPartners = partnersList.map((p: any, idx: number) => {
-      const name = (p.name && String(p.name).trim()) ? String(p.name).trim().toUpperCase() : `PARTNER ${idx + 1}`;
-      const sharePct = Number(p.sharePct || 0);
-      const openingBal = Number(p.openingBal || 0);
-      const addition = Number(p.addition || 0);
-      const salary = Number(p.salary || 0);
-      const interestRate = p.interestRate !== undefined ? Number(p.interestRate) : 12;
-      const interestAmt = (p.interestAmt !== undefined && p.interestAmt !== '' && p.interestAmt !== null)
-        ? Number(p.interestAmt)
-        : Math.round((openingBal * (interestRate / 100)) * 100) / 100;
-      const profitShare = Math.round((netProfit * (sharePct / 100)) * 100) / 100;
-      const total = openingBal + addition + salary + interestAmt + profitShare;
-      const withdrawalsAmt = Number(p.withdrawalsAmt || 0);
-      const withdrawalsNature = String(p.withdrawalsNature || '');
-      const closingBal = total - withdrawalsAmt;
-      return {
-        name,
-        sharePct,
-        openingBal,
-        addition,
-        salary,
-        interestRate,
-        interestAmt,
-        profitShare,
-        total,
-        withdrawalsAmt,
-        withdrawalsNature,
-        closingBal,
-      };
-    });
+    const calculatedPartners: any[] = (projectedData?.partners && projectedData.partners.length > 0)
+      ? projectedData.partners.map((p: any, idx: number) => ({
+          name: (p.name && String(p.name).trim()) ? String(p.name).trim().toUpperCase() : `PARTNER ${idx + 1}`,
+          sharePct: Number(p.sharePct || 0),
+          openingBal: Number(p.openingBal || 0),
+          addition: Number(p.addition || 0),
+          salary: Number(p.salary || 0),
+          interestRate: p.interestRate !== undefined ? Number(p.interestRate) : 12,
+          interestAmt: Number(p.interestAmt || 0),
+          profitShare: Number(p.profitShare || 0),
+          total: Number(p.total || 0),
+          withdrawalsAmt: Number(p.withdrawalsAmt || 0),
+          withdrawalsNature: String(p.withdrawalsNature || ''),
+          closingBal: Number(p.closingBal || 0),
+        }))
+      : partnersList.map((p: any, idx: number) => {
+          const name = (p.name && String(p.name).trim()) ? String(p.name).trim().toUpperCase() : `PARTNER ${idx + 1}`;
+          const sharePct = Number(p.sharePct || 0);
+          const openingBal = Number(p.openingBal || 0);
+          const addition = Number(p.addition || 0);
+          const salary = Number(p.salary || 0);
+          const interestRate = p.interestRate !== undefined ? Number(p.interestRate) : 12;
+          const interestAmt = (p.interestAmt !== undefined && p.interestAmt !== '' && p.interestAmt !== null)
+            ? Number(p.interestAmt)
+            : Math.round((openingBal * (interestRate / 100)) * 100) / 100;
+          const profitShare = Math.round((netProfit * (sharePct / 100)) * 100) / 100;
+          const total = openingBal + addition + salary + interestAmt + profitShare;
+          const withdrawalsAmt = Number(p.withdrawalsAmt || 0);
+          const withdrawalsNature = String(p.withdrawalsNature || '');
+          const closingBal = total - withdrawalsAmt;
+          return {
+            name,
+            sharePct,
+            openingBal,
+            addition,
+            salary,
+            interestRate,
+            interestAmt,
+            profitShare,
+            total,
+            withdrawalsAmt,
+            withdrawalsNature,
+            closingBal,
+          };
+        });
 
-    const annexAClosingTotal = sum(calculatedPartners.map(p => ({ amount: p.closingBal })));
+    const annexAClosingTotal = sum(calculatedPartners.map((p: any) => ({ amount: p.closingBal })));
 
     // ─── Calculate Fixed Assets Schedule (Annexure B) ─────────────────
-    const faLedgers = ledgers.filter(l => FIXED_ASSET_GROUPS.includes(l.groupName));
     const fyStartYear = fromDateObj.getFullYear();
     const septCutoff = new Date(fyStartYear, 8, 30, 23, 59, 59, 999);
+    let faScheduleRows: any[] = [];
+    if (projectedData?.fixedAssetSchedule && projectedData.fixedAssetSchedule.length > 0) {
+      faScheduleRows = projectedData.fixedAssetSchedule.map((fa: any) => ({
+        name: fa.name,
+        openingBal: Number(fa.openingBal || 0),
+        additionBefore: Number(fa.additionBefore || 0),
+        additionAfter: Number(fa.additionAfter || 0),
+        depreciation: Number(fa.depreciation || 0),
+        closingBal: Number(fa.closingBal || 0),
+      }));
+    } else {
+      const faLedgers = ledgers.filter(l => FIXED_ASSET_GROUPS.includes(l.groupName));
 
-    const faScheduleRows = faLedgers.map(l => {
-      let openingBal = l.openingBal ? (l.balanceType === 'Dr' ? l.openingBal : -l.openingBal) : 0;
-      let additionBefore = 0;
-      let additionAfter = 0;
-      let depreciation = 0;
+      faScheduleRows = faLedgers.map(l => {
+        let openingBal = l.openingBal ? (l.balanceType === 'Dr' ? l.openingBal : -l.openingBal) : 0;
+        let additionBefore = 0;
+        let additionAfter = 0;
+        let depreciation = 0;
 
-      for (const v of bsVouchers) {
-        const vDate = new Date(v.date);
-        for (const e of v.entries) {
-          if (e.ledgerId === l.id) {
-            if (e.entryType === 'Dr') {
-              if (vDate <= septCutoff) {
-                additionBefore += e.amount;
+        for (const v of bsVouchers) {
+          const vDate = new Date(v.date);
+          for (const e of v.entries) {
+            if (e.ledgerId === l.id) {
+              if (e.entryType === 'Dr') {
+                if (vDate <= septCutoff) {
+                  additionBefore += e.amount;
+                } else {
+                  additionAfter += e.amount;
+                }
               } else {
-                additionAfter += e.amount;
+                depreciation += e.amount;
               }
-            } else {
-              depreciation += e.amount;
             }
           }
         }
-      }
 
-      const closingBal = openingBal + additionBefore + additionAfter - depreciation;
-      return {
-        name: l.name,
-        openingBal,
-        additionBefore,
-        additionAfter,
-        depreciation,
-        closingBal,
-      };
-    }).filter(r => Math.abs(r.openingBal) > 0.001 || Math.abs(r.closingBal) > 0.001 || r.additionBefore > 0 || r.additionAfter > 0 || r.depreciation > 0);
+        const closingBal = openingBal + additionBefore + additionAfter - depreciation;
+        return {
+          name: l.name,
+          openingBal,
+          additionBefore,
+          additionAfter,
+          depreciation,
+          closingBal,
+        };
+      }).filter(r => Math.abs(r.openingBal) > 0.001 || Math.abs(r.closingBal) > 0.001 || r.additionBefore > 0 || r.additionAfter > 0 || r.depreciation > 0);
+    }
 
     const annexBClosingTotal = sum(faScheduleRows.map(r => ({ amount: r.closingBal })));
 
@@ -821,14 +849,14 @@ async function generateExcelResponse(req: Request, postBody?: any) {
 
     // ── APPROPRIATION SECTION (For Partnership firms / Annexure A) ─────
     if (signatoryTitle === 'PARTNER' && calculatedPartners.length > 0) {
-      const totInterest = calculatedPartners.reduce((s, p) => s + (p.interestAmt || 0), 0);
-      const totSalary   = calculatedPartners.reduce((s, p) => s + (p.salary || 0), 0);
-      const totProfitCd = calculatedPartners.reduce((s, p) => s + (p.profitShare || 0), 0);
+      const totInterest = calculatedPartners.reduce((s: number, p: any) => s + (p.interestAmt || 0), 0);
+      const totSalary   = calculatedPartners.reduce((s: number, p: any) => s + (p.salary || 0), 0);
+      const totProfitCd = calculatedPartners.reduce((s: number, p: any) => s + (p.profitShare || 0), 0);
       const appropriationTotal = totInterest + totSalary + totProfitCd;
 
       addPLDataRow(
         'To Interest on Capital', totInterest, false,
-        'To Net Profit tfd. to Capital A/c', netProfit, false
+        'By Net Profit b/d', netProfit, false
       );
       addPLDataRow(
         'To Salary to partner', totSalary, false,
@@ -839,7 +867,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
         '', null, false
       );
       addPLDataRow(
-        '(Transfeered to Capital A/c)', null, false,
+        '(Transferred to Capital A/c)', null, false,
         '', null, false
       );
 
@@ -1077,14 +1105,14 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     totARow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
     wsAnnexA.mergeCells(annexARow, 1, annexARow, 3);
 
-    const sumAOpening     = sum(calculatedPartners.map(p => ({ amount: p.openingBal })));
-    const sumAAddition    = sum(calculatedPartners.map(p => ({ amount: p.addition })));
-    const sumASalary      = sum(calculatedPartners.map(p => ({ amount: p.salary })));
-    const sumAInterest    = sum(calculatedPartners.map(p => ({ amount: p.interestAmt })));
-    const sumAProfit      = sum(calculatedPartners.map(p => ({ amount: p.profitShare })));
-    const sumATotal       = sum(calculatedPartners.map(p => ({ amount: p.total })));
-    const sumAWithdrawals = sum(calculatedPartners.map(p => ({ amount: p.withdrawalsAmt })));
-    const sumAClosing     = sum(calculatedPartners.map(p => ({ amount: p.closingBal })));
+    const sumAOpening     = sum(calculatedPartners.map((p: any) => ({ amount: p.openingBal })));
+    const sumAAddition    = sum(calculatedPartners.map((p: any) => ({ amount: p.addition })));
+    const sumASalary      = sum(calculatedPartners.map((p: any) => ({ amount: p.salary })));
+    const sumAInterest    = sum(calculatedPartners.map((p: any) => ({ amount: p.interestAmt })));
+    const sumAProfit      = sum(calculatedPartners.map((p: any) => ({ amount: p.profitShare })));
+    const sumATotal       = sum(calculatedPartners.map((p: any) => ({ amount: p.total })));
+    const sumAWithdrawals = sum(calculatedPartners.map((p: any) => ({ amount: p.withdrawalsAmt })));
+    const sumAClosing     = sum(calculatedPartners.map((p: any) => ({ amount: p.closingBal })));
 
     // Opening total in red bold as in Image 1
     totARow.getCell(4).value = fmt(sumAOpening);
