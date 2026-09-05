@@ -4,6 +4,13 @@ import AuthUI from '@/components/AuthUI';
 import SubscriptionRenewalUI from '@/components/SubscriptionRenewalUI';
 import PlanUpgradeModal from '@/components/PlanUpgradeModal';
 import { authClient } from '@/lib/auth-client';
+import {
+  computeBaseFinancials,
+  generateProvisionalProjections,
+  ProjectionConfig,
+  ProjectedYearResult,
+  PartnerItem
+} from '@/lib/provisionalEngine';
 
 // ==================== SCREEN TYPES ====================
 type ScreenType =
@@ -573,6 +580,22 @@ export default function App() {
   // Final Balance Sheet & P&L Export Modal
   const [showFinalBSModal, setShowFinalBSModal] = useState(false);
   const [finalBSExporting, setFinalBSExporting] = useState(false);
+  const [finalBSMode, setFinalBSMode] = useState<'actual' | 'provisional'>('actual');
+  const [projectionYears, setProjectionYears] = useState(1);
+  const [projCustomDates, setProjCustomDates] = useState({
+    asOnDate: '',
+    fromDate: '',
+    toDate: '',
+  });
+  const [projectionConfig, setProjectionConfig] = useState({
+    salesGrowthPct: 70.98,
+    gpMarginPct: 14.42,
+    stockGrowthPct: 3.51,
+    expenseInflationPct: 10.0,
+    labourGrowthPct: 17.56,
+    deprReductionPct: 14.98,
+    ccLimitGrowthPct: 8.61,
+  });
   const [finalBSForm, setFinalBSForm] = useState({
     asOnDate: '',
     fromDate: '',
@@ -581,18 +604,7 @@ export default function App() {
     caMno: '',
     place: '',
     signatoryTitle: 'PARTNER',
-    partners: [] as {
-      id: string;
-      name: string;
-      sharePct: number;
-      openingBal: number;
-      addition: number;
-      salary: number;
-      interestRate: number;
-      interestAmt?: number;
-      withdrawalsAmt: number;
-      withdrawalsNature: string;
-    }[],
+    partners: [] as PartnerItem[],
   });
 
   useEffect(() => {
@@ -800,20 +812,42 @@ export default function App() {
     }
     setFinalBSExporting(true);
     try {
+      let exportBody: any = {
+        companyId: String(activeCompany.id),
+        caName: finalBSForm.caName,
+        caMno: finalBSForm.caMno,
+        place: finalBSForm.place,
+        signatoryTitle: finalBSForm.signatoryTitle,
+        reportMode: finalBSMode,
+      };
+
+      if (finalBSMode === 'provisional') {
+        const baseFin = computeBaseFinancials(ledgers, filteredVouchers, finalBSForm.partners);
+        const projList = generateProvisionalProjections(
+          baseFin,
+          projectionConfig,
+          projectionYears,
+          finalBSForm.fromDate || currentPeriod?.start || '01-Apr-2021',
+          finalBSForm.toDate || currentPeriod?.end || '31-Mar-2022'
+        );
+        const targetProj = projList[projList.length - 1];
+
+        exportBody.asOnDate = projCustomDates.asOnDate || targetProj.asOnDateStr;
+        exportBody.fromDate = projCustomDates.fromDate || targetProj.fromDateStr;
+        exportBody.toDate   = projCustomDates.toDate   || targetProj.toDateStr;
+        exportBody.projectedData = targetProj;
+        exportBody.partnersData  = targetProj.partners;
+      } else {
+        exportBody.asOnDate = finalBSForm.asOnDate;
+        exportBody.fromDate = finalBSForm.fromDate;
+        exportBody.toDate   = finalBSForm.toDate;
+        exportBody.partnersData = finalBSForm.partners;
+      }
+
       const res = await fetch('/api/reports/export-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId: String(activeCompany.id),
-          asOnDate: finalBSForm.asOnDate,
-          fromDate: finalBSForm.fromDate,
-          toDate: finalBSForm.toDate,
-          caName: finalBSForm.caName,
-          caMno: finalBSForm.caMno,
-          place: finalBSForm.place,
-          signatoryTitle: finalBSForm.signatoryTitle,
-          partnersData: finalBSForm.partners,
-        }),
+        body: JSON.stringify(exportBody),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -823,7 +857,8 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${(activeCompany.name || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_')}_Financial_Statements_CA_Format.xlsx`;
+      const filePrefix = finalBSMode === 'provisional' ? 'PROV_' : '';
+      a.download = `${(activeCompany.name || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_')}_${filePrefix}Financial_Statements_CA_Format.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -3232,111 +3267,445 @@ export default function App() {
         );
       })()}
       {showFinalBSModal && (() => {
-        const modalNetProfit = (() => {
-          if (!ledgers.length) return 0;
-          const incGroups = ['Sales Accounts', 'Direct Incomes', 'Income (Direct)', 'Indirect Incomes', 'Income (Indirect)'];
-          const expGroups = ['Purchase Accounts', 'Direct Expenses', 'Expenses (Direct)', 'Indirect Expenses', 'Expenses (Indirect)'];
-          let inc = 0;
-          let exp = 0;
-          for (const l of ledgers) {
-            if (incGroups.includes(l.groupName)) {
-              let bal = l.balanceType === 'Cr' ? (l.openingBalance ?? 0) : -(l.openingBalance ?? 0);
-              for (const v of filteredVouchers) {
-                for (const e of (v.entries || [])) {
-                  if (e.ledgerId === l.id) bal += (e.entryType === 'Cr' ? e.amount : -e.amount);
-                }
-              }
-              inc += bal;
-            } else if (expGroups.includes(l.groupName)) {
-              let bal = l.balanceType === 'Dr' ? (l.openingBalance ?? 0) : -(l.openingBalance ?? 0);
-              for (const v of filteredVouchers) {
-                for (const e of (v.entries || [])) {
-                  if (e.ledgerId === l.id) bal += (e.entryType === 'Dr' ? e.amount : -e.amount);
-                }
-              }
-              exp += bal;
-            }
-          }
-          return inc - exp;
-        })();
+        // 1. Calculate Base Financials
+        const baseFin = computeBaseFinancials(ledgers, filteredVouchers, finalBSForm.partners);
 
-        const totalPartnerShare = (finalBSForm.partners || []).reduce((s, p) => s + (Number(p.sharePct) || 0), 0);
-        const totalPartnerClosing = (finalBSForm.partners || []).reduce((s, p) => {
-          const sPct = Number(p.sharePct) || 0;
-          const oBal = Number(p.openingBal) || 0;
-          const addn = Number(p.addition) || 0;
-          const sal = Number(p.salary) || 0;
-          const iRate = p.interestRate !== undefined ? Number(p.interestRate) : 12;
-          const iAmt = (p.interestAmt !== undefined && p.interestAmt !== null && String(p.interestAmt) !== '')
-            ? Number(p.interestAmt)
-            : Math.round((oBal * (iRate / 100)) * 100) / 100;
-          const pShare = Math.round((modalNetProfit * (sPct / 100)) * 100) / 100;
-          const tot = oBal + addn + sal + iAmt + pShare;
-          return s + (tot - (Number(p.withdrawalsAmt) || 0));
+        // 2. Generate Multi-Year Projections
+        const projResults = generateProvisionalProjections(
+          baseFin,
+          projectionConfig,
+          projectionYears,
+          finalBSForm.fromDate || currentPeriod?.start || '01-Apr-2021',
+          finalBSForm.toDate || currentPeriod?.end || '31-Mar-2022'
+        );
+        const currentProj = projResults[projResults.length - 1] || baseFin;
+
+        const isProvisional = finalBSMode === 'provisional';
+        const activeFin = isProvisional ? currentProj : baseFin;
+        const modalNetProfit = activeFin.netProfit;
+        const activePartners = isProvisional ? currentProj.partners : finalBSForm.partners;
+
+        const totalPartnerShare = (activePartners || []).reduce((s, p: any) => s + (Number(p.sharePct) || 0), 0);
+        const totalPartnerClosing = (activePartners || []).reduce((s, p: any) => {
+          const cBal = p.closingBal !== undefined ? p.closingBal : (
+            (Number(p.openingBal) || 0) + (Number(p.addition) || 0) + (Number(p.salary) || 0) +
+            (p.interestAmt !== undefined ? Number(p.interestAmt) : Math.round((Number(p.openingBal) || 0) * (Number(p.interestRate ?? 12) / 100) * 100) / 100) +
+            Math.round((modalNetProfit * ((Number(p.sharePct) || 0) / 100)) * 100) / 100 -
+            (Number(p.withdrawalsAmt) || 0)
+          );
+          return s + (Number(cBal) || 0);
         }, 0);
 
         return (
         <div className="modal-overlay" onClick={()=>setShowFinalBSModal(false)}>
-          <div className="modal-box" style={{width:780, maxWidth:'95vw', maxHeight:'92vh', overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+          <div className="modal-box" style={{width:840, maxWidth:'96vw', maxHeight:'94vh', overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header" style={{background:'linear-gradient(135deg, #1c5282, #2980b9)', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 16px', color:'#fff'}}>
-              <span style={{fontWeight:'bold', fontSize:14}}>📊 Final Balance Sheet & P&L (CA Excel Format — 4 Sheets)</span>
+              <span style={{fontWeight:'bold', fontSize:14}}>
+                {isProvisional ? '📈 PROV. / Projected Financial Statements (CA Excel — 4 Sheets)' : '📊 Final Balance Sheet & P&L (CA Excel Format — 4 Sheets)'}
+              </span>
               <span style={{cursor:'pointer', fontSize:16, fontWeight:'bold'}} onClick={()=>setShowFinalBSModal(false)}>✕</span>
             </div>
             <div style={{padding:20}}>
               {activeCompany && (
-                <div style={{background:'#f0f7ff', border:'1px solid #cce3f8', borderRadius:6, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#1c5282'}}>
-                  🏢 <b>{activeCompany.name}</b>
-                  {activeCompany.address && <div style={{fontSize:11, color:'#555', marginTop:2}}>{activeCompany.address}</div>}
+                <div style={{background:'#f0f7ff', border:'1px solid #cce3f8', borderRadius:6, padding:'10px 14px', marginBottom:14, fontSize:13, color:'#1c5282', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8}}>
+                  <div>
+                    🏢 <b>{activeCompany.name}</b>
+                    {activeCompany.address && <div style={{fontSize:11, color:'#555', marginTop:2}}>{activeCompany.address}</div>}
+                  </div>
+                  <div style={{fontSize:11, background:'#e1effe', color:'#1e429f', padding:'4px 10px', borderRadius:4, fontWeight:'bold'}}>
+                    Base Financial Year: {finalBSForm.fromDate || '01-Apr-2021'} to {finalBSForm.toDate || '31-Mar-2022'}
+                  </div>
                 </div>
               )}
 
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16}}>
-                <div>
-                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>Balance Sheet As On Date</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{width:'100%'}} 
-                    value={finalBSForm.asOnDate} 
-                    onChange={e => setFinalBSForm(f => ({ ...f, asOnDate: e.target.value }))}
-                    placeholder="e.g. 31-Mar-2026"
-                  />
-                </div>
-                <div>
-                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>Place / City</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{width:'100%'}} 
-                    value={finalBSForm.place} 
-                    onChange={e => setFinalBSForm(f => ({ ...f, place: e.target.value }))}
-                    placeholder="e.g. SITARGANJ"
-                  />
-                </div>
-                <div>
-                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>P&L From Date</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{width:'100%'}} 
-                    value={finalBSForm.fromDate} 
-                    onChange={e => setFinalBSForm(f => ({ ...f, fromDate: e.target.value }))}
-                    placeholder="e.g. 01-Apr-2025"
-                  />
-                </div>
-                <div>
-                  <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>P&L To Date</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{width:'100%'}} 
-                    value={finalBSForm.toDate} 
-                    onChange={e => setFinalBSForm(f => ({ ...f, toDate: e.target.value }))}
-                    placeholder="e.g. 31-Mar-2026"
-                  />
-                </div>
+              {/* ─── Mode Selector Tabs (Actual vs Provisional) ─── */}
+              <div style={{display:'flex', gap:8, marginBottom:16, background:'#f1f5f9', padding:4, borderRadius:8}}>
+                <button
+                  type="button"
+                  onClick={() => setFinalBSMode('actual')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: 'none',
+                    fontWeight: 'bold',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    background: finalBSMode === 'actual' ? '#1c5282' : 'transparent',
+                    color: finalBSMode === 'actual' ? '#fff' : '#475569',
+                    boxShadow: finalBSMode === 'actual' ? '0 2px 6px rgba(28,82,130,0.3)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  📄 Actual Statements (Current Year)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFinalBSMode('provisional')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: 'none',
+                    fontWeight: 'bold',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    background: finalBSMode === 'provisional' ? 'linear-gradient(135deg, #059669, #10b981)' : 'transparent',
+                    color: finalBSMode === 'provisional' ? '#fff' : '#475569',
+                    boxShadow: finalBSMode === 'provisional' ? '0 2px 6px rgba(16,185,129,0.3)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  📈 Provisional / Projected (Next Year Growth)
+                </button>
               </div>
 
+              {/* ═══════════════════════════════════════════════════════════
+                  PROVISIONAL / PROJECTED CONTROLS & BENCHMARKS
+                 ═══════════════════════════════════════════════════════════ */}
+              {isProvisional && (
+                <div style={{border:'1px solid #a7f3d0', background:'#f0fdf4', borderRadius:8, padding:'14px 16px', marginBottom:16}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, flexWrap:'wrap', gap:8}}>
+                    <div>
+                      <span style={{fontWeight:'bold', fontSize:13, color:'#065f46'}}>
+                        🎯 Projection Horizon (Kitne Saalon Ka Chahiye):
+                      </span>
+                      <span style={{fontSize:11, color:'#047857', marginLeft:8}}>
+                        (Year 1 = Provisional, Year 2+ = Projected)
+                      </span>
+                    </div>
+                    {/* Horizon Quick Buttons */}
+                    <div style={{display:'flex', gap:6}}>
+                      {[
+                        { years: 1, label: '+1 Year Prov. (Next Year)' },
+                        { years: 2, label: '+2 Years Proj.' },
+                        { years: 3, label: '+3 Years Proj.' },
+                      ].map(h => (
+                        <button
+                          key={h.years}
+                          type="button"
+                          onClick={() => setProjectionYears(h.years)}
+                          style={{
+                            padding:'4px 10px',
+                            borderRadius:4,
+                            border: projectionYears === h.years ? '1px solid #059669' : '1px solid #cbd5e1',
+                            background: projectionYears === h.years ? '#059669' : '#fff',
+                            color: projectionYears === h.years ? '#fff' : '#334155',
+                            fontWeight: projectionYears === h.years ? 'bold' : 'normal',
+                            fontSize: 11,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {h.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Growth Presets (Bank Benchmark from Image 1a -> 6a) */}
+                  <div style={{marginBottom:12, padding:'8px 10px', background:'#fff', borderRadius:6, border:'1px solid #bbf7d0'}}>
+                    <div style={{fontSize:11, fontWeight:'bold', color:'#334155', marginBottom:6}}>
+                      ⚡ Quick Growth Presets:
+                    </div>
+                    <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectionConfig({
+                            salesGrowthPct: 70.98,
+                            gpMarginPct: 14.42,
+                            stockGrowthPct: 3.51,
+                            expenseInflationPct: 10.0,
+                            labourGrowthPct: 17.56,
+                            deprReductionPct: 14.98,
+                            ccLimitGrowthPct: 8.61,
+                          });
+                        }}
+                        style={{background:'#ecfdf5', border:'1px solid #059669', color:'#065f46', padding:'4px 10px', borderRadius:4, fontSize:11, cursor:'pointer', fontWeight:'bold'}}
+                      >
+                        🏦 Bank CC Limit Benchmark (+70.98% Sales, 14.42% GP) [Image 1a ➔ 6a]
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectionConfig({
+                            salesGrowthPct: 25.0,
+                            gpMarginPct: 16.5,
+                            stockGrowthPct: 5.0,
+                            expenseInflationPct: 10.0,
+                            labourGrowthPct: 15.0,
+                            deprReductionPct: 15.0,
+                            ccLimitGrowthPct: 10.0,
+                          });
+                        }}
+                        style={{background:'#f8fafc', border:'1px solid #cbd5e1', color:'#334155', padding:'4px 10px', borderRadius:4, fontSize:11, cursor:'pointer'}}
+                      >
+                        🚀 Moderate Growth (+25% Sales, 16.5% GP)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectionConfig({
+                            salesGrowthPct: 15.0,
+                            gpMarginPct: 18.0,
+                            stockGrowthPct: 3.0,
+                            expenseInflationPct: 8.0,
+                            labourGrowthPct: 10.0,
+                            deprReductionPct: 15.0,
+                            ccLimitGrowthPct: 5.0,
+                          });
+                        }}
+                        style={{background:'#f8fafc', border:'1px solid #cbd5e1', color:'#334155', padding:'4px 10px', borderRadius:4, fontSize:11, cursor:'pointer'}}
+                      >
+                        🛡️ Conservative (+15% Sales, 18% GP)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Growth Parameter Sliders / Inputs */}
+                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(170px, 1fr))', gap:10, marginBottom:12}}>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#334155', display:'block', marginBottom:2}}>
+                        Sales Growth %:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="form-input"
+                        style={{width:'100%', fontSize:12, fontWeight:'bold', color:'#065f46'}}
+                        value={projectionConfig.salesGrowthPct}
+                        onChange={e => setProjectionConfig(c => ({ ...c, salesGrowthPct: parseFloat(e.target.value) || 0 }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#334155', display:'block', marginBottom:2}}>
+                        Target GP Margin %:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="form-input"
+                        style={{width:'100%', fontSize:12, fontWeight:'bold', color:'#065f46'}}
+                        value={projectionConfig.gpMarginPct}
+                        onChange={e => setProjectionConfig(c => ({ ...c, gpMarginPct: parseFloat(e.target.value) || 0 }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#334155', display:'block', marginBottom:2}}>
+                        Closing Stock Growth %:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="form-input"
+                        style={{width:'100%', fontSize:12}}
+                        value={projectionConfig.stockGrowthPct}
+                        onChange={e => setProjectionConfig(c => ({ ...c, stockGrowthPct: parseFloat(e.target.value) || 0 }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#334155', display:'block', marginBottom:2}}>
+                        Admin Exp Inflation %:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="form-input"
+                        style={{width:'100%', fontSize:12}}
+                        value={projectionConfig.expenseInflationPct}
+                        onChange={e => setProjectionConfig(c => ({ ...c, expenseInflationPct: parseFloat(e.target.value) || 0 }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#334155', display:'block', marginBottom:2}}>
+                        Direct Labour Growth %:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="form-input"
+                        style={{width:'100%', fontSize:12}}
+                        value={projectionConfig.labourGrowthPct}
+                        onChange={e => setProjectionConfig(c => ({ ...c, labourGrowthPct: parseFloat(e.target.value) || 0 }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#334155', display:'block', marginBottom:2}}>
+                        Depreciation (WDV) Reduction %:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="form-input"
+                        style={{width:'100%', fontSize:12}}
+                        value={projectionConfig.deprReductionPct}
+                        onChange={e => setProjectionConfig(c => ({ ...c, deprReductionPct: parseFloat(e.target.value) || 0 }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Target Dates for Projected Year */}
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, background:'#fff', padding:10, borderRadius:6, border:'1px solid #cbd5e1'}}>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#475569', display:'block', marginBottom:2}}>
+                        Prov. P&L From:
+                      </label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{width:'100%', fontSize:11}}
+                        value={projCustomDates.fromDate || currentProj.fromDateStr}
+                        onChange={e => setProjCustomDates(d => ({ ...d, fromDate: e.target.value }))}
+                        placeholder={currentProj.fromDateStr}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#475569', display:'block', marginBottom:2}}>
+                        Prov. P&L To:
+                      </label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{width:'100%', fontSize:11}}
+                        value={projCustomDates.toDate || currentProj.toDateStr}
+                        onChange={e => setProjCustomDates(d => ({ ...d, toDate: e.target.value }))}
+                        placeholder={currentProj.toDateStr}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10, fontWeight:'bold', color:'#475569', display:'block', marginBottom:2}}>
+                        Prov. Balance Sheet As On:
+                      </label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{width:'100%', fontSize:11}}
+                        value={projCustomDates.asOnDate || currentProj.asOnDateStr}
+                        onChange={e => setProjCustomDates(d => ({ ...d, asOnDate: e.target.value }))}
+                        placeholder={currentProj.asOnDateStr}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── LIVE COMPARISON KPI CARDS ─── */}
+              {isProvisional && (
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(190px, 1fr))', gap:10, marginBottom:16}}>
+                  <div style={{background:'#fff', border:'1px solid #e2e8f0', borderRadius:6, padding:'10px 12px', borderLeft:'4px solid #059669'}}>
+                    <div style={{fontSize:10, color:'#64748b', fontWeight:'bold', textTransform:'uppercase'}}>Turnover / Sales</div>
+                    <div style={{fontSize:15, fontWeight:'bold', color:'#065f46', marginTop:2}}>
+                      ₹{fmt(currentProj.salesTotal)}
+                    </div>
+                    <div style={{fontSize:10, color:'#64748b', marginTop:2}}>
+                      Base: ₹{fmt(baseFin.salesTotal)} <span style={{color:'#059669', fontWeight:'bold'}}>(+{projectionConfig.salesGrowthPct}%)</span>
+                    </div>
+                  </div>
+
+                  <div style={{background:'#fff', border:'1px solid #e2e8f0', borderRadius:6, padding:'10px 12px', borderLeft:'4px solid #0284c7'}}>
+                    <div style={{fontSize:10, color:'#64748b', fontWeight:'bold', textTransform:'uppercase'}}>Gross Profit (GP)</div>
+                    <div style={{fontSize:15, fontWeight:'bold', color:'#0369a1', marginTop:2}}>
+                      ₹{fmt(currentProj.grossProfit)}
+                    </div>
+                    <div style={{fontSize:10, color:'#64748b', marginTop:2}}>
+                      Base: ₹{fmt(baseFin.grossProfit)} <span style={{color:'#0284c7', fontWeight:'bold'}}>({projectionConfig.gpMarginPct}% Margin)</span>
+                    </div>
+                  </div>
+
+                  <div style={{background:'#fff', border:'1px solid #e2e8f0', borderRadius:6, padding:'10px 12px', borderLeft:'4px solid #7c3aed'}}>
+                    <div style={{fontSize:10, color:'#64748b', fontWeight:'bold', textTransform:'uppercase'}}>Net Profit</div>
+                    <div style={{fontSize:15, fontWeight:'bold', color:'#6d28d9', marginTop:2}}>
+                      ₹{fmt(currentProj.netProfit)}
+                    </div>
+                    <div style={{fontSize:10, color:'#64748b', marginTop:2}}>
+                      Base: ₹{fmt(baseFin.netProfit)}
+                    </div>
+                  </div>
+
+                  <div style={{background:'#fff', border:'1px solid #e2e8f0', borderRadius:6, padding:'10px 12px', borderLeft:'4px solid #d97706'}}>
+                    <div style={{fontSize:10, color:'#64748b', fontWeight:'bold', textTransform:'uppercase'}}>Closing Capital (Annex A)</div>
+                    <div style={{fontSize:15, fontWeight:'bold', color:'#b45309', marginTop:2}}>
+                      ₹{fmt(currentProj.capitalTotal)}
+                    </div>
+                    <div style={{fontSize:10, color:'#64748b', marginTop:2}}>
+                      Base: ₹{fmt(baseFin.capitalTotal)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Balance Sheet Balanced Status */}
+              {isProvisional && (
+                <div style={{background:'#ecfdf5', border:'1px solid #6ee7b7', borderRadius:6, padding:'8px 14px', marginBottom:16, display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:11, color:'#065f46'}}>
+                  <div style={{display:'flex', alignItems:'center', gap:6}}>
+                    <span style={{fontSize:14}}>✅</span>
+                    <b>Balance Sheet 100% Balanced:</b> Total Liabilities (₹{fmt(currentProj.totalLiab)}) = Total Assets (₹{fmt(currentProj.totalAssets)})
+                  </div>
+                  <div style={{fontWeight:'bold', background:'#d1fae5', padding:'2px 8px', borderRadius:4}}>
+                    Difference: ₹0.00
+                  </div>
+                </div>
+              )}
+
+              {/* ─── ACTUAL MODE DATES (When not provisional) ─── */}
+              {!isProvisional && (
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16}}>
+                  <div>
+                    <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>Balance Sheet As On Date</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{width:'100%'}} 
+                      value={finalBSForm.asOnDate} 
+                      onChange={e => setFinalBSForm(f => ({ ...f, asOnDate: e.target.value }))}
+                      placeholder="e.g. 31-Mar-2026"
+                    />
+                  </div>
+                  <div>
+                    <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>Place / City</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{width:'100%'}} 
+                      value={finalBSForm.place} 
+                      onChange={e => setFinalBSForm(f => ({ ...f, place: e.target.value }))}
+                      placeholder="e.g. SITARGANJ"
+                    />
+                  </div>
+                  <div>
+                    <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>P&L From Date</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{width:'100%'}} 
+                      value={finalBSForm.fromDate} 
+                      onChange={e => setFinalBSForm(f => ({ ...f, fromDate: e.target.value }))}
+                      placeholder="e.g. 01-Apr-2025"
+                    />
+                  </div>
+                  <div>
+                    <label style={{fontSize:11, fontWeight:'bold', color:'#444', display:'block', marginBottom:4}}>P&L To Date</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{width:'100%'}} 
+                      value={finalBSForm.toDate} 
+                      onChange={e => setFinalBSForm(f => ({ ...f, toDate: e.target.value }))}
+                      placeholder="e.g. 31-Mar-2026"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Signatory & CA Details */}
               <div style={{borderTop:'1px solid #eee', paddingTop:12, marginBottom:16}}>
                 <div style={{fontSize:11, fontWeight:'bold', color:'#777', textTransform:'uppercase', marginBottom:8}}>Chartered Accountant / Signatory Details</div>
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12}}>
@@ -3402,9 +3771,6 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  <div style={{fontSize:11, color:'#666', marginTop:5}}>
-                    💡 Partnership firm ke liye <b>PARTNER</b> aur Proprietorship firm ke liye <b>PROPRIETOR</b> select karein ya manchaaha title type karein.
-                  </div>
                 </div>
               </div>
 
@@ -3413,36 +3779,42 @@ export default function App() {
                 <div style={{border:'1px solid #b8daff', borderRadius:8, background:'#f4f8fd', padding:'12px 14px', marginBottom:16}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
                     <div>
-                      <span style={{fontWeight:'bold', fontSize:13, color:'#1c5282'}}>👥 Partners Capital Account (Annexure "A" Sheet)</span>
+                      <span style={{fontWeight:'bold', fontSize:13, color:'#1c5282'}}>
+                        👥 {isProvisional ? 'Projected' : ''} Partners Capital Account (Annexure "A" Sheet)
+                      </span>
                       <div style={{fontSize:11, color:'#555', marginTop:2}}>
-                        Har partner ka naam aur Share % daalein — Net Profit/Loss percentage ke hisaab se auto-calculate hoga.
+                        {isProvisional 
+                          ? 'Opening Capital pichle saal ke closing balance se auto-roll forward hua hai. 12% Interest aur Net Profit ratio me auto-calculate hai.'
+                          : 'Har partner ka naam aur Share % daalein — Net Profit/Loss percentage ke hisaab se auto-calculate hoga.'}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFinalBSForm(f => ({
-                          ...f,
-                          partners: [
-                            ...(f.partners || []),
-                            {
-                              id: String(Date.now()),
-                              name: '',
-                              sharePct: 0,
-                              openingBal: 0,
-                              addition: 0,
-                              salary: 0,
-                              interestRate: 12,
-                              withdrawalsAmt: 0,
-                              withdrawalsNature: '',
-                            }
-                          ]
-                        }));
-                      }}
-                      style={{background:'#1c5282', color:'#fff', border:'none', borderRadius:4, padding:'5px 12px', fontSize:11, cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:4}}
-                    >
-                      + Add Partner
-                    </button>
+                    {!isProvisional && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFinalBSForm(f => ({
+                            ...f,
+                            partners: [
+                              ...(f.partners || []),
+                              {
+                                id: String(Date.now()),
+                                name: '',
+                                sharePct: 0,
+                                openingBal: 0,
+                                addition: 0,
+                                salary: 0,
+                                interestRate: 12,
+                                withdrawalsAmt: 0,
+                                withdrawalsNature: '',
+                              }
+                            ]
+                          }));
+                        }}
+                        style={{background:'#1c5282', color:'#fff', border:'none', borderRadius:4, padding:'5px 12px', fontSize:11, cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:4}}
+                      >
+                        + Add Partner
+                      </button>
+                    )}
                   </div>
 
                   {/* Summary bar */}
@@ -3453,16 +3825,16 @@ export default function App() {
                       </b> {totalPartnerShare === 100 ? <span style={{color:'#1a7a4a'}}>✓ (100% OK)</span> : <span style={{color:'#c0392b'}}>⚠ (Total 100% hona chahiye)</span>}
                     </div>
                     <div>
-                      Net Profit to Distribute: <b style={{color: modalNetProfit >= 0 ? '#1a7a4a' : '#c0392b'}}>{fmt(modalNetProfit)}</b>
+                      Net Profit to Distribute: <b style={{color: modalNetProfit >= 0 ? '#1a7a4a' : '#c0392b'}}>₹{fmt(modalNetProfit)}</b>
                     </div>
                     <div style={{marginLeft:'auto', color:'#1c5282', fontWeight:'bold'}}>
-                      Total Closing Capital: {fmt(totalPartnerClosing)}
+                      Total Closing Capital: ₹{fmt(totalPartnerClosing)}
                     </div>
                   </div>
 
                   {/* Partners list */}
                   <div style={{display:'flex', flexDirection:'column', gap:10}}>
-                    {(finalBSForm.partners || []).map((partner, pIdx) => {
+                    {(activePartners || []).map((partner: any, pIdx) => {
                       const sharePct = Number(partner.sharePct) || 0;
                       const openingBal = Number(partner.openingBal) || 0;
                       const addition = Number(partner.addition) || 0;
@@ -3471,10 +3843,10 @@ export default function App() {
                       const interestAmt = (partner.interestAmt !== undefined && partner.interestAmt !== null && String(partner.interestAmt) !== '')
                         ? Number(partner.interestAmt)
                         : Math.round((openingBal * (interestRate / 100)) * 100) / 100;
-                      const profitShare = Math.round((modalNetProfit * (sharePct / 100)) * 100) / 100;
-                      const total = openingBal + addition + salary + interestAmt + profitShare;
+                      const profitShare = Number(partner.profitShare) || Math.round((modalNetProfit * (sharePct / 100)) * 100) / 100;
+                      const total = Number(partner.total) || (openingBal + addition + salary + interestAmt + profitShare);
                       const withdrawalsAmt = Number(partner.withdrawalsAmt) || 0;
-                      const closingBal = total - withdrawalsAmt;
+                      const closingBal = Number(partner.closingBal) || (total - withdrawalsAmt);
 
                       return (
                         <div key={partner.id || pIdx} style={{background:'#fff', border:'1px solid #c8dcf0', borderRadius:6, padding:'10px 12px', boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
@@ -3493,14 +3865,14 @@ export default function App() {
                                     partners: f.partners.map((p, i) => i === pIdx ? { ...p, name: val } : p)
                                   }));
                                 }}
-                                placeholder={pIdx === 0 ? "Partner 1 (e.g. SHABBIR S/O YASIN)" : `Partner ${pIdx + 1} (e.g. SHABBIR S/O YASIN)`}
+                                placeholder={`Partner ${pIdx + 1}`}
                               />
                               <div style={{display:'flex', alignItems:'center', gap:4, background:'#f0f7ff', border:'1px solid #cce3f8', borderRadius:4, padding:'2px 6px'}}>
                                 <span style={{fontSize:11, fontWeight:'bold', color:'#333'}}>Share:</span>
                                 <input
                                   type="number"
                                   className="form-input"
-                                  style={{width:55, textAlign:'center', fontWeight:'bold', color:'#1c5282', padding:'2px 4px', height:24}}
+                                  style={{width:45, textAlign:'center', fontSize:11, padding:'2px 4px'}}
                                   value={partner.sharePct}
                                   onChange={e => {
                                     const val = parseFloat(e.target.value) || 0;
@@ -3509,27 +3881,13 @@ export default function App() {
                                       partners: f.partners.map((p, i) => i === pIdx ? { ...p, sharePct: val } : p)
                                     }));
                                   }}
-                                  placeholder="%"
                                 />
-                                <span style={{fontSize:11, fontWeight:'bold'}}>%</span>
+                                <span style={{fontSize:11, fontWeight:'bold', color:'#555'}}>%</span>
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFinalBSForm(f => ({
-                                  ...f,
-                                  partners: f.partners.filter((_, i) => i !== pIdx)
-                                }));
-                              }}
-                              style={{background:'none', border:'none', color:'#d93025', fontSize:16, cursor:'pointer', padding:'0 6px', fontWeight:'bold'}}
-                              title="Delete Partner"
-                            >
-                              ✕
-                            </button>
                           </div>
 
-                          <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:8, fontSize:11}}>
+                          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))', gap:8, fontSize:11}}>
                             <div>
                               <label style={{color:'#666', display:'block', marginBottom:2, fontSize:10, fontWeight:'600'}}>Opening Bal (₹)</label>
                               <input
@@ -3579,19 +3937,13 @@ export default function App() {
                               />
                             </div>
                             <div>
-                              <label style={{color:'#666', display:'block', marginBottom:2, fontSize:10, fontWeight:'600'}}>Interest @ 12% (₹)</label>
+                              <label style={{color:'#666', display:'block', marginBottom:2, fontSize:10, fontWeight:'600'}}>Interest (₹)</label>
                               <input
                                 type="number"
                                 className="form-input"
                                 style={{width:'100%', fontSize:11}}
-                                value={partner.interestAmt !== undefined ? partner.interestAmt : interestAmt}
-                                onChange={e => {
-                                  const val = e.target.value === '' ? undefined : parseFloat(e.target.value) || 0;
-                                  setFinalBSForm(f => ({
-                                    ...f,
-                                    partners: f.partners.map((p, i) => i === pIdx ? { ...p, interestAmt: val } : p)
-                                  }));
-                                }}
+                                value={interestAmt}
+                                readOnly
                               />
                             </div>
                             <div>
@@ -3633,10 +3985,10 @@ export default function App() {
               <div style={{background:'#f6fff6', border:'1px solid #b2dfb2', borderRadius:6, padding:'10px 14px', fontSize:12, color:'#2a6a2a', marginBottom:16}}>
                 📋 <b>Exported Excel Features (4 Comprehensive CA Statements):</b>
                 <ul style={{margin:'4px 0 0 16px', padding:0, lineHeight:1.6}}>
-                  <li><b>Sheet 1: Balance Sheet</b> — Liabilities & Assets with Annexure "A" (Capital) & Annexure "B" (Fixed Assets) links</li>
-                  <li><b>Sheet 2: Profit & Loss</b> — Trading Account + P&L with Gross & Net Profit</li>
+                  <li><b>Sheet 1: {isProvisional ? 'PROV. ' : ''}Balance Sheet</b> — Liabilities & Assets with Annexure "A" (Capital) & Annexure "B" (Fixed Assets) links</li>
+                  <li><b>Sheet 2: {isProvisional ? 'PROV. ' : ''}Profit & Loss</b> — Trading Account + P&L + Partner Appropriation with Gross & Net Profit</li>
                   <li><b>Sheet 3: Annexure "A" (Partners Capital Account)</b> — Detailed partner statement, % profit distribution, salary, interest, withdrawals & closing balances</li>
-                  <li><b>Sheet 4: Annexure "B" (Fixed Assets Schedule)</b> — Fixed assets with Opening, Additions before/after 30.09, Depreciation & Closing balances</li>
+                  <li><b>Sheet 4: Annexure "B" (Fixed Assets Schedule)</b> — Fixed assets with Opening, Additions, Depreciation & Closing balances</li>
                 </ul>
               </div>
 
@@ -3652,9 +4004,18 @@ export default function App() {
                   className="btn btn-primary" 
                   onClick={handleFinalBSExport}
                   disabled={finalBSExporting}
-                  style={{background:'#1a7a4a', color:'#fff', fontWeight:'bold', display:'flex', alignItems:'center', gap:6}}
+                  style={{
+                    background: isProvisional ? 'linear-gradient(135deg, #059669, #10b981)' : '#1a7a4a',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
                 >
-                  {finalBSExporting ? '⏳ Generating Excel...' : '📊 Download CA Excel (4 Sheets)'}
+                  {finalBSExporting 
+                    ? '⏳ Generating Excel...' 
+                    : (isProvisional ? '📊 Download PROV. CA Excel (4 Sheets)' : '📊 Download CA Excel (4 Sheets)')}
                 </button>
               </div>
             </div>

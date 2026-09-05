@@ -269,13 +269,51 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     });
 
     // ─── Calculate Balance Sheet Data ─────────────────────────────────
-    const capitalItems      = buildLiabSection(ledgers, CAPITAL_GROUPS,        bsVouchers);
-    const securedItems      = buildLiabSection(ledgers, SECURED_LOAN_GROUPS,   bsVouchers);
-    const unsecuredItems    = buildLiabSection(ledgers, UNSECURED_LOAN_GROUPS, bsVouchers);
-    const currLiabItems     = buildLiabSection(ledgers, CURRENT_LIAB_GROUPS,   bsVouchers);
-    const fixedAssetItems   = buildAssetSection(ledgers, FIXED_ASSET_GROUPS,   bsVouchers);
-    const investmentItems   = buildAssetSection(ledgers, INVESTMENT_GROUPS,    bsVouchers);
-    const currAssetItems    = buildAssetSection(ledgers, CURRENT_ASSET_GROUPS, bsVouchers);
+    let capitalItems      = buildLiabSection(ledgers, CAPITAL_GROUPS,        bsVouchers);
+    let securedItems      = buildLiabSection(ledgers, SECURED_LOAN_GROUPS,   bsVouchers);
+    let unsecuredItems    = buildLiabSection(ledgers, UNSECURED_LOAN_GROUPS, bsVouchers);
+    let currLiabItems     = buildLiabSection(ledgers, CURRENT_LIAB_GROUPS,   bsVouchers);
+    let fixedAssetItems   = buildAssetSection(ledgers, FIXED_ASSET_GROUPS,   bsVouchers);
+    let investmentItems   = buildAssetSection(ledgers, INVESTMENT_GROUPS,    bsVouchers);
+    let currAssetItems    = buildAssetSection(ledgers, CURRENT_ASSET_GROUPS, bsVouchers);
+
+    // ─── Calculate P&L Data ────────────────────────────────────────────
+    const stockLedgers      = ledgers.filter(l => STOCK_GROUPS.includes(l.groupName));
+    let openingStock      = stockLedgers.reduce((s, l) => {
+      const ob = l.openingBal ?? 0;
+      return s + (l.balanceType === 'Dr' ? ob : -ob);
+    }, 0);
+    let closingStock      = stockLedgers.reduce((s, l) => {
+      const { balance, type } = getLedgerBalance(l, plVouchers);
+      return s + (type === 'Dr' ? balance : -balance);
+    }, 0);
+
+    let salesItems        = buildIncome(ledgers, SALES_GROUPS,        plVouchers);
+    let purchaseItems     = buildExpense(ledgers, PURCHASE_GROUPS,    plVouchers);
+    let directExpItems    = buildExpense(ledgers, DIRECT_EXP_GROUPS,  plVouchers);
+    let indirectExpItems  = buildExpense(ledgers, INDIRECT_EXP_GROUPS,plVouchers);
+    let indirectIncItems  = buildIncome(ledgers, INDIRECT_INC_GROUPS, plVouchers);
+
+    // If client supplied projected data (from interactive projection mode), use it
+    const proj = postBody?.projectedData;
+    if (proj) {
+      if (proj.capitalItems && Array.isArray(proj.capitalItems)) capitalItems = proj.capitalItems;
+      if (proj.securedItems && Array.isArray(proj.securedItems)) securedItems = proj.securedItems;
+      if (proj.unsecuredItems && Array.isArray(proj.unsecuredItems)) unsecuredItems = proj.unsecuredItems;
+      if (proj.currLiabItems && Array.isArray(proj.currLiabItems)) currLiabItems = proj.currLiabItems;
+      if (proj.fixedAssetItems && Array.isArray(proj.fixedAssetItems)) fixedAssetItems = proj.fixedAssetItems;
+      if (proj.investmentItems && Array.isArray(proj.investmentItems)) investmentItems = proj.investmentItems;
+      if (proj.currAssetItems && Array.isArray(proj.currAssetItems)) currAssetItems = proj.currAssetItems;
+
+      if (proj.salesItems && Array.isArray(proj.salesItems)) salesItems = proj.salesItems;
+      if (proj.purchaseItems && Array.isArray(proj.purchaseItems)) purchaseItems = proj.purchaseItems;
+      if (proj.directExpItems && Array.isArray(proj.directExpItems)) directExpItems = proj.directExpItems;
+      if (proj.indirectExpItems && Array.isArray(proj.indirectExpItems)) indirectExpItems = proj.indirectExpItems;
+      if (proj.indirectIncItems && Array.isArray(proj.indirectIncItems)) indirectIncItems = proj.indirectIncItems;
+
+      if (proj.openingStock !== undefined) openingStock = Number(proj.openingStock);
+      if (proj.closingStock !== undefined) closingStock = Number(proj.closingStock);
+    }
 
     const capitalTotal      = sum(capitalItems);
     const securedTotal      = sum(securedItems);
@@ -285,23 +323,6 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     const fixedAssetTotal   = sum(fixedAssetItems);
     const investmentTotal   = sum(investmentItems);
     const currAssetTotal    = sum(currAssetItems);
-
-    // ─── Calculate P&L Data ────────────────────────────────────────────
-    const stockLedgers      = ledgers.filter(l => STOCK_GROUPS.includes(l.groupName));
-    const openingStock      = stockLedgers.reduce((s, l) => {
-      const ob = l.openingBal ?? 0;
-      return s + (l.balanceType === 'Dr' ? ob : -ob);
-    }, 0);
-    const closingStock      = stockLedgers.reduce((s, l) => {
-      const { balance, type } = getLedgerBalance(l, plVouchers);
-      return s + (type === 'Dr' ? balance : -balance);
-    }, 0);
-
-    const salesItems        = buildIncome(ledgers, SALES_GROUPS,        plVouchers);
-    const purchaseItems     = buildExpense(ledgers, PURCHASE_GROUPS,    plVouchers);
-    const directExpItems    = buildExpense(ledgers, DIRECT_EXP_GROUPS,  plVouchers);
-    const indirectExpItems  = buildExpense(ledgers, INDIRECT_EXP_GROUPS,plVouchers);
-    const indirectIncItems  = buildIncome(ledgers, INDIRECT_INC_GROUPS, plVouchers);
 
     const salesTotal        = sum(salesItems);
     const purchaseTotal     = sum(purchaseItems);
@@ -321,7 +342,10 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     );
 
     // ─── Calculate Partners Capital Account (Annexure A) ─────────────
-    let partnersList: any[] = inputPartners;
+    let partnersList: any[] = (proj?.partners && Array.isArray(proj.partners) && proj.partners.length > 0)
+      ? proj.partners
+      : inputPartners;
+
     if (!partnersList || partnersList.length === 0) {
       const capLedgers = ledgers.filter(l => CAPITAL_GROUPS.includes(l.groupName) && l.name !== 'Profit & Loss A/c');
       if (capLedgers.length > 0) {
@@ -425,8 +449,28 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     // Totals linked with Annexures if generated
     const effectiveCapitalTotal = annexAClosingTotal !== 0 ? annexAClosingTotal : capitalTotal;
     const effectiveFixedAssetTotal = annexBClosingTotal !== 0 ? annexBClosingTotal : fixedAssetTotal;
-    const totalLiab = effectiveCapitalTotal + securedTotal + unsecuredTotal + currLiabTotal;
-    const totalAssets = effectiveFixedAssetTotal + investmentTotal + currAssetTotal;
+    let totalLiab = effectiveCapitalTotal + securedTotal + unsecuredTotal + currLiabTotal;
+    let totalAssets = effectiveFixedAssetTotal + investmentTotal + currAssetTotal;
+
+    const isProvisional = postBody?.reportMode === 'provisional' || searchParams.get('reportMode') === 'provisional' || postBody?.isProvisional || searchParams.get('isProvisional') === 'true';
+    const isProjected   = postBody?.reportMode === 'projected'   || searchParams.get('reportMode') === 'projected';
+    const titlePrefix   = isProvisional ? 'PROV. ' : isProjected ? 'PROJECTED ' : '';
+
+    if (isProvisional || isProjected) {
+      // In CA provisional statements, ensure totalAssets balances totalLiab exactly
+      const diff = Math.round((totalLiab - totalAssets) * 100) / 100;
+      if (Math.abs(diff) > 0.001) {
+        const cashItem = currAssetItems.find(i => i.name.toLowerCase().includes('cash'));
+        if (cashItem) {
+          cashItem.amount = Math.round((cashItem.amount + diff) * 100) / 100;
+        } else if (currAssetItems.length > 0) {
+          currAssetItems[0].amount = Math.round((currAssetItems[0].amount + diff) * 100) / 100;
+        } else {
+          currAssetItems.push({ name: 'Cash in hand', amount: Math.max(0, diff) });
+        }
+        totalAssets = effectiveFixedAssetTotal + investmentTotal + sum(currAssetItems);
+      }
+    }
 
     // ─── Create Workbook ───────────────────────────────────────────────
     const wb = new ExcelJS.Workbook();
@@ -450,9 +494,9 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     ];
 
     let bsRow = 1;
-    const bsDateStr = asOnDate
-      ? new Date(asOnDate).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
-      : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const bsDateStr = parsedAsOn 
+      ? formatDotDate(parsedAsOn) 
+      : (asOnDate ? (asOnDate.includes('.') ? asOnDate : formatDotDate(parseReportDate(asOnDate, true))) : (toDateObj ? formatDotDate(toDateObj) : '31.03.2026'));
 
     // Header
     const addBSHeader = (text: string, bold = true, size = 11) => {
@@ -466,7 +510,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
 
     addBSHeader((company.mailingName || company.name).toUpperCase(), true, 13);
     if (company.address) addBSHeader(company.address.toUpperCase(), false, 10);
-    addBSHeader(`BALANCE SHEET AS ON ${bsDateStr}`, true, 11);
+    addBSHeader(`${titlePrefix}BALANCE SHEET AS ON ${bsDateStr}`, true, 11);
 
     // Empty row
     bsRow++;
@@ -643,8 +687,12 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     ];
 
     let plRow = 1;
-    const fromStr = fromDate || (company.financialYearStart ? new Date(company.financialYearStart).toLocaleDateString('en-IN') : '01-Apr-2025');
-    const toStr   = toDate || (asOnDate ? new Date(asOnDate).toLocaleDateString('en-IN') : '31-Mar-2026');
+    const plFromStr = fromDateObj 
+      ? formatDotDate(fromDateObj) 
+      : (fromDate ? (fromDate.includes('.') ? fromDate : formatDotDate(parseReportDate(fromDate, false))) : '01.04.2025');
+    const plToStr = toDateObj 
+      ? formatDotDate(toDateObj) 
+      : (toDate ? (toDate.includes('.') ? toDate : formatDotDate(parseReportDate(toDate, true))) : '31.03.2026');
 
     const addPLHeader = (text: string, bold = true, size = 11) => {
       const r = wsPL.getRow(plRow);
@@ -657,7 +705,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
 
     addPLHeader((company.mailingName || company.name).toUpperCase(), true, 13);
     if (company.address) addPLHeader(company.address.toUpperCase(), false, 10);
-    addPLHeader(`TRADING AND PROFIT & LOSS ACCOUNT FOR THE YEAR ENDED ${toStr}`, true, 11);
+    addPLHeader(`${titlePrefix}TRADING, PROFIT & LOSS ACCOUNT FROM ${plFromStr} TO ${plToStr}`, true, 11);
 
     plRow++;
 
@@ -771,6 +819,43 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     plRow++;
     addPLDataRow('', null, false, '', null, false);
 
+    // ── APPROPRIATION SECTION (For Partnership firms / Annexure A) ─────
+    if (signatoryTitle === 'PARTNER' && calculatedPartners.length > 0) {
+      const totInterest = calculatedPartners.reduce((s, p) => s + (p.interestAmt || 0), 0);
+      const totSalary   = calculatedPartners.reduce((s, p) => s + (p.salary || 0), 0);
+      const totProfitCd = calculatedPartners.reduce((s, p) => s + (p.profitShare || 0), 0);
+      const appropriationTotal = totInterest + totSalary + totProfitCd;
+
+      addPLDataRow(
+        'To Interest on Capital', totInterest, false,
+        'To Net Profit tfd. to Capital A/c', netProfit, false
+      );
+      addPLDataRow(
+        'To Salary to partner', totSalary, false,
+        '', null, false
+      );
+      addPLDataRow(
+        'To Net Profit C/d', totProfitCd, false,
+        '', null, false
+      );
+      addPLDataRow(
+        '(Transfeered to Capital A/c)', null, false,
+        '', null, false
+      );
+
+      // Appropriation Total row
+      const appTotalR = wsPL.getRow(plRow);
+      ['TOTAL RS.', fmt(appropriationTotal), 'TOTAL RS.', fmt(netProfit)].forEach((v, i) => {
+        const cell = appTotalR.getCell(i + 1);
+        cell.value = v;
+        cell.font = { bold: true, name: 'Arial', size: 10 };
+        cell.border = { top: { style: 'thin' }, bottom: { style: 'double' } };
+        cell.alignment = i % 2 === 0 ? { horizontal: 'left' } : { horizontal: 'right' };
+      });
+      plRow++;
+      addPLDataRow('', null, false, '', null, false);
+    }
+
     // Signatures in P&L
     const compiledPLR = wsPL.getRow(plRow);
     compiledPLR.getCell(1).value = 'compiled on the basis of information provided to us';
@@ -865,7 +950,8 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     // Row 3: Title
     const aR3 = wsAnnexA.getRow(3);
     const endDateOrdinal = toDateObj ? formatOrdinalDate(toDateObj) : '31ST MARCH 2026';
-    aR3.getCell(1).value = `ESTIMATED STATEMENT OF PARTNERS CAPITAL ACCOUNT FOR THE YEAR ENDED ${endDateOrdinal}`;
+    const annexAPrefix = isProvisional ? 'PROV. ' : isProjected ? 'ESTIMATED ' : '';
+    aR3.getCell(1).value = `${annexAPrefix}STATEMENT OF PARTNERS CAPITAL ACCOUNT FOR THE YEAR ENDED ${endDateOrdinal}`;
     aR3.getCell(1).font = { bold: true, underline: true, name: 'Arial', size: 11 };
     wsAnnexA.mergeCells(3, 1, 3, 12);
 
@@ -1070,7 +1156,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
 
     // Row 1: Fixed Assets
     const bR1 = wsAnnexB.getRow(1);
-    bR1.getCell(1).value = 'Fixed Assets';
+    bR1.getCell(1).value = isProvisional ? 'PROV. Fixed Assets' : (isProjected ? 'ESTIMATED Fixed Assets' : 'Fixed Assets');
     bR1.getCell(1).font = { bold: true, name: 'Arial', size: 11 };
     bR1.getCell(1).alignment = { horizontal: 'center' };
     wsAnnexB.mergeCells(1, 1, 1, 6);
@@ -1197,7 +1283,8 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     // ─── Output Excel ──────────────────────────────────────────────────
     const buffer = await wb.xlsx.writeBuffer();
     const companySlug = (company.name || 'company').replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `${companySlug}_FinancialStatements_CA_Format.xlsx`;
+    const prefixSlug = isProvisional ? 'PROV_' : (isProjected ? 'PROJECTED_' : '');
+    const fileName = `${companySlug}_${prefixSlug}FinancialStatements_CA_Format.xlsx`;
 
     return new NextResponse(buffer, {
       status: 200,
