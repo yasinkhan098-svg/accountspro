@@ -397,7 +397,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
           const interestRate = p.interestRate !== undefined ? Number(p.interestRate) : 12;
           const interestAmt = (p.interestAmt !== undefined && p.interestAmt !== '' && p.interestAmt !== null)
             ? Number(p.interestAmt)
-            : Math.round((openingBal * (interestRate / 100)) * 100) / 100;
+            : Math.round(openingBal * (interestRate / 100));
           const profitShare = Math.round((netProfit * (sharePct / 100)) * 100) / 100;
           const total = openingBal + addition + salary + interestAmt + profitShare;
           const withdrawalsAmt = Number(p.withdrawalsAmt || 0);
@@ -978,7 +978,8 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     // Row 3: Title
     const aR3 = wsAnnexA.getRow(3);
     const endDateOrdinal = toDateObj ? formatOrdinalDate(toDateObj) : '31ST MARCH 2026';
-    const annexAPrefix = isProvisional ? 'PROV. ' : isProjected ? 'ESTIMATED ' : '';
+    const isMultiYearProjected = isProjected || (projectedData?.yearNumber && projectedData.yearNumber > 1);
+    const annexAPrefix = isMultiYearProjected ? 'PROJECTED ' : (isProvisional ? 'ESTIMATED ' : '');
     aR3.getCell(1).value = `${annexAPrefix}STATEMENT OF PARTNERS CAPITAL ACCOUNT FOR THE YEAR ENDED ${endDateOrdinal}`;
     aR3.getCell(1).font = { bold: true, underline: true, name: 'Arial', size: 11 };
     wsAnnexA.mergeCells(3, 1, 3, 12);
@@ -1182,9 +1183,9 @@ async function generateExcelResponse(req: Request, postBody?: any) {
       { key: 'F', width: 18 },  // Closing Balance
     ];
 
-    // Row 1: Fixed Assets
+    // Row 1: Fixed Assets (Images 4a & 7a CA Format)
     const bR1 = wsAnnexB.getRow(1);
-    bR1.getCell(1).value = isProvisional ? 'PROV. Fixed Assets' : (isProjected ? 'ESTIMATED Fixed Assets' : 'Fixed Assets');
+    bR1.getCell(1).value = 'Fixed Assets';
     bR1.getCell(1).font = { bold: true, name: 'Arial', size: 11 };
     bR1.getCell(1).alignment = { horizontal: 'center' };
     wsAnnexB.mergeCells(1, 1, 1, 6);

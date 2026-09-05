@@ -512,20 +512,21 @@ export function generateProvisionalProjections(
     // 9. Net Profit
     const projNetProfit = r2(projGrossProfit + projIndirectIncTotal - projIndirectExpTotal);
 
-    // 10. Partners Capital Appropriation (Annexure A)
+    // 10. Partners Capital Appropriation (Annexure A — 3a vs 8a)
     const prevClosingCapital = currentBase.capitalTotal;
     const drawingsGrowth = 1 + ((config.drawingsGrowthPct ?? 28.99) / 100);
     const targetInterestRate = config.interestRatePct !== undefined ? config.interestRatePct : 8.0;
 
     const projPartners: PartnerItem[] = currentBase.partners.map(p => {
       const sPct = Number(p.sharePct) || 0;
-      // Opening Capital of Year t is exactly Closing Balance of Year t-1
+      // Opening Capital of Year t is exactly Closing Balance of Year t-1 (Image 3a -> 8a)
       const oBal = r2(p.closingBal !== undefined ? p.closingBal : (prevClosingCapital * (sPct / 100)));
       const addn = 0;
       // Partner salary remains fixed as per deed
       const sal  = Number(p.salary) || 0;
       const iRate = config.interestRatePct !== undefined ? config.interestRatePct : (p.interestRate !== undefined ? p.interestRate : targetInterestRate);
-      const iAmt = r2(oBal * (iRate / 100));
+      // CA standard: Interest on capital rounded to nearest rupee as in Image 3a and 8a
+      const iAmt = Math.round(oBal * (iRate / 100));
       const wAmt = r2((Number(p.withdrawalsAmt) || 0) * drawingsGrowth);
       return {
         id: p.id,
@@ -546,11 +547,42 @@ export function generateProvisionalProjections(
 
     const totalInterest = r2(projPartners.reduce((s, p) => s + (p.interestAmt || 0), 0));
     const totalSalary   = r2(projPartners.reduce((s, p) => s + (p.salary || 0), 0));
-    const residualNetProfit = r2(projNetProfit - totalInterest - totalSalary);
+
+    // Ensure Partner Interest & Salary are reflected in Indirect Expenses as in CA P&L (Image 6a)
+    let finalIndirectExpItems = [...projIndirectExpItems];
+    const hasPartnerInt = finalIndirectExpItems.some(i => i.name.toLowerCase().includes('partner') && (i.name.toLowerCase().includes('int') || i.name.toLowerCase().includes('interest')));
+    const hasPartnerSal = finalIndirectExpItems.some(i => i.name.toLowerCase().includes('partner') && (i.name.toLowerCase().includes('salary') || i.name.toLowerCase().includes('remun')));
+
+    if (totalInterest > 0) {
+      if (hasPartnerInt) {
+        finalIndirectExpItems = finalIndirectExpItems.map(i =>
+          (i.name.toLowerCase().includes('partner') && (i.name.toLowerCase().includes('int') || i.name.toLowerCase().includes('interest')))
+            ? { ...i, name: `To Intt to Partners @ ${targetInterestRate}%`, amount: totalInterest }
+            : i
+        );
+      } else {
+        finalIndirectExpItems.push({ name: `To Intt to Partners @ ${targetInterestRate}%`, amount: totalInterest });
+      }
+    }
+    if (totalSalary > 0) {
+      if (hasPartnerSal) {
+        finalIndirectExpItems = finalIndirectExpItems.map(i =>
+          (i.name.toLowerCase().includes('partner') && (i.name.toLowerCase().includes('salary') || i.name.toLowerCase().includes('remun')))
+            ? { ...i, amount: totalSalary }
+            : i
+        );
+      } else {
+        finalIndirectExpItems.push({ name: 'To Salary to Partners', amount: totalSalary });
+      }
+    }
+
+    const finalIndirectExpTotal = r2(sum(finalIndirectExpItems));
+    // In CA format (Image 6a), Net Profit c/d is the residual profit transferred to partners
+    const finalNetProfit = r2(projGrossProfit + projIndirectIncTotal - finalIndirectExpTotal);
 
     let calculatedClosingCapital = 0;
     projPartners.forEach(p => {
-      p.profitShare = r2(residualNetProfit * (p.sharePct / 100));
+      p.profitShare = r2(finalNetProfit * (p.sharePct / 100));
       p.total = r2(p.openingBal + p.addition + p.salary + (p.interestAmt || 0) + p.profitShare);
       p.closingBal = r2(p.total - p.withdrawalsAmt);
       calculatedClosingCapital += p.closingBal;
@@ -670,11 +702,11 @@ export function generateProvisionalProjections(
       directExpItems: projDirectExpItems,
       directExpTotal: projDirectExpTotal,
       grossProfit: projGrossProfit,
-      indirectExpItems: projIndirectExpItems,
-      indirectExpTotal: projIndirectExpTotal,
+      indirectExpItems: finalIndirectExpItems,
+      indirectExpTotal: finalIndirectExpTotal,
       indirectIncItems: projIndirectIncItems,
       indirectIncTotal: projIndirectIncTotal,
-      netProfit: projNetProfit,
+      netProfit: finalNetProfit,
       capitalItems: projCapitalItems,
       capitalTotal: projCapitalTotal,
       securedItems: projSecuredItems,

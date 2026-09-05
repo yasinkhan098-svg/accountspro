@@ -3291,7 +3291,7 @@ export default function App() {
         const totalPartnerClosing = (activePartners || []).reduce((s, p: any) => {
           const cBal = p.closingBal !== undefined ? p.closingBal : (
             (Number(p.openingBal) || 0) + (Number(p.addition) || 0) + (Number(p.salary) || 0) +
-            (p.interestAmt !== undefined ? Number(p.interestAmt) : Math.round((Number(p.openingBal) || 0) * (Number(p.interestRate ?? 12) / 100) * 100) / 100) +
+            (p.interestAmt !== undefined ? Number(p.interestAmt) : Math.round((Number(p.openingBal) || 0) * (Number(p.interestRate ?? 12) / 100))) +
             Math.round((modalNetProfit * ((Number(p.sharePct) || 0) / 100)) * 100) / 100 -
             (Number(p.withdrawalsAmt) || 0)
           );
@@ -3910,7 +3910,7 @@ export default function App() {
                       const interestRate = partner.interestRate !== undefined ? Number(partner.interestRate) : 12;
                       const interestAmt = (partner.interestAmt !== undefined && partner.interestAmt !== null && String(partner.interestAmt) !== '')
                         ? Number(partner.interestAmt)
-                        : Math.round((openingBal * (interestRate / 100)) * 100) / 100;
+                        : Math.round(openingBal * (interestRate / 100));
                       const profitShare = Number(partner.profitShare) || Math.round((modalNetProfit * (sharePct / 100)) * 100) / 100;
                       const total = Number(partner.total) || (openingBal + addition + salary + interestAmt + profitShare);
                       const withdrawalsAmt = Number(partner.withdrawalsAmt) || 0;
