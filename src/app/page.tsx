@@ -9314,7 +9314,12 @@ function BalanceSheetView({
   ];
 
   // Groups that appear as ONE aggregate line → Enter drills to GroupSummary (shows all members)
-  const AGGREGATE_GROUPS = new Set(['Sundry Creditors', 'Sundry Debtors', 'Cash-in-hand', 'Bank Accounts']);
+  const AGGREGATE_GROUPS = new Set([
+    'Capital Account', 'Reserves & Surplus', 'Retained Earnings', // Capital section
+    'Sundry Creditors', 'Sundry Debtors',                         // Party groups
+    'Duties & Taxes',                                             // CGST/SGST/IGST
+    'Cash-in-hand', 'Bank Accounts',                              // Cash & Bank
+  ]);
 
   // Case-insensitive lookup helper — grp keys come from DB so may differ in case
   const grpKeys = Object.keys(grp);
