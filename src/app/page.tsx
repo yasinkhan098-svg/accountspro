@@ -9313,31 +9313,53 @@ function BalanceSheetView({
     { title: 'CURRENT ASSETS',     groups: ['Stock-in-hand','Sundry Debtors','Cash-in-hand','Bank Accounts','Current Assets','Loans & Advances (Asset)'] },
   ];
 
+  // Groups that appear as ONE aggregate line → Enter drills to GroupSummary (shows all members)
+  const AGGREGATE_GROUPS = new Set(['Sundry Creditors', 'Sundry Debtors']);
+
+  // Case-insensitive lookup helper — grp keys come from DB so may differ in case
+  const grpKeys = Object.keys(grp);
+  const findGrpItems = (groupName: string) => {
+    // Exact match first
+    if (grp[groupName]) return { key: groupName, items: grp[groupName] };
+    // Case-insensitive fallback
+    const lower = groupName.toLowerCase();
+    const actualKey = grpKeys.find(k => k.toLowerCase() === lower);
+    if (actualKey) return { key: actualKey, items: grp[actualKey] };
+    return { key: groupName, items: [] };
+  };
+
   const buildSectionedSide = (sections: {title:string;groups:string[]}[]): BSRow[] => {
     const rows: BSRow[] = [];
     for (const sec of sections) {
-      // Collect all individual ledgers across all groups in this section
-      const ledgerLines: {name:string; amount:number; id:number; groupName:string}[] = [];
+      const sectionRows: BSRow[] = [];
+
       for (const gn of sec.groups) {
-        const items = (grp[gn]||[]).filter(x=>x.balance!==0);
-        for (const item of items) {
-          ledgerLines.push({
-            name: item.ledger.name,
-            amount: Math.abs(item.balance),
-            id: item.ledger.id,
-            groupName: gn,
-          });
+        const { key: actualKey, items: allItems } = findGrpItems(gn);
+        const items = allItems.filter(x => Math.abs(x.balance) > 0.001);
+        if (!items.length) continue;
+
+        if (AGGREGATE_GROUPS.has(gn)) {
+          // Show as ONE drillable group-header line with total → GroupSummary
+          const total = items.reduce((s, x) => s + Math.abs(x.balance), 0);
+          sectionRows.push({type:'group-header', name:gn, amount:total, groupName:actualKey});
+        } else {
+          // Show individual ledger names → LedgerReport
+          for (const item of items) {
+            sectionRows.push({
+              type: 'ledger',
+              name: item.ledger.name,
+              amount: Math.abs(item.balance),
+              id: item.ledger.id,
+              groupName: actualKey,
+            });
+          }
         }
       }
-      if (ledgerLines.length === 0) continue; // skip fully empty sections
-      const secTotal = ledgerLines.reduce((s,x)=>s+x.amount, 0);
-      // Section heading (bold+underline, visual only)
+
+      if (sectionRows.length === 0) continue; // skip empty sections
+      const secTotal = sectionRows.reduce((s, r) => s + (r.amount||0), 0);
       rows.push({type:'section-header', name:sec.title});
-      // Individual ledger rows — drillable to LedgerReport on Enter/click
-      for (const l of ledgerLines) {
-        rows.push({type:'ledger', name:l.name, amount:l.amount, id:l.id, groupName:l.groupName});
-      }
-      // Section total
+      rows.push(...sectionRows);
       rows.push({type:'section-total', name:'', amount:secTotal});
       rows.push({type:'blank', name:''});
     }
