@@ -9316,23 +9316,28 @@ function BalanceSheetView({
   const buildSectionedSide = (sections: {title:string;groups:string[]}[]): BSRow[] => {
     const rows: BSRow[] = [];
     for (const sec of sections) {
-      // Compute per-group totals within this section
-      const groupLines: {groupName:string; total:number}[] = [];
+      // Collect all individual ledgers across all groups in this section
+      const ledgerLines: {name:string; amount:number; id:number; groupName:string}[] = [];
       for (const gn of sec.groups) {
         const items = (grp[gn]||[]).filter(x=>x.balance!==0);
-        if (!items.length) continue;
-        const total = items.reduce((s,x)=>s+Math.abs(x.balance), 0);
-        groupLines.push({groupName:gn, total});
+        for (const item of items) {
+          ledgerLines.push({
+            name: item.ledger.name,
+            amount: Math.abs(item.balance),
+            id: item.ledger.id,
+            groupName: gn,
+          });
+        }
       }
-      if (groupLines.length === 0) continue; // skip empty sections
-      const secTotal = groupLines.reduce((s,g)=>s+g.total, 0);
-      // Section heading row (bold+underline, not individually drillable)
+      if (ledgerLines.length === 0) continue; // skip fully empty sections
+      const secTotal = ledgerLines.reduce((s,x)=>s+x.amount, 0);
+      // Section heading (bold+underline, visual only)
       rows.push({type:'section-header', name:sec.title});
-      // One drillable group-header row per sub-group (Enter → GroupSummary)
-      for (const gl of groupLines) {
-        rows.push({type:'group-header', name:gl.groupName, amount:gl.total, groupName:gl.groupName});
+      // Individual ledger rows — drillable to LedgerReport on Enter/click
+      for (const l of ledgerLines) {
+        rows.push({type:'ledger', name:l.name, amount:l.amount, id:l.id, groupName:l.groupName});
       }
-      // Section total line
+      // Section total
       rows.push({type:'section-total', name:'', amount:secTotal});
       rows.push({type:'blank', name:''});
     }
