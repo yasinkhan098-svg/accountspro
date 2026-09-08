@@ -455,21 +455,38 @@ function groupLedgersByParent(ledgers: Ledger[], vouchers: Voucher[]) {
   return groups;
 }
 
+const isGenericAc = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales', 'purchase a/c', 'purchase a/c.', 'purchase ac', 'purchase', 'cash', 'cash-in-hand'].includes(s.trim().toLowerCase());
+
 function getVoucherPartyDisplayName(v: Voucher | null | undefined): string {
   if (!v) return '-';
-  const isSalesOrPurchaseAc = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales', 'purchase a/c', 'purchase a/c.', 'purchase ac', 'purchase'].includes(s.trim().toLowerCase());
 
   const pd = v.partyDetails;
-  if (pd?.buyerName && !isSalesOrPurchaseAc(pd.buyerName)) return pd.buyerName;
-  if (pd?.buyerMailingName && !isSalesOrPurchaseAc(pd.buyerMailingName)) return pd.buyerMailingName;
-  if (v.partyName && !isSalesOrPurchaseAc(v.partyName)) return v.partyName;
 
+  // 1. If v.partyName is a real party name (not Cash and not Sales/Purchase A/c), that is the party!
+  if (v.partyName && !isGenericAc(v.partyName)) return v.partyName;
+
+  // 2. If partyName is Cash/generic, check partyDetails for buyer/supplier name
+  if (pd?.buyerName && !isGenericAc(pd.buyerName)) return pd.buyerName;
+  if (pd?.buyerMailingName && !isGenericAc(pd.buyerMailingName)) return pd.buyerMailingName;
+
+  // 3. Check entries for any non-generic, non-tax, non-roundoff ledger
   const partyEnt = (v.entries || []).find((e: any) => {
     const name = e.ledgerName || e.ledger?.name || '';
-    return !isSalesOrPurchaseAc(name) && !name.includes('GST Payable') && name !== 'Round Off';
+    return !isGenericAc(name) && !name.includes('GST Payable') && name !== 'Round Off';
   });
-  return partyEnt?.ledgerName || (v.partyName && !isSalesOrPurchaseAc(v.partyName) ? v.partyName : '-') || '-';
+  if (partyEnt) return partyEnt.ledgerName || (partyEnt as any).ledger?.name || '';
+
+  // 4. Fallback to partyName or Cash
+  if (v.partyName && v.partyName.trim()) return v.partyName;
+  return 'Cash';
 }
+
+const formatDateToTally = (d: string | Date | null | undefined): string => {
+  if (!d) return '';
+  const dt = parseDate(d);
+  if (isNaN(dt.getTime()) || dt.getFullYear() < 1971) return String(d);
+  return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+};
 
 // ==================== MAIN APP ====================
 const parseDate = (d: string | Date | null | undefined): Date => {
@@ -1155,11 +1172,13 @@ export default function App() {
                     showInclTax: ie.stockItem?.showInclTax ?? false,
                     showAmtInclTax: ie.stockItem?.showAmtInclTax ?? false,
                   })),
-                partyName: v.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party',
+                partyName: (v.partyName && !isGenericAc(v.partyName))
+                  ? v.partyName 
+                  : (partyEntry?.ledger?.name || partyEntry?.ledgerName || (v.partyDetails?.buyerName && !isGenericAc(v.partyDetails.buyerName) ? v.partyDetails.buyerName : (v.partyName || 'Cash'))),
                 partyId: v.partyId || partyEntry?.ledgerId || partyEntry?.ledger?.id || 0,
                 number: v.number || computedNumber,
                 total: v.total || computedTotal,
-                date: new Date(v.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+                date: formatDateToTally(v.date) || v.date
               };
             });
             return [...others, ...localOnly, ...mapped];
@@ -1829,8 +1848,8 @@ export default function App() {
           }),
           partyDetails: typeof vRaw.partyDetails === 'string' ? JSON.parse(vRaw.partyDetails) : (vRaw.partyDetails || v.partyDetails),
           dispatchDetails: typeof vRaw.dispatchDetails === 'string' ? JSON.parse(vRaw.dispatchDetails) : (vRaw.dispatchDetails || v.dispatchDetails),
-          partyName: pName,
-          date: new Date(vRaw.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+          partyName: (v.partyName && !isGenericAc(v.partyName)) ? v.partyName : (pName || v.partyName || 'Cash'),
+          date: formatDateToTally(vRaw.date || v.date) || v.date
         };
         if (isEdit) {
           setAllVouchers(p => p.map(x => x.id === v.id ? savedV : x));
@@ -2136,7 +2155,7 @@ export default function App() {
       }
       if (e.key === 'F11') { e.preventDefault(); setShowFeatures(true); }
       if (e.key === 'F3')  { e.preventDefault(); setShowCompanySelect(true); }
-      if (e.key === 'F2' && !e.altKey)  { e.preventDefault(); setShowPeriod(true); }
+      if (e.key === 'F2' && !e.altKey)  { e.preventDefault(); setShowDate(true); }
       if (e.key === 'F2' && e.altKey)   { e.preventDefault(); setShowPeriod(true); }
       if (screen === 'VOUCHER_ENTRY') {
         if (e.key === 'F4') { e.preventDefault(); setActiveVoucher('Contra'); }
@@ -2992,6 +3011,7 @@ export default function App() {
             <div style={{padding:20}}>
               <div className="form-row"><label style={{width:120}}>Voucher Date</label><span className="colon">:</span>
                 <input
+                  id="modal-voucher-date-input"
                   ref={el => {
                     if (el) {
                       setTimeout(() => {
@@ -3010,30 +3030,10 @@ export default function App() {
                   onKeyDown={e=>{
                     if(e.key==='Enter') {
                       e.preventDefault(); e.stopPropagation();
-                      let val = (e.target as HTMLInputElement).value;
+                      const val = (e.target as HTMLInputElement).value;
                       if(val) {
-                        // basic Tally-like DD/MM/YYYY parser
-                        let s = val.replace(/[\.\/]/g, '-').trim();
-                        const parts = s.split('-');
-                        if(parts.length >= 2){
-                          let md = parseInt(parts[0]);
-                          let mmStr = parts[1];
-                          let yy = parts.length === 3 ? parseInt(parts[2]) : new Date().getFullYear();
-                          if(yy < 100) yy += 2000;
-                          let mm = parseInt(mmStr);
-                          if(isNaN(mm)) {
-                            const monthNames = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-                            const idx = monthNames.findIndex(m => mmStr.toLowerCase().startsWith(m));
-                            if(idx !== -1) mm = idx + 1;
-                          }
-                          if(!isNaN(mm) && mm >= 1 && mm <= 12) {
-                            const dateObj = new Date(yy, mm-1, md);
-                            if(!isNaN(dateObj.getTime())) {
-                               val = dateObj.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g,'-');
-                            }
-                          }
-                        }
-                        setCurrentDate(val);
+                        const formatted = formatDateToTally(val);
+                        setCurrentDate(formatted || val);
                       }
                       handleCloseDate();
                     }
@@ -3045,8 +3045,13 @@ export default function App() {
               <button 
                 id="date-accept-btn"
                 onClick={()=>{
-                   const el = document.querySelector('.modal-box input') as HTMLInputElement;
-                   if(el) el.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter'}));
+                   const el = document.getElementById('modal-voucher-date-input') as HTMLInputElement;
+                   const val = el?.value;
+                   if (val) {
+                     const formatted = formatDateToTally(val);
+                     setCurrentDate(formatted || val);
+                   }
+                   handleCloseDate();
                 }} 
                 style={{marginTop:15,background:'#1c5282',color:'white',border:'none',padding:'5px 20px',cursor:'pointer',display:'block',width:'100%'}}>Accept (Enter)</button>
             </div>
@@ -6640,13 +6645,24 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
   const isSalesAcName = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales'].includes(s.trim().toLowerCase());
 
+  const [voucherDate, setVoucherDate] = useState<string>(() => {
+    if (activeAlterItem?.date) return formatDateToTally(activeAlterItem.date);
+    return formatDateToTally(currentDate) || currentDate;
+  });
+
+  useEffect(() => {
+    if (!activeAlterItem && currentDate) {
+      setVoucherDate(formatDateToTally(currentDate) || currentDate);
+    }
+  }, [currentDate, activeAlterItem]);
+
   const [partyName, setPartyName] = useState(() => {
     if (!activeAlterItem) return '';
-    if (activeAlterItem.partyName && !isSalesAcName(activeAlterItem.partyName)) return activeAlterItem.partyName;
-    if (activeAlterItem.partyDetails?.buyerName && !isSalesAcName(activeAlterItem.partyDetails.buyerName)) return activeAlterItem.partyDetails.buyerName;
+    if (activeAlterItem.partyName && !isGenericAc(activeAlterItem.partyName)) return activeAlterItem.partyName;
+    if (activeAlterItem.partyDetails?.buyerName && !isGenericAc(activeAlterItem.partyDetails.buyerName)) return activeAlterItem.partyDetails.buyerName;
     const partyEnt = activeAlterItem.entries?.find((e: any) => {
       const name = e.ledger?.name || e.ledgerName || '';
-      return !isSalesAcName(name) && name !== 'Purchase A/c';
+      return !isGenericAc(name);
     });
     return partyEnt?.ledger?.name || partyEnt?.ledgerName || activeAlterItem.partyName || '';
   });
@@ -6914,18 +6930,19 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
      if(activeAlterItem) {
        let pName = activeAlterItem.partyName;
-       if (isSalesAcName(pName)) {
-         if (activeAlterItem.partyDetails?.buyerName && !isSalesAcName(activeAlterItem.partyDetails.buyerName)) {
+       if (isGenericAc(pName)) {
+         if (activeAlterItem.partyDetails?.buyerName && !isGenericAc(activeAlterItem.partyDetails.buyerName)) {
            pName = activeAlterItem.partyDetails.buyerName;
          } else {
            const partyEnt = activeAlterItem.entries?.find((e: any) => {
              const name = e.ledger?.name || e.ledgerName || '';
-             return !isSalesAcName(name) && name !== 'Purchase A/c';
+             return !isGenericAc(name);
            });
            if (partyEnt) pName = partyEnt.ledger?.name || partyEnt.ledgerName || pName;
          }
        }
        setPartyName(pName);
+       if (activeAlterItem.date) setVoucherDate(formatDateToTally(activeAlterItem.date));
        setRefNo(activeAlterItem.refNo||'');
        
        if (activeAlterItem.inventoryEntries && activeAlterItem.inventoryEntries.length > 0) {
@@ -6976,6 +6993,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         if(l) setPartyBalance(getLedgerClosingBalance(l,vouchers));
       } else {
         setPartyName('');
+        setVoucherDate(formatDateToTally(currentDate) || currentDate);
         setRefNo('');
         setSupplierInvNo('');
         setSupplierInvDate('');
@@ -7360,7 +7378,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
   const getVoucherData = () => {
     const taxEntries: VoucherEntry[] = [];
-    const findL = (name: string) => ledgers.find(lx => lx.name === name)?.id || 0;
+    const findL = (name: string) => {
+      if (!name) return 0;
+      const clean = name.trim().toLowerCase();
+      const l = ledgers.find(lx => lx.name.trim().toLowerCase() === clean);
+      return l?.id || 0;
+    };
     
     let entryId = rows.filter(r=>r.itemName).length + 2;
     if (isInterState) {
@@ -7379,16 +7402,19 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     
     const salesPurchaseLedger = isPurchaseSide ? 'Purchase A/c' : 'Sales A/c';
 
-    const isSalesAcName = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales'].includes(s.trim().toLowerCase());
-    let savePartyName = partyName;
-    if (isSalesAcName(savePartyName) && partyDetails?.buyerName && !isSalesAcName(partyDetails.buyerName)) {
-      savePartyName = partyDetails.buyerName;
+    let savePartyName = (partyName || '').trim();
+    if (isGenericAc(savePartyName) && partyDetails?.buyerName && !isGenericAc(partyDetails.buyerName)) {
+      savePartyName = partyDetails.buyerName.trim();
     }
+    if (!savePartyName && partyDetails?.buyerName) {
+      savePartyName = partyDetails.buyerName.trim();
+    }
+    const finalVoucherDate = formatDateToTally(voucherDate) || voucherDate || currentDate;
 
     return {
       ...(activeAlterItem ? {id: activeAlterItem.id} : {}),
       companyId: activeCompany?.id || 0,
-      type:activeVoucher, date:currentDate, number:vNum, voucherNo:formattedNo, refNo:refNo||`${activeVoucher.slice(0,3).toUpperCase()}/${vNum}`,
+      type:activeVoucher, date:finalVoucherDate, number:vNum, voucherNo:formattedNo, refNo:refNo||`${activeVoucher.slice(0,3).toUpperCase()}/${vNum}`,
       partyName: savePartyName, partyId: findL(savePartyName),
       partyDetails: (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note')
         ? { ...(partyDetails as any || {}), supplierInvNo, supplierInvDate } as PartyDetails
@@ -7443,14 +7469,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const handleSave= async ()=>
 {
     // 1. Party Name Validation (NOT required for Journal - it uses only Particulars)
+    const voucherData = getVoucherData();
+
     if (activeVoucher !== 'Journal') {
-      if(!partyName || partyName.trim() === ""){
+      const effectiveParty = (partyName || voucherData.partyName || '').trim();
+      if(!effectiveParty){
         alert('Party A/c Name is required for all vouchers.');
         return;
       }
     }
-
-    const voucherData = getVoucherData();
     
     // 2. Inventory Validation (For Sales, Purchase, etc.)
     if (isInventory) {
@@ -7504,6 +7531,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
     try {
       setSaveToast("Saving...");
+      if (voucherData.partyName && !isGenericAc(voucherData.partyName)) {
+        const exists = ledgers.some(l => l.name.trim().toLowerCase() === voucherData.partyName.toLowerCase());
+        if (!exists && onSaveMaster) {
+          const defaultGroup = isPurchaseSide ? 'Sundry Creditors' : 'Sundry Debtors';
+          try {
+            await onSaveMaster('ledger', { name: voucherData.partyName, groupName: defaultGroup, openingBalance: 0, balanceType: 'Dr' });
+          } catch (e) {
+            console.error("Auto-create ledger error:", e);
+          }
+        }
+      }
       const savedV = await onSave(voucherData);
       setSaveToast(null);
       setPrintPromptSel('yes');
@@ -7521,6 +7559,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const clearVoucherForm = () => {
     if(activeAlterItem) { onCancel(); return; }
     setPartyName('');
+    setVoucherDate(formatDateToTally(currentDate) || currentDate);
     setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
     // Journal: Initialize with Dr (By) + Cr (To) pair
     if (activeVoucher === 'Journal') {
@@ -7699,7 +7738,41 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 <span>📚</span> Examples
               </button>
             )}
-            {currentDate} <span onClick={onF2} style={{cursor:'pointer',marginLeft:10,fontSize:11,background:'#fffbe6',padding:'2px 8px',border:'1px solid #f0d060'}}>F2: Change Date</span>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:11,fontWeight:'bold',color:'#333'}}>Date:</span>
+              <input
+                type="text"
+                className="form-input"
+                style={{width:125,padding:'2px 6px',fontSize:12,fontWeight:'bold',background:'#fff',border:'1px solid #1c5282',borderRadius:2}}
+                value={voucherDate}
+                onChange={e=>setVoucherDate(e.target.value)}
+                onBlur={e=>{
+                  const val = e.target.value.trim();
+                  if(val){
+                    const norm = formatDateToTally(val);
+                    if(norm) {
+                      setVoucherDate(norm);
+                      if ((activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') && !supplierInvDate) {
+                        setSupplierInvDate(norm);
+                      }
+                    }
+                  }
+                }}
+                onKeyDown={e=>{
+                  if(e.key==='Enter'){
+                    e.preventDefault();
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if(val){
+                      const norm = formatDateToTally(val);
+                      if(norm) setVoucherDate(norm);
+                    }
+                    ref.current?.focus();
+                  }
+                }}
+                placeholder="DD-Mon-YYYY"
+              />
+              <span onClick={onF2} style={{cursor:'pointer',fontSize:11,background:'#fffbe6',padding:'2px 8px',border:'1px solid #f0d060',fontWeight:'bold'}} title="Press F2 to change date">F2: Change Date</span>
+            </div>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
@@ -7754,20 +7827,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     pickLedger(currentList[listSel] as Ledger);
                   } else {
                     if (isInventory && partyName) {
-                      const l = ledgers.find(lx => lx.name === partyName);
-                      if (l) {
-                        const pd: PartyDetails = {
-                          buyerName: l.name, buyerMailingName: l.name, buyerAddress: l.address || '',
-                          buyerState: l.state || '', buyerCountry: l.country || 'India', buyerGstin: l.gstin || '', buyerPlace: l.state || '',
-                          shipName: l.name, shipMailingName: l.name, shipAddress: l.address || '',
-                          shipState: l.state || '', shipCountry: l.country || 'India', shipGstin: l.gstin || '', shipPlace: l.state || '',
-                          buyerOrderNo: '', buyerOrderDate: '', termsOfDelivery: '',
-                        };
-                        setPartyDetails(pd);
-                        setShowPartyDetails(true);
-                      } else {
-                        setTimeout(() => document.getElementById('v-ref')?.focus(), 50);
-                      }
+                      const l = ledgers.find(lx => lx.name.trim().toLowerCase() === partyName.trim().toLowerCase());
+                      const effectiveName = (l ? l.name : partyName).trim();
+                      const pd: PartyDetails = {
+                        buyerName: effectiveName, buyerMailingName: effectiveName, buyerAddress: l?.address || '',
+                        buyerState: l?.state || '', buyerCountry: l?.country || 'India', buyerGstin: l?.gstin || '', buyerPlace: l?.state || '',
+                        shipName: effectiveName, shipMailingName: effectiveName, shipAddress: l?.address || '',
+                        shipState: l?.state || '', shipCountry: l?.country || 'India', shipGstin: l?.gstin || '', shipPlace: l?.state || '',
+                        buyerOrderNo: '', buyerOrderDate: '', termsOfDelivery: '',
+                      };
+                      setPartyDetails(pd);
+                      setShowPartyDetails(true);
                     } else {
                       setTimeout(() => {
                         const el = document.getElementById('acc-ledger-0');
@@ -7845,8 +7915,28 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               </div>
               <div className="form-row" style={{marginBottom:0}}>
                 <label style={{width:150}}>Supplier Invoice Date</label><span className="colon">:</span>
-                <input id="v-supplier-inv-date" type="text" className="form-input" style={{width:130}} value={supplierInvDate} onChange={e=>setSupplierInvDate(e.target.value)} placeholder="e.g. 14-May-2026"
+                <input id="v-supplier-inv-date" type="text" className="form-input" style={{width:130}} value={supplierInvDate}
+                  onChange={e=>setSupplierInvDate(e.target.value)}
+                  onBlur={e=>{
+                    const val = e.target.value.trim();
+                    if(val){
+                      const norm = formatDateToTally(val);
+                      if(norm){
+                        setSupplierInvDate(norm);
+                        setVoucherDate(norm);
+                      }
+                    }
+                  }}
+                  placeholder="e.g. 14-May-2026"
                   onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault(); e.stopPropagation();
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if(val){
+                      const norm = formatDateToTally(val);
+                      if(norm){
+                        setSupplierInvDate(norm);
+                        setVoucherDate(norm);
+                      }
+                    }
                     const target = isInventory ? 'item-name-0' : 'acc-ledger-0';
                     setTimeout(()=>document.getElementById(target)?.focus(), 50);
                   }}}/>
@@ -8852,22 +8942,33 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div style={{background:'#f0f4f8',border:'2px solid #1c5282',width:740,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 30px rgba(0,0,0,0.35)'}}>
             <div style={{background:'#1c5282',color:'white',padding:'8px 18px',fontWeight:'bold',fontSize:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span>Party Details</span>
+              <span>{activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Supplier Details (Bill from)' : 'Party Details'}</span>
               <span style={{fontSize:11,opacity:0.8}}>Enter: Next Field | Backspace: Prev | Esc: Skip</span>
             </div>
             <div style={{padding:'15px 18px'}} className="party-detail-modal">
-              {/* Two-column: Buyer (Bill to) | Consignee (Ship to) */}
+              {/* Two-column: Buyer (Bill to) / Supplier (Bill from) | Consignee (Ship to) */}
               <div 
                 style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0,border:'1px solid #aaa'}}
-                onKeyDown={e=>modalKeyDown(e,'party-detail-modal',()=>{setShowPartyDetails(false);focusRefAfterModal();})}
+                onKeyDown={e=>modalKeyDown(e,'party-detail-modal',()=>{
+                  setShowPartyDetails(false);
+                  if (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') {
+                    focusRefAfterModal();
+                  } else {
+                    setShowDispatch(true);
+                  }
+                })}
               >
-                {/* LEFT: Buyer */}
+                {/* LEFT: Buyer / Supplier */}
                 <div style={{borderRight:'1px solid #aaa',padding:'10px 14px'}}>
-                  <div style={{fontWeight:'bold',fontSize:12,color:'#1c5282',marginBottom:8,borderBottom:'1px solid #ccc',paddingBottom:4}}>Buyer (Bill to)</div>
+                  <div style={{fontWeight:'bold',fontSize:12,color:'#1c5282',marginBottom:8,borderBottom:'1px solid #ccc',paddingBottom:4}}>
+                    {activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Supplier (Bill from)' : 'Buyer (Bill to)'}
+                  </div>
                   {([
-                    ['Name','buyerName'],['Mailing Name','buyerMailingName'],['Address','buyerAddress'],
+                    [activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Supplier Name' : 'Name','buyerName'],
+                    ['Mailing Name','buyerMailingName'],['Address','buyerAddress'],
                     ['State','buyerState'],['Country','buyerCountry'],['GSTIN/UIN','buyerGstin'],['Place of Supply','buyerPlace'],
-                    ['Buyer\'s Order No.','buyerOrderNo'],['Dated','buyerOrderDate'],
+                    [activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Order No.' : 'Buyer\'s Order No.','buyerOrderNo'],
+                    ['Dated','buyerOrderDate'],
                   ] as [string,keyof PartyDetails][]).map(([label,key],ki)=>(
                     <div key={key} style={{display:'flex',marginBottom:5,alignItems:'flex-start'}}>
                       <span style={{width:130,fontSize:11,color:'#555',flexShrink:0}}>{label}</span>
@@ -8877,7 +8978,13 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                         type="text"
                         style={{flex:1,border:'1px solid #ccc',padding:'2px 5px',fontSize:11,fontWeight:key==='buyerName'?'bold':'normal',background:'#fff',outline:'none'}}
                         value={partyDetails[key] as string}
-                        onChange={e=>{const v=e.target.value;setPartyDetails(p=>p?{...p,[key]:v}:p);}}
+                        onChange={e=>{
+                          const v=e.target.value;
+                          setPartyDetails(p=>p?{...p,[key]:v}:p);
+                          if (key === 'buyerName' && (!partyName || isGenericAc(partyName))) {
+                            setPartyName(v);
+                          }
+                        }}
                         onFocus={e=>(e.target.style.border='1px solid #1c5282')}
                         onBlur={e=>(e.target.style.border='1px solid #ccc')}
                       />
@@ -8910,7 +9017,14 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             </div>
             <div style={{background:'#e8eef4',padding:'8px 18px',display:'flex',justifyContent:'flex-end',gap:10,borderTop:'1px solid #ccd'}}>
               <button className="party-detail-modal-accept-btn" style={{background:'#1c5282',color:'white',border:'none',padding:'6px 22px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
-                onClick={()=>{setShowPartyDetails(false);setShowDispatch(true);}}>
+                onClick={()=>{
+                  setShowPartyDetails(false);
+                  if (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') {
+                    focusRefAfterModal();
+                  } else {
+                    setShowDispatch(true);
+                  }
+                }}>
                 ✓ Accept (A)
               </button>
               <button style={{padding:'6px 18px',cursor:'pointer',border:'1px solid #ccc',fontSize:12}}
@@ -10606,7 +10720,7 @@ function DayBookView({vouchers, currentPeriod, onBack, onDrillDown}:{vouchers:Vo
               return <tr key={i} style={{cursor:'pointer', background: i===rowIdx?'#ffd700':'', color:i===rowIdx?'#000':'inherit'}} 
                 onClick={()=>onDrillDown?.(v)}
                 onMouseEnter={()=>setRowIdx(i)}>
-                <td style={{fontSize:12,whiteSpace:'nowrap'}}>{v.date}</td>
+                <td style={{fontSize:12,whiteSpace:'nowrap'}}>{formatDateToTally(v.date) || v.date}</td>
                 <td>
                   <div style={{fontWeight:'bold',fontSize:13}}>{getVoucherPartyDisplayName(v)}</div>
                   <div style={{fontSize:11,color:'#777'}}>{v.narration}</div>
@@ -10655,15 +10769,9 @@ const FISCAL_MONTH_NUMS = [4,5,6,7,8,9,10,11,12,1,2,3]; // corresponding month n
 
 function parseVoucherDate(dateStr:string): {month:number; year:number} | null {
   if(!dateStr) return null;
-  // Handle "DD-Mon-YYYY" like "01-Apr-2026"
-  const months:{[k:string]:number}={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-  const parts = dateStr.split(/[-\/]/);
-  if(parts.length===3) {
-    const m = months[parts[1]?.toLowerCase().slice(0,3)];
-    if(m) return {month:m, year:parseInt(parts[2])};
-    // numeric: DD/MM/YYYY
-    const mn=parseInt(parts[1]);
-    if(!isNaN(mn)) return {month:mn, year:parseInt(parts[2])};
+  const d = parseDate(dateStr);
+  if (!isNaN(d.getTime()) && d.getFullYear() >= 1970) {
+    return { month: d.getMonth() + 1, year: d.getFullYear() };
   }
   return null;
 }
@@ -10968,7 +11076,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                     style={{background:isSel?'#ffd700':i%2===0?'#fff':'#fafafa',cursor:'pointer',borderBottom:'1px solid #e8e8e8'}}
                     onClick={()=>onDrillDown?.(v)}
                     onMouseEnter={()=>setRowIdx(i)}>
-                    <td style={{padding:'5px 12px',fontWeight:isSel?'bold':'normal',whiteSpace:'nowrap'}}>{v.date}</td>
+                    <td style={{padding:'5px 12px',fontWeight:isSel?'bold':'normal',whiteSpace:'nowrap'}}>{formatDateToTally(v.date) || v.date}</td>
                     <td style={{padding:'5px 12px',fontWeight:'bold',color:'#1a1a1a'}}>{getVoucherPartyDisplayName(v)}</td>
                     <td style={{textAlign:'center',padding:'5px 8px'}}>
                       <span style={{padding:'1px 6px',background:color,color:'white',fontSize:10,fontWeight:'bold',borderRadius:2,whiteSpace:'nowrap'}}>{v.type}</span>
@@ -11058,8 +11166,8 @@ function SalesRegisterView({vouchers, currentPeriod, onBack, onDrillDown}:{vouch
               return <tr key={i} style={{cursor:'pointer', background: i===rowIdx ? '#cbe0ff' : (v.type==='Credit Note' ? '#fff5f5' : '')}}
                 onClick={()=>onDrillDown?.(v)}
                 onMouseEnter={()=>setRowIdx(i)}>
-                <td style={{fontSize:12}}>{v.date}</td>
-                <td style={{fontWeight:'bold'}}>{v.partyName}</td>
+                <td style={{fontSize:12}}>{formatDateToTally(v.date) || v.date}</td>
+                <td style={{fontWeight:'bold'}}>{getVoucherPartyDisplayName(v)}</td>
                 <td style={{fontSize:12,color:'#555'}}>{v.refNo}</td>
                 <td><span style={{padding:'1px 8px',background:v.type==='Sales'?'#1c5282':'#c00',color:'white',fontSize:11,fontWeight:'bold'}}>{v.type}</span></td>
                 <td style={{textAlign:'right'}}>{fmt(taxable)}</td>
@@ -11125,8 +11233,8 @@ function PurchaseRegisterView({vouchers, onBack, onDrillDown}:{vouchers:Voucher[
               return <tr key={i} style={{cursor:'pointer', background: i===rowIdx ? '#cbe0ff' : (v.type==='Debit Note' ? '#fff5f5' : '')}}
                 onClick={()=>onDrillDown?.(v)}
                 onMouseEnter={()=>setRowIdx(i)}>
-                <td style={{fontSize:12}}>{v.date}</td>
-                <td style={{fontWeight:'bold'}}>{v.partyName}</td>
+                <td style={{fontSize:12}}>{formatDateToTally(v.date) || v.date}</td>
+                <td style={{fontWeight:'bold'}}>{getVoucherPartyDisplayName(v)}</td>
                 <td style={{fontSize:12,color:'#555'}}>{v.refNo}</td>
                 <td><span style={{padding:'1px 8px',background:v.type==='Purchase'?'#5a2d82':'#8B0000',color:'white',fontSize:11,fontWeight:'bold'}}>{v.type}</span></td>
                 <td style={{textAlign:'right'}}>{fmt(taxable)}</td>

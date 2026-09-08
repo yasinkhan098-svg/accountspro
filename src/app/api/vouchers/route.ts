@@ -4,21 +4,106 @@ import { prisma } from '@/lib/prisma';
 const normalizeDate = (d: any): Date => {
   if (!d) return new Date();
   if (d instanceof Date) return d;
-  const s = String(d);
+  const s = String(d).trim();
+  if (!s) return new Date();
+
+  // Normalize delimiters (/ and . -> -)
+  const normalized = s.replace(/[\.\/]/g, '-').trim();
   const months: Record<string, number> = {
-    'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-    'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+    'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
+    'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11,
+    'january': 0, 'february': 1, 'march': 2, 'april': 3, 'june': 5,
+    'july': 6, 'august': 7, 'september': 8, 'october': 9, 'november': 10, 'december': 11
   };
-  const parts = s.split('-');
+  const parts = normalized.split('-');
   if (parts.length === 3) {
-    const day = parseInt(parts[0]);
-    const month = months[parts[1]] ?? 0;
-    const year = parseInt(parts[2]);
-    if (!isNaN(day) && !isNaN(year)) return new Date(year, month, day);
+    const p1 = parts[0].trim();
+    const p2 = parts[1].trim();
+    const p3 = parts[2].trim();
+
+    // Check if ISO format: YYYY-MM-DD
+    if (p1.length === 4 && !isNaN(parseInt(p1))) {
+      const year = parseInt(p1);
+      const month = (parseInt(p2) || 1) - 1;
+      const day = parseInt(p3) || 1;
+      return new Date(year, month, day, 12, 0, 0);
+    }
+
+    // Standard DD-MM-YYYY or DD-Mon-YYYY
+    const day = parseInt(p1) || 1;
+    let month = -1;
+    const p2Lower = p2.toLowerCase();
+    if (months[p2Lower] !== undefined) {
+      month = months[p2Lower];
+    } else {
+      const mNum = parseInt(p2);
+      if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
+        month = mNum - 1;
+      }
+    }
+    if (month === -1) month = 0;
+
+    let year = parseInt(p3) || new Date().getFullYear();
+    if (year < 100) year += 2000;
+    return new Date(year, month, day, 12, 0, 0);
   }
+
   const date = new Date(s);
   return isNaN(date.getTime()) ? new Date() : date;
 };
+
+// Helper to ensure all entries have valid ledgerId by resolving by name or creating missing ledger
+async function resolveVoucherEntries(tx: any, companyId: number, type: string, entries: any[]) {
+  const resolved = [];
+  for (const e of entries) {
+    let lid = parseInt(String(e.ledgerId));
+    const ledgerName = (e.ledgerName || e.ledger?.name || '').trim();
+
+    if ((!lid || isNaN(lid) || lid <= 0) && ledgerName) {
+      // Find existing ledger by name in this company
+      const allCompanyLedgers = await tx.ledger.findMany({
+        where: { companyId }
+      });
+      let found = allCompanyLedgers.find((lx: any) => lx.name.trim().toLowerCase() === ledgerName.toLowerCase());
+
+      if (!found) {
+        // Auto-create ledger with appropriate group
+        let defaultGroup = 'Sundry Creditors';
+        const eType = e.entryType || 'Dr';
+        if (type === 'Sales' || type === 'Sales Quotation' || type === 'Credit Note') {
+          defaultGroup = eType === 'Dr' ? 'Sundry Debtors' : 'Sales Accounts';
+        } else if (type === 'Purchase' || type === 'Debit Note') {
+          defaultGroup = eType === 'Cr' ? 'Sundry Creditors' : 'Purchase Accounts';
+        } else if (type === 'Receipt') {
+          defaultGroup = eType === 'Cr' ? 'Sundry Debtors' : 'Cash-in-hand';
+        } else if (type === 'Payment') {
+          defaultGroup = eType === 'Dr' ? 'Sundry Creditors' : 'Cash-in-hand';
+        }
+
+        found = await tx.ledger.create({
+          data: {
+            companyId,
+            name: ledgerName,
+            groupName: defaultGroup,
+            openingBal: 0,
+            balanceType: 'Dr'
+          }
+        });
+      }
+      if (found) lid = found.id;
+    }
+
+    if (lid > 0 && !isNaN(lid)) {
+      resolved.push({
+        ledgerId: lid,
+        ledgerName: ledgerName || '',
+        amount: Math.abs(parseFloat(String(e.amount)) || 0),
+        entryType: e.entryType || 'Dr'
+      });
+    }
+  }
+  return resolved;
+}
 
 export async function POST(req: Request) {
   try {
@@ -26,12 +111,15 @@ export async function POST(req: Request) {
     const { companyId, type, date, voucherNo, narration, partyDetails, dispatchDetails, entries = [], inventoryEntries = [] } = data;
 
     if (!companyId) return NextResponse.json({ success: false, error: "Missing companyId" }, { status: 400 });
+    const cid = parseInt(String(companyId));
 
     // Use a transaction to ensure all entries and inventory movements are saved together
     const result = await prisma.$transaction(async (tx) => {
+      const resolvedEntries = await resolveVoucherEntries(tx, cid, type, entries);
+
       const voucher = await tx.voucher.create({
         data: {
-          companyId: parseInt(String(companyId)),
+          companyId: cid,
           type,
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
@@ -39,15 +127,7 @@ export async function POST(req: Request) {
           partyDetails: partyDetails ? JSON.stringify(partyDetails) : null,
           dispatchDetails: dispatchDetails ? JSON.stringify(dispatchDetails) : null,
           entries: {
-            create: entries.filter((e:any) => {
-              const lid = parseInt(String(e.ledgerId));
-              return lid > 0 && !isNaN(lid);
-            }).map((e: any) => ({
-              ledgerId: parseInt(String(e.ledgerId)),
-              ledgerName: e.ledgerName || '',
-              amount: Math.abs(parseFloat(String(e.amount)) || 0),
-              entryType: e.entryType || 'Dr'
-            }))
+            create: resolvedEntries
           },
           inventoryEntries: {
             create: inventoryEntries.filter((i:any) => i.itemId && !isNaN(parseInt(String(i.itemId)))).map((i: any) => ({
@@ -92,16 +172,19 @@ export async function PUT(req: Request) {
     const { id, companyId, type, date, voucherNo, narration, partyDetails, dispatchDetails, entries = [], inventoryEntries = [] } = data;
 
     if (!id) return NextResponse.json({ success: false, error: "Missing voucher ID" }, { status: 400 });
+    const cid = parseInt(String(companyId));
 
     const result = await prisma.$transaction(async (tx) => {
       // Delete existing entries and inventoryEntries first
       await tx.voucherEntry.deleteMany({ where: { voucherId: parseInt(id) } });
       await tx.inventoryEntry.deleteMany({ where: { voucherId: parseInt(id) } });
 
+      const resolvedEntries = await resolveVoucherEntries(tx, cid, type, entries);
+
       const voucher = await tx.voucher.update({
         where: { id: parseInt(id) },
         data: {
-          companyId: parseInt(String(companyId)),
+          companyId: cid,
           type,
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
@@ -109,15 +192,7 @@ export async function PUT(req: Request) {
           partyDetails: partyDetails ? JSON.stringify(partyDetails) : null,
           dispatchDetails: dispatchDetails ? JSON.stringify(dispatchDetails) : null,
           entries: {
-            create: entries.filter((e:any) => {
-              const lid = parseInt(String(e.ledgerId));
-              return lid > 0 && !isNaN(lid);
-            }).map((e: any) => ({
-              ledgerId: parseInt(String(e.ledgerId)),
-              ledgerName: e.ledgerName || '',
-              amount: Math.abs(parseFloat(String(e.amount)) || 0),
-              entryType: e.entryType || 'Dr'
-            }))
+            create: resolvedEntries
           },
           inventoryEntries: {
             create: inventoryEntries.filter((i:any) => i.itemId && !isNaN(parseInt(String(i.itemId)))).map((i: any) => ({
