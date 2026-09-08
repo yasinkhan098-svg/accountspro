@@ -9290,35 +9290,66 @@ function BalanceSheetView({
   const totalAssetDisplay = Math.abs(totalAssetRaw) + (netProfit < 0 ? Math.abs(netProfit) : 0);
   const balanced = Math.abs(totalLiabDisplay - totalAssetDisplay) < 1;
 
-  type BSRow = { type:'group-header'|'ledger'|'group-total'|'net-entry'|'blank'; name:string; amount?:number; id?:number; groupName?:string; };
+  type BSRow = {
+    type: 'section-header'|'group-header'|'ledger'|'group-total'|'section-total'|'net-entry'|'blank';
+    name: string;
+    amount?: number;
+    id?: number;
+    groupName?: string;
+  };
 
-  const buildCASide = (groupNames: string[]): BSRow[] => {
+  // ---- LIABILITIES SIDE: Tally-style sections ----
+  const LIAB_SECTIONS: {title:string; groups:string[]}[] = [
+    { title: 'CAPITAL ACCOUNT',    groups: ['Capital Account','Reserves & Surplus','Retained Earnings'] },
+    { title: 'SECURED LOAN :',     groups: ['Secured Loans','Bank OD A/c','Bank OCC A/c'] },
+    { title: 'UNSECURED LOAN :',   groups: ['Unsecured Loans','Loans (Liability)'] },
+    { title: 'CURRENT LIABILITIES',groups: ['Sundry Creditors','Current Liabilities','Provisions','Duties & Taxes','Branch / Divisions'] },
+  ];
+
+  // ---- ASSETS SIDE: Tally-style sections ----
+  const ASSET_SECTIONS: {title:string; groups:string[]}[] = [
+    { title: 'FIXED ASSETS',       groups: ['Fixed Assets'] },
+    { title: 'SECURITY DEPOSITS',  groups: ['Investments','Deposits (Asset)','Misc. Expenses (ASSET)'] },
+    { title: 'CURRENT ASSETS',     groups: ['Stock-in-hand','Sundry Debtors','Cash-in-hand','Bank Accounts','Current Assets','Loans & Advances (Asset)'] },
+  ];
+
+  const buildSectionedSide = (sections: {title:string;groups:string[]}[]): BSRow[] => {
     const rows: BSRow[] = [];
-    for (const gn of groupNames) {
-      const items = (grp[gn]||[]).filter(x=>x.balance!==0);
-      if (!items.length) continue;
-      const total = items.reduce((s,x)=>s+Math.abs(x.balance),0);
-      rows.push({type:'group-header', name:gn, groupName:gn});
-      for (const item of items) {
-        rows.push({type:'ledger', name:item.ledger.name, amount:Math.abs(item.balance), id:item.ledger.id, groupName:gn});
+    for (const sec of sections) {
+      // Compute per-group totals within this section
+      const groupLines: {groupName:string; total:number}[] = [];
+      for (const gn of sec.groups) {
+        const items = (grp[gn]||[]).filter(x=>x.balance!==0);
+        if (!items.length) continue;
+        const total = items.reduce((s,x)=>s+Math.abs(x.balance), 0);
+        groupLines.push({groupName:gn, total});
       }
-      rows.push({type:'group-total', name:'', amount:total, groupName:gn});
+      if (groupLines.length === 0) continue; // skip empty sections
+      const secTotal = groupLines.reduce((s,g)=>s+g.total, 0);
+      // Section heading row (bold+underline, not individually drillable)
+      rows.push({type:'section-header', name:sec.title});
+      // One drillable group-header row per sub-group (Enter → GroupSummary)
+      for (const gl of groupLines) {
+        rows.push({type:'group-header', name:gl.groupName, amount:gl.total, groupName:gl.groupName});
+      }
+      // Section total line
+      rows.push({type:'section-total', name:'', amount:secTotal});
       rows.push({type:'blank', name:''});
     }
     return rows;
   };
 
   const liabRows  = useMemo(() => {
-    const rows = buildCASide(liabGroups);
+    const rows = buildSectionedSide(LIAB_SECTIONS);
     if (netProfit > 0) rows.push({type:'net-entry', name:'Add: Net Profit (as per P&L)', amount:netProfit});
     return rows;
-  }, [grp, expanded, netProfit]);
+  }, [grp, netProfit]);
 
   const assetRows = useMemo(() => {
-    const rows = buildCASide(assetGroups);
+    const rows = buildSectionedSide(ASSET_SECTIONS);
     if (netProfit < 0) rows.push({type:'net-entry', name:'Less: Net Loss (as per P&L)', amount:Math.abs(netProfit)});
     return rows;
-  }, [grp, expanded, netProfit]);
+  }, [grp, netProfit]);
 
   const maxRows = Math.max(liabRows.length, assetRows.length);
 
@@ -9326,6 +9357,7 @@ function BalanceSheetView({
     if (!row) return false;
     if (row.type === 'ledger' && row.id !== undefined) return true;
     if (row.type === 'group-header' && !!row.groupName) return true;
+    if (row.type === 'section-header') return false; // section headers are visual only
     return false;
   };
 
@@ -9436,6 +9468,19 @@ function BalanceSheetView({
   function renderRow_l(row: BSRow|undefined, i: number, isSel: boolean): React.ReactNode {
     if (!row) return <><td style={{borderRight:'2px solid #555',padding:'2px 8px'}}></td><td style={{borderRight:'2px solid #555'}}></td></>;
     if (row.type==='blank') return <><td style={{borderRight:'2px solid #555',padding:'4px 8px'}}>&nbsp;</td><td style={{borderRight:'2px solid #555'}}></td></>;
+    if (row.type==='section-header') return (
+      <td colSpan={2} style={{padding:'6px 8px 2px 8px',fontWeight:'bold',textDecoration:'underline',fontSize:12,borderRight:'2px solid #555'}}>
+        {row.name}
+      </td>
+    );
+    if (row.type==='group-header') return (
+      <><td id={`bs-cell-left-${i}`} style={{padding:'2px 8px 2px 14px',fontSize:11,borderRight:'1px solid #ddd',cursor:'pointer',background:isSel?'#ffd700':'transparent',color:isSel?'#000':'inherit',fontWeight:isSel?'bold':'normal'}}
+        onClick={()=>{setCol('left'); setRowIdx(i); if(row.groupName)onDrillDownGroup(row.groupName);}}
+        onMouseEnter={()=>{setCol('left'); setRowIdx(i);}}>{row.name}</td>
+      <td style={{padding:'2px 8px',textAlign:'right',fontSize:11,color:isSel?'#000':'#cc0000',fontWeight:isSel?'bold':'500',borderRight:'2px solid #555',background:isSel?'#ffd700':'transparent',cursor:'pointer'}}
+        onClick={()=>{setCol('left'); setRowIdx(i); if(row.groupName)onDrillDownGroup(row.groupName);}}
+        onMouseEnter={()=>{setCol('left'); setRowIdx(i);}}>{row.amount!==undefined?f2(row.amount):''}</td></>
+    );
     if (row.type==='ledger') return (
       <><td id={`bs-cell-left-${i}`} style={{padding:'2px 8px 2px 22px',fontSize:11,borderRight:'1px solid #ddd',cursor:'pointer',background:isSel?'#ffd700':'transparent',color:isSel?'#000':'inherit',fontWeight:isSel?'bold':'normal'}}
         onClick={()=>{setCol('left'); setRowIdx(i); if(row.id)onDrillDownLedger(row.id);}}
@@ -9444,7 +9489,7 @@ function BalanceSheetView({
         onClick={()=>{setCol('left'); setRowIdx(i); if(row.id)onDrillDownLedger(row.id);}}
         onMouseEnter={()=>{setCol('left'); setRowIdx(i);}}>{row.amount!==undefined?f2(row.amount):''}</td></>
     );
-    if (row.type==='group-total') return (
+    if (row.type==='group-total' || row.type==='section-total') return (
       <><td style={{padding:'1px 8px',borderRight:'1px solid #ddd'}}></td>
       <td style={{padding:'2px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderTop:'1px solid #888',borderRight:'2px solid #555'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
     );
@@ -9458,6 +9503,19 @@ function BalanceSheetView({
   function renderRow_r(row: BSRow|undefined, i: number, isSel: boolean): React.ReactNode {
     if (!row) return <><td style={{borderRight:'1px solid #ddd',padding:'2px 8px'}}></td><td style={{padding:'2px 8px'}}></td></>;
     if (row.type==='blank') return <><td style={{borderRight:'1px solid #ddd',padding:'4px 8px'}}>&nbsp;</td><td style={{padding:'4px 8px'}}></td></>;
+    if (row.type==='section-header') return (
+      <td colSpan={2} style={{padding:'6px 8px 2px 8px',fontWeight:'bold',textDecoration:'underline',fontSize:12}}>
+        {row.name}
+      </td>
+    );
+    if (row.type==='group-header') return (
+      <><td id={`bs-cell-right-${i}`} style={{padding:'2px 8px 2px 14px',fontSize:11,borderRight:'1px solid #ddd',cursor:'pointer',background:isSel?'#ffd700':'transparent',color:isSel?'#000':'inherit',fontWeight:isSel?'bold':'normal'}}
+        onClick={()=>{setCol('right'); setRowIdx(i); if(row.groupName)onDrillDownGroup(row.groupName);}}
+        onMouseEnter={()=>{setCol('right'); setRowIdx(i);}}>{row.name}</td>
+      <td style={{padding:'2px 8px',textAlign:'right',fontSize:11,color:isSel?'#000':'#cc0000',fontWeight:isSel?'bold':'500',background:isSel?'#ffd700':'transparent',cursor:'pointer'}}
+        onClick={()=>{setCol('right'); setRowIdx(i); if(row.groupName)onDrillDownGroup(row.groupName);}}
+        onMouseEnter={()=>{setCol('right'); setRowIdx(i);}}>{row.amount!==undefined?f2(row.amount):''}</td></>
+    );
     if (row.type==='ledger') return (
       <><td id={`bs-cell-right-${i}`} style={{padding:'2px 8px 2px 22px',fontSize:11,borderRight:'1px solid #ddd',cursor:'pointer',background:isSel?'#ffd700':'transparent',color:isSel?'#000':'inherit',fontWeight:isSel?'bold':'normal'}}
         onClick={()=>{setCol('right'); setRowIdx(i); if(row.id)onDrillDownLedger(row.id);}}
@@ -9466,7 +9524,7 @@ function BalanceSheetView({
         onClick={()=>{setCol('right'); setRowIdx(i); if(row.id)onDrillDownLedger(row.id);}}
         onMouseEnter={()=>{setCol('right'); setRowIdx(i);}}>{row.amount!==undefined?f2(row.amount):''}</td></>
     );
-    if (row.type==='group-total') return (
+    if (row.type==='group-total' || row.type==='section-total') return (
       <><td style={{padding:'1px 8px',borderRight:'1px solid #ddd'}}></td>
       <td style={{padding:'2px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderTop:'1px solid #888'}}>{row.amount!==undefined?f2(row.amount):''}</td></>
     );
@@ -9516,67 +9574,12 @@ function BalanceSheetView({
               {Array.from({length:maxRows}).map((_,i)=>{
                 const l = liabRows[i];
                 const r = assetRows[i];
-                const lIsHeader = l?.type==='group-header';
-                const rIsHeader = r?.type==='group-header';
                 const isSelL = col === 'left' && rowIdx === i && isDrillableBS(l);
                 const isSelR = col === 'right' && rowIdx === i && isDrillableBS(r);
                 return (
                   <tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
-                    {lIsHeader ? (
-                      <td colSpan={2}
-                        id={`bs-cell-left-${i}`}
-                        style={{
-                          padding:'6px 8px 2px 8px',
-                          fontWeight:'bold',
-                          textDecoration:'underline',
-                          fontSize:12,
-                          borderRight:'2px solid #555',
-                          cursor:'pointer',
-                          background: isSelL ? '#ffd700' : 'transparent',
-                          color: isSelL ? '#000' : 'inherit'
-                        }}
-                        onClick={()=>{
-                          setCol('left');
-                          setRowIdx(i);
-                          if(l.groupName){toggleGroup(l.groupName);onDrillDownGroup(l.groupName);}
-                        }}
-                        onMouseEnter={()=>{
-                          setCol('left');
-                          setRowIdx(i);
-                        }}
-                      >
-                        {l.name} {l.groupName && (expanded[l.groupName]?'▼':'▶')}
-                      </td>
-                    ) : (
-                      renderRow_l(l, i, isSelL)
-                    )}
-                    {rIsHeader ? (
-                      <td colSpan={2}
-                        id={`bs-cell-right-${i}`}
-                        style={{
-                          padding:'6px 8px 2px 8px',
-                          fontWeight:'bold',
-                          textDecoration:'underline',
-                          fontSize:12,
-                          cursor:'pointer',
-                          background: isSelR ? '#ffd700' : 'transparent',
-                          color: isSelR ? '#000' : 'inherit'
-                        }}
-                        onClick={()=>{
-                          setCol('right');
-                          setRowIdx(i);
-                          if(r.groupName){toggleGroup(r.groupName);onDrillDownGroup(r.groupName);}
-                        }}
-                        onMouseEnter={()=>{
-                          setCol('right');
-                          setRowIdx(i);
-                        }}
-                      >
-                        {r.name} {r.groupName && (expanded[r.groupName]?'▼':'▶')}
-                      </td>
-                    ) : (
-                      renderRow_r(r, i, isSelR)
-                    )}
+                    {renderRow_l(l, i, isSelL)}
+                    {renderRow_r(r, i, isSelR)}
                   </tr>
                 );
               })}
