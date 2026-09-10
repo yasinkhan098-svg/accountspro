@@ -9790,10 +9790,9 @@ function ProfitLossView({
   const [col, setCol] = useState<'left'|'right'>('left');
   const [rowIdx, setRowIdx] = useState<number>(0);
 
-  const directExpGroups   = ['Purchase Accounts','Direct Expenses','Expenses (Direct)'];
-  const directIncGroups   = ['Sales Accounts','Direct Incomes','Income (Direct)'];
-  const indirectExpGroups = ['Indirect Expenses','Expenses (Indirect)'];
-  const indirectIncGroups = ['Indirect Incomes','Income (Indirect)'];
+  const f2=(n:number)=>n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  const startDate=currentPeriod?.start||'01.04.'+(new Date().getFullYear()-1);
+  const endDate  =currentPeriod?.end  ||'31.03.'+new Date().getFullYear();
 
   const openingStockValue = useMemo(()=>
     stockItems.reduce((acc,it)=>acc+((it.openingQty||0)*(it.openingRate||0)),0)
@@ -9819,92 +9818,160 @@ function ProfitLossView({
     return (grp['Stock-in-hand']||[]).reduce((s,x)=>s+Math.abs(x.balance),0);
   },[stockItems,vouchers,grp]);
 
-  const sumGroups=(gnList:string[])=>gnList.reduce((s,gn)=>s+(grp[gn]||[]).reduce((gs,x)=>gs+Math.abs(x.balance),0),0);
-  const netPurchases =sumGroups(directExpGroups);
-  const netSales     =sumGroups(directIncGroups);
-  const indExpenses  =sumGroups(indirectExpGroups);
-  const indIncomes   =sumGroups(indirectIncGroups);
+  // ─── PURCHASE TAXABLE VALUE (excluding GST) ──────────────────────────────────
+  const purchaseTaxableValue = useMemo(()=>{
+    let total = 0;
+    for (const v of vouchers) {
+      if (v.type !== 'Purchase') continue;
+      for (const ie of (v.inventoryEntries||[])) {
+        const txAmt = ie.taxableAmount && ie.taxableAmount > 0 ? ie.taxableAmount : ie.amount;
+        total += txAmt || 0;
+      }
+    }
+    if (total === 0) total = (grp['Purchase Accounts']||[]).reduce((s,x)=>s+Math.abs(x.balance),0);
+    return total;
+  },[vouchers, grp]);
 
-  const tradingDr   =openingStockValue+netPurchases;
-  const tradingCr   =netSales+closingStockValue;
-  const grossProfit =tradingCr-tradingDr;
-  const totalTrading=Math.max(tradingDr+(grossProfit>0?grossProfit:0),tradingCr+(grossProfit<0?Math.abs(grossProfit):0));
+  // ─── SALES TAXABLE VALUE (excluding GST) ────────────────────────────────────
+  const salesTaxableValue = useMemo(()=>{
+    let total = 0;
+    for (const v of vouchers) {
+      if (v.type !== 'Sales') continue;
+      for (const ie of (v.inventoryEntries||[])) {
+        const txAmt = ie.taxableAmount && ie.taxableAmount > 0 ? ie.taxableAmount : ie.amount;
+        total += txAmt || 0;
+      }
+    }
+    if (total === 0) total = (grp['Sales Accounts']||[]).reduce((s,x)=>s+Math.abs(x.balance),0);
+    return total;
+  },[vouchers, grp]);
 
-  const plDr    =(grossProfit<0?Math.abs(grossProfit):0)+indExpenses;
-  const plCr    =(grossProfit>0?grossProfit:0)+indIncomes;
-  const netProfit=plCr-plDr;
-  const totalPL =Math.max(plDr+(netProfit>0?netProfit:0),plCr+(netProfit<0?Math.abs(netProfit):0));
+  // ─── DIRECT EXPENSES LEDGERS ─────────────────────────────────────────────────
+  const directExpLedgers = useMemo(()=>{
+    const result: {ledger: Ledger; balance: number}[] = [];
+    for (const gn of ['Direct Expenses','Expenses (Direct)']) {
+      for (const item of (grp[gn]||[])) {
+        if (Math.abs(item.balance) > 0.001) result.push(item);
+      }
+    }
+    return result;
+  },[grp]);
+
+  // ─── DIRECT INCOMES LEDGERS ──────────────────────────────────────────────────
+  const directIncLedgers = useMemo(()=>{
+    const result: {ledger: Ledger; balance: number}[] = [];
+    for (const gn of ['Direct Incomes','Income (Direct)']) {
+      for (const item of (grp[gn]||[])) {
+        if (Math.abs(item.balance) > 0.001) result.push(item);
+      }
+    }
+    return result;
+  },[grp]);
+
+  // ─── INDIRECT EXPENSES LEDGERS ───────────────────────────────────────────────
+  const indirectExpGroups = ['Indirect Expenses','Expenses (Indirect)'];
+  const indirectIncGroups = ['Indirect Incomes','Income (Indirect)'];
+  const indirectExpLedgers = useMemo(()=>{
+    const result: {ledger: Ledger; balance: number}[] = [];
+    for (const gn of indirectExpGroups) {
+      for (const item of (grp[gn]||[])) {
+        if (Math.abs(item.balance) > 0.001) result.push(item);
+      }
+    }
+    return result;
+  },[grp]);
+
+  // ─── INDIRECT INCOMES LEDGERS ────────────────────────────────────────────────
+  const indirectIncLedgers = useMemo(()=>{
+    const result: {ledger: Ledger; balance: number}[] = [];
+    for (const gn of indirectIncGroups) {
+      for (const item of (grp[gn]||[])) {
+        if (Math.abs(item.balance) > 0.001) result.push(item);
+      }
+    }
+    return result;
+  },[grp]);
+
+  const sumDirExp = directExpLedgers.reduce((s,x)=>s+Math.abs(x.balance),0);
+  const sumDirInc = directIncLedgers.reduce((s,x)=>s+Math.abs(x.balance),0);
+  const indExpenses  = indirectExpLedgers.reduce((s,x)=>s+Math.abs(x.balance),0);
+  const indIncomes   = indirectIncLedgers.reduce((s,x)=>s+Math.abs(x.balance),0);
+
+  const tradingDrTotal = openingStockValue + purchaseTaxableValue + sumDirExp;
+  const tradingCrTotal = salesTaxableValue + closingStockValue + sumDirInc;
+  const grossProfit    = tradingCrTotal - tradingDrTotal;
+  const totalTrading   = Math.max(tradingDrTotal+(grossProfit>0?grossProfit:0), tradingCrTotal+(grossProfit<0?Math.abs(grossProfit):0));
+
+  const plDr     = (grossProfit<0?Math.abs(grossProfit):0)+indExpenses;
+  const plCr     = (grossProfit>0?grossProfit:0)+indIncomes;
+  const netProfit = plCr-plDr;
+  const totalPL   = Math.max(plDr+(netProfit>0?netProfit:0), plCr+(netProfit<0?Math.abs(netProfit):0));
 
   const intOnCap=0, salaryToPartner=0;
-  const f2=(n:number)=>n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
-  const startDate=currentPeriod?.start||'01.04.'+(new Date().getFullYear()-1);
-  const endDate  =currentPeriod?.end  ||'31.03.'+new Date().getFullYear();
 
-  type TRow={label:string;amt?:number;isSub?:boolean;isBold?:boolean;id?:number;groupName?:string;};
 
-  // Trading Dr side
-  const dirExpRows:TRow[]=[
-    {label:'To Opening Stock',amt:openingStockValue,groupName:'Stock-in-hand'},
-    {label:'To Purchase',     amt:netPurchases,groupName:'Purchase Accounts'},
-  ];
-  // Add each Direct Expense ledger
-  for (const gn of directExpGroups) {
-    for (const item of (grp[gn]||[]).filter(x=>x.balance!==0)) {
-      dirExpRows.push({label:item.ledger.name,amt:Math.abs(item.balance),isSub:true,id:item.ledger.id});
+  // ─── ROW TYPE ────────────────────────────────────────────────────────────────
+  type TRow={label:string;amt?:number;isSub?:boolean;isBold?:boolean;id?:number;groupName?:string;isLabel?:boolean;};
+
+  // ─── TRADING DEBIT ROWS (Left side) ─────────────────────────────────────────
+  const dirExpRows: TRow[] = [];
+  dirExpRows.push({label:'To Opening Stock', amt: openingStockValue, groupName:'Stock-in-hand'});
+  dirExpRows.push({label:'To Purchase',      amt: purchaseTaxableValue, groupName:'Purchase Accounts'});
+  if (directExpLedgers.length > 0) {
+    dirExpRows.push({label:'To Direct Expenses', isLabel:true});
+    for (const item of directExpLedgers) {
+      dirExpRows.push({label: item.ledger.name, amt: Math.abs(item.balance), isSub:true, id: item.ledger.id});
     }
   }
-  if(grossProfit>0) dirExpRows.push({label:'To Gross Profit',amt:grossProfit,isBold:true});
+  if (grossProfit > 0) dirExpRows.push({label:'To Gross Profit', amt: grossProfit, isBold:true});
 
-  // Trading Cr side
-  const dirIncRows:TRow[]=[
-    {label:'By Sales',         amt:netSales,groupName:'Sales Accounts'},
-    {label:'By Closing Stock', amt:closingStockValue,groupName:'Stock-in-hand'},
-  ];
-  if(grossProfit<0) dirIncRows.push({label:'By Gross Loss',amt:Math.abs(grossProfit),isBold:true});
-
-  // P&L Dr side
-  const indExpRows:TRow[]=[];
-  for (const gn of indirectExpGroups) {
-    for (const item of (grp[gn]||[]).filter(x=>x.balance!==0)) {
-      indExpRows.push({label:item.ledger.name,amt:Math.abs(item.balance),id:item.ledger.id});
-    }
+  // ─── TRADING CREDIT ROWS (Right side) ────────────────────────────────────────
+  const dirIncRows: TRow[] = [];
+  dirIncRows.push({label:'By Sales',         amt: salesTaxableValue,  groupName:'Sales Accounts'});
+  dirIncRows.push({label:'By Closing Stock', amt: closingStockValue,  groupName:'Stock-in-hand'});
+  for (const item of directIncLedgers) {
+    dirIncRows.push({label: item.ledger.name, amt: Math.abs(item.balance), isSub:true, id: item.ledger.id});
   }
-  if(netProfit>0) indExpRows.push({label:'To Net Profit tfd. to Capital A/c',amt:netProfit,isBold:true});
+  if (grossProfit < 0) dirIncRows.push({label:'By Gross Loss', amt: Math.abs(grossProfit), isBold:true});
 
-  // P&L Cr side
-  const indIncRows:TRow[]=[];
-  if(grossProfit>0) indIncRows.push({label:'By Gross Profit',amt:grossProfit,isBold:true});
-  for (const gn of indirectIncGroups) {
-    for (const item of (grp[gn]||[]).filter(x=>x.balance!==0)) {
-      indIncRows.push({label:item.ledger.name,amt:Math.abs(item.balance),isSub:true,id:item.ledger.id});
-    }
+  // ─── P&L DEBIT ROWS (Left side) ─────────────────────────────────────────────
+  const indExpRows: TRow[] = [];
+  if (grossProfit < 0) indExpRows.push({label:'To Gross Loss', amt: Math.abs(grossProfit), isBold:true});
+  for (const item of indirectExpLedgers) {
+    indExpRows.push({label: item.ledger.name, amt: Math.abs(item.balance), id: item.ledger.id});
   }
-  if(netProfit<0) indIncRows.push({label:'By Net Loss',amt:Math.abs(netProfit),isBold:true});
+  if (netProfit > 0) indExpRows.push({label:'To Net Profit tfd. to Capital A/c', amt: netProfit, isBold:true});
 
-  const maxTrd=Math.max(dirExpRows.length,dirIncRows.length);
-  const maxPLR=Math.max(indExpRows.length,indIncRows.length);
+  // ─── P&L CREDIT ROWS (Right side) ────────────────────────────────────────────
+  const indIncRows: TRow[] = [];
+  if (grossProfit > 0) indIncRows.push({label:'By Gross Profit', amt: grossProfit, isBold:true});
+  for (const item of indirectIncLedgers) {
+    indIncRows.push({label: item.ledger.name, amt: Math.abs(item.balance), isSub:true, id: item.ledger.id});
+  }
+  if (netProfit < 0) indIncRows.push({label:'By Net Loss', amt: Math.abs(netProfit), isBold:true});
 
+  const maxTrd = Math.max(dirExpRows.length, dirIncRows.length);
+  const maxPLR = Math.max(indExpRows.length, indIncRows.length);
+
+  // ─── DRILLABLE CHECK ─────────────────────────────────────────────────────────
   const isDrillablePL = (row?: TRow): boolean => {
     if (!row) return false;
+    if (row.isLabel) return false;
     if (row.id !== undefined) return true;
     if (row.groupName) return true;
     return false;
   };
 
   const getRowAt = (c: 'left'|'right', idx: number): TRow | undefined => {
-    if (idx < maxTrd) {
-      return c === 'left' ? dirExpRows[idx] : dirIncRows[idx];
-    } else {
-      const plIdx = idx - maxTrd;
-      return c === 'left' ? indExpRows[plIdx] : indIncRows[plIdx];
-    }
+    if (idx < maxTrd) return c === 'left' ? dirExpRows[idx] : dirIncRows[idx];
+    const plIdx = idx - maxTrd;
+    return c === 'left' ? indExpRows[plIdx] : indIncRows[plIdx];
   };
 
   const leftSelectableIndices = useMemo(() => {
     const arr: number[] = [];
     for (let idx = 0; idx < maxTrd + maxPLR; idx++) {
-      const r = getRowAt('left', idx);
-      if (isDrillablePL(r)) arr.push(idx);
+      if (isDrillablePL(getRowAt('left', idx))) arr.push(idx);
     }
     return arr;
   }, [maxTrd, maxPLR, dirExpRows, indExpRows]);
@@ -9912,24 +9979,19 @@ function ProfitLossView({
   const rightSelectableIndices = useMemo(() => {
     const arr: number[] = [];
     for (let idx = 0; idx < maxTrd + maxPLR; idx++) {
-      const r = getRowAt('right', idx);
-      if (isDrillablePL(r)) arr.push(idx);
+      if (isDrillablePL(getRowAt('right', idx))) arr.push(idx);
     }
     return arr;
   }, [maxTrd, maxPLR, dirIncRows, indIncRows]);
 
-  // Ensure rowIdx points to a valid selectable index on active column
   useEffect(() => {
     const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
     if (list.length > 0 && !list.includes(rowIdx)) {
-      const closest = list.reduce((prev, curr) =>
-        Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
-      );
+      const closest = list.reduce((prev, curr) => Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev);
       setRowIdx(closest);
     }
   }, [col, leftSelectableIndices, rightSelectableIndices]);
 
-  // Scroll into view on selection change
   useEffect(() => {
     const el = document.getElementById(`pl-cell-${col}-${rowIdx}`);
     if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -9937,88 +9999,52 @@ function ProfitLossView({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onBack();
-      } else if (e.key === 'ArrowUp') {
+      if (e.key === 'Escape') { e.preventDefault(); onBack(); }
+      else if (e.key === 'ArrowUp') {
         e.preventDefault();
         const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
-        if (list.length > 0) {
-          const currPos = list.indexOf(rowIdx);
-          if (currPos > 0) {
-            setRowIdx(list[currPos - 1]);
-          } else if (currPos === -1) {
-            const prev = [...list].reverse().find(idx => idx < rowIdx);
-            setRowIdx(prev !== undefined ? prev : list[0]);
-          }
-        }
+        if (list.length > 0) { const p = list.indexOf(rowIdx); if (p > 0) setRowIdx(list[p-1]); }
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         const list = col === 'left' ? leftSelectableIndices : rightSelectableIndices;
-        if (list.length > 0) {
-          const currPos = list.indexOf(rowIdx);
-          if (currPos !== -1 && currPos < list.length - 1) {
-            setRowIdx(list[currPos + 1]);
-          } else if (currPos === -1) {
-            const next = list.find(idx => idx > rowIdx);
-            setRowIdx(next !== undefined ? next : list[list.length - 1]);
-          }
-        }
+        if (list.length > 0) { const p = list.indexOf(rowIdx); if (p !== -1 && p < list.length-1) setRowIdx(list[p+1]); }
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         if (col === 'right') {
           setCol('left');
-          if (leftSelectableIndices.length > 0) {
-            if (!leftSelectableIndices.includes(rowIdx)) {
-              const closest = leftSelectableIndices.reduce((prev, curr) =>
-                Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
-              );
-              setRowIdx(closest);
-            }
+          if (leftSelectableIndices.length > 0 && !leftSelectableIndices.includes(rowIdx)) {
+            const closest = leftSelectableIndices.reduce((prev,curr)=>Math.abs(curr-rowIdx)<Math.abs(prev-rowIdx)?curr:prev);
+            setRowIdx(closest);
           }
         }
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         if (col === 'left') {
           setCol('right');
-          if (rightSelectableIndices.length > 0) {
-            if (!rightSelectableIndices.includes(rowIdx)) {
-              const closest = rightSelectableIndices.reduce((prev, curr) =>
-                Math.abs(curr - rowIdx) < Math.abs(prev - rowIdx) ? curr : prev
-              );
-              setRowIdx(closest);
-            }
+          if (rightSelectableIndices.length > 0 && !rightSelectableIndices.includes(rowIdx)) {
+            const closest = rightSelectableIndices.reduce((prev,curr)=>Math.abs(curr-rowIdx)<Math.abs(prev-rowIdx)?curr:prev);
+            setRowIdx(closest);
           }
         }
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const target = getRowAt(col, rowIdx);
         if (target && isDrillablePL(target)) {
-          if (target.id !== undefined) {
-            onDrillDownLedger(target.id);
-          } else if (target.groupName) {
-            onDrillDownGroup(target.groupName);
-          }
+          if (target.id !== undefined) onDrillDownLedger(target.id);
+          else if (target.groupName) onDrillDownGroup(target.groupName);
         }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [col, rowIdx, leftSelectableIndices, rightSelectableIndices, onBack, onDrillDownLedger, onDrillDownGroup, maxTrd, dirExpRows, dirIncRows, indExpRows, indIncRows]);
+  }, [col, rowIdx, leftSelectableIndices, rightSelectableIndices, onBack, onDrillDownLedger, onDrillDownGroup]);
 
+  // ─── CELL RENDERERS ──────────────────────────────────────────────────────────
   const tdL = (row: TRow|undefined, bdr: string, globalIdx: number) => {
     if (!row) return <><td style={{borderRight:'1px solid #ddd',padding:'3px 8px',width:'33%'}}></td><td style={{padding:'3px 8px',width:'17%',borderRight:bdr,textAlign:'right'}}></td></>;
     const drillable = isDrillablePL(row);
     const isSel = col === 'left' && rowIdx === globalIdx && drillable;
-
-    const handleAction = () => {
-      if (!drillable) return;
-      setCol('left');
-      setRowIdx(globalIdx);
-      if (row.id !== undefined) onDrillDownLedger(row.id);
-      else if (row.groupName) onDrillDownGroup(row.groupName);
-    };
-
+    const handleAction = () => { if (!drillable) return; setCol('left'); setRowIdx(globalIdx); if (row.id !== undefined) onDrillDownLedger(row.id); else if (row.groupName) onDrillDownGroup(row.groupName); };
     return (
       <>
         <td
@@ -10028,6 +10054,7 @@ function ProfitLossView({
             fontSize: 12,
             borderRight: '1px solid #ddd',
             fontWeight: isSel ? 'bold' : (row.isBold ? 'bold' : 'normal'),
+            textDecoration: row.isLabel ? 'underline' : 'none',
             width: '33%',
             cursor: drillable ? 'pointer' : 'default',
             background: isSel ? '#ffd700' : 'transparent',
@@ -10035,9 +10062,7 @@ function ProfitLossView({
           }}
           onClick={handleAction}
           onMouseEnter={() => { if (drillable) { setCol('left'); setRowIdx(globalIdx); } }}
-        >
-          {row.label}
-        </td>
+        >{row.label}</td>
         <td
           style={{
             padding: '3px 8px',
@@ -10052,9 +10077,7 @@ function ProfitLossView({
           }}
           onClick={handleAction}
           onMouseEnter={() => { if (drillable) { setCol('left'); setRowIdx(globalIdx); } }}
-        >
-          {row.amt !== undefined ? f2(row.amt) : ''}
-        </td>
+        >{row.isLabel ? '' : (row.amt !== undefined ? f2(row.amt) : '')}</td>
       </>
     );
   };
@@ -10063,15 +10086,7 @@ function ProfitLossView({
     if (!row) return <><td style={{borderRight:'1px solid #ddd',padding:'3px 8px',width:'33%'}}></td><td style={{padding:'3px 8px',width:'17%',textAlign:'right'}}></td></>;
     const drillable = isDrillablePL(row);
     const isSel = col === 'right' && rowIdx === globalIdx && drillable;
-
-    const handleAction = () => {
-      if (!drillable) return;
-      setCol('right');
-      setRowIdx(globalIdx);
-      if (row.id !== undefined) onDrillDownLedger(row.id);
-      else if (row.groupName) onDrillDownGroup(row.groupName);
-    };
-
+    const handleAction = () => { if (!drillable) return; setCol('right'); setRowIdx(globalIdx); if (row.id !== undefined) onDrillDownLedger(row.id); else if (row.groupName) onDrillDownGroup(row.groupName); };
     return (
       <>
         <td
@@ -10088,9 +10103,7 @@ function ProfitLossView({
           }}
           onClick={handleAction}
           onMouseEnter={() => { if (drillable) { setCol('right'); setRowIdx(globalIdx); } }}
-        >
-          {row.label}
-        </td>
+        >{row.label}</td>
         <td
           style={{
             padding: '3px 8px',
@@ -10104,9 +10117,7 @@ function ProfitLossView({
           }}
           onClick={handleAction}
           onMouseEnter={() => { if (drillable) { setCol('right'); setRowIdx(globalIdx); } }}
-        >
-          {row.amt !== undefined ? f2(row.amt) : ''}
-        </td>
+        >{row.amt !== undefined ? f2(row.amt) : ''}</td>
       </>
     );
   };
@@ -10116,7 +10127,7 @@ function ProfitLossView({
       {/* App bar */}
       <div style={{background:'linear-gradient(90deg,#5a0a0a,#006600)',color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <span style={{fontSize:15,fontWeight:'bold'}}>📈 Trading, Profit & Loss Account</span>
+          <span style={{fontSize:15,fontWeight:'bold'}}>📈 Trading, Profit &amp; Loss Account</span>
           <span style={{fontSize:11,opacity:0.8}}>Period: {startDate} to {endDate}</span>
           <span style={{fontSize:11,padding:'2px 8px',background:netProfit>=0?'#1a7a4a':'#8B0000',borderRadius:3,fontWeight:'bold'}}>
             {netProfit>=0?`✔ Net Profit: ₹${f2(netProfit)}`:`⚠ Net Loss: ₹${f2(Math.abs(netProfit))}`}
@@ -10136,7 +10147,7 @@ function ProfitLossView({
               {/* Company Header */}
               <tr><td colSpan={4} style={{padding:'8px 12px 1px',fontWeight:'bold',fontSize:13}}>{compName}</td></tr>
               <tr><td colSpan={4} style={{padding:'1px 12px 2px',fontSize:11}}>{compAddr}</td></tr>
-              <tr><td colSpan={4} style={{padding:'2px 12px 8px',fontWeight:'bold',fontSize:12,borderBottom:'2px solid #000'}}>TRADING, PROFIT &amp; LOSS ACCOUNT FROM {startDate} TO {endDate}</td></tr>
+              <tr><td colSpan={4} style={{padding:'2px 12px 6px',fontWeight:'bold',fontSize:12,borderBottom:'2px solid #000'}}>TRADING, PROFIT &amp; LOSS ACCOUNT FROM {startDate} TO {endDate}</td></tr>
               {/* Column Headers */}
               <tr style={{background:'#f0f0f0'}}>
                 <th style={{padding:'5px 8px',textAlign:'left',width:'33%',borderRight:'1px solid #aaa',borderBottom:'1px solid #aaa',fontSize:12}}>PARTICULARS</th>
@@ -10144,7 +10155,8 @@ function ProfitLossView({
                 <th style={{padding:'5px 8px',textAlign:'left',width:'33%',borderRight:'1px solid #aaa',borderBottom:'1px solid #aaa',fontSize:12}}>PARTICULARS</th>
                 <th style={{padding:'5px 8px',textAlign:'right',width:'17%',borderBottom:'1px solid #aaa',fontSize:12}}>AMOUNT</th>
               </tr>
-              {/* ===== TRADING ROWS ===== */}
+              {/* ═══════════ TRADING ACCOUNT ROWS ═══════════ */}
+
               {Array.from({length:maxTrd}).map((_,i)=>(
                 <tr key={'tr-'+i} style={{borderBottom:'1px solid #f4f4f4'}}>
                   {tdL(dirExpRows[i],'2px solid #555', i)}
