@@ -816,7 +816,7 @@ export default function App() {
         asOnDate: f.asOnDate || currentPeriod?.end || '31-Mar-2026',
         fromDate: f.fromDate || currentPeriod?.start || '01-Apr-2025',
         toDate:   f.toDate   || currentPeriod?.end || '31-Mar-2026',
-        place:    f.place    || activeCompany.state || '',
+        place:    activeCompany.state || f.place || '',
         signatoryTitle: f.signatoryTitle || 'PARTNER',
         partners: initialPartners,
       };
@@ -9377,7 +9377,7 @@ function BalanceSheetView({
 }) {
   const compName = activeCompany?.name ? (activeCompany.name.toUpperCase().startsWith('M/S') ? activeCompany.name.toUpperCase() : `M/S ${activeCompany.name.toUpperCase()}`) : 'M/S AIMAN POLYMERS';
   const compAddr = activeCompany?.address || 'KHATIMA ROAD, NEAR CHC, SITARGANJ, DISTT-US NAGAR (UTTARAKHAND) 262405';
-  const compPlace = activeCompany?.city?.toUpperCase() || 'SITARGANJ';
+  const compPlace = (activeCompany?.state || activeCompany?.city || '').toUpperCase();
 
   const grp = useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
   const [expanded, setExpanded] = useState<Record<string,boolean>>({});
@@ -9783,7 +9783,7 @@ function ProfitLossView({
 }) {
   const compName = activeCompany?.name ? (activeCompany.name.toUpperCase().startsWith('M/S') ? activeCompany.name.toUpperCase() : `M/S ${activeCompany.name.toUpperCase()}`) : 'M/S AIMAN POLYMERS';
   const compAddr = activeCompany?.address || 'KHATIMA ROAD, NEAR CHC, SITARGANJ, DISTT-US NAGAR (UTTARAKHAND) 262405';
-  const compPlace = activeCompany?.city?.toUpperCase() || 'SITARGANJ';
+  const compPlace = (activeCompany?.state || activeCompany?.city || '').toUpperCase();
 
   const grp = useMemo(()=>groupLedgersByParent(ledgers,vouchers),[ledgers,vouchers]);
 
