@@ -5926,6 +5926,75 @@ function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave,onDelete}:
 // ==================== JOURNAL VOUCHER EXAMPLES DATA ====================
 const JOURNAL_EXAMPLES_DATA = [
   {
+    category: "🏭 Direct Expenses & Factory Adjustments (Trading A/c)",
+    items: [
+      {
+        title: "1. Outstanding Labour / Wages Due",
+        entries: [
+          { type: "By (Dr)", ledger: "Labour wages", group: "Direct Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Outstanding Wages A/c", group: "Current Liabilities", amount: 0 }
+        ],
+        note: "Factory labour/wages incurred → Debit (Direct Expenses); Payment pending → Credit (Liability)."
+      },
+      {
+        title: "2. Freight Inward / Carriage on Credit",
+        entries: [
+          { type: "By (Dr)", ledger: "Freight Inward A/c", group: "Direct Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Transporter Payable A/c", group: "Sundry Creditors", amount: 0 }
+        ],
+        note: "Raw material freight due to transporter → Debit Freight Inward (Direct Expenses)."
+      },
+      {
+        title: "3. Factory Lease Rent Due",
+        entries: [
+          { type: "By (Dr)", ledger: "Lease Rent", group: "Direct Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Lease Rent Payable A/c", group: "Current Liabilities", amount: 0 }
+        ],
+        note: "Factory / manufacturing plant lease rent accrued → Debit Direct Expenses."
+      },
+      {
+        title: "4. Factory Electricals & Power Bill Due",
+        entries: [
+          { type: "By (Dr)", ledger: "Electricals Exp", group: "Direct Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Electricity Payable A/c", group: "Current Liabilities", amount: 0 }
+        ],
+        note: "Factory electricity / power bill for manufacturing → Debit Direct Expenses."
+      },
+      {
+        title: "5. Loading & Unloading Charges Due",
+        entries: [
+          { type: "By (Dr)", ledger: "Loading & Unloading Charges", group: "Direct Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Labour Contractor A/c", group: "Sundry Creditors", amount: 0 }
+        ],
+        note: "Raw material handling charges → Debit (Direct Expenses)."
+      },
+      {
+        title: "6. Custom Duty & Port Clearance Due",
+        entries: [
+          { type: "By (Dr)", ledger: "Custom Duty A/c", group: "Direct Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Clearing & Forwarding Agent A/c", group: "Sundry Creditors", amount: 0 }
+        ],
+        note: "Import duty / port charges directly on purchases → Debit (Direct Expenses)."
+      },
+      {
+        title: "7. Job Work / Processing Charges Due",
+        entries: [
+          { type: "By (Dr)", ledger: "Job Work Charges A/c", group: "Direct Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Job Worker A/c", group: "Sundry Creditors", amount: 0 }
+        ],
+        note: "Manufacturing / Job work done by outside processor → Debit (Direct Expenses)."
+      },
+      {
+        title: "8. Cartage & Delivery Charges Due",
+        entries: [
+          { type: "By (Dr)", ledger: "Cartage Charges", group: "Direct Expenses", amount: 0 },
+          { type: "To (Cr)", ledger: "Cartage Vendor A/c", group: "Sundry Creditors", amount: 0 }
+        ],
+        note: "Local cartage and delivery charges on raw material → Debit (Direct Expenses)."
+      }
+    ]
+  },
+  {
     category: "⭐ Top 16 Essential Journal Examples",
     items: [
       {
@@ -6375,6 +6444,221 @@ const JOURNAL_EXAMPLES_DATA = [
           { type: "To (Cr)", ledger: "XYZ Customer A/c", group: "Sundry Debtors", amount: 0 }
         ],
         note: "Customer advance adjustment entry."
+      }
+    ]
+  }
+];
+
+// ==================== PAYMENT VOUCHER EXAMPLES DATA ====================
+const PAYMENT_EXAMPLES_DATA = [
+  {
+    category: "🏭 Direct Expenses Payments (Trading A/c)",
+    items: [
+      {
+        title: "1. Labour / Wages Paid (Cash)",
+        account: "Cash",
+        entries: [
+          { type: "Dr", ledger: "Labour wages", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Factory workers wages paid in cash → Debit Labour wages (Direct Expenses), Credit Cash."
+      },
+      {
+        title: "2. Freight Inward / Carriage Paid (Cash)",
+        account: "Cash",
+        entries: [
+          { type: "Dr", ledger: "Freight Inward A/c", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Transportation charges for incoming raw material paid in cash."
+      },
+      {
+        title: "3. Factory Electricals & Power Bill (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Electricals Exp", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Factory electricity / power bill paid via bank transfer."
+      },
+      {
+        title: "4. Factory Lease Rent Paid (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Lease Rent", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Factory shed / industrial plot lease rent paid via bank."
+      },
+      {
+        title: "5. Loading & Unloading Charges (Cash)",
+        account: "Cash",
+        entries: [
+          { type: "Dr", ledger: "Loading & Unloading Charges", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Cash payment for unloading raw materials at factory gate."
+      },
+      {
+        title: "6. Custom & Import Duty Paid (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Custom Duty A/c", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Custom duty paid online through bank for imported materials."
+      },
+      {
+        title: "7. Cartage & Delivery Charges Paid (Cash)",
+        account: "Cash",
+        entries: [
+          { type: "Dr", ledger: "Cartage Charges", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Local cartage / tempo freight paid in cash for materials."
+      },
+      {
+        title: "8. Job Work / Processing Charges (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Job Work Charges A/c", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Payment to processing unit / job worker via bank."
+      },
+      {
+        title: "9. Primary Packaging Material (Cash/Bank)",
+        account: "Cash",
+        entries: [
+          { type: "Dr", ledger: "Primary Packing Material A/c", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Direct packaging material required for product packing."
+      },
+      {
+        title: "10. Factory Water & Fuel Charges (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Factory Water & Fuel Exp", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Industrial fuel, boiler diesel, factory water charges paid."
+      }
+    ]
+  },
+  {
+    category: "🏢 Indirect Expenses Payments (P&L A/c)",
+    items: [
+      {
+        title: "1. Staff Salary Paid (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Salary A/c", group: "Indirect Expenses", amount: 0 }
+        ],
+        note: "Monthly office staff salary payment via bank."
+      },
+      {
+        title: "2. Office Rent Paid (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Rent Expense A/c", group: "Indirect Expenses", amount: 0 }
+        ],
+        note: "Office rent paid by cheque / bank transfer."
+      },
+      {
+        title: "3. Office Tea & Staff Welfare (Cash)",
+        account: "Cash",
+        entries: [
+          { type: "Dr", ledger: "Staff Welfare Expenses", group: "Indirect Expenses", amount: 0 }
+        ],
+        note: "Daily tea, refreshments and staff welfare expenses paid in cash."
+      },
+      {
+        title: "4. Printing & Stationery Paid (Cash)",
+        account: "Cash",
+        entries: [
+          { type: "Dr", ledger: "Printing & Stationery Expenses", group: "Indirect Expenses", amount: 0 }
+        ],
+        note: "Office paper, bill books, toner, stationery paid in cash."
+      },
+      {
+        title: "5. Telephone & Internet Bill (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Telephone Expenses", group: "Indirect Expenses", amount: 0 }
+        ],
+        note: "Broadband and phone bill paid via bank."
+      },
+      {
+        title: "6. Legal & Professional / CA Fees (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Legal & Professional Charges", group: "Indirect Expenses", amount: 0 }
+        ],
+        note: "CA audit fees / legal consultancy paid via bank."
+      },
+      {
+        title: "7. Repair & Maintenance of Machine (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Repair & Maintanence of Machine", group: "Indirect Expenses", amount: 0 }
+        ],
+        note: "Machinery servicing and maintenance charges."
+      }
+    ]
+  },
+  {
+    category: "👥 Transporter & Supplier Payments",
+    items: [
+      {
+        title: "1. Payment to Transporter (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Transporter A/c", group: "Sundry Creditors", amount: 0 }
+        ],
+        note: "Payment to freight transporter against freight bills."
+      },
+      {
+        title: "2. Payment to Raw Material Supplier (Bank)",
+        account: "Bank A/c",
+        entries: [
+          { type: "Dr", ledger: "Sundry Creditor A/c", group: "Sundry Creditors", amount: 0 }
+        ],
+        note: "Bank payment to supplier against purchase invoice."
+      }
+    ]
+  }
+];
+
+// ==================== PURCHASE VOUCHER EXAMPLES DATA ====================
+const PURCHASE_EXAMPLES_DATA = [
+  {
+    category: "🚚 Direct Expenses / Additional Charges on Purchase",
+    items: [
+      {
+        title: "1. Transportation Charges (Direct Expenses)",
+        entries: [
+          { type: "Dr", ledger: "Transportation Charges", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Inward transportation added to purchase invoice → Included in Trading A/c."
+      },
+      {
+        title: "2. Freight Charges (Direct Expenses)",
+        entries: [
+          { type: "Dr", ledger: "Freight Charges", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Freight / carriage inward directly attributable to goods purchase."
+      },
+      {
+        title: "3. Loading & Unloading Charges (Direct Expenses)",
+        entries: [
+          { type: "Dr", ledger: "Loading & Unloading Charges", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Coolie / labor charges for handling purchased goods."
+      },
+      {
+        title: "4. Cartage & Delivery Charges (Direct Expenses)",
+        entries: [
+          { type: "Dr", ledger: "Cartage Charges", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Local cartage charges paid for delivering items to warehouse."
+      },
+      {
+        title: "5. Primary Packing Charges (Direct Expenses)",
+        entries: [
+          { type: "Dr", ledger: "Primary Packing Material A/c", group: "Direct Expenses", amount: 0 }
+        ],
+        note: "Special packaging required during raw material purchase."
       }
     ]
   }
@@ -7708,7 +7992,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             </span>
           </div>
           <div style={{color:'#444',display:'flex',alignItems:'center',gap:8}}>
-            {activeVoucher === 'Journal' && (
+            {(activeVoucher === 'Journal' || activeVoucher === 'Payment' || activeVoucher === 'Purchase') && (
               <button
                 type="button"
                 onClick={() => setShowJournalHelp(prev => !prev)}
@@ -7733,7 +8017,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                   outline: 'none'
                 }}
-                title="Journal Voucher Examples & Rules (Click or Enter)"
+                title={`${activeVoucher} Voucher Examples & Direct Expenses (Click or Enter)`}
               >
                 <span>📚</span> Examples
               </button>
@@ -9131,231 +9415,397 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           </div>
         </div>
       )}
-      {/* ===== JOURNAL VOUCHER EXAMPLES SIDE PANEL ===== */}
-      {showJournalHelp && activeVoucher === 'Journal' && (
-        <div style={{
-          position: 'fixed',
-          top: 0, right: 0, bottom: 0,
-          width: 460,
-          maxWidth: '92vw',
-          background: '#ffffff',
-          boxShadow: '-6px 0 25px rgba(0,0,0,0.3)',
-          zIndex: 99999,
-          display: 'flex',
-          flexDirection: 'column',
-          fontFamily: 'sans-serif',
-          borderLeft: '4px solid #00555a'
-        }}>
-          {/* Panel Header */}
+      {/* ===== VOUCHER EXAMPLES SIDE PANEL (Journal, Payment, Purchase) ===== */}
+      {showJournalHelp && (activeVoucher === 'Journal' || activeVoucher === 'Payment' || activeVoucher === 'Purchase') && (() => {
+        const isJournal = activeVoucher === 'Journal';
+        const isPayment = activeVoucher === 'Payment';
+        const isPurchase = activeVoucher === 'Purchase';
+        const currentData = isJournal ? JOURNAL_EXAMPLES_DATA : (isPayment ? PAYMENT_EXAMPLES_DATA : PURCHASE_EXAMPLES_DATA);
+        const panelTitle = isJournal
+          ? 'Journal Voucher Examples'
+          : (isPayment ? 'Payment Voucher Examples (Direct & Indirect Exp)' : 'Purchase Voucher - Direct Inward Charges');
+        const panelSubtitle = isJournal
+          ? 'By (Dr) = Debit | To (Cr) = Credit (Includes Direct & Factory Exp)'
+          : (isPayment ? 'Dr (Debit) = Expense / Creditor | Account = Cash or Bank' : 'Direct Expenses on Purchase (Inward Freight, Transport, Loading)');
+        const searchPlaceholder = isJournal
+          ? '🔍 Search example (Wages, Freight, Rent, Depreciation, Loan...)'
+          : (isPayment ? '🔍 Search payment example (Wages, Freight, Electricity, Lease Rent...)' : '🔍 Search inward charges (Freight, Transport, Loading, Cartage...)');
+
+        return (
           <div style={{
-            background: '#00555a',
-            color: '#fff',
-            padding: '12px 16px',
+            position: 'fixed',
+            top: 0, right: 0, bottom: 0,
+            width: 470,
+            maxWidth: '92vw',
+            background: '#ffffff',
+            boxShadow: '-6px 0 25px rgba(0,0,0,0.3)',
+            zIndex: 99999,
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            flexDirection: 'column',
+            fontFamily: 'sans-serif',
+            borderLeft: '4px solid #00555a'
           }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 'bold', display:'flex', alignItems:'center', gap:6 }}>
-                <span>📚</span> Journal Voucher Examples
-              </h3>
-              <span style={{ fontSize: 11, opacity: 0.9 }}>By (Dr) = Debit | To (Cr) = Credit</span>
-            </div>
-            <button
-              onClick={() => setShowJournalHelp(false)}
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none',
-                color: '#fff',
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: 16
-              }}
-              title="Close Panel (Esc)"
-            >✕</button>
-          </div>
-
-          {/* Search Bar */}
-          <div style={{ padding: '10px 14px', background: '#f5efe6', borderBottom: '1px solid #ddd' }}>
-            <input
-              type="text"
-              placeholder="🔍 Search example (Rent, Salary, Depreciation, Loan...)"
-              value={journalExampleSearch}
-              onChange={e => setJournalExampleSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '6px 12px',
-                fontSize: 12,
-                border: '1px solid #ccc',
-                borderRadius: 4,
-                outline: 'none',
-                background: '#fff'
-              }}
-            />
-          </div>
-
-          {/* Scrollable Examples List */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', background: '#faf8f5' }}>
-            {/* Accounting Formula Banner */}
+            {/* Panel Header */}
             <div style={{
-              background: '#e8f5e9',
-              border: '1px solid #a5d6a7',
-              borderRadius: 4,
-              padding: '8px 12px',
-              marginBottom: 14,
-              fontSize: 11,
-              color: '#1b5e20'
+              background: '#00555a',
+              color: '#fff',
+              padding: '12px 16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
             }}>
-              <div style={{ fontWeight: 'bold', marginBottom: 3 }}>⚡ Key Accounting Rules:</div>
-              <div>• <b>By / Debit (Dr)</b>: Asset or Expense increases</div>
-              <div>• <b>To / Credit (Cr)</b>: Liability, Income or Capital increases</div>
-              <div>• <b>Validation</b>: Total By (Dr) = Total To (Cr)</div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 'bold', display:'flex', alignItems:'center', gap:6 }}>
+                  <span>📚</span> {panelTitle}
+                </h3>
+                <span style={{ fontSize: 11, opacity: 0.9 }}>{panelSubtitle}</span>
+              </div>
+              <button
+                onClick={() => setShowJournalHelp(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: '#fff',
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  fontSize: 16
+                }}
+                title="Close Panel (Esc)"
+              >✕</button>
             </div>
 
-            {JOURNAL_EXAMPLES_DATA.map((cat, cIdx) => {
-              const filteredItems = cat.items.filter(item => {
-                if (!journalExampleSearch.trim()) return true;
-                const q = journalExampleSearch.toLowerCase();
-                return item.title.toLowerCase().includes(q) ||
-                  item.entries.some(e => e.ledger.toLowerCase().includes(q) || e.group.toLowerCase().includes(q)) ||
-                  (item.note && item.note.toLowerCase().includes(q));
-              });
+            {/* Search Bar */}
+            <div style={{ padding: '10px 14px', background: '#f5efe6', borderBottom: '1px solid #ddd' }}>
+              <input
+                type="text"
+                placeholder={searchPlaceholder}
+                value={journalExampleSearch}
+                onChange={e => setJournalExampleSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  border: '1px solid #ccc',
+                  borderRadius: 4,
+                  outline: 'none',
+                  background: '#fff'
+                }}
+              />
+            </div>
 
-              if (filteredItems.length === 0) return null;
+            {/* Scrollable Examples List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', background: '#faf8f5' }}>
+              {/* Accounting Formula Banner */}
+              <div style={{
+                background: '#e8f5e9',
+                border: '1px solid #a5d6a7',
+                borderRadius: 4,
+                padding: '8px 12px',
+                marginBottom: 14,
+                fontSize: 11,
+                color: '#1b5e20'
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: 3 }}>⚡ Key Accounting Rules:</div>
+                {isJournal && (
+                  <>
+                    <div>• <b>By / Debit (Dr)</b>: Asset or Expense increases (Direct Exp to Trading A/c)</div>
+                    <div>• <b>To / Credit (Cr)</b>: Liability, Income or Capital increases</div>
+                    <div>• <b>Validation</b>: Total By (Dr) = Total To (Cr)</div>
+                  </>
+                )}
+                {isPayment && (
+                  <>
+                    <div>• <b>Account</b>: Cash or Bank (source of payment, Cr side)</div>
+                    <div>• <b>Particulars (Dr)</b>: Direct Expense (Trading) or Indirect Expense (P&L)</div>
+                    <div>• <b>Auto Fill</b>: Sets Cash/Bank & Expense ledger with Amount 0!</div>
+                  </>
+                )}
+                {isPurchase && (
+                  <>
+                    <div>• <b>Direct Expenses on Purchase</b>: Freight, Transport, Loading/Unloading</div>
+                    <div>• Added as additional charges to invoice and reflected in Trading Account</div>
+                    <div>• <b>Auto Fill</b>: Appends ledger to invoice additional charges grid!</div>
+                  </>
+                )}
+              </div>
 
-              return (
-                <div key={cIdx} style={{ marginBottom: 16 }}>
-                  <div style={{
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    color: '#00555a',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.4px',
-                    margin: '0 0 8px 0',
-                    paddingBottom: 4,
-                    borderBottom: '2px solid #00555a'
-                  }}>
-                    {cat.category}
-                  </div>
+              {currentData.map((cat, cIdx) => {
+                const filteredItems = cat.items.filter(item => {
+                  if (!journalExampleSearch.trim()) return true;
+                  const q = journalExampleSearch.toLowerCase();
+                  return item.title.toLowerCase().includes(q) ||
+                    (item.entries && item.entries.some((e: any) => e.ledger.toLowerCase().includes(q) || e.group.toLowerCase().includes(q))) ||
+                    (item.note && item.note.toLowerCase().includes(q));
+                });
 
-                  {filteredItems.map((item, iIdx) => (
-                    <div key={iIdx} style={{
-                      background: '#fff',
-                      border: '1px solid #e0d8c8',
-                      borderRadius: 5,
-                      padding: '10px 12px',
-                      marginBottom: 10,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                if (filteredItems.length === 0) return null;
+
+                return (
+                  <div key={cIdx} style={{ marginBottom: 16 }}>
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 'bold',
+                      color: '#00555a',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.4px',
+                      margin: '0 0 8px 0',
+                      paddingBottom: 4,
+                      borderBottom: '2px solid #00555a'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 'bold', color: '#222' }}>{item.title}</span>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const token = authClient.getToken();
-                            const cid = activeCompany?.id || 0;
-                            // Auto-create missing ledgers in DB and local state
-                            for (const e of item.entries) {
-                              const exists = ledgers.some(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
-                              if (!exists) {
-                                try {
-                                  const res = await fetch('/api/ledgers', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                    body: JSON.stringify({
-                                      companyId: cid,
-                                      name: e.ledger,
-                                      groupName: e.group || 'Primary',
-                                      openingBalance: 0,
-                                      balanceType: e.type.includes('Dr') ? 'Dr' : 'Cr'
-                                    })
-                                  });
-                                  if (res.ok) {
-                                    const resData = await res.json();
-                                    if (resData.ledger) {
-                                      ledgers.push(resData.ledger);
+                      {cat.category}
+                    </div>
+
+                    {filteredItems.map((item: any, iIdx: number) => (
+                      <div key={iIdx} style={{
+                        background: '#fff',
+                        border: '1px solid #e0d8c8',
+                        borderRadius: 5,
+                        padding: '10px 12px',
+                        marginBottom: 10,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 13, fontWeight: 'bold', color: '#222' }}>{item.title}</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const token = authClient.getToken();
+                              const cid = activeCompany?.id || 0;
+
+                              if (isPurchase) {
+                                // Purchase: add to additionalLedgers
+                                const firstEntry = item.entries?.[0];
+                                if (!firstEntry) return;
+                                let found = ledgers.find(l => l.name.trim().toLowerCase() === firstEntry.ledger.trim().toLowerCase());
+                                if (!found) {
+                                  try {
+                                    const res = await fetch('/api/ledgers', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                      body: JSON.stringify({
+                                        companyId: cid,
+                                        name: firstEntry.ledger,
+                                        groupName: firstEntry.group || 'Direct Expenses',
+                                        openingBalance: 0,
+                                        balanceType: 'Dr'
+                                      })
+                                    });
+                                    if (res.ok) {
+                                      const resData = await res.json();
+                                      if (resData.ledger) {
+                                        ledgers.push(resData.ledger);
+                                        found = resData.ledger;
+                                      }
+                                    }
+                                  } catch (err) {
+                                    console.warn("Auto-create ledger error:", err);
+                                  }
+                                }
+                                setAdditionalLedgers(prev => {
+                                  const emptyIdx = prev.findIndex(al => !al.ledgerName || al.ledgerName.trim() === '');
+                                  const newEntry: AccountEntry = {
+                                    ledgerId: found?.id || 0,
+                                    ledgerName: found?.name || firstEntry.ledger,
+                                    amount: 0,
+                                    entryType: 'Dr'
+                                  };
+                                  if (emptyIdx !== -1) {
+                                    const updated = [...prev];
+                                    updated[emptyIdx] = newEntry;
+                                    return updated;
+                                  }
+                                  return [...prev, newEntry];
+                                });
+                                setShowJournalHelp(false);
+                                setTimeout(() => {
+                                  document.getElementById(`addl-amt-${additionalLedgers.length}`)?.focus();
+                                }, 100);
+                                return;
+                              }
+
+                              if (isPayment) {
+                                // Payment: set partyName (Account) to Cash or Bank and add expense to accEntries
+                                const targetAcc = (item.account || 'Cash').trim();
+                                let accLedger = ledgers.find(l => l.name.trim().toLowerCase() === targetAcc.toLowerCase());
+                                if (!accLedger && targetAcc) {
+                                  try {
+                                    const isBank = targetAcc.toLowerCase().includes('bank');
+                                    const res = await fetch('/api/ledgers', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                      body: JSON.stringify({
+                                        companyId: cid,
+                                        name: targetAcc,
+                                        groupName: isBank ? 'Bank Accounts' : 'Cash-in-hand',
+                                        openingBalance: 0,
+                                        balanceType: 'Dr'
+                                      })
+                                    });
+                                    if (res.ok) {
+                                      const resData = await res.json();
+                                      if (resData.ledger) {
+                                        ledgers.push(resData.ledger);
+                                        accLedger = resData.ledger;
+                                      }
+                                    }
+                                  } catch (err) {
+                                    console.warn("Auto-create account ledger error:", err);
+                                  }
+                                }
+                                if (!partyName || partyName.trim() === '') {
+                                  setPartyName(accLedger?.name || targetAcc);
+                                }
+
+                                const newEntries: AccountEntry[] = [];
+                                for (const e of item.entries) {
+                                  let found = ledgers.find(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
+                                  if (!found) {
+                                    try {
+                                      const res = await fetch('/api/ledgers', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                        body: JSON.stringify({
+                                          companyId: cid,
+                                          name: e.ledger,
+                                          groupName: e.group || 'Direct Expenses',
+                                          openingBalance: 0,
+                                          balanceType: 'Dr'
+                                        })
+                                      });
+                                      if (res.ok) {
+                                        const resData = await res.json();
+                                        if (resData.ledger) {
+                                          ledgers.push(resData.ledger);
+                                          found = resData.ledger;
+                                        }
+                                      }
+                                    } catch (err) {
+                                      console.warn("Auto-create expense ledger error:", err);
                                     }
                                   }
-                                } catch (err) {
-                                  console.warn("Auto-create ledger error:", err);
+                                  newEntries.push({
+                                    ledgerId: found?.id || 0,
+                                    ledgerName: found?.name || e.ledger,
+                                    amount: 0,
+                                    entryType: 'Dr'
+                                  });
+                                }
+                                setAccEntries(newEntries);
+                                setShowJournalHelp(false);
+                                setTimeout(() => {
+                                  document.getElementById('acc-amt-0-Dr')?.focus() || document.getElementById('acc-ledger-0')?.focus();
+                                }, 100);
+                                return;
+                              }
+
+                              // Journal default flow
+                              for (const e of item.entries) {
+                                const exists = ledgers.some(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
+                                if (!exists) {
+                                  try {
+                                    const res = await fetch('/api/ledgers', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                      body: JSON.stringify({
+                                        companyId: cid,
+                                        name: e.ledger,
+                                        groupName: e.group || 'Primary',
+                                        openingBalance: 0,
+                                        balanceType: e.type.includes('Dr') ? 'Dr' : 'Cr'
+                                      })
+                                    });
+                                    if (res.ok) {
+                                      const resData = await res.json();
+                                      if (resData.ledger) {
+                                        ledgers.push(resData.ledger);
+                                      }
+                                    }
+                                  } catch (err) {
+                                    console.warn("Auto-create ledger error:", err);
+                                  }
                                 }
                               }
-                            }
-                            // Populate entries with amount 0 so user can enter amount manually
-                            const newEntries = item.entries.map(e => {
-                              const found = ledgers.find(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
-                              return {
-                                ledgerId: found?.id || 0,
-                                ledgerName: found?.name || e.ledger,
-                                amount: 0,
-                                entryType: (e.type.includes('Dr') ? 'Dr' : 'Cr') as 'Dr' | 'Cr'
-                              };
-                            });
-                            setAccEntries(newEntries);
-                            setShowJournalHelp(false);
-                            setTimeout(() => {
-                              document.getElementById('acc-amt-0-Dr')?.focus() || document.getElementById('acc-amt-0-Cr')?.focus();
-                            }, 100);
-                          }}
-                          style={{
-                            background: '#1a7a4a',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '3px 10px',
-                            fontSize: 10,
-                            fontWeight: 'bold',
-                            borderRadius: 3,
-                            cursor: 'pointer',
-                            flexShrink: 0,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
-                          }}
-                          title="Click to auto-fill ledgers (Amount = 0)"
-                        >
-                          ⚡ Auto Fill
-                        </button>
-                      </div>
-
-                      <div style={{ background: '#fdfbf7', border: '1px solid #efe8da', borderRadius: 4, padding: '6px 8px' }}>
-                        {item.entries.map((entry, eIdx) => (
-                          <div key={eIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4, color: '#333' }}>
-                            <div>
-                              <span style={{
-                                fontWeight: 'bold',
-                                color: entry.type.includes('Dr') ? '#1a7a4a' : '#8B0000',
-                                minWidth: 48,
-                                display: 'inline-block'
-                              }}>
-                                {entry.type}
-                              </span>
-                              <span style={{ fontWeight: '600' }}>{entry.ledger}</span>
-                              <span style={{ color: '#666', fontStyle: 'italic', marginLeft: 4 }}>({entry.group})</span>
-                            </div>
-                            <span style={{ fontWeight: 'bold', color: '#888' }}>₹0.00</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {item.note && (
-                        <div style={{ fontSize: 10, color: '#555', fontStyle: 'italic', marginTop: 6, paddingLeft: 6, borderLeft: '2px solid #00555a' }}>
-                          💡 {item.note}
+                              const newEntries = item.entries.map((e: any) => {
+                                const found = ledgers.find(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
+                                return {
+                                  ledgerId: found?.id || 0,
+                                  ledgerName: found?.name || e.ledger,
+                                  amount: 0,
+                                  entryType: (e.type.includes('Dr') ? 'Dr' : 'Cr') as 'Dr' | 'Cr'
+                                };
+                              });
+                              setAccEntries(newEntries);
+                              setShowJournalHelp(false);
+                              setTimeout(() => {
+                                document.getElementById('acc-amt-0-Dr')?.focus() || document.getElementById('acc-amt-0-Cr')?.focus();
+                              }, 100);
+                            }}
+                            style={{
+                              background: '#1a7a4a',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '3px 10px',
+                              fontSize: 10,
+                              fontWeight: 'bold',
+                              borderRadius: 3,
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                            }}
+                            title="Click to auto-fill ledgers (Amount = 0)"
+                          >
+                            ⚡ Auto Fill
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
 
-          {/* Panel Footer */}
-          <div style={{ padding: '8px 14px', background: '#f5efe6', borderTop: '1px solid #ddd', fontSize: 11, color: '#555', textAlign: 'center' }}>
-            Click <b>⚡ Auto Fill</b> on any example to load it directly!
+                        {item.account && (
+                          <div style={{ fontSize: 11, marginBottom: 4, color: '#00555a', fontWeight: 'bold' }}>
+                            Account: <span style={{ color: '#222' }}>{item.account}</span>
+                          </div>
+                        )}
+
+                        <div style={{ background: '#fdfbf7', border: '1px solid #efe8da', borderRadius: 4, padding: '6px 8px' }}>
+                          {item.entries.map((entry: any, eIdx: number) => (
+                            <div key={eIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4, color: '#333' }}>
+                              <div>
+                                <span style={{
+                                  fontWeight: 'bold',
+                                  color: entry.type.includes('Dr') ? '#1a7a4a' : '#8B0000',
+                                  minWidth: 48,
+                                  display: 'inline-block'
+                                }}>
+                                  {entry.type}
+                                </span>
+                                <span style={{ fontWeight: '600' }}>{entry.ledger}</span>
+                                <span style={{ color: '#666', fontStyle: 'italic', marginLeft: 4 }}>({entry.group})</span>
+                              </div>
+                              <span style={{ fontWeight: 'bold', color: '#888' }}>₹0.00</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {item.note && (
+                          <div style={{ fontSize: 10, color: '#555', fontStyle: 'italic', marginTop: 6, paddingLeft: 6, borderLeft: '2px solid #00555a' }}>
+                            💡 {item.note}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Panel Footer */}
+            <div style={{ padding: '8px 14px', background: '#f5efe6', borderTop: '1px solid #ddd', fontSize: 11, color: '#555', textAlign: 'center' }}>
+              Click <b>⚡ Auto Fill</b> on any example to load it directly!
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -9846,12 +10296,31 @@ function ProfitLossView({
     return total;
   },[vouchers, grp]);
 
+  const isDirectExpGroupName = (gn: string) => {
+    const l = gn.trim().toLowerCase();
+    return l === 'direct expenses' || l === 'expenses (direct)' || l === 'direct expense' || l === 'expense (direct)' || l.includes('direct exp');
+  };
+  const isDirectIncGroupName = (gn: string) => {
+    const l = gn.trim().toLowerCase();
+    return l === 'direct incomes' || l === 'income (direct)' || l === 'direct income' || l.includes('direct inc');
+  };
+  const isIndirectExpGroupName = (gn: string) => {
+    const l = gn.trim().toLowerCase();
+    return l === 'indirect expenses' || l === 'expenses (indirect)' || l === 'indirect expense' || l.includes('indirect exp');
+  };
+  const isIndirectIncGroupName = (gn: string) => {
+    const l = gn.trim().toLowerCase();
+    return l === 'indirect incomes' || l === 'income (indirect)' || l === 'indirect income' || l.includes('indirect inc');
+  };
+
   // ─── DIRECT EXPENSES LEDGERS ─────────────────────────────────────────────────
   const directExpLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    for (const gn of ['Direct Expenses','Expenses (Direct)']) {
-      for (const item of (grp[gn]||[])) {
-        if (Math.abs(item.balance) > 0.001) result.push(item);
+    for (const [gn, list] of Object.entries(grp)) {
+      if (isDirectExpGroupName(gn)) {
+        for (const item of list) {
+          if (Math.abs(item.balance) > 0.001) result.push(item);
+        }
       }
     }
     return result;
@@ -9860,22 +10329,24 @@ function ProfitLossView({
   // ─── DIRECT INCOMES LEDGERS ──────────────────────────────────────────────────
   const directIncLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    for (const gn of ['Direct Incomes','Income (Direct)']) {
-      for (const item of (grp[gn]||[])) {
-        if (Math.abs(item.balance) > 0.001) result.push(item);
+    for (const [gn, list] of Object.entries(grp)) {
+      if (isDirectIncGroupName(gn)) {
+        for (const item of list) {
+          if (Math.abs(item.balance) > 0.001) result.push(item);
+        }
       }
     }
     return result;
   },[grp]);
 
   // ─── INDIRECT EXPENSES LEDGERS ───────────────────────────────────────────────
-  const indirectExpGroups = ['Indirect Expenses','Expenses (Indirect)'];
-  const indirectIncGroups = ['Indirect Incomes','Income (Indirect)'];
   const indirectExpLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    for (const gn of indirectExpGroups) {
-      for (const item of (grp[gn]||[])) {
-        if (Math.abs(item.balance) > 0.001) result.push(item);
+    for (const [gn, list] of Object.entries(grp)) {
+      if (isIndirectExpGroupName(gn)) {
+        for (const item of list) {
+          if (Math.abs(item.balance) > 0.001) result.push(item);
+        }
       }
     }
     return result;
@@ -9884,9 +10355,11 @@ function ProfitLossView({
   // ─── INDIRECT INCOMES LEDGERS ────────────────────────────────────────────────
   const indirectIncLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    for (const gn of indirectIncGroups) {
-      for (const item of (grp[gn]||[])) {
-        if (Math.abs(item.balance) > 0.001) result.push(item);
+    for (const [gn, list] of Object.entries(grp)) {
+      if (isIndirectIncGroupName(gn)) {
+        for (const item of list) {
+          if (Math.abs(item.balance) > 0.001) result.push(item);
+        }
       }
     }
     return result;
@@ -9917,11 +10390,10 @@ function ProfitLossView({
   const dirExpRows: TRow[] = [];
   dirExpRows.push({label:'To Opening Stock', amt: openingStockValue, groupName:'Stock-in-hand'});
   dirExpRows.push({label:'To Purchase',      amt: purchaseTaxableValue, groupName:'Purchase Accounts'});
-  if (directExpLedgers.length > 0) {
-    dirExpRows.push({label:'To Direct Expenses', isLabel:true});
-    for (const item of directExpLedgers) {
-      dirExpRows.push({label: item.ledger.name, amt: Math.abs(item.balance), isSub:true, id: item.ledger.id});
-    }
+  // ALWAYS render "To Direct Expenses" header (as seen in CA format image)
+  dirExpRows.push({label:'To Direct Expenses', isLabel:true, isBold:true, groupName:'Direct Expenses'});
+  for (const item of directExpLedgers) {
+    dirExpRows.push({label: item.ledger.name, amt: Math.abs(item.balance), isSub:true, id: item.ledger.id});
   }
   if (grossProfit > 0) dirExpRows.push({label:'To Gross Profit', amt: grossProfit, isBold:true});
 
@@ -9956,7 +10428,6 @@ function ProfitLossView({
   // ─── DRILLABLE CHECK ─────────────────────────────────────────────────────────
   const isDrillablePL = (row?: TRow): boolean => {
     if (!row) return false;
-    if (row.isLabel) return false;
     if (row.id !== undefined) return true;
     if (row.groupName) return true;
     return false;
