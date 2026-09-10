@@ -7,11 +7,11 @@ const normalizeDate = (d: any): Date => {
   const s = String(d).trim();
   if (!s) return new Date();
 
-  // Normalize delimiters (/ and . -> -)
-  const normalized = s.replace(/[\.\/]/g, '-').trim();
+  // Normalize delimiters (/ and . and whitespace -> -)
+  const normalized = s.replace(/[\.\/\s]+/g, '-').trim();
   const months: Record<string, number> = {
     'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
-    'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11,
+    'jul': 6, 'aug': 7, 'sep': 8, 'sept': 8, 'oct': 9, 'nov': 10, 'dec': 11,
     'january': 0, 'february': 1, 'march': 2, 'april': 3, 'june': 5,
     'july': 6, 'august': 7, 'september': 8, 'october': 9, 'november': 10, 'december': 11
   };
@@ -36,9 +36,17 @@ const normalizeDate = (d: any): Date => {
     if (months[p2Lower] !== undefined) {
       month = months[p2Lower];
     } else {
-      const mNum = parseInt(p2);
-      if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
-        month = mNum - 1;
+      for (const [mName, mVal] of Object.entries(months)) {
+        if (p2Lower.startsWith(mName)) {
+          month = mVal;
+          break;
+        }
+      }
+      if (month === -1) {
+        const mNum = parseInt(p2);
+        if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
+          month = mNum - 1;
+        }
       }
     }
     if (month === -1) month = 0;
@@ -68,16 +76,21 @@ async function resolveVoucherEntries(tx: any, companyId: number, type: string, e
 
       if (!found) {
         // Auto-create ledger with appropriate group
-        let defaultGroup = 'Sundry Creditors';
+        let defaultGroup = e.groupName || 'Sundry Creditors';
         const eType = e.entryType || 'Dr';
-        if (type === 'Sales' || type === 'Sales Quotation' || type === 'Credit Note') {
+        const isExpName = /exp|expense|wages|freight|power|fuel|factory|rent|duty|charges|cartage|manufacturing/i.test(ledgerName);
+        if (e.groupName) {
+          defaultGroup = e.groupName;
+        } else if (type === 'Sales' || type === 'Sales Quotation' || type === 'Credit Note') {
           defaultGroup = eType === 'Dr' ? 'Sundry Debtors' : 'Sales Accounts';
         } else if (type === 'Purchase' || type === 'Debit Note') {
-          defaultGroup = eType === 'Cr' ? 'Sundry Creditors' : 'Purchase Accounts';
+          defaultGroup = eType === 'Cr' ? 'Sundry Creditors' : (isExpName ? 'Direct Expenses' : 'Purchase Accounts');
         } else if (type === 'Receipt') {
-          defaultGroup = eType === 'Cr' ? 'Sundry Debtors' : 'Cash-in-hand';
+          defaultGroup = eType === 'Cr' ? (isExpName ? 'Indirect Incomes' : 'Sundry Debtors') : 'Cash-in-hand';
         } else if (type === 'Payment') {
-          defaultGroup = eType === 'Dr' ? 'Sundry Creditors' : 'Cash-in-hand';
+          defaultGroup = eType === 'Dr' ? (isExpName ? 'Direct Expenses' : 'Sundry Creditors') : 'Bank Accounts';
+        } else if (type === 'Journal') {
+          defaultGroup = isExpName ? 'Direct Expenses' : (eType === 'Dr' ? 'Sundry Debtors' : 'Sundry Creditors');
         }
 
         found = await tx.ledger.create({

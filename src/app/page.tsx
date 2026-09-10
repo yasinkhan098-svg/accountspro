@@ -460,23 +460,48 @@ const isGenericAc = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac'
 function getVoucherPartyDisplayName(v: Voucher | null | undefined): string {
   if (!v) return '-';
 
+  // 1. Payment voucher: In Tally's Payment Register, Particulars shows the account DEBITED (recipient / expense, e.g. "Electricals Exp")
+  if (v.type === 'Payment') {
+    const drEnt = (v.entries || []).find((e: any) => e.entryType === 'Dr' && e.ledgerName && !isGenericAc(e.ledgerName));
+    if (drEnt) return drEnt.ledgerName || (drEnt as any).ledger?.name || '';
+    const anyDr = (v.entries || []).find((e: any) => e.entryType === 'Dr' && e.ledgerName);
+    if (anyDr) return anyDr.ledgerName || (anyDr as any).ledger?.name || '';
+  }
+
+  // 2. Receipt voucher: In Tally's Receipt Register, Particulars shows the account CREDITED (payer / customer / income)
+  if (v.type === 'Receipt') {
+    const crEnt = (v.entries || []).find((e: any) => e.entryType === 'Cr' && e.ledgerName && !isGenericAc(e.ledgerName));
+    if (crEnt) return crEnt.ledgerName || (crEnt as any).ledger?.name || '';
+    const anyCr = (v.entries || []).find((e: any) => e.entryType === 'Cr' && e.ledgerName);
+    if (anyCr) return anyCr.ledgerName || (anyCr as any).ledger?.name || '';
+  }
+
+  // 3. Contra voucher: Show the other account (not partyName)
+  if (v.type === 'Contra') {
+    const otherEnt = (v.entries || []).find((e: any) => {
+      const name = e.ledgerName || (e as any).ledger?.name || '';
+      return name && name.trim().toLowerCase() !== (v.partyName || '').trim().toLowerCase();
+    });
+    if (otherEnt) return otherEnt.ledgerName || (otherEnt as any).ledger?.name || '';
+  }
+
   const pd = v.partyDetails;
 
-  // 1. If v.partyName is a real party name (not Cash and not Sales/Purchase A/c), that is the party!
+  // 4. If v.partyName is a real party name (not Cash and not Sales/Purchase A/c), that is the party!
   if (v.partyName && !isGenericAc(v.partyName)) return v.partyName;
 
-  // 2. If partyName is Cash/generic, check partyDetails for buyer/supplier name
+  // 5. If partyName is Cash/generic, check partyDetails for buyer/supplier name
   if (pd?.buyerName && !isGenericAc(pd.buyerName)) return pd.buyerName;
   if (pd?.buyerMailingName && !isGenericAc(pd.buyerMailingName)) return pd.buyerMailingName;
 
-  // 3. Check entries for any non-generic, non-tax, non-roundoff ledger
+  // 6. Check entries for any non-generic, non-tax, non-roundoff ledger
   const partyEnt = (v.entries || []).find((e: any) => {
-    const name = e.ledgerName || e.ledger?.name || '';
+    const name = e.ledgerName || (e as any).ledger?.name || '';
     return !isGenericAc(name) && !name.includes('GST Payable') && name !== 'Round Off';
   });
   if (partyEnt) return partyEnt.ledgerName || (partyEnt as any).ledger?.name || '';
 
-  // 4. Fallback to partyName or Cash
+  // 7. Fallback to partyName or Cash
   if (v.partyName && v.partyName.trim()) return v.partyName;
   return 'Cash';
 }
@@ -495,13 +520,13 @@ const parseDate = (d: string | Date | null | undefined): Date => {
   const s = String(d).trim();
   if (!s) return new Date(1970, 0, 1);
 
-  // Normalize delimiters (/ and . -> -)
-  const normalized = s.replace(/[\.\/]/g, '-').trim();
+  // Normalize delimiters (/, ., and whitespace -> -)
+  const normalized = s.replace(/[\.\/\s]+/g, '-').trim();
   const parts = normalized.split('-');
 
   const monthMap: Record<string, number> = {
     jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11,
     january: 0, february: 1, march: 2, april: 3, june: 5,
     july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
   };
@@ -7818,11 +7843,34 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       if (voucherData.partyName && !isGenericAc(voucherData.partyName)) {
         const exists = ledgers.some(l => l.name.trim().toLowerCase() === voucherData.partyName.toLowerCase());
         if (!exists && onSaveMaster) {
-          const defaultGroup = isPurchaseSide ? 'Sundry Creditors' : 'Sundry Debtors';
+          const isBank = voucherData.partyName.toLowerCase().includes('bank');
+          const defaultGroup = activeVoucher === 'Payment' || activeVoucher === 'Receipt' || activeVoucher === 'Contra'
+            ? (isBank ? 'Bank Accounts' : 'Cash-in-hand')
+            : (isPurchaseSide ? 'Sundry Creditors' : 'Sundry Debtors');
           try {
             await onSaveMaster('ledger', { name: voucherData.partyName, groupName: defaultGroup, openingBalance: 0, balanceType: 'Dr' });
           } catch (e) {
-            console.error("Auto-create ledger error:", e);
+            console.error("Auto-create party ledger error:", e);
+          }
+        }
+      }
+
+      // Auto-create any missing particulars/entries ledgers (e.g. Electricals Exp -> Direct Expenses)
+      for (const ent of voucherData.entries || []) {
+        const eName = (ent.ledgerName || '').trim();
+        if (eName && !isGenericAc(eName) && eName.toLowerCase() !== (voucherData.partyName || '').toLowerCase()) {
+          const exists = ledgers.some(l => l.name.trim().toLowerCase() === eName.toLowerCase());
+          if (!exists && onSaveMaster) {
+            const isExp = /exp|expense|wages|freight|power|fuel|factory|rent|duty|charges|cartage|manufacturing/i.test(eName);
+            const defaultGroup = isExp ? 'Direct Expenses' : (ent.entryType === 'Dr' ? 'Sundry Debtors' : 'Sundry Creditors');
+            try {
+              const newLedger = await onSaveMaster('ledger', { name: eName, groupName: defaultGroup, openingBalance: 0, balanceType: ent.entryType || 'Dr' });
+              if (newLedger && newLedger.id) {
+                ent.ledgerId = newLedger.id;
+              }
+            } catch (e) {
+              console.error("Auto-create entry ledger error:", e);
+            }
           }
         }
       }
@@ -9582,22 +9630,31 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                                 let found = ledgers.find(l => l.name.trim().toLowerCase() === firstEntry.ledger.trim().toLowerCase());
                                 if (!found) {
                                   try {
-                                    const res = await fetch('/api/ledgers', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                      body: JSON.stringify({
-                                        companyId: cid,
+                                    if (onSaveMaster) {
+                                      found = await onSaveMaster('ledger', {
                                         name: firstEntry.ledger,
                                         groupName: firstEntry.group || 'Direct Expenses',
                                         openingBalance: 0,
                                         balanceType: 'Dr'
-                                      })
-                                    });
-                                    if (res.ok) {
-                                      const resData = await res.json();
-                                      if (resData.ledger) {
-                                        ledgers.push(resData.ledger);
-                                        found = resData.ledger;
+                                      });
+                                    } else {
+                                      const res = await fetch('/api/ledgers', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                        body: JSON.stringify({
+                                          companyId: cid,
+                                          name: firstEntry.ledger,
+                                          groupName: firstEntry.group || 'Direct Expenses',
+                                          openingBalance: 0,
+                                          balanceType: 'Dr'
+                                        })
+                                      });
+                                      if (res.ok) {
+                                        const resData = await res.json();
+                                        if (resData.ledger) {
+                                          ledgers.push(resData.ledger);
+                                          found = resData.ledger;
+                                        }
                                       }
                                     }
                                   } catch (err) {
@@ -9633,22 +9690,31 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                                 if (!accLedger && targetAcc) {
                                   try {
                                     const isBank = targetAcc.toLowerCase().includes('bank');
-                                    const res = await fetch('/api/ledgers', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                      body: JSON.stringify({
-                                        companyId: cid,
+                                    if (onSaveMaster) {
+                                      accLedger = await onSaveMaster('ledger', {
                                         name: targetAcc,
                                         groupName: isBank ? 'Bank Accounts' : 'Cash-in-hand',
                                         openingBalance: 0,
                                         balanceType: 'Dr'
-                                      })
-                                    });
-                                    if (res.ok) {
-                                      const resData = await res.json();
-                                      if (resData.ledger) {
-                                        ledgers.push(resData.ledger);
-                                        accLedger = resData.ledger;
+                                      });
+                                    } else {
+                                      const res = await fetch('/api/ledgers', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                        body: JSON.stringify({
+                                          companyId: cid,
+                                          name: targetAcc,
+                                          groupName: isBank ? 'Bank Accounts' : 'Cash-in-hand',
+                                          openingBalance: 0,
+                                          balanceType: 'Dr'
+                                        })
+                                      });
+                                      if (res.ok) {
+                                        const resData = await res.json();
+                                        if (resData.ledger) {
+                                          ledgers.push(resData.ledger);
+                                          accLedger = resData.ledger;
+                                        }
                                       }
                                     }
                                   } catch (err) {
@@ -9664,22 +9730,31 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                                   let found = ledgers.find(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
                                   if (!found) {
                                     try {
-                                      const res = await fetch('/api/ledgers', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                        body: JSON.stringify({
-                                          companyId: cid,
+                                      if (onSaveMaster) {
+                                        found = await onSaveMaster('ledger', {
                                           name: e.ledger,
                                           groupName: e.group || 'Direct Expenses',
                                           openingBalance: 0,
                                           balanceType: 'Dr'
-                                        })
-                                      });
-                                      if (res.ok) {
-                                        const resData = await res.json();
-                                        if (resData.ledger) {
-                                          ledgers.push(resData.ledger);
-                                          found = resData.ledger;
+                                        });
+                                      } else {
+                                        const res = await fetch('/api/ledgers', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                          body: JSON.stringify({
+                                            companyId: cid,
+                                            name: e.ledger,
+                                            groupName: e.group || 'Direct Expenses',
+                                            openingBalance: 0,
+                                            balanceType: 'Dr'
+                                          })
+                                        });
+                                        if (res.ok) {
+                                          const resData = await res.json();
+                                          if (resData.ledger) {
+                                            ledgers.push(resData.ledger);
+                                            found = resData.ledger;
+                                          }
                                         }
                                       }
                                     } catch (err) {
@@ -9706,21 +9781,30 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                                 const exists = ledgers.some(l => l.name.trim().toLowerCase() === e.ledger.trim().toLowerCase());
                                 if (!exists) {
                                   try {
-                                    const res = await fetch('/api/ledgers', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                      body: JSON.stringify({
-                                        companyId: cid,
+                                    if (onSaveMaster) {
+                                      await onSaveMaster('ledger', {
                                         name: e.ledger,
                                         groupName: e.group || 'Primary',
                                         openingBalance: 0,
                                         balanceType: e.type.includes('Dr') ? 'Dr' : 'Cr'
-                                      })
-                                    });
-                                    if (res.ok) {
-                                      const resData = await res.json();
-                                      if (resData.ledger) {
-                                        ledgers.push(resData.ledger);
+                                      });
+                                    } else {
+                                      const res = await fetch('/api/ledgers', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                        body: JSON.stringify({
+                                          companyId: cid,
+                                          name: e.ledger,
+                                          groupName: e.group || 'Primary',
+                                          openingBalance: 0,
+                                          balanceType: e.type.includes('Dr') ? 'Dr' : 'Cr'
+                                        })
+                                      });
+                                      if (res.ok) {
+                                        const resData = await res.json();
+                                        if (resData.ledger) {
+                                          ledgers.push(resData.ledger);
+                                        }
                                       }
                                     }
                                   } catch (err) {
@@ -10297,63 +10381,97 @@ function ProfitLossView({
   },[vouchers, grp]);
 
   const isDirectExpGroupName = (gn: string) => {
-    const l = gn.trim().toLowerCase();
+    const l = (gn || '').trim().toLowerCase();
     return l === 'direct expenses' || l === 'expenses (direct)' || l === 'direct expense' || l === 'expense (direct)' || l.includes('direct exp');
   };
+  const isDirectExpLedgerName = (name: string) => {
+    const l = (name || '').trim().toLowerCase();
+    return /^(factory\s+)?(electricals?|electricity|power|fuel|wages|carriage\s+inward|freight\s+inward|custom\s+duty|import\s+duty|loading|unloading|lease\s+rent|manufacturing)/i.test(l) || l.includes('direct exp');
+  };
   const isDirectIncGroupName = (gn: string) => {
-    const l = gn.trim().toLowerCase();
+    const l = (gn || '').trim().toLowerCase();
     return l === 'direct incomes' || l === 'income (direct)' || l === 'direct income' || l.includes('direct inc');
   };
   const isIndirectExpGroupName = (gn: string) => {
-    const l = gn.trim().toLowerCase();
+    const l = (gn || '').trim().toLowerCase();
     return l === 'indirect expenses' || l === 'expenses (indirect)' || l === 'indirect expense' || l.includes('indirect exp');
   };
   const isIndirectIncGroupName = (gn: string) => {
-    const l = gn.trim().toLowerCase();
+    const l = (gn || '').trim().toLowerCase();
     return l === 'indirect incomes' || l === 'income (indirect)' || l === 'indirect income' || l.includes('indirect inc');
   };
 
   // ─── DIRECT EXPENSES LEDGERS ─────────────────────────────────────────────────
   const directExpLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    const seen = new Set<number>();
+    const seenNames = new Set<string>();
 
     // 1. Match from grp with non-zero balances
     for (const [gn, list] of Object.entries(grp)) {
       if (isDirectExpGroupName(gn)) {
         for (const item of list) {
-          if (Math.abs(item.balance) > 0.001) {
+          const key = item.ledger.name.trim().toLowerCase();
+          if (Math.abs(item.balance) > 0.001 && !seenNames.has(key)) {
             result.push(item);
-            seen.add(item.ledger.id);
+            seenNames.add(key);
           }
         }
       }
     }
 
-    // 2. Match from ledgers directly in case grp didn't include them
+    // 2. Match from ledgers directly (either by groupName or recognized direct expense name)
     for (const l of ledgers) {
-      if (!seen.has(l.id) && isDirectExpGroupName(l.groupName)) {
+      const key = l.name.trim().toLowerCase();
+      const isDirect = isDirectExpGroupName(l.groupName) || isDirectExpLedgerName(l.name);
+      if (!seenNames.has(key) && isDirect) {
         const bal = getLedgerClosingBalance(l, vouchers);
         if (Math.abs(bal) > 0.001) {
           result.push({ ledger: l, balance: bal });
-          seen.add(l.id);
+          seenNames.add(key);
         }
       }
     }
 
-    // 3. If no direct expense ledger has a balance yet, show available direct expense ledgers of this company
-    // so they are visible ledger-by-ledger with 0.00 as requested
+    // 3. Scan vouchers directly for any direct expense entries (e.g. Electricals Exp saved in payment voucher)
+    for (const v of vouchers) {
+      if (!v || !v.entries || v.type === 'Sales Quotation' || v.type === 'Quotation') continue;
+      for (const e of v.entries) {
+        const ename = (e.ledgerName || (e as any).ledger?.name || '').trim();
+        if (!ename) continue;
+        const key = ename.toLowerCase();
+        const matchingLedger = ledgers.find(l => l.id === e.ledgerId || l.name.trim().toLowerCase() === key);
+        const isDirect = (matchingLedger && isDirectExpGroupName(matchingLedger.groupName)) || isDirectExpLedgerName(ename);
+        if (isDirect && !seenNames.has(key)) {
+          const virtualLedger: Ledger = matchingLedger || {
+            id: e.ledgerId || (Math.floor(Math.random() * 900000) + 100000),
+            companyId: activeCompany?.id || 0,
+            name: ename,
+            groupName: 'Direct Expenses',
+            openingBalance: 0,
+            balanceType: 'Dr'
+          };
+          const bal = getLedgerClosingBalance(virtualLedger, vouchers);
+          if (Math.abs(bal) > 0.001) {
+            result.push({ ledger: virtualLedger, balance: bal });
+            seenNames.add(key);
+          }
+        }
+      }
+    }
+
+    // 4. If no direct expense ledger has a non-zero balance, show available direct expense ledgers with 0.00
     if (result.length === 0) {
       for (const l of ledgers) {
-        if (!seen.has(l.id) && isDirectExpGroupName(l.groupName)) {
+        const key = l.name.trim().toLowerCase();
+        if (!seenNames.has(key) && (isDirectExpGroupName(l.groupName) || isDirectExpLedgerName(l.name))) {
           result.push({ ledger: l, balance: 0 });
-          seen.add(l.id);
+          seenNames.add(key);
         }
       }
     }
 
     return result;
-  },[grp, ledgers, vouchers]);
+  },[grp, ledgers, vouchers, activeCompany]);
 
   // ─── DIRECT INCOMES LEDGERS ──────────────────────────────────────────────────
   const directIncLedgers = useMemo(()=>{
