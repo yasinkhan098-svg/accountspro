@@ -10316,15 +10316,44 @@ function ProfitLossView({
   // ─── DIRECT EXPENSES LEDGERS ─────────────────────────────────────────────────
   const directExpLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
+    const seen = new Set<number>();
+
+    // 1. Match from grp with non-zero balances
     for (const [gn, list] of Object.entries(grp)) {
       if (isDirectExpGroupName(gn)) {
         for (const item of list) {
-          if (Math.abs(item.balance) > 0.001) result.push(item);
+          if (Math.abs(item.balance) > 0.001) {
+            result.push(item);
+            seen.add(item.ledger.id);
+          }
         }
       }
     }
+
+    // 2. Match from ledgers directly in case grp didn't include them
+    for (const l of ledgers) {
+      if (!seen.has(l.id) && isDirectExpGroupName(l.groupName)) {
+        const bal = getLedgerClosingBalance(l, vouchers);
+        if (Math.abs(bal) > 0.001) {
+          result.push({ ledger: l, balance: bal });
+          seen.add(l.id);
+        }
+      }
+    }
+
+    // 3. If no direct expense ledger has a balance yet, show available direct expense ledgers of this company
+    // so they are visible ledger-by-ledger with 0.00 as requested
+    if (result.length === 0) {
+      for (const l of ledgers) {
+        if (!seen.has(l.id) && isDirectExpGroupName(l.groupName)) {
+          result.push({ ledger: l, balance: 0 });
+          seen.add(l.id);
+        }
+      }
+    }
+
     return result;
-  },[grp]);
+  },[grp, ledgers, vouchers]);
 
   // ─── DIRECT INCOMES LEDGERS ──────────────────────────────────────────────────
   const directIncLedgers = useMemo(()=>{
@@ -10390,8 +10419,8 @@ function ProfitLossView({
   const dirExpRows: TRow[] = [];
   dirExpRows.push({label:'To Opening Stock', amt: openingStockValue, groupName:'Stock-in-hand'});
   dirExpRows.push({label:'To Purchase',      amt: purchaseTaxableValue, groupName:'Purchase Accounts'});
-  // ALWAYS render "To Direct Expenses" header (as seen in CA format image)
-  dirExpRows.push({label:'To Direct Expenses', isLabel:true, isBold:true, groupName:'Direct Expenses'});
+  // ALWAYS render "To Direct Expenses" FIXED HEADER (NOT DRILLABLE)
+  dirExpRows.push({label:'To Direct Expenses', isLabel:true, isBold:true});
   for (const item of directExpLedgers) {
     dirExpRows.push({label: item.ledger.name, amt: Math.abs(item.balance), isSub:true, id: item.ledger.id});
   }
@@ -10428,7 +10457,8 @@ function ProfitLossView({
   // ─── DRILLABLE CHECK ─────────────────────────────────────────────────────────
   const isDrillablePL = (row?: TRow): boolean => {
     if (!row) return false;
-    if (row.id !== undefined) return true;
+    if (row.isLabel) return false; // Fixed header rows like "To Direct Expenses" are NEVER drillable!
+    if (row.id !== undefined) return true; // Ledger rows ARE drillable!
     if (row.groupName) return true;
     return false;
   };
