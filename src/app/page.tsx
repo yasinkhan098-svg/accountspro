@@ -10380,176 +10380,161 @@ function ProfitLossView({
     return total;
   },[vouchers, grp]);
 
-  const isDirectExpGroupName = (gn: string) => {
-    const l = (gn || '').trim().toLowerCase();
-    return l === 'direct expenses' || l === 'expenses (direct)' || l === 'direct expense' || l === 'expense (direct)' || l.includes('direct exp');
-  };
-  const isDirectExpLedgerName = (name: string) => {
-    const l = (name || '').trim().toLowerCase();
-    return /^(factory\s+)?(electricals?|electricity|power|fuel|wages|carriage\s+inward|freight\s+inward|custom\s+duty|import\s+duty|loading|unloading|lease\s+rent|manufacturing)/i.test(l) || l.includes('direct exp');
-  };
-  const isDirectIncGroupName = (gn: string) => {
-    const l = (gn || '').trim().toLowerCase();
-    return l === 'direct incomes' || l === 'income (direct)' || l === 'direct income' || l.includes('direct inc');
-  };
-  const isIndirectExpGroupName = (gn: string) => {
-    const l = (gn || '').trim().toLowerCase();
-    return l === 'indirect expenses' || l === 'expenses (indirect)' || l === 'indirect expense' || l.includes('indirect exp');
-  };
-  const isIndirectIncGroupName = (gn: string) => {
-    const l = (gn || '').trim().toLowerCase();
-    return l === 'indirect incomes' || l === 'income (indirect)' || l === 'indirect income' || l.includes('indirect inc');
-  };
+  // ─── GROUP NAME MATCHERS ────────────────────────────────────────────────────
+  const isDirectExpGroupName  = (gn:string) => { const l=(gn||'').trim().toLowerCase(); return l==='direct expenses'||l==='expenses (direct)'||l==='direct expense'||l==='expense (direct)'||l.includes('direct exp'); };
+  const isDirectIncGroupName  = (gn:string) => { const l=(gn||'').trim().toLowerCase(); return l==='direct incomes'||l==='income (direct)'||l==='direct income'||l.includes('direct inc'); };
+  const isIndirectExpGroupName= (gn:string) => { const l=(gn||'').trim().toLowerCase(); return l==='indirect expenses'||l==='expenses (indirect)'||l==='indirect expense'||l.includes('indirect exp'); };
+  const isIndirectIncGroupName= (gn:string) => { const l=(gn||'').trim().toLowerCase(); return l==='indirect incomes'||l==='income (indirect)'||l==='indirect income'||l.includes('indirect inc'); };
 
-  // ─── DIRECT EXPENSES LEDGERS ─────────────────────────────────────────────────
+  // ─── DIRECT EXPENSES LEDGERS (only groupName-based, only non-zero) ────────────
   const directExpLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    const seenNames = new Set<string>();
-
-    // 1. Match from grp with non-zero balances
-    for (const [gn, list] of Object.entries(grp)) {
-      if (isDirectExpGroupName(gn)) {
-        for (const item of list) {
-          const key = item.ledger.name.trim().toLowerCase();
-          if (Math.abs(item.balance) > 0.001 && !seenNames.has(key)) {
-            result.push(item);
-            seenNames.add(key);
-          }
-        }
-      }
-    }
-
-    // 2. Match from ledgers directly (either by groupName or recognized direct expense name)
+    const seenIds = new Set<number>();
     for (const l of ledgers) {
-      const key = l.name.trim().toLowerCase();
-      const isDirect = isDirectExpGroupName(l.groupName) || isDirectExpLedgerName(l.name);
-      if (!seenNames.has(key) && isDirect) {
+      if (isDirectExpGroupName(l.groupName)) {
         const bal = getLedgerClosingBalance(l, vouchers);
-        if (Math.abs(bal) > 0.001) {
-          result.push({ ledger: l, balance: bal });
-          seenNames.add(key);
+        if (Math.abs(bal) > 0.001 && !seenIds.has(l.id)) {
+          result.push({ ledger: l, balance: Math.abs(bal) });
+          seenIds.add(l.id);
         }
       }
     }
-
-    // 3. Scan vouchers directly for any direct expense entries (e.g. Electricals Exp saved in payment voucher)
+    // Also pick up any unregistered ledger entries that have Direct Expenses groupName
     for (const v of vouchers) {
-      if (!v || !v.entries || v.type === 'Sales Quotation' || v.type === 'Quotation') continue;
+      if (!v?.entries) continue;
       for (const e of v.entries) {
-        const ename = (e.ledgerName || (e as any).ledger?.name || '').trim();
-        if (!ename) continue;
-        const key = ename.toLowerCase();
-        const matchingLedger = ledgers.find(l => l.id === e.ledgerId || l.name.trim().toLowerCase() === key);
-        const isDirect = (matchingLedger && isDirectExpGroupName(matchingLedger.groupName)) || isDirectExpLedgerName(ename);
-        if (isDirect && !seenNames.has(key)) {
-          const virtualLedger: Ledger = matchingLedger || {
-            id: e.ledgerId || (Math.floor(Math.random() * 900000) + 100000),
-            companyId: activeCompany?.id || 0,
-            name: ename,
-            groupName: 'Direct Expenses',
-            openingBalance: 0,
-            balanceType: 'Dr'
-          };
-          const bal = getLedgerClosingBalance(virtualLedger, vouchers);
+        const ml = ledgers.find(l => l.id === e.ledgerId);
+        if (ml && isDirectExpGroupName(ml.groupName) && !seenIds.has(ml.id)) {
+          const bal = getLedgerClosingBalance(ml, vouchers);
           if (Math.abs(bal) > 0.001) {
-            result.push({ ledger: virtualLedger, balance: bal });
-            seenNames.add(key);
+            result.push({ ledger: ml, balance: Math.abs(bal) });
+            seenIds.add(ml.id);
           }
         }
       }
     }
-
-    // 4. If no direct expense ledger has a non-zero balance, show available direct expense ledgers with 0.00
-    if (result.length === 0) {
-      for (const l of ledgers) {
-        const key = l.name.trim().toLowerCase();
-        if (!seenNames.has(key) && (isDirectExpGroupName(l.groupName) || isDirectExpLedgerName(l.name))) {
-          result.push({ ledger: l, balance: 0 });
-          seenNames.add(key);
-        }
-      }
-    }
-
     return result;
-  },[grp, ledgers, vouchers, activeCompany]);
+  },[ledgers, vouchers]);
 
   // ─── DIRECT INCOMES LEDGERS ──────────────────────────────────────────────────
   const directIncLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    for (const [gn, list] of Object.entries(grp)) {
-      if (isDirectIncGroupName(gn)) {
-        for (const item of list) {
-          if (Math.abs(item.balance) > 0.001) result.push(item);
+    const seenIds = new Set<number>();
+    for (const l of ledgers) {
+      if (isDirectIncGroupName(l.groupName)) {
+        const bal = getLedgerClosingBalance(l, vouchers);
+        if (Math.abs(bal) > 0.001 && !seenIds.has(l.id)) {
+          result.push({ ledger: l, balance: Math.abs(bal) });
+          seenIds.add(l.id);
         }
       }
     }
     return result;
-  },[grp]);
+  },[ledgers, vouchers]);
 
   // ─── INDIRECT EXPENSES LEDGERS ───────────────────────────────────────────────
   const indirectExpLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    for (const [gn, list] of Object.entries(grp)) {
-      if (isIndirectExpGroupName(gn)) {
-        for (const item of list) {
-          if (Math.abs(item.balance) > 0.001) result.push(item);
+    const seenIds = new Set<number>();
+    for (const l of ledgers) {
+      if (isIndirectExpGroupName(l.groupName)) {
+        const bal = getLedgerClosingBalance(l, vouchers);
+        if (Math.abs(bal) > 0.001 && !seenIds.has(l.id)) {
+          result.push({ ledger: l, balance: Math.abs(bal) });
+          seenIds.add(l.id);
+        }
+      }
+    }
+    for (const v of vouchers) {
+      if (!v?.entries) continue;
+      for (const e of v.entries) {
+        const ml = ledgers.find(l => l.id === e.ledgerId);
+        if (ml && isIndirectExpGroupName(ml.groupName) && !seenIds.has(ml.id)) {
+          const bal = getLedgerClosingBalance(ml, vouchers);
+          if (Math.abs(bal) > 0.001) {
+            result.push({ ledger: ml, balance: Math.abs(bal) });
+            seenIds.add(ml.id);
+          }
         }
       }
     }
     return result;
-  },[grp]);
+  },[ledgers, vouchers]);
 
   // ─── INDIRECT INCOMES LEDGERS ────────────────────────────────────────────────
   const indirectIncLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
-    for (const [gn, list] of Object.entries(grp)) {
-      if (isIndirectIncGroupName(gn)) {
-        for (const item of list) {
-          if (Math.abs(item.balance) > 0.001) result.push(item);
+    const seenIds = new Set<number>();
+    for (const l of ledgers) {
+      if (isIndirectIncGroupName(l.groupName)) {
+        const bal = getLedgerClosingBalance(l, vouchers);
+        if (Math.abs(bal) > 0.001 && !seenIds.has(l.id)) {
+          result.push({ ledger: l, balance: Math.abs(bal) });
+          seenIds.add(l.id);
+        }
+      }
+    }
+    for (const v of vouchers) {
+      if (!v?.entries) continue;
+      for (const e of v.entries) {
+        const ml = ledgers.find(l => l.id === e.ledgerId);
+        if (ml && isIndirectIncGroupName(ml.groupName) && !seenIds.has(ml.id)) {
+          const bal = getLedgerClosingBalance(ml, vouchers);
+          if (Math.abs(bal) > 0.001) {
+            result.push({ ledger: ml, balance: Math.abs(bal) });
+            seenIds.add(ml.id);
+          }
         }
       }
     }
     return result;
-  },[grp]);
+  },[ledgers, vouchers]);
 
-  const sumDirExp = directExpLedgers.reduce((s,x)=>s+Math.abs(x.balance),0);
-  const sumDirInc = directIncLedgers.reduce((s,x)=>s+Math.abs(x.balance),0);
-  const indExpenses  = indirectExpLedgers.reduce((s,x)=>s+Math.abs(x.balance),0);
-  const indIncomes   = indirectIncLedgers.reduce((s,x)=>s+Math.abs(x.balance),0);
+  const sumDirExp   = directExpLedgers.reduce((s,x)=>s+x.balance, 0);
+  const sumDirInc   = directIncLedgers.reduce((s,x)=>s+x.balance, 0);
+  const indExpenses = indirectExpLedgers.reduce((s,x)=>s+x.balance, 0);
+  const indIncomes  = indirectIncLedgers.reduce((s,x)=>s+x.balance, 0);
 
   const tradingDrTotal = openingStockValue + purchaseTaxableValue + sumDirExp;
   const tradingCrTotal = salesTaxableValue + closingStockValue + sumDirInc;
   const grossProfit    = tradingCrTotal - tradingDrTotal;
-  const totalTrading   = Math.max(tradingDrTotal+(grossProfit>0?grossProfit:0), tradingCrTotal+(grossProfit<0?Math.abs(grossProfit):0));
+  const totalTrading   = Math.max(
+    tradingDrTotal + (grossProfit > 0 ? grossProfit : 0),
+    tradingCrTotal + (grossProfit < 0 ? Math.abs(grossProfit) : 0)
+  );
 
-  const plDr     = (grossProfit<0?Math.abs(grossProfit):0)+indExpenses;
-  const plCr     = (grossProfit>0?grossProfit:0)+indIncomes;
-  const netProfit = plCr-plDr;
-  const totalPL   = Math.max(plDr+(netProfit>0?netProfit:0), plCr+(netProfit<0?Math.abs(netProfit):0));
-
-  const intOnCap=0, salaryToPartner=0;
+  const plDr      = (grossProfit < 0 ? Math.abs(grossProfit) : 0) + indExpenses;
+  const plCr      = (grossProfit > 0 ? grossProfit : 0) + indIncomes;
+  const netProfit = plCr - plDr;
+  const totalPL   = Math.max(
+    plDr + (netProfit > 0 ? netProfit : 0),
+    plCr + (netProfit < 0 ? Math.abs(netProfit) : 0)
+  );
 
 
   // ─── ROW TYPE ────────────────────────────────────────────────────────────────
-  type TRow={label:string;amt?:number;isSub?:boolean;isBold?:boolean;id?:number;groupName?:string;isLabel?:boolean;};
+  type TRow = { label:string; amt?:number; isSub?:boolean; isBold?:boolean; id?:number; groupName?:string; isLabel?:boolean; };
 
   // ─── TRADING DEBIT ROWS (Left side) ─────────────────────────────────────────
   const dirExpRows: TRow[] = [];
-  dirExpRows.push({label:'To Opening Stock', amt: openingStockValue, groupName:'Stock-in-hand'});
-  dirExpRows.push({label:'To Purchase',      amt: purchaseTaxableValue, groupName:'Purchase Accounts'});
-  // ALWAYS render "To Direct Expenses" FIXED HEADER (NOT DRILLABLE)
-  dirExpRows.push({label:'To Direct Expenses', isLabel:true, isBold:true});
-  for (const item of directExpLedgers) {
-    dirExpRows.push({label: item.ledger.name, amt: Math.abs(item.balance), isSub:true, id: item.ledger.id});
+  // Only show if amount > 0
+  if (openingStockValue > 0.001)  dirExpRows.push({label:'To Opening Stock', amt: openingStockValue, groupName:'Stock-in-hand'});
+  if (purchaseTaxableValue > 0.001) dirExpRows.push({label:'To Purchase', amt: purchaseTaxableValue, groupName:'Purchase Accounts'});
+  // "To Direct Expenses" header + sub-items — only if there are direct expenses
+  if (directExpLedgers.length > 0) {
+    dirExpRows.push({label:'To Direct Expenses', isLabel:true, isBold:true});
+    for (const item of directExpLedgers) {
+      dirExpRows.push({label: item.ledger.name, amt: item.balance, isSub:true, id: item.ledger.id});
+    }
   }
   if (grossProfit > 0) dirExpRows.push({label:'To Gross Profit', amt: grossProfit, isBold:true});
 
   // ─── TRADING CREDIT ROWS (Right side) ────────────────────────────────────────
   const dirIncRows: TRow[] = [];
-  dirIncRows.push({label:'By Sales',         amt: salesTaxableValue,  groupName:'Sales Accounts'});
-  dirIncRows.push({label:'By Closing Stock', amt: closingStockValue,  groupName:'Stock-in-hand'});
+  if (salesTaxableValue > 0.001)  dirIncRows.push({label:'By Sales', amt: salesTaxableValue, groupName:'Sales Accounts'});
+  if (closingStockValue > 0.001)  dirIncRows.push({label:'By Closing Stock', amt: closingStockValue, groupName:'Stock-in-hand'});
   for (const item of directIncLedgers) {
-    dirIncRows.push({label: item.ledger.name, amt: Math.abs(item.balance), isSub:true, id: item.ledger.id});
+    dirIncRows.push({label: item.ledger.name, amt: item.balance, isSub:true, id: item.ledger.id});
   }
   if (grossProfit < 0) dirIncRows.push({label:'By Gross Loss', amt: Math.abs(grossProfit), isBold:true});
 
@@ -10687,7 +10672,7 @@ function ProfitLossView({
             padding: '3px 8px',
             textAlign: 'right',
             fontSize: 12,
-            color: isSel ? '#000' : '#cc0000',
+            color: isSel ? '#000' : (row.isBold ? '#000' : '#cc0000'),
             fontWeight: isSel ? 'bold' : (row.isBold ? 'bold' : '500'),
             borderRight: bdr,
             width: '17%',
@@ -10728,7 +10713,7 @@ function ProfitLossView({
             padding: '3px 8px',
             textAlign: 'right',
             fontSize: 12,
-            color: isSel ? '#000' : '#cc0000',
+            color: isSel ? '#000' : (row.isBold ? '#000' : '#cc0000'),
             fontWeight: isSel ? 'bold' : (row.isBold ? 'bold' : '500'),
             width: '17%',
             background: isSel ? '#ffd700' : 'transparent',
@@ -10806,30 +10791,32 @@ function ProfitLossView({
                 <td style={{padding:'5px 8px',borderRight:'1px solid #aaa'}}></td>
                 <td style={{padding:'5px 8px',textAlign:'right',fontWeight:'bold',fontSize:12}}>{f2(totalPL)}</td>
               </tr>
-              {/* ===== APPROPRIATION ===== */}
+              {/* ===== APPROPRIATION (only when net profit > 0) ===== */}
+              {netProfit > 0.001 && <>
               <tr style={{borderBottom:'1px solid #f4f4f4'}}>
                 <td style={{padding:'4px 8px',fontSize:12,borderRight:'1px solid #ddd'}}>To Interest on Capital</td>
-                <td style={{padding:'4px 8px',textAlign:'right',fontSize:12,color:'#cc0000',borderRight:'2px solid #555'}}>{f2(intOnCap)}</td>
+                <td style={{padding:'4px 8px',textAlign:'right',fontSize:12,color:'#cc0000',borderRight:'2px solid #555'}}>{f2(0)}</td>
                 <td style={{padding:'4px 8px',fontSize:12,borderRight:'1px solid #ddd'}}>By Net Profit tfd. to Capital A/c</td>
-                <td style={{padding:'4px 8px',textAlign:'right',fontSize:12,color:'#cc0000'}}>{f2(netProfit>0?netProfit:0)}</td>
+                <td style={{padding:'4px 8px',textAlign:'right',fontSize:12,color:'#cc0000'}}>{f2(netProfit)}</td>
               </tr>
               <tr style={{borderBottom:'1px solid #f4f4f4'}}>
                 <td style={{padding:'4px 8px',fontSize:12,borderRight:'1px solid #ddd'}}>To Salary to partner</td>
-                <td style={{padding:'4px 8px',textAlign:'right',fontSize:12,color:'#cc0000',borderRight:'2px solid #555'}}>{f2(salaryToPartner)}</td>
+                <td style={{padding:'4px 8px',textAlign:'right',fontSize:12,color:'#cc0000',borderRight:'2px solid #555'}}>{f2(0)}</td>
                 <td style={{borderRight:'1px solid #ddd'}}></td><td></td>
               </tr>
               <tr style={{borderBottom:'1px solid #f4f4f4'}}>
                 <td style={{padding:'4px 8px',fontSize:12,borderRight:'1px solid #ddd'}}>To Net Profit C/d<br/><span style={{fontSize:10,color:'#888'}}>(Transferred to Capital A/c)</span></td>
-                <td style={{padding:'4px 8px',textAlign:'right',fontSize:12,color:'#cc0000',borderRight:'2px solid #555'}}>{f2(Math.max(0,netProfit-intOnCap-salaryToPartner))}</td>
+                <td style={{padding:'4px 8px',textAlign:'right',fontSize:12,color:'#cc0000',borderRight:'2px solid #555'}}>{f2(netProfit)}</td>
                 <td style={{borderRight:'1px solid #ddd'}}></td><td></td>
               </tr>
               {/* Appropriation Total */}
               <tr style={{borderTop:'2px solid #555',borderBottom:'2px solid #555',background:'#f8f8f8'}}>
                 <td style={{padding:'5px 8px',fontWeight:'bold',fontSize:12,borderRight:'1px solid #aaa'}}>TOTAL RS.</td>
-                <td style={{padding:'5px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderRight:'2px solid #555'}}>{f2(netProfit>0?netProfit:0)}</td>
+                <td style={{padding:'5px 8px',textAlign:'right',fontWeight:'bold',fontSize:12,borderRight:'2px solid #555'}}>{f2(netProfit)}</td>
                 <td style={{padding:'5px 8px',fontWeight:'bold',fontSize:12,borderRight:'1px solid #aaa'}}>TOTAL RS.</td>
-                <td style={{padding:'5px 8px',textAlign:'right',fontWeight:'bold',fontSize:12}}>{f2(netProfit>0?netProfit:0)}</td>
+                <td style={{padding:'5px 8px',textAlign:'right',fontWeight:'bold',fontSize:12}}>{f2(netProfit)}</td>
               </tr>
+              </>}
               {/* Note */}
               <tr><td colSpan={4} style={{padding:'8px 12px',textAlign:'center',fontSize:11,fontStyle:'italic',color:'#555',borderBottom:'1px solid #ddd'}}>compiled on the basis of information provided to us</td></tr>
               {/* Signature */}
