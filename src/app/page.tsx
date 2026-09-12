@@ -5088,6 +5088,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   const [descLine2, setDescLine2] = useState(activeAlterItem?.descLine2 ?? false);
   const [descLine3, setDescLine3] = useState(activeAlterItem?.descLine3 ?? false);
   const [isSaving, setIsSaving] = useState(false);
+  const [oQty,  setOQty]  = useState<number>(activeAlterItem?.openingQty  ?? 0);
+  const [oRate, setORate] = useState<number>(activeAlterItem?.openingRate ?? 0);
   const listRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
 
@@ -5198,8 +5200,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     }
     if(hsnEl) hsnEl.value=it.hsnCode||'';
     if(gstEl) gstEl.value=String(it.gstRate || 18);
-    if(oqtyEl) oqtyEl.value=String(it.openingQty || 0);
-    if(orateEl) orateEl.value=String(it.openingRate || 0);
+    if(oqtyEl) { oqtyEl.value=String(it.openingQty || 0); setOQty(it.openingQty || 0); }
+    if(orateEl) { orateEl.value=String(it.openingRate || 0); setORate(it.openingRate || 0); }
     setShowInclTax(it.showInclTax ?? false);
     setShowAmtInclTax(it.showAmtInclTax ?? false);
     setEnableDescription(it.enableDescription ?? false);
@@ -5437,15 +5439,21 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
       </div>
       <div style={{borderTop:'1px solid #ccc',padding:'12px 25px',background:'#f8f8f8'}}>
         <div style={{display:'flex',gap:20,marginBottom:5,fontSize:12,fontWeight:'bold',color:'#555'}}>
-          <span style={{width:150}}>Opening Balance</span><span style={{width:100}}>Quantity</span><span style={{width:100}}>Rate</span><span style={{width:60}}>per</span><span style={{width:120,textAlign:'right'}}>Value</span>
+          <span style={{width:150}}>Opening Stock</span><span style={{width:100}}>Quantity</span><span style={{width:100}}>Rate</span><span style={{width:60}}>per</span><span style={{width:120,textAlign:'right'}}>Value</span>
         </div>
         <div style={{display:'flex',gap:20,alignItems:'center'}}>
           <span style={{width:150,fontSize:12}}>As on 1-Apr-2026</span>
-          <input id="item-oqty" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingQty||'0'} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/>
-          <input id="item-orate" type="text" className="form-input" style={{width:100,textAlign:'right'}} defaultValue={activeAlterItem?.openingRate||'0.00'} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/>
+          <input id="item-oqty" type="text" className="form-input" style={{width:100,textAlign:'right'}}
+            defaultValue={activeAlterItem?.openingQty||'0'}
+            onChange={e=>{ const v=parseFloat(e.target.value)||0; setOQty(v); }}
+            onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/>
+          <input id="item-orate" type="text" className="form-input" style={{width:100,textAlign:'right'}}
+            defaultValue={activeAlterItem?.openingRate||'0.00'}
+            onChange={e=>{ const v=parseFloat(e.target.value)||0; setORate(v); }}
+            onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/>
           <span style={{width:60,fontSize:11,textAlign:'center'}}>{typeof currentUnit === 'string' ? currentUnit : (currentUnit as any)?.name || (currentUnit as any)?.symbol || 'Nos'}</span>
-          <span style={{width:120,textAlign:'right',fontWeight:'bold',fontSize:13}}>
-            ₹ {fmt((activeAlterItem?.openingQty||0)*(activeAlterItem?.openingRate||0))}
+          <span style={{width:120,textAlign:'right',fontWeight:'bold',fontSize:13,color: oQty*oRate > 0 ? '#1a5276' : '#888'}}>
+            ₹ {fmt(oQty * oRate)}
           </span>
         </div>
       </div>
