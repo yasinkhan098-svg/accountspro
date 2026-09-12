@@ -10386,53 +10386,13 @@ function ProfitLossView({
   const isIndirectExpGroupName= (gn:string) => { const l=(gn||'').trim().toLowerCase(); return l==='indirect expenses'||l==='expenses (indirect)'||l==='indirect expense'||l.includes('indirect exp'); };
   const isIndirectIncGroupName= (gn:string) => { const l=(gn||'').trim().toLowerCase(); return l==='indirect incomes'||l==='income (indirect)'||l==='indirect income'||l.includes('indirect inc'); };
 
-  // ─── DIRECT EXPENSES LEDGERS (only groupName-based, only non-zero) ────────────
-  const directExpLedgers = useMemo(()=>{
-    const result: {ledger: Ledger; balance: number}[] = [];
-    const seenIds = new Set<number>();
-    for (const l of ledgers) {
-      if (isDirectExpGroupName(l.groupName)) {
-        const bal = getLedgerClosingBalance(l, vouchers);
-        if (Math.abs(bal) > 0.001 && !seenIds.has(l.id)) {
-          result.push({ ledger: l, balance: Math.abs(bal) });
-          seenIds.add(l.id);
-        }
-      }
-    }
-    // Also pick up any unregistered ledger entries that have Direct Expenses groupName
-    for (const v of vouchers) {
-      if (!v?.entries) continue;
-      for (const e of v.entries) {
-        const ml = ledgers.find(l => l.id === e.ledgerId);
-        if (ml && isDirectExpGroupName(ml.groupName) && !seenIds.has(ml.id)) {
-          const bal = getLedgerClosingBalance(ml, vouchers);
-          if (Math.abs(bal) > 0.001) {
-            result.push({ ledger: ml, balance: Math.abs(bal) });
-            seenIds.add(ml.id);
-          }
-        }
-      }
-    }
-    return result;
-  },[ledgers, vouchers]);
+  // ─────────────────────────────────────────────────────────────────────────────
+  // STEP 1: Compute INDIRECT sections FIRST (they have priority)
+  // STEP 2: Compute DIRECT sections, EXCLUDING any name/ID already in Indirect
+  // This prevents same ledger appearing in both Trading and P&L sections
+  // ─────────────────────────────────────────────────────────────────────────────
 
-  // ─── DIRECT INCOMES LEDGERS ──────────────────────────────────────────────────
-  const directIncLedgers = useMemo(()=>{
-    const result: {ledger: Ledger; balance: number}[] = [];
-    const seenIds = new Set<number>();
-    for (const l of ledgers) {
-      if (isDirectIncGroupName(l.groupName)) {
-        const bal = getLedgerClosingBalance(l, vouchers);
-        if (Math.abs(bal) > 0.001 && !seenIds.has(l.id)) {
-          result.push({ ledger: l, balance: Math.abs(bal) });
-          seenIds.add(l.id);
-        }
-      }
-    }
-    return result;
-  },[ledgers, vouchers]);
-
-  // ─── INDIRECT EXPENSES LEDGERS ───────────────────────────────────────────────
+  // ─── INDIRECT EXPENSES LEDGERS (computed first — highest priority) ──────────
   const indirectExpLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
     const seenIds = new Set<number>();
@@ -10445,6 +10405,7 @@ function ProfitLossView({
         }
       }
     }
+    // Voucher scan for any missed indirect expense ledgers
     for (const v of vouchers) {
       if (!v?.entries) continue;
       for (const e of v.entries) {
@@ -10461,7 +10422,7 @@ function ProfitLossView({
     return result;
   },[ledgers, vouchers]);
 
-  // ─── INDIRECT INCOMES LEDGERS ────────────────────────────────────────────────
+  // ─── INDIRECT INCOMES LEDGERS (computed first — highest priority) ───────────
   const indirectIncLedgers = useMemo(()=>{
     const result: {ledger: Ledger; balance: number}[] = [];
     const seenIds = new Set<number>();
@@ -10489,6 +10450,77 @@ function ProfitLossView({
     }
     return result;
   },[ledgers, vouchers]);
+
+  // ─── DIRECT EXPENSES LEDGERS (excludes any name/ID already in Indirect Exp) ─
+  const directExpLedgers = useMemo(()=>{
+    // Build exclusion sets from Indirect Expenses (IDs + names)
+    const excludeIds  = new Set(indirectExpLedgers.map(x => x.ledger.id));
+    const excludeNames= new Set(indirectExpLedgers.map(x => x.ledger.name.trim().toLowerCase()));
+
+    const result: {ledger: Ledger; balance: number}[] = [];
+    const seenIds = new Set<number>();
+
+    for (const l of ledgers) {
+      // Must be Direct Exp group AND not already in Indirect Exp (by ID or name)
+      if (
+        isDirectExpGroupName(l.groupName) &&
+        !excludeIds.has(l.id) &&
+        !excludeNames.has(l.name.trim().toLowerCase())
+      ) {
+        const bal = getLedgerClosingBalance(l, vouchers);
+        if (Math.abs(bal) > 0.001 && !seenIds.has(l.id)) {
+          result.push({ ledger: l, balance: Math.abs(bal) });
+          seenIds.add(l.id);
+        }
+      }
+    }
+    // Voucher scan — same exclusion rules
+    for (const v of vouchers) {
+      if (!v?.entries) continue;
+      for (const e of v.entries) {
+        const ml = ledgers.find(l => l.id === e.ledgerId);
+        if (
+          ml &&
+          isDirectExpGroupName(ml.groupName) &&
+          !excludeIds.has(ml.id) &&
+          !excludeNames.has(ml.name.trim().toLowerCase()) &&
+          !seenIds.has(ml.id)
+        ) {
+          const bal = getLedgerClosingBalance(ml, vouchers);
+          if (Math.abs(bal) > 0.001) {
+            result.push({ ledger: ml, balance: Math.abs(bal) });
+            seenIds.add(ml.id);
+          }
+        }
+      }
+    }
+    return result;
+  },[ledgers, vouchers, indirectExpLedgers]);
+
+  // ─── DIRECT INCOMES LEDGERS (excludes any name/ID already in Indirect Inc) ──
+  const directIncLedgers = useMemo(()=>{
+    // Build exclusion sets from Indirect Incomes (IDs + names)
+    const excludeIds  = new Set(indirectIncLedgers.map(x => x.ledger.id));
+    const excludeNames= new Set(indirectIncLedgers.map(x => x.ledger.name.trim().toLowerCase()));
+
+    const result: {ledger: Ledger; balance: number}[] = [];
+    const seenIds = new Set<number>();
+
+    for (const l of ledgers) {
+      if (
+        isDirectIncGroupName(l.groupName) &&
+        !excludeIds.has(l.id) &&
+        !excludeNames.has(l.name.trim().toLowerCase())
+      ) {
+        const bal = getLedgerClosingBalance(l, vouchers);
+        if (Math.abs(bal) > 0.001 && !seenIds.has(l.id)) {
+          result.push({ ledger: l, balance: Math.abs(bal) });
+          seenIds.add(l.id);
+        }
+      }
+    }
+    return result;
+  },[ledgers, vouchers, indirectIncLedgers]);
 
   const sumDirExp   = directExpLedgers.reduce((s,x)=>s+x.balance, 0);
   const sumDirInc   = directIncLedgers.reduce((s,x)=>s+x.balance, 0);
