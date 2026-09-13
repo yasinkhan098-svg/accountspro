@@ -352,15 +352,9 @@ export function computeBaseFinancials(
     const depRate = lowerName.includes('furniture') ? 10 : 15;
 
     const { balance } = computeLedgerBalance(l, vouchers);
-    let closingBal = balance;
+    let closingBal = balance > 0 ? balance : openingBal;
     if (depreciation === 0 && openingBal > closingBal && closingBal > 0) {
       depreciation = r2(openingBal - closingBal);
-    } else if (closingBal === 0 && openingBal > 0 && depreciation === 0) {
-      depreciation = r2(openingBal * (depRate / 100));
-      closingBal = r2(openingBal - depreciation);
-    } else if (depreciation === 0 && openingBal === closingBal && openingBal > 0) {
-      depreciation = r2(openingBal * (depRate / 100));
-      closingBal = r2(openingBal - depreciation);
     }
 
     return {

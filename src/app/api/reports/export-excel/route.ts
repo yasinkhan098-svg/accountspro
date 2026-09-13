@@ -7,11 +7,11 @@ export const dynamic = 'force-dynamic';
 // ─── Group Mappings ────────────────────────────────────────────────────────
 const CAPITAL_GROUPS        = ['Capital Account', 'Reserves & Surplus', 'Retained Earnings'];
 const SECURED_LOAN_GROUPS   = ['Secured Loans', 'Bank OD A/c', 'Bank OCC A/c'];
-const UNSECURED_LOAN_GROUPS = ['Unsecured Loans'];
-const CURRENT_LIAB_GROUPS   = ['Sundry Creditors', 'Current Liabilities', 'Provisions', 'Duties & Taxes'];
+const UNSECURED_LOAN_GROUPS = ['Unsecured Loans', 'Loans (Liability)'];
+const CURRENT_LIAB_GROUPS   = ['Sundry Creditors', 'Current Liabilities', 'Provisions', 'Duties & Taxes', 'Branch / Divisions'];
 const FIXED_ASSET_GROUPS    = ['Fixed Assets'];
 const INVESTMENT_GROUPS     = ['Investments', 'Deposits (Asset)', 'Misc. Expenses (ASSET)'];
-const CURRENT_ASSET_GROUPS  = ['Stock-in-hand', 'Sundry Debtors', 'Cash-in-hand', 'Bank Accounts', 'Loans & Advances (Asset)', 'Current Assets'];
+const CURRENT_ASSET_GROUPS  = ['Stock-in-hand', 'Sundry Debtors', 'Cash-in-hand', 'Bank Accounts', 'Current Assets', 'Loans & Advances (Asset)'];
 const SALES_GROUPS          = ['Sales Accounts', 'Direct Incomes', 'Income (Direct)'];
 const PURCHASE_GROUPS       = ['Purchase Accounts'];
 const DIRECT_EXP_GROUPS     = ['Direct Expenses', 'Expenses (Direct)'];
@@ -81,54 +81,38 @@ function formatOrdinalDate(d: Date | null): string {
 }
 
 function getLedgerBalance(ledger: any, vouchers: any[]) {
-  let dr = ledger.balanceType === 'Dr' ? (ledger.openingBal ?? 0) : 0;
-  let cr = ledger.balanceType === 'Cr' ? (ledger.openingBal ?? 0) : 0;
+  const opBal = (ledger.openingBal !== undefined && ledger.openingBal !== null && Math.abs(Number(ledger.openingBal)) > 0)
+    ? Number(ledger.openingBal)
+    : (ledger.openingBalance !== undefined && ledger.openingBalance !== null && Math.abs(Number(ledger.openingBalance)) > 0)
+      ? Number(ledger.openingBalance)
+      : (Number(ledger.odLimit) || 0);
+
+  let bal = ledger.balanceType === 'Dr' ? opBal : -opBal;
   for (const v of vouchers) {
-    for (const e of (v.entries || [])) {
-      if (e.ledgerId === ledger.id) {
-        if (e.entryType === 'Dr') dr += e.amount;
-        else cr += e.amount;
+    if (!v || !v.entries || v.type === 'Sales Quotation' || v.type === 'Quotation') continue;
+    for (const e of v.entries) {
+      if (e.ledgerId === ledger.id || (e.ledgerName && e.ledgerName.trim().toLowerCase() === ledger.name.trim().toLowerCase())) {
+        bal += e.entryType === 'Dr' ? e.amount : -e.amount;
       }
     }
   }
-  const net = dr - cr;
-  return net >= 0 ? { balance: net, type: 'Dr' } : { balance: Math.abs(net), type: 'Cr' };
+  return bal;
 }
 
-function buildLiabSection(ledgers: any[], groups: string[], vouchers: any[]) {
-  return ledgers.filter(l => groups.includes(l.groupName) && l.name !== 'Profit & Loss A/c').map(l => {
-    const { balance, type } = getLedgerBalance(l, vouchers);
-    const amt = (type === 'Cr') ? balance : -balance;
-    return { name: l.name, amount: Math.round(amt * 100) / 100 };
-  }).filter(i => Math.abs(i.amount) > 0.001);
-}
-
-function buildAssetSection(ledgers: any[], groups: string[], vouchers: any[]) {
-  return ledgers.filter(l => groups.includes(l.groupName)).map(l => {
-    const { balance, type } = getLedgerBalance(l, vouchers);
-    const amt = (type === 'Dr') ? balance : -balance;
-    return { name: l.name, amount: Math.round(amt * 100) / 100 };
-  }).filter(i => Math.abs(i.amount) > 0.001);
-}
-
-function buildExpense(ledgers: any[], groups: string[], vouchers: any[]) {
-  return ledgers.filter(l => groups.includes(l.groupName)).map(l => {
-    const { balance, type } = getLedgerBalance(l, vouchers);
-    return { name: l.name, amount: Math.round((type === 'Dr' ? balance : -balance) * 100) / 100 };
-  }).filter(i => Math.abs(i.amount) > 0.001);
-}
-
-function buildIncome(ledgers: any[], groups: string[], vouchers: any[]) {
-  return ledgers.filter(l => groups.includes(l.groupName)).map(l => {
-    const { balance, type } = getLedgerBalance(l, vouchers);
-    return { name: l.name, amount: Math.round((type === 'Cr' ? balance : -balance) * 100) / 100 };
-  }).filter(i => Math.abs(i.amount) > 0.001);
+function groupLedgersByParent(ledgers: any[], vouchers: any[]) {
+  const groups: Record<string, { ledger: any; balance: number }[]> = {};
+  for (const l of ledgers) {
+    if (!groups[l.groupName]) groups[l.groupName] = [];
+    groups[l.groupName].push({ ledger: l, balance: getLedgerBalance(l, vouchers) });
+  }
+  return groups;
 }
 
 const sum = (arr: any[]) => arr.reduce((s, i) => s + (Number(i.amount) || 0), 0);
 
 // ─── Style Constants ───────────────────────────────────────────────────────
 const RED     = { argb: 'FFCC0000' } as ExcelJS.Color;
+const GREEN   = { argb: 'FF006600' } as ExcelJS.Color;
 const BLACK   = { argb: 'FF000000' } as ExcelJS.Color;
 const DARK_BG = { argb: 'FFD3D3D3' } as ExcelJS.Color;
 const CURR_FMT = '#,##0.00';
@@ -164,7 +148,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     const isProjected   = postBody?.reportMode === 'projected'   || searchParams.get('reportMode') === 'projected';
     const titlePrefix   = isProvisional ? 'PROV. ' : isProjected ? 'PROJECTED ' : '';
 
-    // Data passed directly from frontend (fully calculated from BaseFinancials or Projections)
+    // Data passed directly from frontend
     const sourceData = (isProvisional || isProjected)
       ? (postBody?.projectedData || postBody?.statementData)
       : (postBody?.statementData || postBody?.projectedData);
@@ -215,176 +199,163 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     const fromDateObj = parsedFrom || new Date(new Date().getFullYear(), 3, 1);
     const toDateObj   = parsedTo   || parsedAsOn || new Date(new Date().getFullYear() + 1, 2, 31, 23, 59, 59, 999);
 
-    // If sourceData is NOT supplied, load ledgers and vouchers from database as fallback
+    // Load ledgers and vouchers if needed for server fallback
     let ledgers: any[] = [];
     let bsVouchers: any[] = [];
     let plVouchers: any[] = [];
     let stockItemsDb: any[] = [];
 
-    if (!sourceData) {
-      ledgers = await prisma.ledger.findMany({
-        where: { companyId: cid },
-        select: {
-          id: true,
-          name: true,
-          groupName: true,
-          openingBal: true,
-          balanceType: true,
-        }
-      });
+    ledgers = await prisma.ledger.findMany({
+      where: { companyId: cid },
+      select: {
+        id: true,
+        name: true,
+        groupName: true,
+        openingBal: true,
+        balanceType: true,
+      }
+    });
 
-      stockItemsDb = await prisma.stockItem.findMany({
-        where: { companyId: cid },
-        select: {
-          id: true,
-          name: true,
-          openingQty: true,
-          openingRate: true,
-        }
-      });
+    stockItemsDb = await prisma.stockItem.findMany({
+      where: { companyId: cid },
+      select: {
+        id: true,
+        name: true,
+        openingQty: true,
+        openingRate: true,
+      }
+    });
 
-      bsVouchers = await prisma.voucher.findMany({
-        where: {
-          companyId: cid,
-          type: { notIn: ['Sales Quotation', 'Quotation'] },
-          ...(parsedAsOn ? { date: { lte: parsedAsOn } } : {}),
+    bsVouchers = await prisma.voucher.findMany({
+      where: {
+        companyId: cid,
+        type: { notIn: ['Sales Quotation', 'Quotation'] },
+        ...(parsedAsOn ? { date: { lte: parsedAsOn } } : {}),
+      },
+      select: {
+        id: true,
+        type: true,
+        date: true,
+        entries: {
+          select: {
+            id: true,
+            ledgerId: true,
+            amount: true,
+            entryType: true,
+          }
         },
-        select: {
-          id: true,
-          type: true,
-          date: true,
-          entries: {
-            select: {
-              id: true,
-              ledgerId: true,
-              amount: true,
-              entryType: true,
-            }
-          },
-          inventoryEntries: {
-            select: {
-              id: true,
-              stockItemId: true,
-              qty: true,
-              rate: true,
-              amount: true,
-              taxableAmount: true,
-            }
+        inventoryEntries: {
+          select: {
+            id: true,
+            stockItemId: true,
+            qty: true,
+            rate: true,
+            amount: true,
+            taxableAmount: true,
           }
         }
-      });
+      }
+    });
 
-      const plDateFilter: any = {};
-      if (parsedFrom) plDateFilter.gte = parsedFrom;
-      if (parsedTo)   plDateFilter.lte = parsedTo;
+    const plDateFilter: any = {};
+    if (parsedFrom) plDateFilter.gte = parsedFrom;
+    if (parsedTo)   plDateFilter.lte = parsedTo;
 
-      plVouchers = await prisma.voucher.findMany({
-        where: {
-          companyId: cid,
-          type: { notIn: ['Sales Quotation', 'Quotation'] },
-          ...(Object.keys(plDateFilter).length > 0 ? { date: plDateFilter } : {}),
+    plVouchers = await prisma.voucher.findMany({
+      where: {
+        companyId: cid,
+        type: { notIn: ['Sales Quotation', 'Quotation'] },
+        ...(Object.keys(plDateFilter).length > 0 ? { date: plDateFilter } : {}),
+      },
+      select: {
+        id: true,
+        type: true,
+        date: true,
+        entries: {
+          select: {
+            id: true,
+            ledgerId: true,
+            amount: true,
+            entryType: true,
+          }
         },
-        select: {
-          id: true,
-          type: true,
-          date: true,
-          entries: {
-            select: {
-              id: true,
-              ledgerId: true,
-              amount: true,
-              entryType: true,
-            }
-          },
-          inventoryEntries: {
-            select: {
-              id: true,
-              stockItemId: true,
-              qty: true,
-              rate: true,
-              amount: true,
-              taxableAmount: true,
-            }
+        inventoryEntries: {
+          select: {
+            id: true,
+            stockItemId: true,
+            qty: true,
+            rate: true,
+            amount: true,
+            taxableAmount: true,
           }
         }
-      });
-    }
+      }
+    });
 
-    // ─── Calculate or Extract Financial Sections ──────────────────────
-    let capitalItems: any[]    = sourceData?.capitalItems    ? sourceData.capitalItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildLiabSection(ledgers, CAPITAL_GROUPS, bsVouchers);
-    let securedItems: any[]    = sourceData?.securedItems    ? sourceData.securedItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildLiabSection(ledgers, SECURED_LOAN_GROUPS, bsVouchers);
-    let unsecuredItems: any[]  = sourceData?.unsecuredItems  ? sourceData.unsecuredItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildLiabSection(ledgers, UNSECURED_LOAN_GROUPS, bsVouchers);
-    let currLiabItems: any[]   = sourceData?.currLiabItems   ? sourceData.currLiabItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildLiabSection(ledgers, CURRENT_LIAB_GROUPS, bsVouchers);
+    // ─── Extract or Compute P&L Data ──────────────────────────────────
+    let salesItems: any[]      = sourceData?.salesItems      ? sourceData.salesItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : [];
+    let purchaseItems: any[]   = sourceData?.purchaseItems   ? sourceData.purchaseItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : [];
+    let directExpItems: any[]  = sourceData?.directExpItems  ? sourceData.directExpItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : [];
+    let indirectExpItems: any[]= sourceData?.indirectExpItems? sourceData.indirectExpItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : [];
+    let indirectIncItems: any[]= sourceData?.indirectIncItems? sourceData.indirectIncItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : [];
 
-    let fixedAssetItems: any[] = sourceData?.fixedAssetItems ? sourceData.fixedAssetItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildAssetSection(ledgers, FIXED_ASSET_GROUPS, bsVouchers);
-    let investmentItems: any[] = sourceData?.investmentItems ? sourceData.investmentItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildAssetSection(ledgers, INVESTMENT_GROUPS, bsVouchers);
-    let currAssetItems: any[]  = sourceData?.currAssetItems  ? sourceData.currAssetItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildAssetSection(ledgers, CURRENT_ASSET_GROUPS, bsVouchers);
+    let openingStock = sourceData?.openingStock !== undefined ? Math.round(Number(sourceData.openingStock) * 100) / 100 : 0;
+    let closingStock = sourceData?.closingStock !== undefined ? Math.round(Number(sourceData.closingStock) * 100) / 100 : 0;
 
-    let salesItems: any[]      = sourceData?.salesItems      ? sourceData.salesItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildIncome(ledgers, SALES_GROUPS, plVouchers);
-    let purchaseItems: any[]   = sourceData?.purchaseItems   ? sourceData.purchaseItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildExpense(ledgers, PURCHASE_GROUPS, plVouchers);
-    let directExpItems: any[]  = sourceData?.directExpItems  ? sourceData.directExpItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildExpense(ledgers, DIRECT_EXP_GROUPS, plVouchers);
-    let indirectExpItems: any[]= sourceData?.indirectExpItems? sourceData.indirectExpItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildExpense(ledgers, INDIRECT_EXP_GROUPS, plVouchers);
-    let indirectIncItems: any[]= sourceData?.indirectIncItems? sourceData.indirectIncItems.map((i: any) => ({ name: i.name, amount: Number(i.amount) || 0 })) : buildIncome(ledgers, INDIRECT_INC_GROUPS, plVouchers);
+    if (salesItems.length === 0 && purchaseItems.length === 0) {
+      // Fallback DB calculations for P&L
+      const isDirectExpGroupName   = (gn: string) => { const l = (gn||'').trim().toLowerCase(); return l === 'direct expenses' || l === 'expenses (direct)' || l === 'direct expense' || l === 'expense (direct)' || l.includes('direct exp'); };
+      const isDirectIncGroupName   = (gn: string) => { const l = (gn||'').trim().toLowerCase(); return l === 'direct incomes' || l === 'income (direct)' || l === 'direct income' || l.includes('direct inc'); };
+      const isIndirectExpGroupName = (gn: string) => { const l = (gn||'').trim().toLowerCase(); return l === 'indirect expenses' || l === 'expenses (indirect)' || l === 'indirect expense' || l.includes('indirect exp'); };
+      const isIndirectIncGroupName = (gn: string) => { const l = (gn||'').trim().toLowerCase(); return l === 'indirect incomes' || l === 'income (indirect)' || l === 'indirect income' || l.includes('indirect inc'); };
 
-    let openingStock = 0;
-    let closingStock = 0;
+      for (const l of ledgers) {
+        const bal = getLedgerBalance(l, plVouchers);
+        if (Math.abs(bal) > 0.001) {
+          if (isIndirectExpGroupName(l.groupName)) indirectExpItems.push({ name: l.name, amount: Math.abs(bal) });
+          else if (isIndirectIncGroupName(l.groupName)) indirectIncItems.push({ name: l.name, amount: Math.abs(bal) });
+        }
+      }
+      for (const l of ledgers) {
+        const bal = getLedgerBalance(l, plVouchers);
+        if (Math.abs(bal) > 0.001) {
+          if (isDirectExpGroupName(l.groupName) && !indirectExpItems.some(x => x.name === l.name)) {
+            directExpItems.push({ name: l.name, amount: Math.abs(bal) });
+          } else if (isDirectIncGroupName(l.groupName) && !indirectIncItems.some(x => x.name === l.name)) {
+            salesItems.push({ name: l.name, amount: Math.abs(bal) });
+          } else if (PURCHASE_GROUPS.includes(l.groupName)) {
+            purchaseItems.push({ name: l.name, amount: Math.abs(bal) });
+          } else if (SALES_GROUPS.includes(l.groupName)) {
+            salesItems.push({ name: l.name, amount: Math.abs(bal) });
+          }
+        }
+      }
 
-    if (sourceData && (sourceData.openingStock !== undefined || sourceData.closingStock !== undefined)) {
-      openingStock = Math.round(Number(sourceData.openingStock || 0) * 100) / 100;
-      closingStock = Math.round(Number(sourceData.closingStock || 0) * 100) / 100;
-    } else if (stockItemsDb && stockItemsDb.length > 0) {
-      openingStock = Math.round(stockItemsDb.reduce((acc, it) => acc + ((Number(it.openingQty) || 0) * (Number(it.openingRate) || 0)), 0) * 100) / 100;
-      let totalVal = 0;
-      for (const it of stockItemsDb) {
-        let qty = Number(it.openingQty) || 0;
-        let totalCost = (Number(it.openingQty) || 0) * (Number(it.openingRate) || 0);
-        let totalInQty = Number(it.openingQty) || 0;
-        for (const v of bsVouchers) {
-          for (const ie of (v.inventoryEntries || [])) {
-            if (Number(ie.stockItemId) === Number(it.id)) {
-              if (v.type === 'Purchase' || v.type === 'Credit Note') {
-                qty += Number(ie.qty) || 0;
-                totalCost += (Number(ie.qty) || 0) * (Number(ie.rate) || 0);
-                totalInQty += Number(ie.qty) || 0;
-              } else if (v.type === 'Sales' || v.type === 'Debit Note') {
-                qty -= Number(ie.qty) || 0;
+      if (openingStock === 0 && stockItemsDb.length > 0) {
+        openingStock = Math.round(stockItemsDb.reduce((acc, it) => acc + ((Number(it.openingQty) || 0) * (Number(it.openingRate) || 0)), 0) * 100) / 100;
+        let totalVal = 0;
+        for (const it of stockItemsDb) {
+          let qty = Number(it.openingQty) || 0;
+          let totalCost = (Number(it.openingQty) || 0) * (Number(it.openingRate) || 0);
+          let totalInQty = Number(it.openingQty) || 0;
+          for (const v of bsVouchers) {
+            for (const ie of (v.inventoryEntries || [])) {
+              if (Number(ie.stockItemId) === Number(it.id)) {
+                if (v.type === 'Purchase' || v.type === 'Credit Note') {
+                  qty += Number(ie.qty) || 0;
+                  totalCost += (Number(ie.qty) || 0) * (Number(ie.rate) || 0);
+                  totalInQty += Number(ie.qty) || 0;
+                } else if (v.type === 'Sales' || v.type === 'Debit Note') {
+                  qty -= Number(ie.qty) || 0;
+                }
               }
             }
           }
+          totalVal += Math.max(0, qty) * (totalInQty > 0 ? totalCost / totalInQty : (Number(it.openingRate) || 0));
         }
-        totalVal += Math.max(0, qty) * (totalInQty > 0 ? totalCost / totalInQty : (Number(it.openingRate) || 0));
-      }
-      closingStock = Math.round(totalVal * 100) / 100;
-    } else {
-      const stockLedgers = ledgers.filter(l => STOCK_GROUPS.includes(l.groupName));
-      openingStock = stockLedgers.reduce((s, l) => {
-        const ob = l.openingBal ?? 0;
-        return s + (l.balanceType === 'Dr' ? ob : -ob);
-      }, 0);
-      closingStock = stockLedgers.reduce((s, l) => {
-        const { balance, type } = getLedgerBalance(l, plVouchers);
-        return s + (type === 'Dr' ? balance : -balance);
-      }, 0);
-    }
-
-    // Ensure closing stock is reflected in Current Assets
-    const stockItemIdx = currAssetItems.findIndex(i => i.name.toLowerCase().includes('stock'));
-    if (closingStock > 0) {
-      if (stockItemIdx >= 0) {
-        currAssetItems[stockItemIdx].amount = closingStock;
-      } else {
-        currAssetItems.push({ name: 'Closing Stock', amount: closingStock });
+        closingStock = Math.round(totalVal * 100) / 100;
       }
     }
-
-    const capitalTotal      = Math.round(sum(capitalItems) * 100) / 100;
-    const securedTotal      = Math.round(sum(securedItems) * 100) / 100;
-    const unsecuredTotal    = Math.round(sum(unsecuredItems) * 100) / 100;
-    const currLiabTotal     = Math.round(sum(currLiabItems) * 100) / 100;
-
-    const fixedAssetTotal   = Math.round(sum(fixedAssetItems) * 100) / 100;
-    const investmentTotal   = Math.round(sum(investmentItems) * 100) / 100;
-    const currAssetTotal    = Math.round(sum(currAssetItems) * 100) / 100;
 
     const salesTotal        = Math.round(sum(salesItems) * 100) / 100;
     const purchaseTotal     = Math.round(sum(purchaseItems) * 100) / 100;
@@ -403,81 +374,260 @@ async function generateExcelResponse(req: Request, postBody?: any) {
       (grossProfit > 0 ? grossProfit : 0) + indirectIncTotal + (netProfit < 0 ? Math.abs(netProfit) : 0)
     ) * 100) / 100;
 
-    // ─── Calculate Partners Capital Account (Annexure A) ─────────────
-    let partnersList: any[] = (sourceData?.partners && Array.isArray(sourceData.partners) && sourceData.partners.length > 0)
-      ? sourceData.partners
-      : inputPartners;
+    // ─── Extract or Build Exact Balance Sheet Rows matching BalanceSheetView ────
+    let balanceSheetRows = postBody?.balanceSheetRows;
 
-    if (!partnersList || partnersList.length === 0) {
-      const capLedgers = ledgers.filter(l => CAPITAL_GROUPS.includes(l.groupName) && l.name !== 'Profit & Loss A/c');
-      if (capLedgers.length > 0) {
-        const pct = Math.floor((100 / capLedgers.length) * 100) / 100;
-        partnersList = capLedgers.map((l, idx) => {
-          const { balance, type } = getLedgerBalance(l, bsVouchers);
-          const amt = type === 'Cr' ? balance : -balance;
-          return {
-            name: l.name,
-            sharePct: idx === capLedgers.length - 1 ? 100 - (pct * (capLedgers.length - 1)) : pct,
-            openingBal: l.openingBal ?? amt,
-            addition: 0,
-            salary: 0,
-            interestRate: 12,
-            withdrawalsAmt: 0,
-            withdrawalsNature: '',
-          };
-        });
-      } else {
-        partnersList = [
-          { name: 'PARTNER 1', sharePct: 50, openingBal: capitalTotal * 0.5, addition: 0, salary: 0, interestRate: 12, withdrawalsAmt: 0, withdrawalsNature: '' },
-          { name: 'PARTNER 2', sharePct: 50, openingBal: capitalTotal * 0.5, addition: 0, salary: 0, interestRate: 12, withdrawalsAmt: 0, withdrawalsNature: '' },
-        ];
+    if (!balanceSheetRows || !Array.isArray(balanceSheetRows.liabilities) || balanceSheetRows.liabilities.length === 0) {
+      // Build server fallback using exact BalanceSheetView grouping logic
+      const grp = groupLedgersByParent(ledgers, bsVouchers);
+      const grpKeys = Object.keys(grp);
+      const findGrpItems = (groupName: string) => {
+        if (grp[groupName]) return { key: groupName, items: grp[groupName] };
+        const lower = groupName.toLowerCase();
+        const actualKey = grpKeys.find(k => k.toLowerCase() === lower);
+        if (actualKey) return { key: actualKey, items: grp[actualKey] };
+        return { key: groupName, items: [] };
+      };
+
+      const AGGREGATE_GROUPS = new Set([
+        'Capital Account', 'Reserves & Surplus', 'Retained Earnings',
+        'Sundry Creditors', 'Sundry Debtors',
+        'Duties & Taxes',
+        'Cash-in-hand', 'Bank Accounts',
+      ]);
+
+      const LIAB_SECTIONS = [
+        { title: 'CAPITAL ACCOUNT',    groups: ['Capital Account','Reserves & Surplus','Retained Earnings'] },
+        { title: 'SECURED LOAN :',     groups: ['Secured Loans','Bank OD A/c','Bank OCC A/c'] },
+        { title: 'UNSECURED LOAN :',   groups: ['Unsecured Loans','Loans (Liability)'] },
+        { title: 'CURRENT LIABILITIES',groups: ['Sundry Creditors','Current Liabilities','Provisions','Duties & Taxes','Branch / Divisions'] },
+      ];
+
+      const ASSET_SECTIONS = [
+        { title: 'FIXED ASSETS',       groups: ['Fixed Assets'] },
+        { title: 'SECURITY DEPOSITS',  groups: ['Investments','Deposits (Asset)','Misc. Expenses (ASSET)'] },
+        { title: 'CURRENT ASSETS',     groups: ['Stock-in-hand','Sundry Debtors','Cash-in-hand','Bank Accounts','Current Assets','Loans & Advances (Asset)'] },
+      ];
+
+      const buildSectionedSideServer = (sections: {title:string;groups:string[]}[]) => {
+        const rows: any[] = [];
+        for (const sec of sections) {
+          const sectionRows: any[] = [];
+          for (const gn of sec.groups) {
+            const { key: actualKey, items: allItems } = findGrpItems(gn);
+            const items = allItems.filter(x => Math.abs(x.balance) > 0.001);
+            if (!items.length) continue;
+
+            if (AGGREGATE_GROUPS.has(gn)) {
+              const total = items.reduce((s, x) => s + Math.abs(x.balance), 0);
+              sectionRows.push({type:'group-header', name:gn, amount:total, groupName:actualKey});
+            } else {
+              for (const item of items) {
+                sectionRows.push({
+                  type: 'ledger',
+                  name: item.ledger.name,
+                  amount: Math.abs(item.balance),
+                  id: item.ledger.id,
+                  groupName: actualKey,
+                });
+              }
+            }
+          }
+          if (sectionRows.length === 0) continue;
+          const secTotal = sectionRows.reduce((s, r) => s + (r.amount||0), 0);
+          rows.push({type:'section-header', name:sec.title});
+          rows.push(...sectionRows);
+          rows.push({type:'section-total', name:'', amount:secTotal});
+          rows.push({type:'blank', name:''});
+        }
+        return rows;
+      };
+
+      const srvLiabRows = buildSectionedSideServer(LIAB_SECTIONS);
+      const srvAssetRows = buildSectionedSideServer(ASSET_SECTIONS);
+
+      if (netProfit > 0) {
+        srvLiabRows.push({ type: 'net-entry', name: 'Add: Net Profit (as per P&L)', amount: netProfit });
+      } else if (netProfit < 0) {
+        srvAssetRows.push({ type: 'net-entry', name: 'Less: Net Loss (as per P&L)', amount: Math.abs(netProfit) });
+      }
+
+      const liabSecTotals = srvLiabRows.filter(r => r.type === 'section-total').reduce((s, r) => s + (r.amount || 0), 0);
+      const assetSecTotals = srvAssetRows.filter(r => r.type === 'section-total').reduce((s, r) => s + (r.amount || 0), 0);
+      const totalLiabDisplay  = liabSecTotals + (netProfit > 0 ? netProfit : 0);
+      const totalAssetDisplay = assetSecTotals + (netProfit < 0 ? Math.abs(netProfit) : 0);
+
+      balanceSheetRows = {
+        liabilities: srvLiabRows,
+        assets: srvAssetRows,
+        totalLiabilities: totalLiabDisplay,
+        totalAssets: totalAssetDisplay,
+        netProfit: netProfit,
+      };
+    }
+
+    const { liabilities, assets, totalLiabilities, totalAssets } = balanceSheetRows;
+
+    // ─── Extract Capital Accounts from Balance Sheet for Annexure A ──────────
+    let capitalItemsFromBS: any[] = [];
+    if (liabilities && Array.isArray(liabilities)) {
+      let inCapitalSection = false;
+      for (const row of liabilities) {
+        if (row.type === 'section-header' && row.name.toUpperCase().includes('CAPITAL')) {
+          inCapitalSection = true;
+          continue;
+        }
+        if (inCapitalSection) {
+          if (row.type === 'section-header' || row.type === 'section-total' || row.type === 'blank') {
+            if (row.type === 'section-total' || row.type === 'section-header') inCapitalSection = false;
+            continue;
+          }
+          if (row.amount && row.amount > 0) {
+            capitalItemsFromBS.push({ name: row.name, amount: row.amount });
+          }
+        }
       }
     }
 
-    const calculatedPartners: any[] = partnersList.map((p: any, idx: number) => {
-      const name = (p.name && String(p.name).trim()) ? String(p.name).trim().toUpperCase() : `PARTNER ${idx + 1}`;
-      const sharePct = Number(p.sharePct || 0);
-      const openingBal = Math.round(Number(p.openingBal || 0) * 100) / 100;
-      const addition = Math.round(Number(p.addition || 0) * 100) / 100;
-      const salary = Math.round(Number(p.salary || 0) * 100) / 100;
-      const interestRate = p.interestRate !== undefined ? Number(p.interestRate) : 12;
-      const interestAmt = (p.interestAmt !== undefined && p.interestAmt !== '' && p.interestAmt !== null)
-        ? Math.round(Number(p.interestAmt) * 100) / 100
-        : Math.round(openingBal * (interestRate / 100) * 100) / 100;
-      const profitShare = (p.profitShare !== undefined && p.profitShare !== '' && p.profitShare !== null)
-        ? Math.round(Number(p.profitShare) * 100) / 100
-        : Math.round((netProfit * (sharePct / 100)) * 100) / 100;
-      const total = (p.total !== undefined && p.total !== '' && p.total !== null)
-        ? Math.round(Number(p.total) * 100) / 100
-        : Math.round((openingBal + addition + salary + interestAmt + profitShare) * 100) / 100;
-      const withdrawalsAmt = Math.round(Number(p.withdrawalsAmt || 0) * 100) / 100;
-      const withdrawalsNature = String(p.withdrawalsNature || '');
-      const closingBal = (p.closingBal !== undefined && p.closingBal !== '' && p.closingBal !== null)
-        ? Math.round(Number(p.closingBal) * 100) / 100
-        : Math.round((total - withdrawalsAmt) * 100) / 100;
-      return {
-        name,
-        sharePct,
-        openingBal,
-        addition,
-        salary,
-        interestRate,
-        interestAmt,
-        profitShare,
-        total,
-        withdrawalsAmt,
-        withdrawalsNature,
-        closingBal,
-      };
-    });
+    // ─── Extract Fixed Assets from Balance Sheet for Annexure B ───────────────
+    let fixedAssetsFromBS: any[] = [];
+    if (assets && Array.isArray(assets)) {
+      let inFixedAssetSection = false;
+      for (const row of assets) {
+        if (row.type === 'section-header' && row.name.toUpperCase().includes('FIXED')) {
+          inFixedAssetSection = true;
+          continue;
+        }
+        if (inFixedAssetSection) {
+          if (row.type === 'section-header' || row.type === 'section-total' || row.type === 'blank') {
+            if (row.type === 'section-total' || row.type === 'section-header') inFixedAssetSection = false;
+            continue;
+          }
+          if (row.amount && row.amount > 0) {
+            fixedAssetsFromBS.push({ name: row.name, amount: row.amount });
+          }
+        }
+      }
+    }
 
-    const annexAClosingTotal = Math.round(sum(calculatedPartners.map((p: any) => ({ amount: p.closingBal }))) * 100) / 100;
+    // ─── Calculate Annexure A (Partners / Proprietor Capital Account) ──────────
+    let calculatedPartners: any[] = [];
+    const bsCapTotal = capitalItemsFromBS.reduce((s, c) => s + (Number(c.amount) || 0), 0);
 
-    // ─── Calculate Fixed Assets Schedule (Annexure B) ─────────────────
+    if (inputPartners && inputPartners.length > 0) {
+      const sumInputOpening = inputPartners.reduce((s: number, p: any) => s + (Number(p.openingBal) || 0), 0);
+      calculatedPartners = inputPartners.map((p: any, idx: number) => {
+        const name = (p.name && String(p.name).trim()) ? String(p.name).trim().toUpperCase() : `PARTNER ${idx + 1}`;
+        const sharePct = Number(p.sharePct || (100 / inputPartners.length));
+        let openingBal = Math.round(Number(p.openingBal || 0) * 100) / 100;
+        if (sumInputOpening === 0 && bsCapTotal > 0) {
+          openingBal = Math.round(bsCapTotal * (sharePct / 100) * 100) / 100;
+        }
+        const addition = Math.round(Number(p.addition || 0) * 100) / 100;
+        const salary = Math.round(Number(p.salary || 0) * 100) / 100;
+        const interestRate = p.interestRate !== undefined ? Number(p.interestRate) : 12;
+        const interestAmt = (p.interestAmt !== undefined && p.interestAmt !== '' && p.interestAmt !== null)
+          ? Math.round(Number(p.interestAmt) * 100) / 100
+          : Math.round(openingBal * (interestRate / 100) * 100) / 100;
+        const profitShare = (p.profitShare !== undefined && p.profitShare !== '' && p.profitShare !== null)
+          ? Math.round(Number(p.profitShare) * 100) / 100
+          : Math.round((netProfit * (sharePct / 100)) * 100) / 100;
+        const total = (p.total !== undefined && p.total !== '' && p.total !== null)
+          ? Math.round(Number(p.total) * 100) / 100
+          : Math.round((openingBal + addition + salary + interestAmt + profitShare) * 100) / 100;
+        const withdrawalsAmt = Math.round(Number(p.withdrawalsAmt || 0) * 100) / 100;
+        const withdrawalsNature = String(p.withdrawalsNature || '');
+        const closingBal = (p.closingBal !== undefined && p.closingBal !== '' && p.closingBal !== null)
+          ? Math.round(Number(p.closingBal) * 100) / 100
+          : Math.round((total - withdrawalsAmt) * 100) / 100;
+        return {
+          name,
+          sharePct,
+          openingBal,
+          addition,
+          salary,
+          interestRate,
+          interestAmt,
+          profitShare,
+          total,
+          withdrawalsAmt,
+          withdrawalsNature,
+          closingBal,
+        };
+      });
+    } else if (capitalItemsFromBS.length > 0) {
+      const pct = Math.floor((100 / capitalItemsFromBS.length) * 100) / 100;
+      calculatedPartners = capitalItemsFromBS.map((c: any, idx: number) => {
+        const name = (c.name && String(c.name).trim()) ? String(c.name).trim().toUpperCase() : `PARTNER ${idx + 1}`;
+        const sharePct = idx === capitalItemsFromBS.length - 1 ? (100 - (pct * (capitalItemsFromBS.length - 1))) : pct;
+        const openingBal = Math.round(Number(c.amount || 0) * 100) / 100;
+        const addition = 0;
+        const salary = 0;
+        const interestRate = 12;
+        const interestAmt = Math.round(openingBal * (interestRate / 100) * 100) / 100;
+        const profitShare = Math.round((netProfit * (sharePct / 100)) * 100) / 100;
+        const total = Math.round((openingBal + addition + salary + interestAmt + profitShare) * 100) / 100;
+        const withdrawalsAmt = 0;
+        const withdrawalsNature = '';
+        const closingBal = total - withdrawalsAmt;
+        return {
+          name,
+          sharePct,
+          openingBal,
+          addition,
+          salary,
+          interestRate,
+          interestAmt,
+          profitShare,
+          total,
+          withdrawalsAmt,
+          withdrawalsNature,
+          closingBal,
+        };
+      });
+    } else {
+      calculatedPartners = [
+        {
+          name: (company.mailingName || company.name || 'PROPRIETOR').toUpperCase(),
+          sharePct: 100,
+          openingBal: bsCapTotal || 0,
+          addition: 0,
+          salary: 0,
+          interestRate: 12,
+          interestAmt: 0,
+          profitShare: netProfit,
+          total: (bsCapTotal || 0) + netProfit,
+          withdrawalsAmt: 0,
+          withdrawalsNature: '',
+          closingBal: (bsCapTotal || 0) + netProfit,
+        }
+      ];
+    }
+
+    // ─── Calculate Annexure B (Fixed Assets Schedule) ──────────────────────────
     const fyStartYear = fromDateObj.getFullYear();
     const septCutoff = new Date(fyStartYear, 8, 30, 23, 59, 59, 999);
     let faScheduleRows: any[] = [];
-    if (sourceData?.fixedAssetSchedule && sourceData.fixedAssetSchedule.length > 0) {
+
+    if (fixedAssetsFromBS.length > 0) {
+      faScheduleRows = fixedAssetsFromBS.map((fa: any) => {
+        const existing = (sourceData?.fixedAssetSchedule || []).find((x: any) => x.name.trim().toLowerCase() === fa.name.trim().toLowerCase());
+        const closingBal = Math.round(Number(fa.amount || 0) * 100) / 100;
+        const additionBefore = existing ? Math.round(Number(existing.additionBefore || 0) * 100) / 100 : 0;
+        const additionAfter = existing ? Math.round(Number(existing.additionAfter || 0) * 100) / 100 : 0;
+        const depreciation = existing ? Math.round(Number(existing.depreciation || 0) * 100) / 100 : 0;
+        const calcOpening = Math.round((closingBal - additionBefore - additionAfter + depreciation) * 100) / 100;
+        const openingBal = existing?.openingBal ? Math.round(Number(existing.openingBal) * 100) / 100 : (calcOpening > 0 ? calcOpening : closingBal);
+        return {
+          name: fa.name,
+          openingBal,
+          additionBefore,
+          additionAfter,
+          depreciation,
+          closingBal,
+        };
+      });
+    } else if (sourceData?.fixedAssetSchedule && sourceData.fixedAssetSchedule.length > 0) {
       faScheduleRows = sourceData.fixedAssetSchedule.map((fa: any) => ({
         name: fa.name,
         openingBal: Math.round(Number(fa.openingBal || 0) * 100) / 100,
@@ -487,76 +637,17 @@ async function generateExcelResponse(req: Request, postBody?: any) {
         closingBal: Math.round(Number(fa.closingBal || 0) * 100) / 100,
       }));
     } else {
-      const faLedgers = ledgers.filter(l => FIXED_ASSET_GROUPS.includes(l.groupName));
-
-      faScheduleRows = faLedgers.map(l => {
-        let openingBal = l.openingBal ? (l.balanceType === 'Dr' ? l.openingBal : -l.openingBal) : 0;
-        let additionBefore = 0;
-        let additionAfter = 0;
-        let depreciation = 0;
-
-        for (const v of bsVouchers) {
-          const vDate = new Date(v.date);
-          for (const e of (v.entries || [])) {
-            if (e.ledgerId === l.id) {
-              if (e.entryType === 'Dr') {
-                if (vDate <= septCutoff) {
-                  additionBefore += e.amount;
-                } else {
-                  additionAfter += e.amount;
-                }
-              } else {
-                depreciation += e.amount;
-              }
-            }
-          }
-        }
-
-        const closingBal = openingBal + additionBefore + additionAfter - depreciation;
-        return {
-          name: l.name,
-          openingBal: Math.round(openingBal * 100) / 100,
-          additionBefore: Math.round(additionBefore * 100) / 100,
-          additionAfter: Math.round(additionAfter * 100) / 100,
-          depreciation: Math.round(depreciation * 100) / 100,
-          closingBal: Math.round(closingBal * 100) / 100,
-        };
-      }).filter(r => Math.abs(r.openingBal) > 0.001 || Math.abs(r.closingBal) > 0.001 || r.additionBefore > 0 || r.additionAfter > 0 || r.depreciation > 0);
+      faScheduleRows = [
+        { name: 'Fixed Assets', openingBal: 0, additionBefore: 0, additionAfter: 0, depreciation: 0, closingBal: 0 }
+      ];
     }
 
-    const itemsToRenderAnnexB = faScheduleRows.length > 0 ? faScheduleRows : [
-      { name: 'Fixed Assets', openingBal: fixedAssetTotal, additionBefore: 0, additionAfter: 0, depreciation: 0, closingBal: fixedAssetTotal }
-    ];
-
-    const annexBClosingTotal = Math.round(sum(itemsToRenderAnnexB.map(r => ({ amount: r.closingBal }))) * 100) / 100;
-
-    // Totals linked with Annexures
-    const effectiveCapitalTotal = annexAClosingTotal !== 0 ? annexAClosingTotal : capitalTotal;
-    const effectiveFixedAssetTotal = annexBClosingTotal !== 0 ? annexBClosingTotal : fixedAssetTotal;
-    let totalLiab = Math.round((effectiveCapitalTotal + securedTotal + unsecuredTotal + currLiabTotal) * 100) / 100;
-    let totalAssets = Math.round((effectiveFixedAssetTotal + investmentTotal + currAssetTotal) * 100) / 100;
-
-    // Auto-balance Balance Sheet cash/bank if slight difference
-    const diff = Math.round((totalLiab - totalAssets) * 100) / 100;
-    if (Math.abs(diff) > 0.001) {
-      const cashItem = currAssetItems.find(i => i.name.toLowerCase().includes('cash'));
-      if (cashItem) {
-        cashItem.amount = Math.round((cashItem.amount + diff) * 100) / 100;
-      } else if (currAssetItems.length > 0) {
-        currAssetItems[0].amount = Math.round((currAssetItems[0].amount + diff) * 100) / 100;
-      } else {
-        currAssetItems.push({ name: 'Cash in hand', amount: Math.max(0, diff) });
-      }
-      totalAssets = Math.round((effectiveFixedAssetTotal + investmentTotal + sum(currAssetItems)) * 100) / 100;
-    }
-
-    // Pre-calculate Annexure Grand Total Row Numbers for cross-sheet live formulas
     const annexAStartRow = 8;
     const annexAEndRow = calculatedPartners.length > 0 ? (annexAStartRow + calculatedPartners.length - 1) : 8;
     const annexATotalRow = annexAEndRow + 1;
 
     const annexBStartRow = 6;
-    const annexBEndRow = itemsToRenderAnnexB.length > 0 ? (annexBStartRow + itemsToRenderAnnexB.length - 1) : 6;
+    const annexBEndRow = faScheduleRows.length > 0 ? (annexBStartRow + faScheduleRows.length - 1) : 6;
     const annexBTotalRow = annexBEndRow + 1;
 
     // ─── Create Workbook ───────────────────────────────────────────────
@@ -565,14 +656,13 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     wb.created = new Date();
 
     // ═══════════════════════════════════════════════════════════════════
-    //  SHEET 1: BALANCE SHEET
+    //  SHEET 1: BALANCE SHEET (Exact Real Entries & Format as on Screen)
     // ═══════════════════════════════════════════════════════════════════
     const wsBS = wb.addWorksheet('Balance Sheet', {
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
     });
     wsBS.views = [{ showGridLines: true }];
 
-    // Column widths (4 cols: Liab-name, Liab-amt, Asset-name, Asset-amt)
     wsBS.columns = [
       { key: 'A', width: 38 },
       { key: 'B', width: 18 },
@@ -585,7 +675,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
       ? formatDotDate(parsedAsOn) 
       : (asOnDate ? (asOnDate.includes('.') ? asOnDate : formatDotDate(parseReportDate(asOnDate, true))) : (toDateObj ? formatDotDate(toDateObj) : '31.03.2026'));
 
-    // Header
+    // Company Header
     const addBSHeader = (text: string, bold = true, size = 11) => {
       const r = wsBS.getRow(bsRow);
       r.getCell(1).value = text;
@@ -615,133 +705,131 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     });
     bsRow++;
 
-    const addBSDataRow = (
-      liabName: string, liabAmt: number | { formula: string; result?: number } | null, liabBold = false,
-      assetName: string, assetAmt: number | { formula: string; result?: number } | null, assetBold = false,
-      liabRed = false, assetRed = false
-    ) => {
-      const r = wsBS.getRow(bsRow);
-      r.getCell(1).value = liabName;
-      r.getCell(1).font = { bold: liabBold, name: 'Arial', size: 10 };
+    const startDataRow = bsRow;
+    const maxBSRows = Math.max(liabilities.length, assets.length);
+    const liabSumCells: string[] = [];
+    const assetSumCells: string[] = [];
 
-      if (liabAmt !== null && liabAmt !== undefined) {
-        const amtCell = r.getCell(2);
-        if (typeof liabAmt === 'object' && liabAmt !== null && 'formula' in liabAmt) {
-          amtCell.value = liabAmt;
-        } else if (typeof liabAmt === 'number') {
-          amtCell.value = liabAmt;
+    for (let i = 0; i < maxBSRows; i++) {
+      const l = liabilities[i];
+      const a = assets[i];
+      const row = wsBS.getRow(bsRow);
+      row.height = 20;
+
+      // ── Left Side (Liabilities) ──
+      const cellA = row.getCell(1);
+      const cellB = row.getCell(2);
+
+      if (l) {
+        cellA.value = l.name;
+        cellA.alignment = { horizontal: 'left', vertical: 'middle' };
+
+        if (l.type === 'section-header') {
+          cellA.font = { name: 'Arial', size: 10, bold: true, underline: true };
+        } else if (l.type === 'group-header') {
+          cellA.font = { name: 'Arial', size: 10, bold: true };
+          cellA.alignment = { indent: 1, horizontal: 'left', vertical: 'middle' };
+        } else if (l.type === 'ledger') {
+          cellA.font = { name: 'Arial', size: 10 };
+          cellA.alignment = { indent: 2, horizontal: 'left', vertical: 'middle' };
+        } else if (l.type === 'net-entry') {
+          cellA.font = { name: 'Arial', size: 10, italic: true, bold: true };
+          cellA.alignment = { indent: 1, horizontal: 'left', vertical: 'middle' };
         }
-        amtCell.numFmt = CURR_FMT;
-        amtCell.font = { bold: liabBold, name: 'Arial', size: 10, color: liabRed ? RED : BLACK };
-        amtCell.alignment = { horizontal: 'right' };
+
+        if (l.amount !== undefined && l.amount !== null && l.type !== 'section-header' && l.type !== 'blank') {
+          cellB.value = Number(l.amount);
+          cellB.numFmt = CURR_FMT;
+          cellB.alignment = { horizontal: 'right', vertical: 'middle' };
+
+          if (l.type === 'section-total') {
+            cellB.font = { name: 'Arial', size: 10, bold: true };
+            cellB.border = { top: { style: 'thin' } };
+            liabSumCells.push(`B${bsRow}`);
+          } else if (l.type === 'net-entry') {
+            cellB.font = { name: 'Arial', size: 10, bold: true, color: GREEN };
+            liabSumCells.push(`B${bsRow}`);
+          } else {
+            cellB.font = { name: 'Arial', size: 10, color: RED };
+          }
+        }
       }
 
-      r.getCell(3).value = assetName;
-      r.getCell(3).font = { bold: assetBold, name: 'Arial', size: 10 };
+      // ── Right Side (Assets) ──
+      const cellC = row.getCell(3);
+      const cellD = row.getCell(4);
 
-      if (assetAmt !== null && assetAmt !== undefined) {
-        const amtCell = r.getCell(4);
-        if (typeof assetAmt === 'object' && assetAmt !== null && 'formula' in assetAmt) {
-          amtCell.value = assetAmt;
-        } else if (typeof assetAmt === 'number') {
-          amtCell.value = assetAmt;
+      if (a) {
+        cellC.value = a.name;
+        cellC.alignment = { horizontal: 'left', vertical: 'middle' };
+
+        if (a.type === 'section-header') {
+          cellC.font = { name: 'Arial', size: 10, bold: true, underline: true };
+        } else if (a.type === 'group-header') {
+          cellC.font = { name: 'Arial', size: 10, bold: true };
+          cellC.alignment = { indent: 1, horizontal: 'left', vertical: 'middle' };
+        } else if (a.type === 'ledger') {
+          cellC.font = { name: 'Arial', size: 10 };
+          cellC.alignment = { indent: 2, horizontal: 'left', vertical: 'middle' };
+        } else if (a.type === 'net-entry') {
+          cellC.font = { name: 'Arial', size: 10, italic: true, bold: true };
+          cellC.alignment = { indent: 1, horizontal: 'left', vertical: 'middle' };
         }
-        amtCell.numFmt = CURR_FMT;
-        amtCell.font = { bold: assetBold, name: 'Arial', size: 10, color: assetRed ? RED : BLACK };
-        amtCell.alignment = { horizontal: 'right' };
+
+        if (a.amount !== undefined && a.amount !== null && a.type !== 'section-header' && a.type !== 'blank') {
+          cellD.value = Number(a.amount);
+          cellD.numFmt = CURR_FMT;
+          cellD.alignment = { horizontal: 'right', vertical: 'middle' };
+
+          if (a.type === 'section-total') {
+            cellD.font = { name: 'Arial', size: 10, bold: true };
+            cellD.border = { top: { style: 'thin' } };
+            assetSumCells.push(`D${bsRow}`);
+          } else if (a.type === 'net-entry') {
+            cellD.font = { name: 'Arial', size: 10, bold: true, color: RED };
+            assetSumCells.push(`D${bsRow}`);
+          } else {
+            cellD.font = { name: 'Arial', size: 10, color: RED };
+          }
+        }
       }
 
       bsRow++;
-    };
-
-    const addBSSectionHeader = (liabLabel: string, assetLabel: string) => {
-      const r = wsBS.getRow(bsRow);
-      const lCell = r.getCell(1);
-      lCell.value = liabLabel;
-      lCell.font = { bold: true, underline: true, name: 'Arial', size: 10 };
-      const aCell = r.getCell(3);
-      aCell.value = assetLabel;
-      aCell.font = { bold: true, underline: true, name: 'Arial', size: 10 };
-      bsRow++;
-    };
-
-    const bsDataStartRow = bsRow;
-
-    // ── CAPITAL ACCOUNT & FIXED ASSETS ──────────────────────────────────
-    addBSSectionHeader('CAPITAL ACCOUNT', 'FIXED ASSETS');
-    addBSDataRow(
-      'As Per Annexure "A"', 
-      { formula: `'Annexure A'!L${annexATotalRow}`, result: effectiveCapitalTotal }, 
-      false,
-      'As Per Annexure "B"', 
-      { formula: `'Annexure B'!F${annexBTotalRow}`, result: effectiveFixedAssetTotal }, 
-      true,
-      false, false
-    );
-    addBSDataRow('', null, false, '', null, false);
-
-    // ── SECURED LOAN & SECURITY DEPOSITS ─────────────────────────────────
-    addBSSectionHeader('SECURED LOAN :', 'SECURITY DEPOSITS');
-    for (let i = 0; i < Math.max(securedItems.length, investmentItems.length); i++) {
-      const li = securedItems[i];
-      const ai = investmentItems[i];
-      addBSDataRow(
-        li ? li.name : '', li ? li.amount : null, !!li,
-        ai ? ai.name : '', ai ? ai.amount : null, false
-      );
     }
-    addBSDataRow('', null, false, '', null, false);
 
-    // ── UNSECURED LOAN & CURRENT ASSETS ──────────────────────────────────
-    addBSSectionHeader('UNSECURED LOAN :', 'CURRENT ASSETS');
-    const maxUnsecCurrRows = Math.max(unsecuredItems.length, currAssetItems.length);
-    for (let i = 0; i < maxUnsecCurrRows; i++) {
-      const li = unsecuredItems[i];
-      const ai = currAssetItems[i];
-      addBSDataRow(
-        li ? li.name : '', li ? li.amount : null, false,
-        ai ? ai.name : '', ai ? ai.amount : null, false
-      );
-    }
-    addBSDataRow('', null, false, '', null, false);
-
-    // ── CURRENT LIABILITIES ──────────────────────────────────────────────
-    addBSSectionHeader('CURRENT LIABILITIES', '');
-    for (const item of currLiabItems) {
-      addBSDataRow(item.name, item.amount, true, '', null, false);
-    }
-    addBSDataRow('', null, false, '', null, false);
-
-    const bsDataEndRow = bsRow - 1;
-
-    // ── TOTAL ROW (With live Auto Excel SUM formulas) ───────────────────
+    // ── Total Row (Fully Calculated Live Excel Formulas) ──
     const totalR = wsBS.getRow(bsRow);
+    totalR.height = 24;
+
     const liabLabelCell = totalR.getCell(1);
     liabLabelCell.value = 'TOTAL RS.';
-    liabLabelCell.font = { bold: true, name: 'Arial', size: 10 };
+    liabLabelCell.font = { bold: true, name: 'Arial', size: 11 };
     liabLabelCell.border = { top: { style: 'thin' }, bottom: { style: 'double' } };
 
     const liabAmtCell = totalR.getCell(2);
-    liabAmtCell.value = { formula: `SUM(B${bsDataStartRow}:B${bsDataEndRow})`, result: totalLiab };
+    const liabFormula = liabSumCells.length > 0 ? liabSumCells.join('+') : `SUM(B${startDataRow}:B${bsRow - 1})`;
+    liabAmtCell.value = { formula: liabFormula, result: Number(totalLiabilities) };
     liabAmtCell.numFmt = CURR_FMT;
-    liabAmtCell.font = { bold: true, name: 'Arial', size: 10 };
+    liabAmtCell.font = { bold: true, name: 'Arial', size: 11 };
     liabAmtCell.border = { top: { style: 'thin' }, bottom: { style: 'double' } };
-    liabAmtCell.alignment = { horizontal: 'right' };
+    liabAmtCell.alignment = { horizontal: 'right', vertical: 'middle' };
 
     const assetLabelCell = totalR.getCell(3);
     assetLabelCell.value = 'TOTAL RS.';
-    assetLabelCell.font = { bold: true, name: 'Arial', size: 10 };
+    assetLabelCell.font = { bold: true, name: 'Arial', size: 11 };
     assetLabelCell.border = { top: { style: 'thin' }, bottom: { style: 'double' } };
 
     const assetAmtCell = totalR.getCell(4);
-    assetAmtCell.value = { formula: `SUM(D${bsDataStartRow}:D${bsDataEndRow})`, result: totalAssets };
+    const assetFormula = assetSumCells.length > 0 ? assetSumCells.join('+') : `SUM(D${startDataRow}:D${bsRow - 1})`;
+    assetAmtCell.value = { formula: assetFormula, result: Number(totalAssets) };
     assetAmtCell.numFmt = CURR_FMT;
-    assetAmtCell.font = { bold: true, name: 'Arial', size: 10 };
+    assetAmtCell.font = { bold: true, name: 'Arial', size: 11 };
     assetAmtCell.border = { top: { style: 'thin' }, bottom: { style: 'double' } };
-    assetAmtCell.alignment = { horizontal: 'right' };
+    assetAmtCell.alignment = { horizontal: 'right', vertical: 'middle' };
     bsRow++;
 
-    addBSDataRow('', null, false, '', null, false);
+    // Blank row
+    bsRow++;
 
     // Footer & Signatures
     const compiledR = wsBS.getRow(bsRow);
@@ -749,14 +837,12 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     wsBS.mergeCells(bsRow, 1, bsRow, 4);
     compiledR.getCell(1).alignment = { horizontal: 'center' };
     compiledR.getCell(1).font = { italic: true, name: 'Arial', size: 9 };
-    bsRow++;
-    bsRow++;
+    bsRow += 2;
 
     const placeR = wsBS.getRow(bsRow);
     placeR.getCell(1).value = `PLACE  :  ${(place || company.state || '').toUpperCase()}`;
     placeR.getCell(1).font = { name: 'Arial', size: 10 };
-    bsRow++;
-    bsRow++;
+    bsRow += 2;
 
     const firmNameR = wsBS.getRow(bsRow);
     firmNameR.getCell(1).value = `    ${(company.mailingName || company.name).toUpperCase()}`;
@@ -771,15 +857,13 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     caFirmR.getCell(3).alignment = { horizontal: 'center' };
     caFirmR.getCell(3).font = { bold: true, name: 'Arial', size: 10 };
     wsBS.mergeCells(bsRow, 3, bsRow, 4);
-    bsRow++;
-    bsRow++;
+    bsRow += 2;
 
     const caNameR = wsBS.getRow(bsRow);
     caNameR.getCell(3).value = caName;
     caNameR.getCell(3).alignment = { horizontal: 'center' };
     wsBS.mergeCells(bsRow, 3, bsRow, 4);
-    bsRow++;
-    bsRow++;
+    bsRow += 2;
 
     const partnerR = wsBS.getRow(bsRow);
     partnerR.getCell(1).value = signatoryTitle;
@@ -793,7 +877,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
 
 
     // ═══════════════════════════════════════════════════════════════════
-    //  SHEET 2: TRADING, PROFIT & LOSS
+    //  SHEET 2: TRADING, PROFIT & LOSS (Matching P&L View)
     // ═══════════════════════════════════════════════════════════════════
     const wsPL = wb.addWorksheet('Profit & Loss', {
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
@@ -941,7 +1025,6 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     // ── P&L SECTION ──────────────────────────────────────────────────────
     const plSectionStartRow = plRow;
 
-    // Gross profit b/d linked by live formula to Trading Account
     if (grossProfit >= 0) {
       addPLDataRow('', null, false, 'By Gross Profit b/d', { formula: `B${gpRow}`, result: grossProfit }, true);
     } else {
@@ -1075,14 +1158,12 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     wsPL.mergeCells(plRow, 1, plRow, 4);
     compiledPLR.getCell(1).alignment = { horizontal: 'center' };
     compiledPLR.getCell(1).font = { italic: true, name: 'Arial', size: 9 };
-    plRow++;
-    plRow++;
+    plRow += 2;
 
     const plPlaceR = wsPL.getRow(plRow);
     plPlaceR.getCell(1).value = `PLACE  :  ${(place || company.state || '').toUpperCase()}`;
     plPlaceR.getCell(1).font = { name: 'Arial', size: 10 };
-    plRow++;
-    plRow++;
+    plRow += 2;
 
     const plFirmR = wsPL.getRow(plRow);
     plFirmR.getCell(1).value = `    ${(company.mailingName || company.name).toUpperCase()}`;
@@ -1097,15 +1178,13 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     plCaFirmR.getCell(3).alignment = { horizontal: 'center' };
     plCaFirmR.getCell(3).font = { bold: true, name: 'Arial', size: 10 };
     wsPL.mergeCells(plRow, 3, plRow, 4);
-    plRow++;
-    plRow++;
+    plRow += 2;
 
     const plCaNameR = wsPL.getRow(plRow);
     plCaNameR.getCell(3).value = caName;
     plCaNameR.getCell(3).alignment = { horizontal: 'center' };
     wsPL.mergeCells(plRow, 3, plRow, 4);
-    plRow++;
-    plRow++;
+    plRow += 2;
 
     const plPartnerR = wsPL.getRow(plRow);
     plPartnerR.getCell(1).value = signatoryTitle;
@@ -1120,6 +1199,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
 
     // ═══════════════════════════════════════════════════════════════════
     //  SHEET 3: ANNEXURE "A" - PARTNERS CAPITAL ACCOUNT
+    //  (Directly Derived from Balance Sheet Capital and P&L Net Profit)
     // ═══════════════════════════════════════════════════════════════════
     const wsAnnexA = wb.addWorksheet('Annexure A', {
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
@@ -1409,6 +1489,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
 
     // ═══════════════════════════════════════════════════════════════════
     //  SHEET 4: ANNEXURE "B" - FIXED ASSETS SCHEDULE
+    //  (Directly Derived from Balance Sheet Fixed Assets)
     // ═══════════════════════════════════════════════════════════════════
     const wsAnnexB = wb.addWorksheet('Annexure B', {
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
@@ -1482,7 +1563,7 @@ async function generateExcelResponse(req: Request, postBody?: any) {
 
     // Data Rows (Starting at Row 6) with Live Excel Formulas
     let currentAnnexBRow = annexBStartRow;
-    for (const item of itemsToRenderAnnexB) {
+    for (const item of faScheduleRows) {
       const r = wsAnnexB.getRow(currentAnnexBRow);
       const rowNum = currentAnnexBRow;
 
@@ -1534,11 +1615,11 @@ async function generateExcelResponse(req: Request, postBody?: any) {
     grandTotR.getCell(1).font = { bold: true, name: 'Arial', size: 10 };
     grandTotR.getCell(1).alignment = { horizontal: 'left' };
 
-    const sumFaOpening   = Math.round(sum(itemsToRenderAnnexB.map(i => ({ amount: i.openingBal }))) * 100) / 100;
-    const sumFaAddBefore = Math.round(sum(itemsToRenderAnnexB.map(i => ({ amount: i.additionBefore }))) * 100) / 100;
-    const sumFaAddAfter  = Math.round(sum(itemsToRenderAnnexB.map(i => ({ amount: i.additionAfter }))) * 100) / 100;
-    const sumFaDep       = Math.round(sum(itemsToRenderAnnexB.map(i => ({ amount: i.depreciation }))) * 100) / 100;
-    const sumFaClosing   = Math.round(sum(itemsToRenderAnnexB.map(i => ({ amount: i.closingBal }))) * 100) / 100;
+    const sumFaOpening   = Math.round(sum(faScheduleRows.map(i => ({ amount: i.openingBal }))) * 100) / 100;
+    const sumFaAddBefore = Math.round(sum(faScheduleRows.map(i => ({ amount: i.additionBefore }))) * 100) / 100;
+    const sumFaAddAfter  = Math.round(sum(faScheduleRows.map(i => ({ amount: i.additionAfter }))) * 100) / 100;
+    const sumFaDep       = Math.round(sum(faScheduleRows.map(i => ({ amount: i.depreciation }))) * 100) / 100;
+    const sumFaClosing   = Math.round(sum(faScheduleRows.map(i => ({ amount: i.closingBal }))) * 100) / 100;
 
     // Col B total: SUM(B6:Bend)
     const totB = grandTotR.getCell(2);

@@ -810,6 +810,7 @@ export default function App() {
       alert('Pehle ek company select karein!');
       return;
     }
+    const cleanVouchers = filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation');
     const capLedgers = ledgers.filter(l => ['Capital Account', 'Reserves & Surplus'].includes(l.groupName) && l.name !== 'Profit & Loss A/c');
 
     setFinalBSForm(f => {
@@ -817,23 +818,39 @@ export default function App() {
       if (!initialPartners || initialPartners.length === 0) {
         if (capLedgers.length > 0) {
           const pct = Math.floor((100 / capLedgers.length) * 100) / 100;
-          initialPartners = capLedgers.map((l, idx) => ({
-            id: String(l.id || idx),
-            name: l.name,
-            sharePct: idx === capLedgers.length - 1 ? 100 - (pct * (capLedgers.length - 1)) : pct,
-            openingBal: l.openingBalance ?? 0,
-            addition: 0,
-            salary: 0,
-            interestRate: 12,
-            interestAmt: undefined,
-            withdrawalsAmt: 0,
-            withdrawalsNature: '',
-          }));
+          initialPartners = capLedgers.map((l, idx) => {
+            const bal = Math.abs(getLedgerClosingBalance(l, cleanVouchers));
+            const op = bal > 0.001 ? bal : (Math.abs(Number(l.openingBalance ?? (l as any).openingBal)) || 0);
+            return {
+              id: String(l.id || idx),
+              name: l.name,
+              sharePct: idx === capLedgers.length - 1 ? (100 - (pct * (capLedgers.length - 1))) : pct,
+              openingBal: op,
+              addition: 0,
+              salary: 0,
+              interestRate: 12,
+              interestAmt: undefined,
+              withdrawalsAmt: 0,
+              withdrawalsNature: '',
+            };
+          });
         } else {
           initialPartners = [
             { id: '1', name: '', sharePct: 50, openingBal: 0, addition: 0, salary: 0, interestRate: 12, interestAmt: undefined, withdrawalsAmt: 0, withdrawalsNature: '' },
             { id: '2', name: '', sharePct: 50, openingBal: 0, addition: 0, salary: 0, interestRate: 12, interestAmt: undefined, withdrawalsAmt: 0, withdrawalsNature: '' },
           ];
+        }
+      } else if (capLedgers.length > 0) {
+        const sumOp = initialPartners.reduce((s, p) => s + (Number(p.openingBal) || 0), 0);
+        if (sumOp === 0) {
+          initialPartners = initialPartners.map((p, idx) => {
+            const l = capLedgers[idx] || capLedgers[0];
+            const bal = Math.abs(getLedgerClosingBalance(l, cleanVouchers));
+            return {
+              ...p,
+              openingBal: bal > 0.001 ? bal : (Math.abs(Number(l.openingBalance ?? (l as any).openingBal)) || 0),
+            };
+          });
         }
       }
       return {
@@ -865,12 +882,102 @@ export default function App() {
         reportMode: finalBSMode,
       };
 
+      const cleanVouchers = filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation');
+
       const baseFin = computeBaseFinancials(
         ledgers,
-        filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation'),
+        cleanVouchers,
         finalBSForm.partners,
         stockItems
       );
+
+      // ─── Extract Exact Balance Sheet Rows matching BalanceSheetView ─────────
+      const grp = groupLedgersByParent(ledgers, cleanVouchers);
+      const grpKeys = Object.keys(grp);
+      const findGrpItems = (groupName: string) => {
+        if (grp[groupName]) return { key: groupName, items: grp[groupName] };
+        const lower = groupName.toLowerCase();
+        const actualKey = grpKeys.find(k => k.toLowerCase() === lower);
+        if (actualKey) return { key: actualKey, items: grp[actualKey] };
+        return { key: groupName, items: [] };
+      };
+
+      const AGGREGATE_GROUPS = new Set([
+        'Capital Account', 'Reserves & Surplus', 'Retained Earnings',
+        'Sundry Creditors', 'Sundry Debtors',
+        'Duties & Taxes',
+        'Cash-in-hand', 'Bank Accounts',
+      ]);
+
+      const LIAB_SECTIONS = [
+        { title: 'CAPITAL ACCOUNT',    groups: ['Capital Account','Reserves & Surplus','Retained Earnings'] },
+        { title: 'SECURED LOAN :',     groups: ['Secured Loans','Bank OD A/c','Bank OCC A/c'] },
+        { title: 'UNSECURED LOAN :',   groups: ['Unsecured Loans','Loans (Liability)'] },
+        { title: 'CURRENT LIABILITIES',groups: ['Sundry Creditors','Current Liabilities','Provisions','Duties & Taxes','Branch / Divisions'] },
+      ];
+
+      const ASSET_SECTIONS = [
+        { title: 'FIXED ASSETS',       groups: ['Fixed Assets'] },
+        { title: 'SECURITY DEPOSITS',  groups: ['Investments','Deposits (Asset)','Misc. Expenses (ASSET)'] },
+        { title: 'CURRENT ASSETS',     groups: ['Stock-in-hand','Sundry Debtors','Cash-in-hand','Bank Accounts','Current Assets','Loans & Advances (Asset)'] },
+      ];
+
+      const buildSectionedSideLocal = (sections: {title:string;groups:string[]}[]) => {
+        const rows: any[] = [];
+        for (const sec of sections) {
+          const sectionRows: any[] = [];
+          for (const gn of sec.groups) {
+            const { key: actualKey, items: allItems } = findGrpItems(gn);
+            const items = allItems.filter(x => Math.abs(x.balance) > 0.001);
+            if (!items.length) continue;
+
+            if (AGGREGATE_GROUPS.has(gn)) {
+              const total = items.reduce((s, x) => s + Math.abs(x.balance), 0);
+              sectionRows.push({type:'group-header', name:gn, amount:total, groupName:actualKey});
+            } else {
+              for (const item of items) {
+                sectionRows.push({
+                  type: 'ledger',
+                  name: item.ledger.name,
+                  amount: Math.abs(item.balance),
+                  id: item.ledger.id,
+                  groupName: actualKey,
+                });
+              }
+            }
+          }
+          if (sectionRows.length === 0) continue;
+          const secTotal = sectionRows.reduce((s, r) => s + (r.amount||0), 0);
+          rows.push({type:'section-header', name:sec.title});
+          rows.push(...sectionRows);
+          rows.push({type:'section-total', name:'', amount:secTotal});
+          rows.push({type:'blank', name:''});
+        }
+        return rows;
+      };
+
+      const realLiabRows = buildSectionedSideLocal(LIAB_SECTIONS);
+      const realAssetRows = buildSectionedSideLocal(ASSET_SECTIONS);
+
+      const activeNetProfit = baseFin.netProfit;
+      if (activeNetProfit > 0) {
+        realLiabRows.push({ type: 'net-entry', name: 'Add: Net Profit (as per P&L)', amount: activeNetProfit });
+      } else if (activeNetProfit < 0) {
+        realAssetRows.push({ type: 'net-entry', name: 'Less: Net Loss (as per P&L)', amount: Math.abs(activeNetProfit) });
+      }
+
+      const liabSecTotals = realLiabRows.filter(r => r.type === 'section-total').reduce((s, r) => s + (r.amount || 0), 0);
+      const assetSecTotals = realAssetRows.filter(r => r.type === 'section-total').reduce((s, r) => s + (r.amount || 0), 0);
+      const realTotalLiab = liabSecTotals + (activeNetProfit > 0 ? activeNetProfit : 0);
+      const realTotalAssets = assetSecTotals + (activeNetProfit < 0 ? Math.abs(activeNetProfit) : 0);
+
+      exportBody.balanceSheetRows = {
+        liabilities: realLiabRows,
+        assets: realAssetRows,
+        totalLiabilities: realTotalLiab,
+        totalAssets: realTotalAssets,
+        netProfit: activeNetProfit,
+      };
 
       if (finalBSMode === 'provisional') {
         const projList = generateProvisionalProjections(
@@ -888,6 +995,75 @@ export default function App() {
         exportBody.projectedData = targetProj;
         exportBody.partnersData  = targetProj.partners;
         exportBody.statementData = targetProj;
+
+        // Build provisional Balance Sheet rows from targetProj
+        const provLiabRows: any[] = [];
+        const provAssetRows: any[] = [];
+
+        // Capital
+        if (targetProj.capitalItems && targetProj.capitalItems.length > 0) {
+          provLiabRows.push({ type: 'section-header', name: 'CAPITAL ACCOUNT' });
+          targetProj.capitalItems.forEach(i => provLiabRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
+          provLiabRows.push({ type: 'section-total', name: '', amount: targetProj.capitalTotal });
+          provLiabRows.push({ type: 'blank', name: '' });
+        }
+        // Secured
+        if (targetProj.securedItems && targetProj.securedItems.length > 0) {
+          provLiabRows.push({ type: 'section-header', name: 'SECURED LOAN :' });
+          targetProj.securedItems.forEach(i => provLiabRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
+          provLiabRows.push({ type: 'section-total', name: '', amount: targetProj.securedTotal });
+          provLiabRows.push({ type: 'blank', name: '' });
+        }
+        // Unsecured
+        if (targetProj.unsecuredItems && targetProj.unsecuredItems.length > 0) {
+          provLiabRows.push({ type: 'section-header', name: 'UNSECURED LOAN :' });
+          targetProj.unsecuredItems.forEach(i => provLiabRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
+          provLiabRows.push({ type: 'section-total', name: '', amount: targetProj.unsecuredTotal });
+          provLiabRows.push({ type: 'blank', name: '' });
+        }
+        // Current Liab
+        if (targetProj.currLiabItems && targetProj.currLiabItems.length > 0) {
+          provLiabRows.push({ type: 'section-header', name: 'CURRENT LIABILITIES' });
+          targetProj.currLiabItems.forEach(i => provLiabRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
+          provLiabRows.push({ type: 'section-total', name: '', amount: targetProj.currLiabTotal });
+          provLiabRows.push({ type: 'blank', name: '' });
+        }
+        if (targetProj.netProfit > 0) {
+          provLiabRows.push({ type: 'net-entry', name: 'Add: Net Profit (as per P&L)', amount: targetProj.netProfit });
+        }
+
+        // Fixed Assets
+        if (targetProj.fixedAssetItems && targetProj.fixedAssetItems.length > 0) {
+          provAssetRows.push({ type: 'section-header', name: 'FIXED ASSETS' });
+          targetProj.fixedAssetItems.forEach(i => provAssetRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
+          provAssetRows.push({ type: 'section-total', name: '', amount: targetProj.fixedAssetTotal });
+          provAssetRows.push({ type: 'blank', name: '' });
+        }
+        // Security Deposits
+        if (targetProj.investmentItems && targetProj.investmentItems.length > 0) {
+          provAssetRows.push({ type: 'section-header', name: 'SECURITY DEPOSITS' });
+          targetProj.investmentItems.forEach(i => provAssetRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
+          provAssetRows.push({ type: 'section-total', name: '', amount: targetProj.investmentTotal });
+          provAssetRows.push({ type: 'blank', name: '' });
+        }
+        // Current Assets
+        if (targetProj.currAssetItems && targetProj.currAssetItems.length > 0) {
+          provAssetRows.push({ type: 'section-header', name: 'CURRENT ASSETS' });
+          targetProj.currAssetItems.forEach(i => provAssetRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
+          provAssetRows.push({ type: 'section-total', name: '', amount: targetProj.currAssetTotal });
+          provAssetRows.push({ type: 'blank', name: '' });
+        }
+        if (targetProj.netProfit < 0) {
+          provAssetRows.push({ type: 'net-entry', name: 'Less: Net Loss (as per P&L)', amount: Math.abs(targetProj.netProfit) });
+        }
+
+        exportBody.balanceSheetRows = {
+          liabilities: provLiabRows,
+          assets: provAssetRows,
+          totalLiabilities: targetProj.totalLiab,
+          totalAssets: targetProj.totalAssets,
+          netProfit: targetProj.netProfit,
+        };
       } else {
         exportBody.asOnDate = finalBSForm.asOnDate;
         exportBody.fromDate = finalBSForm.fromDate;
