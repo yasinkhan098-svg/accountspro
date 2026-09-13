@@ -669,7 +669,7 @@ export default function VirtualFinalBSModal({
                   style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
                   value={form.company.name || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, name: e.target.value } }))}
-                  placeholder="Enter Firm / Company Name"
+                  placeholder="xyz compny"
                 />
               </div>
               <div>
@@ -680,7 +680,7 @@ export default function VirtualFinalBSModal({
                   style={{ width: '100%', fontSize: 11 }}
                   value={form.company.address || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, address: e.target.value } }))}
-                  placeholder="Enter Full Business Address"
+                  placeholder="address"
                 />
               </div>
               <div>
@@ -691,7 +691,7 @@ export default function VirtualFinalBSModal({
                   style={{ width: '100%', fontSize: 11 }}
                   value={form.company.place || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, place: e.target.value } }))}
-                  placeholder="e.g. SURAT / DELHI"
+                  placeholder="Place / State"
                 />
               </div>
               <div>
@@ -760,7 +760,7 @@ export default function VirtualFinalBSModal({
                       style={{ width: '100%', fontSize: 11 }}
                       value={form.signatory.caName || ''}
                       onChange={e => setForm(f => ({ ...f, signatory: { ...f.signatory, caName: e.target.value } }))}
-                      placeholder="e.g. M/S S. K. GUPTA & CO."
+                      placeholder="CA Firm / Auditor Name"
                     />
                   </div>
                   <div>
@@ -773,7 +773,7 @@ export default function VirtualFinalBSModal({
                       style={{ width: '100%', fontSize: 11 }}
                       value={form.signatory.caMno || ''}
                       onChange={e => setForm(f => ({ ...f, signatory: { ...f.signatory, caMno: e.target.value } }))}
-                      placeholder="e.g. 054321"
+                      placeholder="M.No."
                     />
                   </div>
                   <div>
@@ -786,7 +786,7 @@ export default function VirtualFinalBSModal({
                       style={{ width: '100%', fontSize: 11 }}
                       value={form.signatory.caFirmRegNo || ''}
                       onChange={e => setForm(f => ({ ...f, signatory: { ...f.signatory, caFirmRegNo: e.target.value } }))}
-                      placeholder="e.g. 012345N"
+                      placeholder="FRN"
                     />
                   </div>
                   <div>
@@ -799,7 +799,7 @@ export default function VirtualFinalBSModal({
                       style={{ width: '100%', fontSize: 11 }}
                       value={form.signatory.caUdin || ''}
                       onChange={e => setForm(f => ({ ...f, signatory: { ...f.signatory, caUdin: e.target.value } }))}
-                      placeholder="e.g. 26054321AAAAAA1234"
+                      placeholder="UDIN"
                     />
                   </div>
                   <div>
