@@ -583,12 +583,37 @@ body {
   .top-nav, .sub-nav, .sidebar, .left-panel, .voucher-header, .no-print, .tally-sidebar,
   .mobile-bottom-nav, .mobile-company-bar, .mobile-ham-btn, .mobile-nav-drawer,
   .mobile-nav-overlay, .mobile-dashboard-cards, .mobile-quick-actions,
-  .mobile-menu-screen, .print-preview-main > div:first-child {
+  .mobile-menu-screen, .print-preview-main > div:first-child,
+  .report-app-bar {
     display: none !important;
   }
   #tax-invoice-print-container {
     display: block !important;
     width: 100% !important;
+  }
+  /* Report view print optimization (Balance Sheet, P&L, etc.) */
+  .report-view-container {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+  .report-scroll-wrapper {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .report-paper-card {
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: white !important;
   }
   /* Ensure print container fills full page */
   .print-invoice-container {

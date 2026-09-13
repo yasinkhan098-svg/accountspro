@@ -10152,6 +10152,51 @@ function BalanceSheetView({
 
   const f2 = (n:number) => n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
   const endDate = currentPeriod?.end || '31.03.'+new Date().getFullYear();
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingExcel(true);
+      const payload = {
+        reportType: 'balance-sheet',
+        companyName: compName,
+        companyAddress: compAddr,
+        companyPlace: compPlace,
+        asOnDate: endDate,
+        signatoryTitle: signatoryTitle || 'PARTNER',
+        liabilities: liabRows,
+        assets: assetRows,
+        totalLiabilities: totalLiabDisplay,
+        totalAssets: totalAssetDisplay,
+      };
+
+      const res = await fetch('/api/reports/export-statement-excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Export failed');
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (compName || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `${safeName}_Balance_Sheet_${endDate.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`Excel export error: ${e.message || 'Something went wrong'}`);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
 
   function renderRow_l(row: BSRow|undefined, i: number, isSel: boolean): React.ReactNode {
     if (!row) return <><td style={{borderRight:'2px solid #555',padding:'2px 8px'}}></td><td style={{borderRight:'2px solid #555'}}></td></>;
@@ -10224,9 +10269,9 @@ function BalanceSheetView({
   }
 
   return (
-    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#e8e8e8'}}>
+    <div className="report-view-container" style={{height:'100%',display:'flex',flexDirection:'column',background:'#e8e8e8'}}>
       {/* App bar */}
-      <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)',color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+      <div className="no-print report-app-bar" style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)',color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
           <span style={{fontSize:15,fontWeight:'bold'}}>📊 Balance Sheet</span>
           <span style={{fontSize:11,opacity:0.8}}>As on: {endDate}</span>
@@ -10235,14 +10280,34 @@ function BalanceSheetView({
           </span>
         </div>
         <div style={{display:'flex',gap:8}}>
+          <button
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            title="Download fully calculated Excel sheet"
+            style={{
+              padding:'3px 12px',
+              background: exportingExcel ? 'rgba(255,255,255,0.1)' : '#1a7a4a',
+              color:'white',
+              border:'1px solid rgba(255,255,255,0.5)',
+              borderRadius:3,
+              cursor: exportingExcel ? 'not-allowed' : 'pointer',
+              fontSize:11,
+              fontWeight: 600,
+              display:'flex',
+              alignItems:'center',
+              gap:4
+            }}
+          >
+            {exportingExcel ? '⏳ Exporting...' : '📊 Excel'}
+          </button>
           <button onClick={()=>window.print()} style={{padding:'3px 12px',background:'rgba(255,255,255,0.2)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
           <button onClick={onBack} style={{padding:'3px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
         </div>
       </div>
 
       {/* CA Document */}
-      <div style={{flex:1,overflowY:'auto',padding:'16px',display:'flex',justifyContent:'center'}}>
-        <div style={{background:'#fff',width:'100%',maxWidth:1050,boxShadow:'0 2px 12px rgba(0,0,0,0.18)',fontFamily:'Arial,sans-serif'}}>
+      <div className="report-scroll-wrapper" style={{flex:1,overflowY:'auto',padding:'16px',display:'flex',justifyContent:'center'}}>
+        <div className="report-paper-card" style={{background:'#fff',width:'100%',maxWidth:1050,boxShadow:'0 2px 12px rgba(0,0,0,0.18)',fontFamily:'Arial,sans-serif'}}>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
             <tbody>
               {/* Company Header */}
@@ -10766,10 +10831,63 @@ function ProfitLossView({
     );
   };
 
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingExcel(true);
+      const payload = {
+        reportType: 'profit-loss',
+        companyName: compName,
+        companyAddress: compAddr,
+        companyPlace: compPlace,
+        startDate: startDate,
+        endDate: endDate,
+        signatoryTitle: signatoryTitle || 'PARTNER',
+        trading: {
+          leftRows: dirExpRows,
+          rightRows: dirIncRows,
+          total: totalTrading,
+        },
+        pl: {
+          leftRows: indExpRows,
+          rightRows: indIncRows,
+          total: totalPL,
+        },
+      };
+
+      const res = await fetch('/api/reports/export-statement-excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Export failed');
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (compName || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `${safeName}_Profit_and_Loss_${startDate.replace(/[^a-zA-Z0-9_-]/g, '_')}_to_${endDate.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`Excel export error: ${e.message || 'Something went wrong'}`);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
-    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#e8e8e8'}}>
+    <div className="report-view-container" style={{height:'100%',display:'flex',flexDirection:'column',background:'#e8e8e8'}}>
       {/* App bar */}
-      <div style={{background:'linear-gradient(90deg,#5a0a0a,#006600)',color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+      <div className="no-print report-app-bar" style={{background:'linear-gradient(90deg,#5a0a0a,#006600)',color:'white',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
           <span style={{fontSize:15,fontWeight:'bold'}}>📈 Trading, Profit &amp; Loss Account</span>
           <span style={{fontSize:11,opacity:0.8}}>Period: {startDate} to {endDate}</span>
@@ -10778,14 +10896,34 @@ function ProfitLossView({
           </span>
         </div>
         <div style={{display:'flex',gap:8}}>
+          <button
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            title="Download fully calculated Excel sheet"
+            style={{
+              padding:'3px 12px',
+              background: exportingExcel ? 'rgba(255,255,255,0.1)' : '#1a7a4a',
+              color:'white',
+              border:'1px solid rgba(255,255,255,0.5)',
+              borderRadius:3,
+              cursor: exportingExcel ? 'not-allowed' : 'pointer',
+              fontSize:11,
+              fontWeight: 600,
+              display:'flex',
+              alignItems:'center',
+              gap:4
+            }}
+          >
+            {exportingExcel ? '⏳ Exporting...' : '📊 Excel'}
+          </button>
           <button onClick={()=>window.print()} style={{padding:'3px 12px',background:'rgba(255,255,255,0.2)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>🖨 Print</button>
           <button onClick={onBack} style={{padding:'3px 12px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.4)',borderRadius:3,cursor:'pointer',fontSize:11}}>✕ Close</button>
         </div>
       </div>
 
       {/* CA Document */}
-      <div style={{flex:1,overflowY:'auto',padding:'16px',display:'flex',justifyContent:'center'}}>
-        <div style={{background:'#fff',width:'100%',maxWidth:1050,boxShadow:'0 2px 12px rgba(0,0,0,0.18)',fontFamily:'Arial,sans-serif'}}>
+      <div className="report-scroll-wrapper" style={{flex:1,overflowY:'auto',padding:'16px',display:'flex',justifyContent:'center'}}>
+        <div className="report-paper-card" style={{background:'#fff',width:'100%',maxWidth:1050,boxShadow:'0 2px 12px rgba(0,0,0,0.18)',fontFamily:'Arial,sans-serif'}}>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
             <tbody>
               {/* Company Header */}
@@ -11045,7 +11183,7 @@ function TrialBalanceView({
   return (
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#f5f7fa'}}>
       {/* Title Header */}
-      <div style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+      <div className="no-print report-app-bar" style={{background:'linear-gradient(90deg,#1c3e5a,#2b6cb0)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div>
           <div style={{fontSize:16,fontWeight:'bold'}}>⚖️ Trial Balance</div>
           <div style={{fontSize:11,opacity:0.8}}>Period: {currentPeriod?.start || '01-Apr-2026'} to {currentPeriod?.end || '31-Mar-2027'}</div>
@@ -11065,7 +11203,7 @@ function TrialBalanceView({
       </div>
 
       {/* Sub header */}
-      <div style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
+      <div className="no-print" style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
         <span>Opening Diff: <b style={{color:Math.abs(totals.opDr-totals.opCr)<1?'#1a7a4a':'#8B0000'}}>₹{fmt(Math.abs(totals.opDr-totals.opCr))}</b></span>
         <span>Txns Total: <b style={{color:'#1c5282'}}>₹{fmt(totals.txDr)}</b></span>
         <span>Closing Diff: <b style={{color:balanced?'#1a7a4a':'#8B0000'}}>{balanced ? '✓ 0.00 (Balanced)' : `₹${fmt(Math.abs(totals.clDr-totals.clCr))}`}</b></span>
@@ -12358,7 +12496,7 @@ function StockSummaryView({
   return (
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#f5f7fa',position:'relative'}}>
       {/* Title Bar */}
-      <div style={{background:'linear-gradient(90deg,#1c5282,#2b6cb0)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+      <div className="no-print report-app-bar" style={{background:'linear-gradient(90deg,#1c5282,#2b6cb0)',color:'white',padding:'10px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div>
           <div style={{fontSize:16,fontWeight:'bold'}}>📦 Stock Summary</div>
           <div style={{fontSize:11,opacity:0.8}}>Period: {currentPeriod?.start || '01-Apr-2026'} to {currentPeriod?.end || '31-Mar-2027'}</div>
@@ -12378,7 +12516,7 @@ function StockSummaryView({
       </div>
 
       {/* Sub header */}
-      <div style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
+      <div className="no-print" style={{background:'#fff',borderBottom:'1px solid #dde',padding:'5px 20px',fontSize:11,display:'flex',gap:24,alignItems:'center'}}>
         <span>Items: <b style={{color:'#1c5282'}}>{stockItems.length}</b></span>
         <span>Total Opening Val: <b style={{color:'#555'}}>₹{fmt(grandTotals.opVal)}</b></span>
         <span>Total Inward Val: <b style={{color:'#006600'}}>₹{fmt(grandTotals.inVal)}</b></span>
