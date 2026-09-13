@@ -8,7 +8,12 @@ import {
   VirtualAssetItem,
   VirtualProjectedYearResult
 } from './types';
-import { DEFAULT_VIRTUAL_FORM_DATA, SAMPLE_VIRTUAL_FORM_DATA, EMPTY_VIRTUAL_FORM_DATA } from './defaults';
+import {
+  DEFAULT_VIRTUAL_FORM_DATA,
+  DEFAULT_TEMPLATE_VIRTUAL_FORM_DATA,
+  SAMPLE_VIRTUAL_FORM_DATA,
+  EMPTY_VIRTUAL_FORM_DATA
+} from './defaults';
 import { computeVirtualActualFinancials, computeVirtualProjections } from './virtualEngine';
 
 const fmt = (n: number | undefined | null) =>
@@ -528,12 +533,12 @@ export default function VirtualFinalBSModal({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {/* Load Demo Data & Reset Form Buttons */}
+            {/* Template, Demo & Reset Buttons */}
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 type="button"
-                title="Fill with demo data for quick testing"
-                onClick={() => setForm(SAMPLE_VIRTUAL_FORM_DATA)}
+                title="Reset standard template with all ledgers visible and empty amount placeholders"
+                onClick={() => setForm(DEFAULT_TEMPLATE_VIRTUAL_FORM_DATA)}
                 style={{
                   padding: '4px 10px',
                   borderRadius: 4,
@@ -545,14 +550,31 @@ export default function VirtualFinalBSModal({
                   cursor: 'pointer',
                 }}
               >
+                🔄 Reset Ledgers (Empty Amounts)
+              </button>
+              <button
+                type="button"
+                title="Fill with demo data for quick testing"
+                onClick={() => setForm(SAMPLE_VIRTUAL_FORM_DATA)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 4,
+                  border: '1px solid rgba(245,158,11,0.5)',
+                  background: 'rgba(245,158,11,0.2)',
+                  color: '#fde68a',
+                  fontSize: 11,
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
                 ✨ Load Demo Data
               </button>
               <button
                 type="button"
-                title="Clear all fields to empty placeholders"
+                title="Clear all fields to completely blank slate"
                 onClick={() => setForm(EMPTY_VIRTUAL_FORM_DATA)}
                 style={{
-                  padding: '4px 10px',
+                  padding: '4px 8px',
                   borderRadius: 4,
                   border: '1px solid rgba(239,68,68,0.4)',
                   background: 'rgba(239,68,68,0.2)',
@@ -562,7 +584,7 @@ export default function VirtualFinalBSModal({
                   cursor: 'pointer',
                 }}
               >
-                🗑️ Clear Form
+                🗑️ Blank Slate
               </button>
             </div>
 
