@@ -37,7 +37,7 @@ export function deriveFASchedule(
       const close = r2(Math.max(0, op + addB + addA - depr));
       return {
         id: fa.id || `fa-${idx + 1}`,
-        name: (fa.name || `ASSET ${idx + 1}`).toUpperCase(),
+        name: fa.name ? fa.name.toUpperCase() : '',
         openingBal: op,
         additionBefore: addB,
         additionAfter: addA,
@@ -78,7 +78,7 @@ export function derivePartners(
   // If user has defined partners in existingPartners, use them as authoritative!
   if (existingPartners && existingPartners.length > 0) {
     return existingPartners.map((p, idx) => {
-      const name = (p.name || `PARTNER ${idx + 1}`).toUpperCase();
+      const name = p.name ? p.name.toUpperCase() : '';
       const sharePct = Number(p.sharePct) || 0;
       const op = Number(p.openingBal) || 0;
       const add = Number(p.addition) || 0;

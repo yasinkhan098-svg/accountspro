@@ -8,11 +8,14 @@ import {
   VirtualAssetItem,
   VirtualProjectedYearResult
 } from './types';
-import { DEFAULT_VIRTUAL_FORM_DATA } from './defaults';
+import { DEFAULT_VIRTUAL_FORM_DATA, SAMPLE_VIRTUAL_FORM_DATA, EMPTY_VIRTUAL_FORM_DATA } from './defaults';
 import { computeVirtualActualFinancials, computeVirtualProjections } from './virtualEngine';
 
 const fmt = (n: number | undefined | null) =>
   (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const numVal = (v: number | undefined | null) => (v === 0 || v === undefined || v === null ? '' : v);
+const strVal = (s: string | undefined | null) => s || '';
 
 export default function VirtualFinalBSModal({
   isOpen,
@@ -46,14 +49,12 @@ export default function VirtualFinalBSModal({
     const newId = `p-${Date.now()}`;
     setForm(f => {
       const existingList = f.partners || [];
-      const newIndex = existingList.length + 1;
-      const newName = `PARTNER ${newIndex}`;
       const currentTotalShare = existingList.reduce((s, p) => s + (Number(p.sharePct) || 0), 0);
       const defaultShare = Math.max(0, Math.round((100 - currentTotalShare) * 100) / 100);
 
       const newPartner: VirtualPartnerItem = {
         id: newId,
-        name: newName,
+        name: '',
         sharePct: defaultShare,
         openingBal: 0,
         addition: 0,
@@ -65,7 +66,7 @@ export default function VirtualFinalBSModal({
 
       const newCapItem: VirtualFinancialItem = {
         id: `cap-${newId}`,
-        name: `${newName} CAPITAL A/C`,
+        name: '',
         amount: 0,
       };
 
@@ -157,10 +158,9 @@ export default function VirtualFinalBSModal({
     const newId = `fa-${Date.now()}`;
     setForm(f => {
       const existing = f.fixedAssetSchedule || [];
-      const newName = `ASSET ${existing.length + 1}`;
       const newAsset: VirtualAssetItem = {
         id: newId,
-        name: newName,
+        name: '',
         openingBal: 0,
         additionBefore: 0,
         additionAfter: 0,
@@ -168,7 +168,7 @@ export default function VirtualFinalBSModal({
       };
       const newBSItem: VirtualFinancialItem = {
         id: `bs-fa-${newId}`,
-        name: newName,
+        name: '',
         amount: 0,
       };
       return {
@@ -261,7 +261,7 @@ export default function VirtualFinalBSModal({
     }
     const newItem: VirtualFinancialItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      name: 'New Ledger A/c',
+      name: '',
       amount: 0,
     };
     setForm(f => ({
@@ -329,7 +329,7 @@ export default function VirtualFinalBSModal({
   const addPLExp = (type: 'directExpenses' | 'indirectExpenses' | 'indirectIncomes') => {
     const newItem: VirtualFinancialItem = {
       id: `pl-${Date.now()}`,
-      name: type === 'indirectIncomes' ? 'New Income A/c' : 'New Expense A/c',
+      name: '',
       amount: 0,
     };
     setForm(f => {
@@ -527,7 +527,45 @@ export default function VirtualFinalBSModal({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {/* Load Demo Data & Reset Form Buttons */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                title="Fill with demo data for quick testing"
+                onClick={() => setForm(SAMPLE_VIRTUAL_FORM_DATA)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 4,
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: '#e2e8f0',
+                  fontSize: 11,
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                ✨ Load Demo Data
+              </button>
+              <button
+                type="button"
+                title="Clear all fields to empty placeholders"
+                onClick={() => setForm(EMPTY_VIRTUAL_FORM_DATA)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 4,
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  background: 'rgba(239,68,68,0.2)',
+                  color: '#fca5a5',
+                  fontSize: 11,
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                🗑️ Clear Form
+              </button>
+            </div>
+
             {/* Mode Switcher */}
             <div
               style={{
@@ -607,9 +645,9 @@ export default function VirtualFinalBSModal({
                   type="text"
                   className="form-input"
                   style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
-                  value={form.company.name}
+                  value={form.company.name || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, name: e.target.value } }))}
-                  placeholder="AIMAN TRADERS"
+                  placeholder="Enter Firm / Company Name"
                 />
               </div>
               <div>
@@ -618,9 +656,9 @@ export default function VirtualFinalBSModal({
                   type="text"
                   className="form-input"
                   style={{ width: '100%', fontSize: 11 }}
-                  value={form.company.address}
+                  value={form.company.address || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, address: e.target.value } }))}
-                  placeholder="Khatima Road, Sitarganj..."
+                  placeholder="Enter Full Business Address"
                 />
               </div>
               <div>
@@ -629,9 +667,9 @@ export default function VirtualFinalBSModal({
                   type="text"
                   className="form-input"
                   style={{ width: '100%', fontSize: 11 }}
-                  value={form.company.place}
+                  value={form.company.place || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, place: e.target.value } }))}
-                  placeholder="UTTARAKHAND"
+                  placeholder="e.g. SURAT / DELHI"
                 />
               </div>
               <div>
@@ -640,9 +678,9 @@ export default function VirtualFinalBSModal({
                   type="text"
                   className="form-input"
                   style={{ width: '100%', fontSize: 11 }}
-                  value={form.company.fromDate}
+                  value={form.company.fromDate || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, fromDate: e.target.value } }))}
-                  placeholder="01-Apr-2026"
+                  placeholder="01-Apr-2025"
                 />
               </div>
               <div>
@@ -651,9 +689,9 @@ export default function VirtualFinalBSModal({
                   type="text"
                   className="form-input"
                   style={{ width: '100%', fontSize: 11 }}
-                  value={form.company.toDate}
+                  value={form.company.toDate || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, toDate: e.target.value } }))}
-                  placeholder="31-Mar-2027"
+                  placeholder="31-Mar-2026"
                 />
               </div>
               <div>
@@ -662,9 +700,9 @@ export default function VirtualFinalBSModal({
                   type="text"
                   className="form-input"
                   style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
-                  value={form.company.asOnDate}
+                  value={form.company.asOnDate || ''}
                   onChange={e => setForm(f => ({ ...f, company: { ...f.company, asOnDate: e.target.value } }))}
-                  placeholder="31.03.2027"
+                  placeholder="31.03.2026"
                 />
               </div>
             </div>
@@ -698,9 +736,9 @@ export default function VirtualFinalBSModal({
                       type="text"
                       className="form-input"
                       style={{ width: '100%', fontSize: 11 }}
-                      value={form.signatory.caName}
+                      value={form.signatory.caName || ''}
                       onChange={e => setForm(f => ({ ...f, signatory: { ...f.signatory, caName: e.target.value } }))}
-                      placeholder="e.g. RAMESH GUPTA & CO."
+                      placeholder="e.g. M/S S. K. GUPTA & CO."
                     />
                   </div>
                   <div>
@@ -711,7 +749,7 @@ export default function VirtualFinalBSModal({
                       type="text"
                       className="form-input"
                       style={{ width: '100%', fontSize: 11 }}
-                      value={form.signatory.caMno}
+                      value={form.signatory.caMno || ''}
                       onChange={e => setForm(f => ({ ...f, signatory: { ...f.signatory, caMno: e.target.value } }))}
                       placeholder="e.g. 054321"
                     />
@@ -814,7 +852,8 @@ export default function VirtualFinalBSModal({
                     step="0.01"
                     className="form-input"
                     style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
-                    value={form.projectionConfig.salesGrowthPct}
+                    value={numVal(form.projectionConfig.salesGrowthPct)}
+                    placeholder="25%"
                     onChange={e => setForm(f => ({ ...f, projectionConfig: { ...f.projectionConfig, salesGrowthPct: parseFloat(e.target.value) || 0 } }))}
                   />
                 </div>
@@ -825,7 +864,8 @@ export default function VirtualFinalBSModal({
                     step="0.01"
                     className="form-input"
                     style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
-                    value={form.projectionConfig.gpMarginPct}
+                    value={numVal(form.projectionConfig.gpMarginPct)}
+                    placeholder="15%"
                     onChange={e => setForm(f => ({ ...f, projectionConfig: { ...f.projectionConfig, gpMarginPct: parseFloat(e.target.value) || 0 } }))}
                   />
                 </div>
@@ -836,7 +876,8 @@ export default function VirtualFinalBSModal({
                     step="0.01"
                     className="form-input"
                     style={{ width: '100%', fontSize: 11 }}
-                    value={form.projectionConfig.stockGrowthPct}
+                    value={numVal(form.projectionConfig.stockGrowthPct)}
+                    placeholder="5%"
                     onChange={e => setForm(f => ({ ...f, projectionConfig: { ...f.projectionConfig, stockGrowthPct: parseFloat(e.target.value) || 0 } }))}
                   />
                 </div>
@@ -847,7 +888,8 @@ export default function VirtualFinalBSModal({
                     step="0.01"
                     className="form-input"
                     style={{ width: '100%', fontSize: 11 }}
-                    value={form.projectionConfig.expenseInflationPct}
+                    value={numVal(form.projectionConfig.expenseInflationPct)}
+                    placeholder="10%"
                     onChange={e => setForm(f => ({ ...f, projectionConfig: { ...f.projectionConfig, expenseInflationPct: parseFloat(e.target.value) || 0 } }))}
                   />
                 </div>
@@ -858,7 +900,8 @@ export default function VirtualFinalBSModal({
                     step="0.01"
                     className="form-input"
                     style={{ width: '100%', fontSize: 11 }}
-                    value={form.projectionConfig.ccLimitGrowthPct}
+                    value={numVal(form.projectionConfig.ccLimitGrowthPct)}
+                    placeholder="10%"
                     onChange={e => setForm(f => ({ ...f, projectionConfig: { ...f.projectionConfig, ccLimitGrowthPct: parseFloat(e.target.value) || 0 } }))}
                   />
                 </div>
@@ -950,7 +993,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ flex: 2, fontSize: 11, fontWeight: 'bold' }}
-                            value={it.name}
+                            value={it.name || ''}
+                            placeholder="Partner Name"
                             onChange={e => updateItem('capitalItems', it.id, 'name', e.target.value)}
                           />
                           <div
@@ -992,7 +1036,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 2, fontSize: 11 }}
-                          value={it.name}
+                          value={it.name || ''}
+                          placeholder="Bank / Lender Name"
                           onChange={e => updateItem('securedLoans', it.id, 'name', e.target.value)}
                         />
                         <input
@@ -1001,7 +1046,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 1, fontSize: 11, textAlign: 'right' }}
-                          value={it.amount}
+                          value={numVal(it.amount)}
+                          placeholder="0.00"
                           onChange={e => updateItem('securedLoans', it.id, 'amount', e.target.value)}
                         />
                         {!isProv && (
@@ -1026,7 +1072,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 2, fontSize: 11 }}
-                          value={it.name}
+                          value={it.name || ''}
+                          placeholder="Lender Name"
                           onChange={e => updateItem('unsecuredLoans', it.id, 'name', e.target.value)}
                         />
                         <input
@@ -1035,7 +1082,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 1, fontSize: 11, textAlign: 'right' }}
-                          value={it.amount}
+                          value={numVal(it.amount)}
+                          placeholder="0.00"
                           onChange={e => updateItem('unsecuredLoans', it.id, 'amount', e.target.value)}
                         />
                         {!isProv && (
@@ -1060,7 +1108,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 2, fontSize: 11 }}
-                          value={it.name}
+                          value={it.name || ''}
+                          placeholder="Sundry Creditors / Liability"
                           onChange={e => updateItem('currentLiabilities', it.id, 'name', e.target.value)}
                         />
                         <input
@@ -1069,7 +1118,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 1, fontSize: 11, textAlign: 'right' }}
-                          value={it.amount}
+                          value={numVal(it.amount)}
+                          placeholder="0.00"
                           onChange={e => updateItem('currentLiabilities', it.id, 'amount', e.target.value)}
                         />
                         {!isProv && (
@@ -1123,7 +1173,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ flex: 2, fontSize: 11 }}
-                            value={it.name}
+                            value={it.name || ''}
+                            placeholder="Asset Name (e.g. PLANT & MACHINERY)"
                             onChange={e => updateItem('fixedAssets', it.id, 'name', e.target.value)}
                           />
                           <div
@@ -1165,7 +1216,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 2, fontSize: 11 }}
-                          value={it.name}
+                          value={it.name || ''}
+                          placeholder="Deposit Name (e.g. DHBVN, VAT DEPOSIT)"
                           onChange={e => updateItem('securityDeposits', it.id, 'name', e.target.value)}
                         />
                         <input
@@ -1174,7 +1226,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 1, fontSize: 11, textAlign: 'right' }}
-                          value={it.amount}
+                          value={numVal(it.amount)}
+                          placeholder="0.00"
                           onChange={e => updateItem('securityDeposits', it.id, 'amount', e.target.value)}
                         />
                         {!isProv && (
@@ -1202,7 +1255,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ flex: 2, fontSize: 11 }}
-                            value={it.name}
+                            value={it.name || ''}
+                            placeholder="Asset Name (e.g. Debtors, Bank, Stock)"
                             onChange={e => updateItem('currentAssets', it.id, 'name', e.target.value)}
                           />
                           <input
@@ -1218,7 +1272,8 @@ export default function VirtualFinalBSModal({
                               color: isCash ? '#059669' : '#1e293b',
                               fontWeight: isCash ? 'bold' : 'normal',
                             }}
-                            value={isCash ? activeData.balancingCash : it.amount}
+                            value={isCash ? (activeData.balancingCash || '') : numVal(it.amount)}
+                            placeholder={isCash ? "Auto-balanced" : "0.00"}
                             onChange={e => updateItem('currentAssets', it.id, 'amount', e.target.value)}
                           />
                           {!isProv && !isCash && !isStock && (
@@ -1262,7 +1317,8 @@ export default function VirtualFinalBSModal({
                         disabled={isProv}
                         className="form-input"
                         style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                        value={displayPLData.trading.openingStock}
+                        value={numVal(displayPLData.trading.openingStock)}
+                        placeholder="0.00"
                         onChange={e => setForm(f => ({ ...f, plData: { ...f.plData, trading: { ...f.plData.trading, openingStock: parseFloat(e.target.value) || 0 } } }))}
                       />
                     </div>
@@ -1274,7 +1330,8 @@ export default function VirtualFinalBSModal({
                         disabled={isProv}
                         className="form-input"
                         style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                        value={displayPLData.trading.purchases}
+                        value={numVal(displayPLData.trading.purchases)}
+                        placeholder="0.00"
                         onChange={e => setForm(f => ({ ...f, plData: { ...f.plData, trading: { ...f.plData.trading, purchases: parseFloat(e.target.value) || 0 } } }))}
                       />
                     </div>
@@ -1289,7 +1346,8 @@ export default function VirtualFinalBSModal({
                         disabled={isProv}
                         className="form-input"
                         style={{ width: '100%', fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#0369a1' }}
-                        value={displayPLData.trading.sales}
+                        value={numVal(displayPLData.trading.sales)}
+                        placeholder="0.00"
                         onChange={e => setForm(f => ({ ...f, plData: { ...f.plData, trading: { ...f.plData.trading, sales: parseFloat(e.target.value) || 0 } } }))}
                       />
                     </div>
@@ -1301,7 +1359,8 @@ export default function VirtualFinalBSModal({
                         disabled={isProv}
                         className="form-input"
                         style={{ width: '100%', fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#059669' }}
-                        value={displayPLData.trading.closingStock}
+                        value={numVal(displayPLData.trading.closingStock)}
+                        placeholder="0.00"
                         onChange={e => setForm(f => ({ ...f, plData: { ...f.plData, trading: { ...f.plData.trading, closingStock: parseFloat(e.target.value) || 0 } } }))}
                       />
                     </div>
@@ -1322,7 +1381,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 2, fontSize: 11 }}
-                          value={de.name}
+                          value={de.name || ''}
+                          placeholder="Expense Name (e.g. Freight, Wages)"
                           onChange={e => updatePLExp('directExpenses', de.id, 'name', e.target.value)}
                         />
                         <input
@@ -1331,7 +1391,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 1, fontSize: 11, textAlign: 'right' }}
-                          value={de.amount}
+                          value={numVal(de.amount)}
+                          placeholder="0.00"
                           onChange={e => updatePLExp('directExpenses', de.id, 'amount', e.target.value)}
                         />
                         {!isProv && (
@@ -1368,7 +1429,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 2, fontSize: 11 }}
-                          value={ii.name}
+                          value={ii.name || ''}
+                          placeholder="Income Name (e.g. Discount, Interest)"
                           onChange={e => updatePLExp('indirectIncomes', ii.id, 'name', e.target.value)}
                         />
                         <input
@@ -1377,7 +1439,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 1, fontSize: 11, textAlign: 'right' }}
-                          value={ii.amount}
+                          value={numVal(ii.amount)}
+                          placeholder="0.00"
                           onChange={e => updatePLExp('indirectIncomes', ii.id, 'amount', e.target.value)}
                         />
                         {!isProv && (
@@ -1402,7 +1465,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 2, fontSize: 11 }}
-                          value={ie.name}
+                          value={ie.name || ''}
+                          placeholder="Expense Name (e.g. Rent, Audit Fee)"
                           onChange={e => updatePLExp('indirectExpenses', ie.id, 'name', e.target.value)}
                         />
                         <input
@@ -1411,7 +1475,8 @@ export default function VirtualFinalBSModal({
                           disabled={isProv}
                           className="form-input"
                           style={{ flex: 1, fontSize: 11, textAlign: 'right' }}
-                          value={ie.amount}
+                          value={numVal(ie.amount)}
+                          placeholder="0.00"
                           onChange={e => updatePLExp('indirectExpenses', ie.id, 'amount', e.target.value)}
                         />
                         {!isProv && (
@@ -1526,7 +1591,7 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
-                            value={p.name}
+                            value={p.name || ''}
                             onChange={e => updatePartnerCustom(p.id, p.name, 'name', e.target.value)}
                             placeholder="PARTNER NAME"
                           />
@@ -1538,7 +1603,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                            value={p.sharePct}
+                            value={numVal(p.sharePct)}
+                            placeholder="0%"
                             onChange={e => updatePartnerCustom(p.id, p.name, 'sharePct', e.target.value)}
                           />
                         </td>
@@ -1549,7 +1615,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#1e3a8a' }}
-                            value={p.openingBal}
+                            value={numVal(p.openingBal)}
+                            placeholder="0.00"
                             onChange={e => updatePartnerCustom(p.id, p.name, 'openingBal', e.target.value)}
                           />
                         </td>
@@ -1560,7 +1627,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                            value={p.addition}
+                            value={numVal(p.addition)}
+                            placeholder="0.00"
                             onChange={e => updatePartnerCustom(p.id, p.name, 'addition', e.target.value)}
                           />
                         </td>
@@ -1571,7 +1639,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                            value={p.salary}
+                            value={numVal(p.salary)}
+                            placeholder="0.00"
                             onChange={e => updatePartnerCustom(p.id, p.name, 'salary', e.target.value)}
                           />
                         </td>
@@ -1582,7 +1651,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                            value={p.interestRate}
+                            value={numVal(p.interestRate)}
+                            placeholder="12%"
                             onChange={e => updatePartnerCustom(p.id, p.name, 'interestRate', e.target.value)}
                           />
                         </td>
@@ -1602,7 +1672,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                            value={p.withdrawalsAmt}
+                            value={numVal(p.withdrawalsAmt)}
+                            placeholder="0.00"
                             onChange={e => updatePartnerCustom(p.id, p.name, 'withdrawalsAmt', e.target.value)}
                           />
                         </td>
@@ -1736,7 +1807,7 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
-                            value={fa.name}
+                            value={fa.name || ''}
                             onChange={e => updateFACustom(fa.id, fa.name, 'name', e.target.value)}
                             placeholder="ASSET NAME"
                           />
@@ -1748,7 +1819,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#1e3a8a' }}
-                            value={fa.openingBal}
+                            value={numVal(fa.openingBal)}
+                            placeholder="0.00"
                             onChange={e => updateFACustom(fa.id, fa.name, 'openingBal', e.target.value)}
                           />
                         </td>
@@ -1759,7 +1831,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                            value={fa.additionBefore}
+                            value={numVal(fa.additionBefore)}
+                            placeholder="0.00"
                             onChange={e => updateFACustom(fa.id, fa.name, 'additionBefore', e.target.value)}
                           />
                         </td>
@@ -1770,7 +1843,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                            value={fa.additionAfter}
+                            value={numVal(fa.additionAfter)}
+                            placeholder="0.00"
                             onChange={e => updateFACustom(fa.id, fa.name, 'additionAfter', e.target.value)}
                           />
                         </td>
@@ -1781,7 +1855,8 @@ export default function VirtualFinalBSModal({
                             disabled={isProv}
                             className="form-input"
                             style={{ width: '100%', fontSize: 11, textAlign: 'right' }}
-                            value={fa.depreciationRate}
+                            value={numVal(fa.depreciationRate)}
+                            placeholder="15%"
                             onChange={e => updateFACustom(fa.id, fa.name, 'depreciationRate', e.target.value)}
                           />
                         </td>

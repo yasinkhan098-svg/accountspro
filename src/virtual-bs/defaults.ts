@@ -1,6 +1,67 @@
 import { VirtualFormData } from './types';
 
-export const DEFAULT_VIRTUAL_FORM_DATA: VirtualFormData = {
+export const EMPTY_VIRTUAL_FORM_DATA: VirtualFormData = {
+  company: {
+    name: '',
+    address: '',
+    place: '',
+    fromDate: '',
+    toDate: '',
+    asOnDate: '',
+  },
+  signatory: {
+    caName: '',
+    caMno: '',
+    caFirmRegNo: '',
+    caUdin: '',
+    signatoryTitle: 'PARTNER',
+  },
+  mode: 'actual',
+  bsSections: {
+    capitalItems: [
+      { id: 'p-1', name: '', amount: 0 },
+    ],
+    securedLoans: [],
+    unsecuredLoans: [],
+    currentLiabilities: [],
+    fixedAssets: [
+      { id: 'fa-1', name: '', amount: 0 },
+    ],
+    securityDeposits: [],
+    currentAssets: [],
+  },
+  plData: {
+    trading: {
+      openingStock: 0,
+      purchases: 0,
+      directExpenses: [],
+      sales: 0,
+      closingStock: 0,
+    },
+    indirectIncomes: [],
+    indirectExpenses: [],
+  },
+  partners: [
+    { id: 'p-1', name: '', sharePct: 0, openingBal: 0, addition: 0, salary: 0, interestRate: 0, withdrawalsAmt: 0 },
+  ],
+  fixedAssetSchedule: [
+    { id: 'fas-1', name: '', openingBal: 0, additionBefore: 0, additionAfter: 0, depreciationRate: 0, closingBal: 0 },
+  ],
+  projectionConfig: {
+    horizonYears: 1,
+    salesGrowthPct: 0,
+    gpMarginPct: 0,
+    stockGrowthPct: 0,
+    expenseInflationPct: 0,
+    labourGrowthPct: 0,
+    deprReductionPct: 0,
+    ccLimitGrowthPct: 0,
+    interestRatePct: 0,
+    drawingsGrowthPct: 0,
+  }
+};
+
+export const SAMPLE_VIRTUAL_FORM_DATA: VirtualFormData = {
   company: {
     name: 'AIMAN TRADERS',
     address: 'KHATIMA ROAD NEAR GOVERNMENT HOSPITAL SITARGANJ UDHAM SINGH NAGAR',
@@ -93,3 +154,5 @@ export const DEFAULT_VIRTUAL_FORM_DATA: VirtualFormData = {
     drawingsGrowthPct: 20.0,
   }
 };
+
+export const DEFAULT_VIRTUAL_FORM_DATA = EMPTY_VIRTUAL_FORM_DATA;
