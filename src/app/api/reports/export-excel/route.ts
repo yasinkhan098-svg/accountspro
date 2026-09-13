@@ -434,9 +434,24 @@ async function generateExcelResponse(req: Request, postBody?: any) {
             }
           }
           if (sectionRows.length === 0) continue;
-          const secTotal = sectionRows.reduce((s, r) => s + (r.amount||0), 0);
+
+          // Merge duplicate item names within the section (e.g. multiple "Sundry Creditors")
+          const mergedSectionRows: any[] = [];
+          const seen = new Map<string, number>();
+          for (const r of sectionRows) {
+            const k = (r.name || '').trim().toLowerCase();
+            if (seen.has(k)) {
+              const idx = seen.get(k)!;
+              mergedSectionRows[idx].amount = Math.round(((mergedSectionRows[idx].amount || 0) + (r.amount || 0)) * 100) / 100;
+            } else {
+              seen.set(k, mergedSectionRows.length);
+              mergedSectionRows.push({ ...r });
+            }
+          }
+
+          const secTotal = mergedSectionRows.reduce((s, r) => s + (r.amount||0), 0);
           rows.push({type:'section-header', name:sec.title});
-          rows.push(...sectionRows);
+          rows.push(...mergedSectionRows);
           rows.push({type:'section-total', name:'', amount:secTotal});
           rows.push({type:'blank', name:''});
         }
@@ -466,7 +481,63 @@ async function generateExcelResponse(req: Request, postBody?: any) {
       };
     }
 
-    const { liabilities, assets, totalLiabilities, totalAssets } = balanceSheetRows;
+    const cleanBSRows = (rows: any[]): any[] => {
+      if (!Array.isArray(rows)) return [];
+      const cleaned: any[] = [];
+      const seenInSection = new Map<string, number>();
+
+      for (const r of rows) {
+        if (!r) continue;
+        if (r.type === 'section-header') {
+          seenInSection.clear();
+          cleaned.push(r);
+        } else if (r.type === 'section-total' || r.type === 'blank' || r.type === 'net-entry') {
+          cleaned.push(r);
+        } else {
+          // Group header or ledger row
+          const k = (r.name || '').trim().toLowerCase();
+          if (k && seenInSection.has(k)) {
+            const existingIdx = seenInSection.get(k)!;
+            cleaned[existingIdx].amount = Math.round(((Number(cleaned[existingIdx].amount) || 0) + (Number(r.amount) || 0)) * 100) / 100;
+          } else {
+            if (k) seenInSection.set(k, cleaned.length);
+            cleaned.push({ ...r });
+          }
+        }
+      }
+
+      // Recalculate section-totals after merging to ensure 100% mathematical consistency
+      let currentSecItems: any[] = [];
+      for (let i = 0; i < cleaned.length; i++) {
+        const item = cleaned[i];
+        if (item.type === 'section-header') {
+          currentSecItems = [];
+        } else if (item.type === 'section-total') {
+          const newTotal = currentSecItems.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+          cleaned[i].amount = Math.round(newTotal * 100) / 100;
+        } else if (item.type !== 'blank' && item.type !== 'net-entry') {
+          currentSecItems.push(item);
+        }
+      }
+
+      return cleaned;
+    }
+
+    const rawLiabilities = balanceSheetRows?.liabilities || [];
+    const rawAssets = balanceSheetRows?.assets || [];
+    const liabilities = cleanBSRows(rawLiabilities);
+    const assets = cleanBSRows(rawAssets);
+
+    const liabTotalsSum = liabilities.filter((r: any) => r.type === 'section-total').reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+    const liabNetEntry = liabilities.find((r: any) => r.type === 'net-entry');
+    const calculatedTotalLiab = Math.round((liabTotalsSum + (liabNetEntry ? (Number(liabNetEntry.amount) || 0) : 0)) * 100) / 100;
+
+    const assetTotalsSum = assets.filter((r: any) => r.type === 'section-total').reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+    const assetNetEntry = assets.find((r: any) => r.type === 'net-entry');
+    const calculatedTotalAssets = Math.round((assetTotalsSum + (assetNetEntry ? (Number(assetNetEntry.amount) || 0) : 0)) * 100) / 100;
+
+    const totalLiabilities = calculatedTotalLiab > 0 ? calculatedTotalLiab : (Number(balanceSheetRows?.totalLiabilities) || 0);
+    const totalAssets = calculatedTotalAssets > 0 ? calculatedTotalAssets : (Number(balanceSheetRows?.totalAssets) || 0);
 
     // ─── Extract Capital Accounts from Balance Sheet for Annexure A ──────────
     let capitalItemsFromBS: any[] = [];

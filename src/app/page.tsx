@@ -947,9 +947,24 @@ export default function App() {
             }
           }
           if (sectionRows.length === 0) continue;
-          const secTotal = sectionRows.reduce((s, r) => s + (r.amount||0), 0);
+
+          // Merge duplicate item names within the section (e.g. multiple "Sundry Creditors")
+          const mergedSectionRows: any[] = [];
+          const seen = new Map<string, number>();
+          for (const r of sectionRows) {
+            const k = (r.name || '').trim().toLowerCase();
+            if (seen.has(k)) {
+              const idx = seen.get(k)!;
+              mergedSectionRows[idx].amount = Math.round(((mergedSectionRows[idx].amount || 0) + (r.amount || 0)) * 100) / 100;
+            } else {
+              seen.set(k, mergedSectionRows.length);
+              mergedSectionRows.push({ ...r });
+            }
+          }
+
+          const secTotal = mergedSectionRows.reduce((s, r) => s + (r.amount||0), 0);
           rows.push({type:'section-header', name:sec.title});
-          rows.push(...sectionRows);
+          rows.push(...mergedSectionRows);
           rows.push({type:'section-total', name:'', amount:secTotal});
           rows.push({type:'blank', name:''});
         }
@@ -1024,8 +1039,21 @@ export default function App() {
         // Current Liab
         if (targetProj.currLiabItems && targetProj.currLiabItems.length > 0) {
           provLiabRows.push({ type: 'section-header', name: 'CURRENT LIABILITIES' });
-          targetProj.currLiabItems.forEach(i => provLiabRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
-          provLiabRows.push({ type: 'section-total', name: '', amount: targetProj.currLiabTotal });
+          const mergedLiabs: any[] = [];
+          const seenL = new Map<string, number>();
+          for (const i of targetProj.currLiabItems) {
+            const k = (i.name || '').trim().toLowerCase();
+            if (seenL.has(k)) {
+              const idx = seenL.get(k)!;
+              mergedLiabs[idx].amount = Math.round(((mergedLiabs[idx].amount || 0) + (i.amount || 0)) * 100) / 100;
+            } else {
+              seenL.set(k, mergedLiabs.length);
+              mergedLiabs.push({ type: 'ledger', name: i.name, amount: i.amount });
+            }
+          }
+          mergedLiabs.forEach(i => provLiabRows.push(i));
+          const secTotal = mergedLiabs.reduce((s, r) => s + (r.amount || 0), 0);
+          provLiabRows.push({ type: 'section-total', name: '', amount: secTotal });
           provLiabRows.push({ type: 'blank', name: '' });
         }
         if (targetProj.netProfit > 0) {
@@ -1049,8 +1077,21 @@ export default function App() {
         // Current Assets
         if (targetProj.currAssetItems && targetProj.currAssetItems.length > 0) {
           provAssetRows.push({ type: 'section-header', name: 'CURRENT ASSETS' });
-          targetProj.currAssetItems.forEach(i => provAssetRows.push({ type: 'ledger', name: i.name, amount: i.amount }));
-          provAssetRows.push({ type: 'section-total', name: '', amount: targetProj.currAssetTotal });
+          const mergedAssets: any[] = [];
+          const seenA = new Map<string, number>();
+          for (const i of targetProj.currAssetItems) {
+            const k = (i.name || '').trim().toLowerCase();
+            if (seenA.has(k)) {
+              const idx = seenA.get(k)!;
+              mergedAssets[idx].amount = Math.round(((mergedAssets[idx].amount || 0) + (i.amount || 0)) * 100) / 100;
+            } else {
+              seenA.set(k, mergedAssets.length);
+              mergedAssets.push({ type: 'ledger', name: i.name, amount: i.amount });
+            }
+          }
+          mergedAssets.forEach(i => provAssetRows.push(i));
+          const secTotal = mergedAssets.reduce((s, r) => s + (r.amount || 0), 0);
+          provAssetRows.push({ type: 'section-total', name: '', amount: secTotal });
           provAssetRows.push({ type: 'blank', name: '' });
         }
         if (targetProj.netProfit < 0) {

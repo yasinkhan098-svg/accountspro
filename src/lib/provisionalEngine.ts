@@ -129,17 +129,62 @@ export function computeBaseFinancials(
   initialPartners?: any[],
   stockItems?: any[]
 ): BaseFinancials {
+  const AGGREGATE_GROUPS = new Set([
+    'Capital Account', 'Reserves & Surplus', 'Retained Earnings',
+    'Sundry Creditors', 'Sundry Debtors',
+    'Duties & Taxes',
+    'Cash-in-hand', 'Bank Accounts',
+  ]);
+
   const getSection = (groups: string[], isLiabOrIncome: boolean) => {
-    return ledgers
-      .filter(l => groups.includes(l.groupName) && l.name !== 'Profit & Loss A/c')
-      .map(l => {
-        const { balance, type } = computeLedgerBalance(l, vouchers);
-        const amt = isLiabOrIncome
-          ? (type === 'Cr' ? balance : -balance)
-          : (type === 'Dr' ? balance : -balance);
-        return { name: l.name, amount: r2(amt) };
-      })
-      .filter(i => Math.abs(i.amount) > 0.001);
+    const rawItems: FinancialItem[] = [];
+
+    for (const gn of groups) {
+      const groupLedgers = ledgers.filter(l =>
+        (l.groupName || '').trim().toLowerCase() === gn.trim().toLowerCase() &&
+        l.name !== 'Profit & Loss A/c'
+      );
+      if (!groupLedgers.length) continue;
+
+      if (AGGREGATE_GROUPS.has(gn)) {
+        let total = 0;
+        for (const l of groupLedgers) {
+          const { balance, type } = computeLedgerBalance(l, vouchers);
+          const amt = isLiabOrIncome
+            ? (type === 'Cr' ? balance : -balance)
+            : (type === 'Dr' ? balance : -balance);
+          total += amt;
+        }
+        if (Math.abs(total) > 0.001) {
+          rawItems.push({ name: gn, amount: r2(total) });
+        }
+      } else {
+        for (const l of groupLedgers) {
+          const { balance, type } = computeLedgerBalance(l, vouchers);
+          const amt = isLiabOrIncome
+            ? (type === 'Cr' ? balance : -balance)
+            : (type === 'Dr' ? balance : -balance);
+          if (Math.abs(amt) > 0.001) {
+            rawItems.push({ name: l.name, amount: r2(amt) });
+          }
+        }
+      }
+    }
+
+    // Merge any duplicate item names within the section
+    const merged: FinancialItem[] = [];
+    const seen = new Map<string, number>();
+    for (const item of rawItems) {
+      const k = item.name.trim().toLowerCase();
+      if (seen.has(k)) {
+        const idx = seen.get(k)!;
+        merged[idx].amount = r2(merged[idx].amount + item.amount);
+      } else {
+        seen.set(k, merged.length);
+        merged.push({ ...item });
+      }
+    }
+    return merged;
   };
 
   const capitalItems    = getSection(CAPITAL_GROUPS, true);
@@ -707,11 +752,11 @@ export function generateProvisionalProjections(
     const projUnsecuredItems: FinancialItem[] = currentBase.unsecuredItems.map(i => ({ ...i }));
 
     // Current Liabilities
-    const projCurrLiabItems: FinancialItem[] = currentBase.currLiabItems.map(i => {
+    const rawProjCurrLiabItems: FinancialItem[] = currentBase.currLiabItems.map(i => {
       const lower = i.name.toLowerCase();
       if (lower.includes('creditor')) {
-        // Trade credit scales with purchases (~80 days credit)
-        const creditRatio = currentBase.purchaseTotal > 0 ? (i.amount / currentBase.purchaseTotal) * 2.7 : 0.22;
+        // Trade credit scales with purchases
+        const creditRatio = currentBase.purchaseTotal > 0 ? (i.amount / currentBase.purchaseTotal) : 0.22;
         return { name: i.name, amount: r2(projPurchaseTotal * creditRatio) };
       } else if (lower.includes('advance')) {
         // Advances cleared
@@ -722,6 +767,20 @@ export function generateProvisionalProjections(
         return { name: i.name, amount: r2(i.amount * adminInflation) };
       }
     }).filter(i => i.amount > 0);
+
+    // Deduplicate & merge any duplicate liability names (e.g. multiple "Sundry Creditors")
+    const projCurrLiabItems: FinancialItem[] = [];
+    const seenLiab = new Map<string, number>();
+    for (const i of rawProjCurrLiabItems) {
+      const k = i.name.trim().toLowerCase();
+      if (seenLiab.has(k)) {
+        const idx = seenLiab.get(k)!;
+        projCurrLiabItems[idx].amount = r2(projCurrLiabItems[idx].amount + i.amount);
+      } else {
+        seenLiab.set(k, projCurrLiabItems.length);
+        projCurrLiabItems.push({ ...i });
+      }
+    }
 
     const projCapitalTotal   = calculatedClosingCapital;
     const projSecuredTotal   = r2(sum(projSecuredItems));
@@ -743,28 +802,67 @@ export function generateProvisionalProjections(
     const projInvestmentTotal = r2(sum(projInvestmentItems));
 
     // Current Assets
-    const debtorsRatio = currentBase.salesTotal > 0 ? (1121368.69 / 10050225.53) : 0.111;
-    const gstItcRatio   = currentBase.purchaseTotal > 0 ? (235140.00 / 7126210.11) : 0.033;
+    const baseDebtorsItem = currentBase.currAssetItems.find(i => i.name.toLowerCase().includes('debtor'));
+    const baseDebtorsAmt  = baseDebtorsItem ? baseDebtorsItem.amount : 0;
+    const debtorsRatio    = (currentBase.salesTotal > 0 && baseDebtorsAmt > 0) ? (baseDebtorsAmt / currentBase.salesTotal) : 0.111;
+    const projDebtorsAmt  = r2(projSalesTotal * debtorsRatio);
 
-    const projDebtorsAmt = r2(projSalesTotal * debtorsRatio);
-    const projGstItcAmt  = r2(projPurchaseTotal * gstItcRatio);
+    // Build base for projected current assets from currentBase.currAssetItems (preserving all existing real accounts)
+    let rawProjCurrAssetItems: FinancialItem[] = [];
+    if (currentBase.currAssetItems && currentBase.currAssetItems.length > 0) {
+      rawProjCurrAssetItems = currentBase.currAssetItems.map(i => {
+        const l = i.name.toLowerCase();
+        if (l.includes('stock')) {
+          return { name: i.name, amount: projClosingStock };
+        } else if (l.includes('debtor')) {
+          return { name: i.name, amount: projDebtorsAmt };
+        } else if (l.includes('cash')) {
+          return { name: i.name, amount: 0 }; // Set by balancing cash below
+        } else {
+          return { name: i.name, amount: i.amount };
+        }
+      });
+      if (!rawProjCurrAssetItems.some(i => i.name.toLowerCase().includes('stock'))) {
+        rawProjCurrAssetItems.push({ name: 'Closing Stock', amount: projClosingStock });
+      }
+      if (!rawProjCurrAssetItems.some(i => i.name.toLowerCase().includes('debtor'))) {
+        rawProjCurrAssetItems.push({ name: 'Sundry Debtors', amount: projDebtorsAmt });
+      }
+      if (!rawProjCurrAssetItems.some(i => i.name.toLowerCase().includes('cash'))) {
+        rawProjCurrAssetItems.push({ name: 'Cash-in-hand', amount: 0 });
+      }
+    } else {
+      rawProjCurrAssetItems = [
+        { name: 'Closing Stock', amount: projClosingStock },
+        { name: 'Sundry Debtors', amount: projDebtorsAmt },
+        { name: 'Cash-in-hand', amount: 0 },
+      ];
+    }
 
-    const interimCurrentAssets: FinancialItem[] = [
-      { name: 'Closing Stock', amount: projClosingStock },
-      { name: 'Sundry Debtors', amount: projDebtorsAmt },
-      { name: 'Other GSt ITC', amount: projGstItcAmt },
-    ];
+    // Deduplicate asset names
+    const projCurrAssetItems: FinancialItem[] = [];
+    const seenAssets = new Map<string, number>();
+    for (const i of rawProjCurrAssetItems) {
+      const k = i.name.trim().toLowerCase();
+      if (seenAssets.has(k)) {
+        const idx = seenAssets.get(k)!;
+        projCurrAssetItems[idx].amount = r2(projCurrAssetItems[idx].amount + i.amount);
+      } else {
+        seenAssets.set(k, projCurrAssetItems.length);
+        projCurrAssetItems.push({ ...i });
+      }
+    }
 
-    const interimTotalAssets = r2(projFixedAssetTotal + projInvestmentTotal + sum(interimCurrentAssets));
     // Cash in hand balances Total Assets to exactly match Total Liabilities!
-    const balancingCash = r2(projTotalLiab - interimTotalAssets);
+    const nonCashAssets = r2(projFixedAssetTotal + projInvestmentTotal + sum(projCurrAssetItems.filter(i => !i.name.toLowerCase().includes('cash'))));
+    const balancingCash = r2(projTotalLiab - nonCashAssets);
 
-    const projCurrAssetItems: FinancialItem[] = [
-      { name: 'Closing Stock', amount: projClosingStock },
-      { name: 'Sundry Debtors', amount: projDebtorsAmt },
-      { name: 'Cash in hand', amount: Math.max(balancingCash, 152447.00) },
-      { name: 'Other GSt ITC', amount: projGstItcAmt },
-    ];
+    const cashItem = projCurrAssetItems.find(i => i.name.toLowerCase().includes('cash'));
+    if (cashItem) {
+      cashItem.amount = balancingCash;
+    } else {
+      projCurrAssetItems.push({ name: 'Cash-in-hand', amount: balancingCash });
+    }
 
     // Recalibrate exact balance
     let projCurrAssetTotal = r2(sum(projCurrAssetItems));
