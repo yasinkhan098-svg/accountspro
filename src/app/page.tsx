@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import AuthUI from '@/components/AuthUI';
 import SubscriptionRenewalUI from '@/components/SubscriptionRenewalUI';
 import PlanUpgradeModal from '@/components/PlanUpgradeModal';
+import VirtualFinalBSModal from '@/virtual-bs/VirtualFinalBSModal';
 import { authClient } from '@/lib/auth-client';
 import {
   computeBaseFinancials,
@@ -620,6 +621,7 @@ export default function App() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Final Balance Sheet & P&L Export Modal
+  const [showVirtualBSModal, setShowVirtualBSModal] = useState(false);
   const [showFinalBSModal, setShowFinalBSModal] = useState(false);
   const [finalBSExporting, setFinalBSExporting] = useState(false);
   const [finalBSMode, setFinalBSMode] = useState<'actual' | 'provisional'>('actual');
@@ -2390,6 +2392,7 @@ export default function App() {
           setTimeout(() => lastFocusRef.current?.focus(), 80);
           return; 
         }
+        if (showVirtualBSModal) { setShowVirtualBSModal(false); return; }
         if (showFinalBSModal) { setShowFinalBSModal(false); return; }
         if (showExportModal) { setShowExportModal(false); return; }
         if (showEmailModal) { setShowEmailModal(false); return; }
@@ -2631,7 +2634,14 @@ export default function App() {
             <div><u>Z</u>: Exchange</div>
           </div>
         </div>
-        <div className="go-to-btn">G: Go To</div>
+        <div 
+          className="go-to-btn" 
+          onClick={() => setShowVirtualBSModal(true)} 
+          style={{ cursor: 'pointer', background: '#f59e0b', color: '#0f172a', fontWeight: 'bold' }}
+          title="Virtual / Manual CA Balance Sheet & P&L (Standalone)"
+        >
+          ⚡ Virtual B/S
+        </div>
         <div className="header-center">
            <div style={{fontSize:18,fontWeight:'bold',letterSpacing:2,color:'#fff',textShadow:'0 2px 4px rgba(0,0,0,0.3)'}}>LedgerX ERP</div>
         </div>
@@ -4362,6 +4372,12 @@ export default function App() {
           onClose={() => setShowUpgradeModal(false)}
         />
       )}
+
+      {/* Standalone Virtual / Manual CA Balance Sheet & P&L Modal */}
+      <VirtualFinalBSModal
+        isOpen={showVirtualBSModal}
+        onClose={() => setShowVirtualBSModal(false)}
+      />
 
       {/* ===== MOBILE BOTTOM NAV BAR (hidden on desktop via CSS) ===== */}
       <nav className="mobile-bottom-nav">
