@@ -12,6 +12,8 @@ export interface VirtualCompanyDetails {
 export interface VirtualSignatoryDetails {
   caName: string;
   caMno: string;
+  caFirmRegNo?: string;
+  caUdin?: string;
   signatoryTitle: string; // 'PARTNER' | 'PROPRIETOR' | 'DIRECTOR' | 'AUTH. SIGNATORY'
 }
 
@@ -120,6 +122,7 @@ export interface CalculatedVirtualFinancials {
   // Annexure B
   calculatedFASchedule: VirtualAssetItem[];
   totalClosingFA: number;
+  totalDepreciation: number;
 
   // Balance Sheet Sections
   capitalTotal: number;
@@ -148,4 +151,6 @@ export interface VirtualProjectedYearResult extends CalculatedVirtualFinancials 
   purchaseTotal: number;
   openingStock: number;
   closingStock: number;
+  projBSSections: VirtualBSSections;
+  projPLData: VirtualPLData;
 }

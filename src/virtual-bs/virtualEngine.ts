@@ -5,12 +5,144 @@ import {
   VirtualAssetItem,
   VirtualProjectedYearResult,
   VirtualProjectionConfig,
-  VirtualFinancialItem
+  VirtualFinancialItem,
+  VirtualBSSections,
+  VirtualPLData
 } from './types';
 
 export const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 export const sum = (arr: { amount?: number; closingBal?: number }[]) =>
   arr.reduce((s, i) => s + (Number(i.amount ?? i.closingBal) || 0), 0);
+
+// ─── Helper: Detect Standard Income Tax Depreciation Rate ────────────────────
+export function detectDepreciationRate(name: string): number {
+  const l = (name || '').toLowerCase();
+  if (l.includes('computer') || l.includes('laptop') || l.includes('software') || l.includes('printer')) return 40;
+  if (l.includes('furniture') || l.includes('fixture') || l.includes('building') || l.includes('premises')) return 10;
+  return 15;
+}
+
+// ─── Helper: Auto-Derive Annexure B (Fixed Assets) from Balance Sheet ─────────
+export function deriveFASchedule(
+  fixedAssets: VirtualFinancialItem[],
+  existingFA: VirtualAssetItem[] = []
+): VirtualAssetItem[] {
+  const faItems = (fixedAssets || []).filter(fa => fa.name || Math.abs(fa.amount) > 0.001);
+  if (faItems.length === 0) {
+    if (existingFA && existingFA.length > 0) return existingFA;
+    return [];
+  }
+
+  return faItems.map((fa, idx) => {
+    const existing = (existingFA || []).find(
+      e => e.id === fa.id || e.name.trim().toLowerCase() === fa.name.trim().toLowerCase()
+    ) || (existingFA && existingFA[idx]);
+
+    const rate = Number(existing?.depreciationRate) || detectDepreciationRate(fa.name);
+    const op = Number(fa.amount) || 0;
+    const addB = Number(existing?.additionBefore) || 0;
+    const addA = Number(existing?.additionAfter) || 0;
+    const depr = existing?.depreciation !== undefined && existing.depreciation > 0
+      ? r2(existing.depreciation)
+      : r2((op + addB) * (rate / 100) + addA * (rate / 200));
+    const close = r2(Math.max(0, op + addB + addA - depr));
+
+    return {
+      id: fa.id || `fa-${idx}`,
+      name: (existing?.name || fa.name || `ASSET ${idx + 1}`).toUpperCase(),
+      openingBal: op,
+      additionBefore: addB,
+      additionAfter: addA,
+      depreciationRate: rate,
+      depreciation: depr,
+      closingBal: close,
+    };
+  });
+}
+
+// ─── Helper: Auto-Derive Annexure A (Partners Capital) from Balance Sheet & P&L
+export function derivePartners(
+  capitalItems: VirtualFinancialItem[],
+  netProfit: number,
+  existingPartners: VirtualPartnerItem[] = []
+): VirtualPartnerItem[] {
+  const capList = (capitalItems || []).filter(c => c.name || Math.abs(c.amount) > 0.001);
+  if (capList.length === 0) {
+    if (existingPartners && existingPartners.length > 0) {
+      return existingPartners.map(p => {
+        const op = r2(p.openingBal);
+        const add = r2(p.addition);
+        const sal = r2(p.salary);
+        const iRate = Number(p.interestRate) || 12;
+        const iAmt = p.interestAmt !== undefined ? r2(p.interestAmt) : r2(op * (iRate / 100));
+        const pShare = r2(netProfit * ((Number(p.sharePct) || 0) / 100));
+        const tot = r2(op + add + sal + iAmt + pShare);
+        const wAmt = r2(p.withdrawalsAmt);
+        const close = r2(tot - wAmt);
+        return { ...p, profitShare: pShare, interestAmt: iAmt, total: tot, closingBal: close };
+      });
+    }
+
+    const pShare = netProfit;
+    return [{
+      id: 'p-default',
+      name: 'PROPRIETOR / PARTNER',
+      sharePct: 100,
+      openingBal: 0,
+      addition: 0,
+      salary: 0,
+      interestRate: 0,
+      interestAmt: 0,
+      profitShare: pShare,
+      total: pShare,
+      withdrawalsAmt: 0,
+      closingBal: pShare,
+    }];
+  }
+
+  const count = capList.length;
+  const baseShare = Math.round((100 / count) * 100) / 100;
+
+  return capList.map((c, idx) => {
+    const existing = (existingPartners || []).find(
+      p => p.id === c.id || p.name.trim().toLowerCase() === c.name.trim().toLowerCase()
+    ) || (existingPartners && existingPartners[idx]);
+
+    let pName = c.name.trim();
+    if (pName.toUpperCase().endsWith('CAPITAL ACCOUNT') || pName.toUpperCase().endsWith('CAPITAL A/C')) {
+      pName = pName.replace(/capital\s+account|capital\s+a\/c/gi, '').trim();
+    }
+    if (!pName) pName = c.name.trim();
+
+    const defShare = idx === count - 1 ? r2(100 - baseShare * (count - 1)) : baseShare;
+    const sharePct = Number(existing?.sharePct) || defShare;
+    const op = Number(c.amount) || 0;
+    const add = Number(existing?.addition) || 0;
+    const sal = Number(existing?.salary) || 0;
+    const iRate = existing?.interestRate !== undefined ? Number(existing.interestRate) : 12;
+    const iAmt = existing?.interestAmt !== undefined ? r2(existing.interestAmt) : r2(op * (iRate / 100));
+    const pShare = r2(netProfit * (sharePct / 100));
+    const tot = r2(op + add + sal + iAmt + pShare);
+    const wAmt = Number(existing?.withdrawalsAmt) || 0;
+    const close = r2(tot - wAmt);
+
+    return {
+      id: c.id || `p-${idx}`,
+      name: (existing?.name || pName).toUpperCase(),
+      sharePct,
+      openingBal: op,
+      addition: add,
+      salary: sal,
+      interestRate: iRate,
+      interestAmt: iAmt,
+      profitShare: pShare,
+      total: tot,
+      withdrawalsAmt: wAmt,
+      withdrawalsNature: existing?.withdrawalsNature || '',
+      closingBal: close,
+    };
+  });
+}
 
 // ─── 1. Calculate Actual Financials from Virtual Form ────────────────────────
 export function computeVirtualActualFinancials(form: VirtualFormData): CalculatedVirtualFinancials {
@@ -25,32 +157,27 @@ export function computeVirtualActualFinancials(form: VirtualFormData): Calculate
   const tradingDebitTotal = r2(tradingDebit + (grossProfit > 0 ? grossProfit : 0));
   const tradingCreditTotal = r2(tradingCredit + (grossProfit < 0 ? Math.abs(grossProfit) : 0));
 
-  // B. Fixed Assets Schedule (Annexure B)
-  const calculatedFASchedule: VirtualAssetItem[] = (fixedAssetSchedule || []).map(fa => {
-    const op = r2(fa.openingBal);
-    const addB = r2(fa.additionBefore);
-    const addA = r2(fa.additionAfter);
-    const rate = Number(fa.depreciationRate) || 0;
-    const calcDepr = r2((op + addB) * (rate / 100) + addA * (rate / 200));
-    const depr = fa.depreciation !== undefined ? r2(fa.depreciation) : calcDepr;
-    const closing = fa.closingBal !== undefined && fa.closingBal > 0
-      ? r2(fa.closingBal)
-      : r2(Math.max(0, op + addB + addA - depr));
-    return {
-      ...fa,
-      openingBal: op,
-      additionBefore: addB,
-      additionAfter: addA,
-      depreciationRate: rate,
-      depreciation: depr,
-      closingBal: closing,
-    };
-  });
+  // B. Fixed Assets Schedule (Annexure B) - Auto-derived from bsSections.fixedAssets
+  const calculatedFASchedule: VirtualAssetItem[] = deriveFASchedule(bsSections.fixedAssets, fixedAssetSchedule);
   const totalClosingFA = r2(calculatedFASchedule.reduce((s, fa) => s + (fa.closingBal || 0), 0));
+  const totalDepreciation = r2(calculatedFASchedule.reduce((s, fa) => s + (fa.depreciation || 0), 0));
 
   // C. Profit & Loss Account
   const indirectIncTotal = r2(sum(plData.indirectIncomes || []));
-  const indirectExpTotal = r2(sum(plData.indirectExpenses || []));
+
+  // Auto-sync Annexure B depreciation into Indirect Expenses if not already present
+  let indirectExpList = [...(plData.indirectExpenses || [])];
+  if (totalDepreciation > 0) {
+    const hasDepr = indirectExpList.some(e => e.name.toLowerCase().includes('depr'));
+    if (hasDepr) {
+      indirectExpList = indirectExpList.map(e =>
+        e.name.toLowerCase().includes('depr') ? { ...e, amount: totalDepreciation } : e
+      );
+    } else {
+      indirectExpList.push({ id: 'depr-auto', name: 'To Depreciation', amount: totalDepreciation });
+    }
+  }
+  const indirectExpTotal = r2(sum(indirectExpList));
 
   const plCredit = r2((grossProfit > 0 ? grossProfit : 0) + indirectIncTotal);
   const plDebit = r2((grossProfit < 0 ? Math.abs(grossProfit) : 0) + indirectExpTotal);
@@ -59,36 +186,14 @@ export function computeVirtualActualFinancials(form: VirtualFormData): Calculate
   const plDebitTotal = r2(plDebit + (netProfit > 0 ? netProfit : 0));
   const plCreditTotal = r2(plCredit + (netProfit < 0 ? Math.abs(netProfit) : 0));
 
-  // D. Partners Capital Account (Annexure A)
-  const calculatedPartners: VirtualPartnerItem[] = (partners || []).map(p => {
-    const op = r2(p.openingBal);
-    const add = r2(p.addition);
-    const sal = r2(p.salary);
-    const iRate = Number(p.interestRate) || 12;
-    const iAmt = p.interestAmt !== undefined ? r2(p.interestAmt) : r2(op * (iRate / 100));
-    const pShare = r2(netProfit * ((Number(p.sharePct) || 0) / 100));
-    const tot = r2(op + add + sal + iAmt + pShare);
-    const wAmt = r2(p.withdrawalsAmt);
-    const close = r2(tot - wAmt);
-    return {
-      ...p,
-      openingBal: op,
-      addition: add,
-      salary: sal,
-      interestRate: iRate,
-      interestAmt: iAmt,
-      profitShare: pShare,
-      total: tot,
-      withdrawalsAmt: wAmt,
-      closingBal: close,
-    };
-  });
+  // D. Partners Capital Account (Annexure A) - Auto-derived from bsSections.capitalItems and Net Profit
+  const calculatedPartners: VirtualPartnerItem[] = derivePartners(bsSections.capitalItems, netProfit, partners);
   const totalClosingCapital = r2(calculatedPartners.reduce((s, p) => s + (p.closingBal || 0), 0));
 
   // E. Balance Sheet Liabilities
-  let capitalTotal = r2(sum(bsSections.capitalItems || []));
-  if (capitalTotal === 0 && totalClosingCapital > 0) {
-    capitalTotal = totalClosingCapital;
+  let capitalTotal = totalClosingCapital;
+  if (capitalTotal === 0) {
+    capitalTotal = r2(sum(bsSections.capitalItems || []));
   }
   const securedTotal = r2(sum(bsSections.securedLoans || []));
   const unsecuredTotal = r2(sum(bsSections.unsecuredLoans || []));
@@ -97,9 +202,9 @@ export function computeVirtualActualFinancials(form: VirtualFormData): Calculate
   const totalLiabilities = r2(capitalTotal + securedTotal + unsecuredTotal + currLiabTotal);
 
   // F. Balance Sheet Assets
-  let fixedAssetTotal = r2(sum(bsSections.fixedAssets || []));
-  if (fixedAssetTotal === 0 && totalClosingFA > 0) {
-    fixedAssetTotal = totalClosingFA;
+  let fixedAssetTotal = totalClosingFA;
+  if (fixedAssetTotal === 0) {
+    fixedAssetTotal = r2(sum(bsSections.fixedAssets || []));
   }
   const securityDepositsTotal = r2(sum(bsSections.securityDeposits || []));
 
@@ -114,7 +219,7 @@ export function computeVirtualActualFinancials(form: VirtualFormData): Calculate
     currAssetList.push({ id: 'ca-stock-auto', name: 'Closing Stock', amount: r2(plData.trading.closingStock) });
   }
 
-  // Balancing Cash-in-hand calculation to achieve 100% balance
+  // Balancing Cash-in-hand calculation to achieve exact 100% balance
   const nonCashAssets = r2(
     fixedAssetTotal +
     securityDepositsTotal +
@@ -150,6 +255,7 @@ export function computeVirtualActualFinancials(form: VirtualFormData): Calculate
     totalClosingCapital,
     calculatedFASchedule,
     totalClosingFA,
+    totalDepreciation,
     capitalTotal,
     securedTotal,
     unsecuredTotal,
@@ -174,7 +280,6 @@ export function computeVirtualProjections(
   const results: VirtualProjectedYearResult[] = [];
   const years = Math.min(Math.max(1, config.horizonYears || 1), 3);
 
-  let currentBase = { ...baseFin };
   let currentSales = form.plData.trading.sales;
   let currentPurchases = form.plData.trading.purchases;
   let currentClosingStock = form.plData.trading.closingStock;
@@ -219,7 +324,7 @@ export function computeVirtualProjections(
     const tradingDebitTotal = r2(projOpeningStock + projPurchases + projDirectExpTotal + (projGrossProfit > 0 ? projGrossProfit : 0));
     const tradingCreditTotal = r2(projSales + projClosingStock + (projGrossProfit < 0 ? Math.abs(projGrossProfit) : 0));
 
-    // 2. Fixed Assets Schedule Projections
+    // 2. Fixed Assets Schedule Projections (Annexure B)
     const projFASchedule: VirtualAssetItem[] = currentFASchedule.map(fa => {
       const op = fa.closingBal || fa.openingBal;
       const rate = Number(fa.depreciationRate) || 15;
@@ -294,9 +399,11 @@ export function computeVirtualProjections(
     const projTotalClosingCapital = r2(projPartners.reduce((s, p) => s + (p.closingBal || 0), 0));
 
     // 6. Balance Sheet Projections
-    const projCapitalItems: VirtualFinancialItem[] = [
-      { id: 'cap-proj', name: 'Capital Account', amount: projTotalClosingCapital }
-    ];
+    const projCapitalItems: VirtualFinancialItem[] = projPartners.map((p, idx) => ({
+      id: `cap-proj-${idx}`,
+      name: `${p.name} CAPITAL`,
+      amount: p.closingBal || 0,
+    }));
     const projSecuredLoans: VirtualFinancialItem[] = (form.bsSections.securedLoans || []).map(l => {
       const lower = l.name.toLowerCase();
       if (lower.includes('cc') || lower.includes('bank')) {
@@ -345,7 +452,7 @@ export function computeVirtualProjections(
         const ratio = a.amount / baseSales;
         return { id: a.id, name: a.name, amount: r2(projSales * ratio) };
       } else if (lower.includes('cash')) {
-        return { id: a.id, name: a.name, amount: 0 }; // Balanced below
+        return { id: a.id, name: a.name, amount: 0 };
       } else {
         return { id: a.id, name: a.name, amount: a.amount };
       }
@@ -372,6 +479,28 @@ export function computeVirtualProjections(
     const totalAssets = r2(fixedAssetTotal + securityDepositsTotal + currAssetTotal);
     const diff = r2(totalLiabilities - totalAssets);
 
+    const projBSSections: VirtualBSSections = {
+      capitalItems: projCapitalItems,
+      securedLoans: projSecuredLoans,
+      unsecuredLoans: projUnsecuredLoans,
+      currentLiabilities: projCurrLiabilities,
+      fixedAssets: projFixedAssets,
+      securityDeposits: projSecurityDeposits,
+      currentAssets: finalProjCurrAssets,
+    };
+
+    const projPLData: VirtualPLData = {
+      trading: {
+        openingStock: projOpeningStock,
+        purchases: projPurchases,
+        directExpenses: projDirectExpenses,
+        sales: projSales,
+        closingStock: projClosingStock,
+      },
+      indirectIncomes: projIndirectIncomes,
+      indirectExpenses: projIndirectExpenses,
+    };
+
     const yearRes: VirtualProjectedYearResult = {
       yearNumber: y,
       yearLabel,
@@ -395,6 +524,7 @@ export function computeVirtualProjections(
       totalClosingCapital: projTotalClosingCapital,
       calculatedFASchedule: projFASchedule,
       totalClosingFA: projTotalClosingFA,
+      totalDepreciation: projDeprTotal,
       capitalTotal,
       securedTotal,
       unsecuredTotal,
@@ -407,17 +537,18 @@ export function computeVirtualProjections(
       totalAssets,
       isBalanced: Math.abs(diff) < 0.01,
       diff,
+      projBSSections,
+      projPLData,
     };
 
     results.push(yearRes);
 
-    // Update state for next iterative year
+    // Iterative update for next horizon year
     currentSales = projSales;
     currentPurchases = projPurchases;
     currentClosingStock = projClosingStock;
     currentPartners = projPartners;
     currentFASchedule = projFASchedule;
-    currentBase = yearRes;
   }
 
   return results;

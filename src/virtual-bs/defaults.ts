@@ -12,6 +12,8 @@ export const DEFAULT_VIRTUAL_FORM_DATA: VirtualFormData = {
   signatory: {
     caName: 'RAMESH GUPTA & CO.',
     caMno: '054321',
+    caFirmRegNo: '012345N',
+    caUdin: '26054321AAAAAA1234',
     signatoryTitle: 'PARTNER',
   },
   mode: 'actual',
