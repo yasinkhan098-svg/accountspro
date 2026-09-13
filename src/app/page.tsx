@@ -865,8 +865,14 @@ export default function App() {
         reportMode: finalBSMode,
       };
 
+      const baseFin = computeBaseFinancials(
+        ledgers,
+        filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation'),
+        finalBSForm.partners,
+        stockItems
+      );
+
       if (finalBSMode === 'provisional') {
-        const baseFin = computeBaseFinancials(ledgers, filteredVouchers, finalBSForm.partners);
         const projList = generateProvisionalProjections(
           baseFin,
           projectionConfig,
@@ -881,11 +887,13 @@ export default function App() {
         exportBody.toDate   = projCustomDates.toDate   || targetProj.toDateStr;
         exportBody.projectedData = targetProj;
         exportBody.partnersData  = targetProj.partners;
+        exportBody.statementData = targetProj;
       } else {
         exportBody.asOnDate = finalBSForm.asOnDate;
         exportBody.fromDate = finalBSForm.fromDate;
         exportBody.toDate   = finalBSForm.toDate;
         exportBody.partnersData = finalBSForm.partners;
+        exportBody.statementData = baseFin;
       }
 
       const res = await fetch('/api/reports/export-excel', {
@@ -3300,7 +3308,12 @@ export default function App() {
       })()}
       {showFinalBSModal && (() => {
         // 1. Calculate Base Financials
-        const baseFin = computeBaseFinancials(ledgers, filteredVouchers, finalBSForm.partners);
+        const baseFin = computeBaseFinancials(
+          ledgers,
+          filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation'),
+          finalBSForm.partners,
+          stockItems
+        );
 
         // 2. Generate Multi-Year Projections
         const projResults = generateProvisionalProjections(

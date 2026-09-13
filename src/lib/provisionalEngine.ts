@@ -126,7 +126,8 @@ export function computeLedgerBalance(ledger: any, vouchers: any[]) {
 export function computeBaseFinancials(
   ledgers: any[],
   vouchers: any[],
-  initialPartners?: any[]
+  initialPartners?: any[],
+  stockItems?: any[]
 ): BaseFinancials {
   const getSection = (groups: string[], isLiabOrIncome: boolean) => {
     return ledgers
@@ -150,32 +151,118 @@ export function computeBaseFinancials(
   const investmentItems = getSection(INVESTMENT_GROUPS, false);
   const currAssetItems  = getSection(CURRENT_ASSET_GROUPS, false);
 
-  const salesItems       = getSection(SALES_GROUPS, true);
-  const purchaseItems    = getSection(PURCHASE_GROUPS, false);
-  const directExpItems   = getSection(DIRECT_EXP_GROUPS, false);
-  const indirectExpItems = getSection(INDIRECT_EXP_GROUPS, false);
-  const indirectIncItems = getSection(INDIRECT_INC_GROUPS, true);
+  // ─── Stock Valuation (Matching ProfitLossView & Stock Valuation) ───
+  let openingStock = 0;
+  let closingStock = 0;
 
-  // Stock
-  const stockLedgers = ledgers.filter(l => STOCK_GROUPS.includes(l.groupName));
-  const openingStock = r2(stockLedgers.reduce((s, l) => {
-    const ob = Number(l.openingBalance ?? l.openingBal) || 0;
-    return s + (l.balanceType === 'Dr' ? ob : -ob);
-  }, 0));
-
-  let closingStock = r2(stockLedgers.reduce((s, l) => {
-    const { balance, type } = computeLedgerBalance(l, vouchers);
-    return s + (type === 'Dr' ? balance : -balance);
-  }, 0));
-
-  // If closingStock is 0 but openingStock exists or currAssetItems has Stock
-  const stockInCurrAssets = currAssetItems.find(i => i.name.toLowerCase().includes('stock'));
-  if (closingStock <= 0 && stockInCurrAssets && stockInCurrAssets.amount > 0) {
-    closingStock = stockInCurrAssets.amount;
+  if (stockItems && stockItems.length > 0) {
+    openingStock = r2(stockItems.reduce((acc: number, it: any) => acc + ((Number(it.openingQty) || 0) * (Number(it.openingRate) || 0)), 0));
+    let totalVal = 0;
+    for (const it of stockItems) {
+      let qty = Number(it.openingQty) || 0;
+      let totalCost = (Number(it.openingQty) || 0) * (Number(it.openingRate) || 0);
+      let totalInQty = Number(it.openingQty) || 0;
+      for (const v of vouchers) {
+        for (const ie of (v.inventoryEntries || [])) {
+          if (Number(ie.stockItemId || ie.itemId) === Number(it.id)) {
+            if (v.type === 'Purchase' || v.type === 'Credit Note') {
+              qty += Number(ie.qty) || 0;
+              totalCost += (Number(ie.qty) || 0) * (Number(ie.rate) || 0);
+              totalInQty += Number(ie.qty) || 0;
+            } else if (v.type === 'Sales' || v.type === 'Debit Note') {
+              qty -= Number(ie.qty) || 0;
+            }
+          }
+        }
+      }
+      totalVal += Math.max(0, qty) * (totalInQty > 0 ? totalCost / totalInQty : (Number(it.openingRate) || 0));
+    }
+    closingStock = r2(totalVal);
+  } else {
+    const stockLedgers = ledgers.filter(l => STOCK_GROUPS.includes(l.groupName));
+    openingStock = r2(stockLedgers.reduce((s, l) => {
+      const ob = Number(l.openingBalance ?? l.openingBal) || 0;
+      return s + (l.balanceType === 'Dr' ? ob : -ob);
+    }, 0));
+    closingStock = r2(stockLedgers.reduce((s, l) => {
+      const { balance, type } = computeLedgerBalance(l, vouchers);
+      return s + (type === 'Dr' ? balance : -balance);
+    }, 0));
   }
 
-  const salesTotal       = r2(sum(salesItems));
-  const purchaseTotal    = r2(sum(purchaseItems));
+  // Ensure closing stock is reflected in currAssetItems
+  const stockItemIdx = currAssetItems.findIndex(i => i.name.toLowerCase().includes('stock'));
+  if (closingStock > 0) {
+    if (stockItemIdx >= 0) {
+      currAssetItems[stockItemIdx].amount = closingStock;
+    } else {
+      currAssetItems.push({ name: 'Closing Stock', amount: closingStock });
+    }
+  }
+
+  // ─── Purchase & Sales Taxable Values (Excluding GST) ───
+  let purchaseTaxable = 0;
+  for (const v of vouchers) {
+    if (v.type !== 'Purchase') continue;
+    for (const ie of (v.inventoryEntries || [])) {
+      const txAmt = ie.taxableAmount && ie.taxableAmount > 0 ? Number(ie.taxableAmount) : Number(ie.amount);
+      purchaseTaxable += txAmt || 0;
+    }
+  }
+  const purchaseItems = getSection(PURCHASE_GROUPS, false);
+  const purchaseTotal = purchaseTaxable > 0 ? r2(purchaseTaxable) : r2(sum(purchaseItems));
+
+  let salesTaxable = 0;
+  for (const v of vouchers) {
+    if (v.type !== 'Sales') continue;
+    for (const ie of (v.inventoryEntries || [])) {
+      const txAmt = ie.taxableAmount && ie.taxableAmount > 0 ? Number(ie.taxableAmount) : Number(ie.amount);
+      salesTaxable += txAmt || 0;
+    }
+  }
+  const salesItems = getSection(SALES_GROUPS, true);
+  const salesTotal = salesTaxable > 0 ? r2(salesTaxable) : r2(sum(salesItems));
+
+  // ─── Direct & Indirect Expenses (Priority Exclusion) ───
+  const isDirectExpGroupName   = (gn: string) => { const l = (gn||'').trim().toLowerCase(); return l === 'direct expenses' || l === 'expenses (direct)' || l === 'direct expense' || l === 'expense (direct)' || l.includes('direct exp'); };
+  const isDirectIncGroupName   = (gn: string) => { const l = (gn||'').trim().toLowerCase(); return l === 'direct incomes' || l === 'income (direct)' || l === 'direct income' || l.includes('direct inc'); };
+  const isIndirectExpGroupName = (gn: string) => { const l = (gn||'').trim().toLowerCase(); return l === 'indirect expenses' || l === 'expenses (indirect)' || l === 'indirect expense' || l.includes('indirect exp'); };
+  const isIndirectIncGroupName = (gn: string) => { const l = (gn||'').trim().toLowerCase(); return l === 'indirect incomes' || l === 'income (indirect)' || l === 'indirect income' || l.includes('indirect inc'); };
+
+  const indirectExpItems: FinancialItem[] = [];
+  const indirectExpIds = new Set<number>();
+  const indirectExpNames = new Set<string>();
+  for (const l of ledgers) {
+    if (isIndirectExpGroupName(l.groupName)) {
+      const { balance } = computeLedgerBalance(l, vouchers);
+      if (Math.abs(balance) > 0.001) {
+        indirectExpItems.push({ name: l.name, amount: r2(balance) });
+        indirectExpIds.add(Number(l.id));
+        indirectExpNames.add(l.name.trim().toLowerCase());
+      }
+    }
+  }
+
+  const indirectIncItems: FinancialItem[] = [];
+  for (const l of ledgers) {
+    if (isIndirectIncGroupName(l.groupName)) {
+      const { balance } = computeLedgerBalance(l, vouchers);
+      if (Math.abs(balance) > 0.001) {
+        indirectIncItems.push({ name: l.name, amount: r2(balance) });
+      }
+    }
+  }
+
+  const directExpItems: FinancialItem[] = [];
+  for (const l of ledgers) {
+    if (isDirectExpGroupName(l.groupName) && !indirectExpIds.has(Number(l.id)) && !indirectExpNames.has(l.name.trim().toLowerCase())) {
+      const { balance } = computeLedgerBalance(l, vouchers);
+      if (Math.abs(balance) > 0.001) {
+        directExpItems.push({ name: l.name, amount: r2(balance) });
+      }
+    }
+  }
+
   const directExpTotal   = r2(sum(directExpItems));
   const indirectExpTotal = r2(sum(indirectExpItems));
   const indirectIncTotal = r2(sum(indirectIncItems));
@@ -312,10 +399,22 @@ export function computeBaseFinancials(
   const annexBClosingTotal = r2(fixedAssetSchedule.reduce((s, fa) => s + fa.closingBal, 0));
   const fixedAssetTotal = annexBClosingTotal !== 0 ? annexBClosingTotal : r2(sum(fixedAssetItems));
   const investmentTotal = r2(sum(investmentItems));
-  const currAssetTotal = r2(sum(currAssetItems));
+  let currAssetTotal = r2(sum(currAssetItems));
 
-  const totalLiab = r2(capitalTotal + securedTotal + unsecuredTotal + currLiabTotal);
-  const totalAssets = r2(fixedAssetTotal + investmentTotal + currAssetTotal);
+  let totalLiab = r2(capitalTotal + securedTotal + unsecuredTotal + currLiabTotal);
+  let totalAssets = r2(fixedAssetTotal + investmentTotal + currAssetTotal);
+
+  const diff = r2(totalLiab - totalAssets);
+  if (Math.abs(diff) > 0.001) {
+    const cashItem = currAssetItems.find(i => i.name.toLowerCase().includes('cash'));
+    if (cashItem) {
+      cashItem.amount = r2(cashItem.amount + diff);
+    } else {
+      currAssetItems.push({ name: 'Cash-in-hand', amount: Math.max(0, diff) });
+    }
+    currAssetTotal = r2(sum(currAssetItems));
+    totalAssets = r2(fixedAssetTotal + investmentTotal + currAssetTotal);
+  }
 
   return {
     salesItems,
