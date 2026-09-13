@@ -41,8 +41,224 @@ export default function VirtualFinalBSModal({
 
   if (!isOpen) return null;
 
+  // ─── Partners Handlers (Annexure A & Capital Account Sync) ─────────────────
+  const addNewPartner = () => {
+    const newId = `p-${Date.now()}`;
+    setForm(f => {
+      const existingList = f.partners || [];
+      const newIndex = existingList.length + 1;
+      const newName = `PARTNER ${newIndex}`;
+      const currentTotalShare = existingList.reduce((s, p) => s + (Number(p.sharePct) || 0), 0);
+      const defaultShare = Math.max(0, Math.round((100 - currentTotalShare) * 100) / 100);
+
+      const newPartner: VirtualPartnerItem = {
+        id: newId,
+        name: newName,
+        sharePct: defaultShare,
+        openingBal: 0,
+        addition: 0,
+        salary: 0,
+        interestRate: 12,
+        withdrawalsAmt: 0,
+        withdrawalsNature: '',
+      };
+
+      const newCapItem: VirtualFinancialItem = {
+        id: `cap-${newId}`,
+        name: `${newName} CAPITAL A/C`,
+        amount: 0,
+      };
+
+      return {
+        ...f,
+        partners: [...existingList, newPartner],
+        bsSections: {
+          ...f.bsSections,
+          capitalItems: [...(f.bsSections.capitalItems || []), newCapItem],
+        },
+      };
+    });
+  };
+
+  const deletePartner = (id: string, name?: string) => {
+    setForm(f => {
+      const updatedPartners = (f.partners || []).filter(
+        p => p.id !== id && (!name || p.name.trim().toLowerCase() !== name.trim().toLowerCase())
+      );
+      const updatedCapital = (f.bsSections.capitalItems || []).filter(
+        c => c.id !== id && c.id !== `cap-${id}` && (!name || !c.name.toLowerCase().includes(name.trim().toLowerCase()))
+      );
+      return {
+        ...f,
+        partners: updatedPartners,
+        bsSections: {
+          ...f.bsSections,
+          capitalItems: updatedCapital,
+        },
+      };
+    });
+  };
+
+  const updatePartnerCustom = (id: string, name: string, field: keyof VirtualPartnerItem, val: any) => {
+    setForm(f => {
+      const existing = (f.partners || []).find(
+        p => (id && p.id === id) || p.name.trim().toLowerCase() === name.trim().toLowerCase()
+      );
+      let updatedList = [...(f.partners || [])];
+      const parsedVal = field === 'name' || field === 'withdrawalsNature'
+        ? val
+        : val === '' ? 0 : (parseFloat(val) || 0);
+
+      if (existing) {
+        updatedList = updatedList.map(p =>
+          ((id && p.id === id) || p.name.trim().toLowerCase() === name.trim().toLowerCase())
+            ? { ...p, [field]: parsedVal }
+            : p
+        );
+      } else {
+        updatedList.push({
+          id: id || `p-${Date.now()}`,
+          name: field === 'name' ? val : name,
+          sharePct: field === 'sharePct' ? parsedVal : 0,
+          openingBal: field === 'openingBal' ? parsedVal : 0,
+          addition: field === 'addition' ? parsedVal : 0,
+          salary: field === 'salary' ? parsedVal : 0,
+          interestRate: field === 'interestRate' ? parsedVal : 12,
+          withdrawalsAmt: field === 'withdrawalsAmt' ? parsedVal : 0,
+          withdrawalsNature: field === 'withdrawalsNature' ? val : '',
+        });
+      }
+
+      let updatedCapItems = f.bsSections.capitalItems || [];
+      if (field === 'name') {
+        const oldName = name.trim().toLowerCase();
+        const newNameStr = String(val).toUpperCase();
+        updatedCapItems = updatedCapItems.map(c => {
+          if ((id && (c.id === id || c.id === `cap-${id}`)) || (oldName && c.name.toLowerCase().includes(oldName))) {
+            return { ...c, name: `${newNameStr} CAPITAL A/C` };
+          }
+          return c;
+        });
+      }
+
+      return {
+        ...f,
+        partners: updatedList,
+        bsSections: {
+          ...f.bsSections,
+          capitalItems: updatedCapItems,
+        },
+      };
+    });
+  };
+
+  // ─── Fixed Assets Handlers (Annexure B & Balance Sheet Sync) ───────────────
+  const addNewAsset = () => {
+    const newId = `fa-${Date.now()}`;
+    setForm(f => {
+      const existing = f.fixedAssetSchedule || [];
+      const newName = `ASSET ${existing.length + 1}`;
+      const newAsset: VirtualAssetItem = {
+        id: newId,
+        name: newName,
+        openingBal: 0,
+        additionBefore: 0,
+        additionAfter: 0,
+        depreciationRate: 15,
+      };
+      const newBSItem: VirtualFinancialItem = {
+        id: `bs-fa-${newId}`,
+        name: newName,
+        amount: 0,
+      };
+      return {
+        ...f,
+        fixedAssetSchedule: [...existing, newAsset],
+        bsSections: {
+          ...f.bsSections,
+          fixedAssets: [...(f.bsSections.fixedAssets || []), newBSItem],
+        },
+      };
+    });
+  };
+
+  const deleteAsset = (id: string, name?: string) => {
+    setForm(f => {
+      const updatedFA = (f.fixedAssetSchedule || []).filter(
+        fa => fa.id !== id && (!name || fa.name.trim().toLowerCase() !== name.trim().toLowerCase())
+      );
+      const updatedBSFA = (f.bsSections.fixedAssets || []).filter(
+        fa => fa.id !== id && fa.id !== `bs-fa-${id}` && (!name || !fa.name.toLowerCase().includes(name.trim().toLowerCase()))
+      );
+      return {
+        ...f,
+        fixedAssetSchedule: updatedFA,
+        bsSections: {
+          ...f.bsSections,
+          fixedAssets: updatedBSFA,
+        },
+      };
+    });
+  };
+
+  const updateFACustom = (id: string, name: string, field: keyof VirtualAssetItem, val: any) => {
+    setForm(f => {
+      const existing = (f.fixedAssetSchedule || []).find(
+        fa => (id && fa.id === id) || fa.name.trim().toLowerCase() === name.trim().toLowerCase()
+      );
+      let updatedList = [...(f.fixedAssetSchedule || [])];
+      const parsedVal = field === 'name' ? val : (val === '' ? 0 : (parseFloat(val) || 0));
+
+      if (existing) {
+        updatedList = updatedList.map(fa =>
+          ((id && fa.id === id) || fa.name.trim().toLowerCase() === name.trim().toLowerCase())
+            ? { ...fa, [field]: parsedVal }
+            : fa
+        );
+      } else {
+        updatedList.push({
+          id: id || `fa-${Date.now()}`,
+          name: field === 'name' ? val : name,
+          openingBal: field === 'openingBal' ? parsedVal : 0,
+          additionBefore: field === 'additionBefore' ? parsedVal : 0,
+          additionAfter: field === 'additionAfter' ? parsedVal : 0,
+          depreciationRate: field === 'depreciationRate' ? parsedVal : 15,
+        });
+      }
+
+      let updatedBSFA = f.bsSections.fixedAssets || [];
+      if (field === 'name') {
+        const oldName = name.trim().toLowerCase();
+        const newNameStr = String(val).toUpperCase();
+        updatedBSFA = updatedBSFA.map(fa => {
+          if ((id && (fa.id === id || fa.id === `bs-fa-${id}`)) || (oldName && fa.name.toLowerCase().includes(oldName))) {
+            return { ...fa, name: newNameStr };
+          }
+          return fa;
+        });
+      }
+
+      return {
+        ...f,
+        fixedAssetSchedule: updatedList,
+        bsSections: {
+          ...f.bsSections,
+          fixedAssets: updatedBSFA,
+        },
+      };
+    });
+  };
+
   // ─── Handlers for Dynamic Row Additions / Deletions (Actual Mode) ──────────
   const addItem = (sectionKey: keyof typeof form.bsSections) => {
+    if (sectionKey === 'capitalItems') {
+      addNewPartner();
+      return;
+    }
+    if (sectionKey === 'fixedAssets') {
+      addNewAsset();
+      return;
+    }
     const newItem: VirtualFinancialItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: 'New Ledger A/c',
@@ -58,6 +274,26 @@ export default function VirtualFinalBSModal({
   };
 
   const updateItem = (sectionKey: keyof typeof form.bsSections, id: string, field: 'name' | 'amount', value: any) => {
+    if (sectionKey === 'capitalItems') {
+      const item = (form.bsSections.capitalItems || []).find(it => it.id === id);
+      const name = item?.name || '';
+      if (field === 'name') {
+        updatePartnerCustom(id, name, 'name', value);
+      } else if (field === 'amount') {
+        updatePartnerCustom(id, name, 'openingBal', value);
+      }
+      return;
+    }
+    if (sectionKey === 'fixedAssets') {
+      const item = (form.bsSections.fixedAssets || []).find(it => it.id === id);
+      const name = item?.name || '';
+      if (field === 'name') {
+        updateFACustom(id, name, 'name', value);
+      } else if (field === 'amount') {
+        updateFACustom(id, name, 'openingBal', value);
+      }
+      return;
+    }
     setForm(f => ({
       ...f,
       bsSections: {
@@ -70,6 +306,16 @@ export default function VirtualFinalBSModal({
   };
 
   const deleteItem = (sectionKey: keyof typeof form.bsSections, id: string) => {
+    if (sectionKey === 'capitalItems') {
+      const item = (form.bsSections.capitalItems || []).find(it => it.id === id);
+      deletePartner(id, item?.name);
+      return;
+    }
+    if (sectionKey === 'fixedAssets') {
+      const item = (form.bsSections.fixedAssets || []).find(it => it.id === id);
+      deleteAsset(id, item?.name);
+      return;
+    }
     setForm(f => ({
       ...f,
       bsSections: {
@@ -161,69 +407,6 @@ export default function VirtualFinalBSModal({
     });
   };
 
-  // Partners Fine-tuning Handlers (Updates custom adjustments)
-  const updatePartnerCustom = (id: string, name: string, field: keyof VirtualPartnerItem, val: any) => {
-    setForm(f => {
-      const existing = (f.partners || []).find(
-        p => p.id === id || p.name.trim().toLowerCase() === name.trim().toLowerCase()
-      );
-      let updatedList = [...(f.partners || [])];
-      const parsedVal = typeof existing?.[field] === 'number' || field === 'salary' || field === 'withdrawalsAmt' || field === 'interestRate' || field === 'addition' || field === 'sharePct'
-        ? (parseFloat(val) || 0)
-        : val;
-
-      if (existing) {
-        updatedList = updatedList.map(p =>
-          (p.id === existing.id || p.name.trim().toLowerCase() === name.trim().toLowerCase())
-            ? { ...p, [field]: parsedVal }
-            : p
-        );
-      } else {
-        updatedList.push({
-          id,
-          name,
-          sharePct: field === 'sharePct' ? parsedVal : 0,
-          openingBal: 0,
-          addition: field === 'addition' ? parsedVal : 0,
-          salary: field === 'salary' ? parsedVal : 0,
-          interestRate: field === 'interestRate' ? parsedVal : 12,
-          withdrawalsAmt: field === 'withdrawalsAmt' ? parsedVal : 0,
-          [field]: parsedVal,
-        });
-      }
-      return { ...f, partners: updatedList };
-    });
-  };
-
-  // Fixed Assets Fine-tuning Handlers
-  const updateFACustom = (id: string, name: string, field: keyof VirtualAssetItem, val: any) => {
-    setForm(f => {
-      const existing = (f.fixedAssetSchedule || []).find(
-        fa => fa.id === id || fa.name.trim().toLowerCase() === name.trim().toLowerCase()
-      );
-      let updatedList = [...(f.fixedAssetSchedule || [])];
-      const parsedVal = parseFloat(val) || 0;
-
-      if (existing) {
-        updatedList = updatedList.map(fa =>
-          (fa.id === existing.id || fa.name.trim().toLowerCase() === name.trim().toLowerCase())
-            ? { ...fa, [field]: parsedVal }
-            : fa
-        );
-      } else {
-        updatedList.push({
-          id,
-          name,
-          openingBal: 0,
-          additionBefore: field === 'additionBefore' ? parsedVal : 0,
-          additionAfter: field === 'additionAfter' ? parsedVal : 0,
-          depreciationRate: field === 'depreciationRate' ? parsedVal : 15,
-          [field]: parsedVal,
-        });
-      }
-      return { ...f, fixedAssetSchedule: updatedList };
-    });
-  };
 
   // ─── Export Handler ───────────────────────────────────────────────────────
   const handleExport = async () => {
@@ -736,36 +919,61 @@ export default function VirtualFinalBSModal({
                       <span style={{ fontWeight: 'bold', fontSize: 11, color: '#1e293b' }}>
                         CAPITAL ACCOUNT {isProv ? '(Projected)' : '(Auto-Syncs with Annexure "A")'}
                       </span>
-                      {!isProv && (
-                        <button type="button" onClick={() => addItem('capitalItems')} style={{ fontSize: 10, padding: '2px 6px', cursor: 'pointer' }}>+ Add</button>
-                      )}
-                    </div>
-                    {(displayBSSections.capitalItems || []).map(it => (
-                      <div key={it.id} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                        <input
-                          type="text"
-                          disabled={isProv}
-                          className="form-input"
-                          style={{ flex: 2, fontSize: 11, fontWeight: 'bold' }}
-                          value={it.name}
-                          onChange={e => updateItem('capitalItems', it.id, 'name', e.target.value)}
-                        />
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={isProv}
-                          className="form-input"
-                          style={{ flex: 1, fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#059669' }}
-                          value={it.amount}
-                          onChange={e => updateItem('capitalItems', it.id, 'amount', e.target.value)}
-                        />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setActiveSectionTab('annexA')}
+                          style={{ fontSize: 10, padding: '2px 8px', cursor: 'pointer', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: 4, fontWeight: 'bold' }}
+                        >
+                          👥 Open Annexure "A"
+                        </button>
                         {!isProv && (
-                          <button type="button" onClick={() => deleteItem('capitalItems', it.id)} style={{ color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer' }}>✕</button>
+                          <button
+                            type="button"
+                            onClick={() => addItem('capitalItems')}
+                            style={{ fontSize: 10, padding: '2px 8px', cursor: 'pointer', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold' }}
+                          >
+                            + Add Partner
+                          </button>
                         )}
                       </div>
-                    ))}
+                    </div>
+                    {(displayBSSections.capitalItems || []).map(it => {
+                      const pMatch = (activeData.calculatedPartners || []).find(
+                        p => p.id === it.id || (p.name && it.name && p.name.trim().toLowerCase() === it.name.trim().toLowerCase())
+                      );
+                      const displayAmount = pMatch ? pMatch.closingBal : it.amount;
+                      return (
+                        <div key={it.id} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            disabled={isProv}
+                            className="form-input"
+                            style={{ flex: 2, fontSize: 11, fontWeight: 'bold' }}
+                            value={it.name}
+                            onChange={e => updateItem('capitalItems', it.id, 'name', e.target.value)}
+                          />
+                          <div
+                            title="Auto-calculated closing capital from Annexure A"
+                            style={{ flex: 1, fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#059669', padding: '4px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4 }}
+                          >
+                            ₹{fmt(displayAmount)}
+                          </div>
+                          {!isProv && (
+                            <button
+                              type="button"
+                              title="Delete Partner"
+                              onClick={() => deleteItem('capitalItems', it.id)}
+                              style={{ color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 'bold', fontSize: 12, padding: '0 4px' }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                     <div style={{ textAlign: 'right', fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                      Total Capital: <b>₹{fmt(activeData.capitalTotal)}</b>
+                      Total Capital: <b style={{ color: '#059669' }}>₹{fmt(activeData.capitalTotal)}</b>
                     </div>
                   </div>
 
@@ -884,36 +1092,61 @@ export default function VirtualFinalBSModal({
                       <span style={{ fontWeight: 'bold', fontSize: 11, color: '#1e293b' }}>
                         FIXED ASSETS {isProv ? '(Projected Closing WDV)' : '(Auto-Syncs with Annexure "B")'}
                       </span>
-                      {!isProv && (
-                        <button type="button" onClick={() => addItem('fixedAssets')} style={{ fontSize: 10, padding: '2px 6px', cursor: 'pointer' }}>+ Add</button>
-                      )}
-                    </div>
-                    {(displayBSSections.fixedAssets || []).map(it => (
-                      <div key={it.id} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                        <input
-                          type="text"
-                          disabled={isProv}
-                          className="form-input"
-                          style={{ flex: 2, fontSize: 11 }}
-                          value={it.name}
-                          onChange={e => updateItem('fixedAssets', it.id, 'name', e.target.value)}
-                        />
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={isProv}
-                          className="form-input"
-                          style={{ flex: 1, fontSize: 11, textAlign: 'right' }}
-                          value={it.amount}
-                          onChange={e => updateItem('fixedAssets', it.id, 'amount', e.target.value)}
-                        />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setActiveSectionTab('annexB')}
+                          style={{ fontSize: 10, padding: '2px 8px', cursor: 'pointer', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: 4, fontWeight: 'bold' }}
+                        >
+                          🏗️ Open Annexure "B"
+                        </button>
                         {!isProv && (
-                          <button type="button" onClick={() => deleteItem('fixedAssets', it.id)} style={{ color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer' }}>✕</button>
+                          <button
+                            type="button"
+                            onClick={() => addItem('fixedAssets')}
+                            style={{ fontSize: 10, padding: '2px 8px', cursor: 'pointer', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold' }}
+                          >
+                            + Add Asset
+                          </button>
                         )}
                       </div>
-                    ))}
+                    </div>
+                    {(displayBSSections.fixedAssets || []).map(it => {
+                      const faMatch = (activeData.calculatedFASchedule || []).find(
+                        fa => fa.id === it.id || (fa.name && it.name && fa.name.trim().toLowerCase() === it.name.trim().toLowerCase())
+                      );
+                      const displayAmount = faMatch ? faMatch.closingBal : it.amount;
+                      return (
+                        <div key={it.id} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            disabled={isProv}
+                            className="form-input"
+                            style={{ flex: 2, fontSize: 11 }}
+                            value={it.name}
+                            onChange={e => updateItem('fixedAssets', it.id, 'name', e.target.value)}
+                          />
+                          <div
+                            title="Auto-calculated closing WDV from Annexure B"
+                            style={{ flex: 1, fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#059669', padding: '4px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4 }}
+                          >
+                            ₹{fmt(displayAmount)}
+                          </div>
+                          {!isProv && (
+                            <button
+                              type="button"
+                              title="Delete Asset"
+                              onClick={() => deleteItem('fixedAssets', it.id)}
+                              style={{ color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 'bold', fontSize: 12, padding: '0 4px' }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                     <div style={{ textAlign: 'right', fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                      Total Closing Fixed Assets: <b>₹{fmt(activeData.fixedAssetTotal)}</b>
+                      Total Closing Fixed Assets: <b style={{ color: '#059669' }}>₹{fmt(activeData.fixedAssetTotal)}</b>
                     </div>
                   </div>
 
@@ -1216,25 +1449,52 @@ export default function VirtualFinalBSModal({
           )}
 
           {/* ═══════════════════════════════════════════════════════════════════
-              TAB 3: ANNEXURE "A" (PARTNERS CAPITAL ACCOUNT) - AUTO-CALCULATED
+              TAB 3: ANNEXURE "A" (PARTNERS CAPITAL ACCOUNT) - FULLY EDITABLE & AUTO-CALCULATED
              ═══════════════════════════════════════════════════════════════════ */}
           {activeSectionTab === 'annexA' && (
             <div>
               <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#166534', marginBottom: 12 }}>
-                ⚡ <b>100% Auto-Derived from Balance Sheet Capital & Net Profit (₹{fmt(activeData.netProfit)}):</b>{' '}
-                Partners, Opening Balances, Profit distribution and Closing Balances are calculated automatically. You do NOT need to type anything here unless you want to customize Salary, Interest Rate or Withdrawals.
+                ⚡ <b>Dynamic Partners Capital Schedule (Auto-Derived & Editable):</b>{' '}
+                Add/remove partners freely, set their <b>Partner Name</b>, <b>Share %</b>, and <b>Opening Balance</b>. Interest, Profit Share (from Net Profit ₹{fmt(activeData.netProfit)}), Totals, and Closing Balances calculate automatically in real-time and synchronize directly with the Balance Sheet Capital Account.
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ fontSize: 12, color: '#334155' }}>
-                  Total Profit Distribution Share: <b>{totalPartnerShare}%</b>{' '}
-                  {totalPartnerShare === 100 ? (
-                    <span style={{ color: '#059669', fontWeight: 'bold' }}>✓ (100% OK)</span>
-                  ) : (
-                    <span style={{ color: '#dc2626', fontWeight: 'bold' }}>(Check: Total should equal 100%)</span>
-                  )}
-                  {' • '}Net Profit: <b>₹{fmt(activeData.netProfit)}</b>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontSize: 12, color: '#334155', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span>
+                    Total Profit Share: <b>{totalPartnerShare}%</b>{' '}
+                    {totalPartnerShare === 100 ? (
+                      <span style={{ color: '#059669', fontWeight: 'bold' }}>✓ (100% OK)</span>
+                    ) : (
+                      <span style={{ color: '#dc2626', fontWeight: 'bold' }}>(Check: Total should equal 100%)</span>
+                    )}
+                  </span>
+                  <span>• Net Profit: <b style={{ color: '#0369a1' }}>₹{fmt(activeData.netProfit)}</b></span>
+                  <span>• Total Opening: <b style={{ color: '#1e3a8a' }}>₹{fmt((activeData.calculatedPartners || []).reduce((s, p) => s + (Number(p.openingBal) || 0), 0))}</b></span>
+                  <span>• Total Closing: <b style={{ color: '#059669' }}>₹{fmt(activeData.totalClosingCapital)}</b></span>
                 </div>
+
+                {!isProv && (
+                  <button
+                    type="button"
+                    onClick={addNewPartner}
+                    style={{
+                      background: '#16a34a',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '6px 14px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    + Add Partner
+                  </button>
+                )}
               </div>
 
               <div style={{ overflowX: 'auto', background: '#fff', borderRadius: 6, border: '1px solid #cbd5e1' }}>
@@ -1244,7 +1504,7 @@ export default function VirtualFinalBSModal({
                       <th style={{ padding: 6, textAlign: 'left', width: 35 }}>S.N.</th>
                       <th style={{ padding: 6, textAlign: 'left' }}>Partner Name</th>
                       <th style={{ padding: 6, textAlign: 'right', width: 75 }}>Share %</th>
-                      <th style={{ padding: 6, textAlign: 'right', width: 105 }}>Opening Bal</th>
+                      <th style={{ padding: 6, textAlign: 'right', width: 110 }}>Opening Bal</th>
                       <th style={{ padding: 6, textAlign: 'right', width: 85 }}>Addition</th>
                       <th style={{ padding: 6, textAlign: 'right', width: 85 }}>Salary</th>
                       <th style={{ padding: 6, textAlign: 'right', width: 65 }}>Int %</th>
@@ -1253,6 +1513,7 @@ export default function VirtualFinalBSModal({
                       <th style={{ padding: 6, textAlign: 'right', width: 105 }}>Total</th>
                       <th style={{ padding: 6, textAlign: 'right', width: 95 }}>Withdrawals</th>
                       <th style={{ padding: 6, textAlign: 'right', width: 115 }}>Closing Bal</th>
+                      <th style={{ padding: 6, textAlign: 'center', width: 40 }}>Act.</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1267,6 +1528,7 @@ export default function VirtualFinalBSModal({
                             style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
                             value={p.name}
                             onChange={e => updatePartnerCustom(p.id, p.name, 'name', e.target.value)}
+                            placeholder="PARTNER NAME"
                           />
                         </td>
                         <td style={{ padding: 4 }}>
@@ -1280,8 +1542,16 @@ export default function VirtualFinalBSModal({
                             onChange={e => updatePartnerCustom(p.id, p.name, 'sharePct', e.target.value)}
                           />
                         </td>
-                        <td style={{ padding: 4, textAlign: 'right', fontWeight: '500' }}>
-                          ₹{fmt(p.openingBal)}
+                        <td style={{ padding: 4 }}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={isProv}
+                            className="form-input"
+                            style={{ width: '100%', fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#1e3a8a' }}
+                            value={p.openingBal}
+                            onChange={e => updatePartnerCustom(p.id, p.name, 'openingBal', e.target.value)}
+                          />
                         </td>
                         <td style={{ padding: 4 }}>
                           <input
@@ -1316,7 +1586,7 @@ export default function VirtualFinalBSModal({
                             onChange={e => updatePartnerCustom(p.id, p.name, 'interestRate', e.target.value)}
                           />
                         </td>
-                        <td style={{ padding: 4, textAlign: 'right' }}>
+                        <td style={{ padding: 4, textAlign: 'right', fontWeight: '500' }}>
                           ₹{fmt(p.interestAmt)}
                         </td>
                         <td style={{ padding: 4, textAlign: 'right', fontWeight: 'bold', color: '#0369a1' }}>
@@ -1339,17 +1609,60 @@ export default function VirtualFinalBSModal({
                         <td style={{ padding: 4, textAlign: 'right', fontWeight: 'bold', color: '#059669', fontSize: 12 }}>
                           ₹{fmt(p.closingBal)}
                         </td>
+                        <td style={{ padding: 4, textAlign: 'center' }}>
+                          {!isProv && (
+                            <button
+                              type="button"
+                              title="Delete Partner"
+                              onClick={() => deletePartner(p.id, p.name)}
+                              style={{
+                                color: '#ef4444',
+                                background: 'transparent',
+                                border: 'none',
+                                fontWeight: 'bold',
+                                fontSize: 14,
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                borderRadius: 4
+                              }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-                      <td colSpan={2} style={{ padding: 6 }}>TOTAL CLOSING CAPITAL</td>
+                      <td colSpan={2} style={{ padding: 6 }}>TOTAL CAPITAL</td>
                       <td style={{ padding: 6, textAlign: 'right' }}>{totalPartnerShare}%</td>
-                      <td colSpan={8}></td>
+                      <td style={{ padding: 6, textAlign: 'right', color: '#1e3a8a' }}>
+                        ₹{fmt((activeData.calculatedPartners || []).reduce((s, p) => s + (Number(p.openingBal) || 0), 0))}
+                      </td>
+                      <td style={{ padding: 6, textAlign: 'right' }}>
+                        ₹{fmt((activeData.calculatedPartners || []).reduce((s, p) => s + (Number(p.addition) || 0), 0))}
+                      </td>
+                      <td style={{ padding: 6, textAlign: 'right' }}>
+                        ₹{fmt((activeData.calculatedPartners || []).reduce((s, p) => s + (Number(p.salary) || 0), 0))}
+                      </td>
+                      <td></td>
+                      <td style={{ padding: 6, textAlign: 'right' }}>
+                        ₹{fmt((activeData.calculatedPartners || []).reduce((s, p) => s + (Number(p.interestAmt) || 0), 0))}
+                      </td>
+                      <td style={{ padding: 6, textAlign: 'right', color: '#0369a1' }}>
+                        ₹{fmt((activeData.calculatedPartners || []).reduce((s, p) => s + (Number(p.profitShare) || 0), 0))}
+                      </td>
+                      <td style={{ padding: 6, textAlign: 'right' }}>
+                        ₹{fmt((activeData.calculatedPartners || []).reduce((s, p) => s + (Number(p.total) || 0), 0))}
+                      </td>
+                      <td style={{ padding: 6, textAlign: 'right' }}>
+                        ₹{fmt((activeData.calculatedPartners || []).reduce((s, p) => s + (Number(p.withdrawalsAmt) || 0), 0))}
+                      </td>
                       <td style={{ padding: 6, textAlign: 'right', color: '#059669', fontSize: 13 }}>
                         ₹{fmt(activeData.totalClosingCapital)}
                       </td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1358,20 +1671,44 @@ export default function VirtualFinalBSModal({
           )}
 
           {/* ═══════════════════════════════════════════════════════════════════
-              TAB 4: ANNEXURE "B" (FIXED ASSETS SCHEDULE) - AUTO-CALCULATED
+              TAB 4: ANNEXURE "B" (FIXED ASSETS SCHEDULE) - FULLY EDITABLE & AUTO-CALCULATED
              ═══════════════════════════════════════════════════════════════════ */}
           {activeSectionTab === 'annexB' && (
             <div>
               <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#166534', marginBottom: 12 }}>
-                ⚡ <b>100% Auto-Derived from Balance Sheet Fixed Assets:</b>{' '}
-                Assets, Depreciation Rates, Depreciation amounts and Closing WDV are calculated automatically as per the Income Tax Act. You do NOT need to type anything here unless you want to customize Additions or Rates.
+                ⚡ <b>Dynamic Fixed Assets Schedule (Auto-Derived & Editable):</b>{' '}
+                Add/remove assets freely, customize <b>Opening WDV</b>, additions, and depreciation rates. Depreciation and Closing WDV calculate automatically as per the Income Tax Act rules and synchronize directly with the Balance Sheet Fixed Assets.
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: '#334155' }}>
-                  Total Fixed Assets Closing WDV: <b style={{ color: '#059669' }}>₹{fmt(activeData.totalClosingFA)}</b>
-                  {' • '}Total Depreciation: <b>₹{fmt(activeData.totalDepreciation)}</b>
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontSize: 12, color: '#334155', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span>• Total Opening WDV: <b style={{ color: '#1e3a8a' }}>₹{fmt((activeData.calculatedFASchedule || []).reduce((s, fa) => s + (Number(fa.openingBal) || 0), 0))}</b></span>
+                  <span>• Total Depreciation: <b style={{ color: '#dc2626' }}>₹{fmt(activeData.totalDepreciation)}</b></span>
+                  <span>• Total Closing WDV: <b style={{ color: '#059669' }}>₹{fmt(activeData.totalClosingFA)}</b></span>
+                </div>
+
+                {!isProv && (
+                  <button
+                    type="button"
+                    onClick={addNewAsset}
+                    style={{
+                      background: '#16a34a',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '6px 14px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    + Add Asset
+                  </button>
+                )}
               </div>
 
               <div style={{ overflowX: 'auto', background: '#fff', borderRadius: 6, border: '1px solid #cbd5e1' }}>
@@ -1386,6 +1723,7 @@ export default function VirtualFinalBSModal({
                       <th style={{ padding: 6, textAlign: 'right', width: 85 }}>Dep. Rate %</th>
                       <th style={{ padding: 6, textAlign: 'right', width: 110 }}>Depreciation</th>
                       <th style={{ padding: 6, textAlign: 'right', width: 125 }}>Closing WDV</th>
+                      <th style={{ padding: 6, textAlign: 'center', width: 40 }}>Act.</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1400,10 +1738,19 @@ export default function VirtualFinalBSModal({
                             style={{ width: '100%', fontSize: 11, fontWeight: 'bold' }}
                             value={fa.name}
                             onChange={e => updateFACustom(fa.id, fa.name, 'name', e.target.value)}
+                            placeholder="ASSET NAME"
                           />
                         </td>
-                        <td style={{ padding: 4, textAlign: 'right', fontWeight: '500' }}>
-                          ₹{fmt(fa.openingBal)}
+                        <td style={{ padding: 4 }}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={isProv}
+                            className="form-input"
+                            style={{ width: '100%', fontSize: 11, textAlign: 'right', fontWeight: 'bold', color: '#1e3a8a' }}
+                            value={fa.openingBal}
+                            onChange={e => updateFACustom(fa.id, fa.name, 'openingBal', e.target.value)}
+                          />
                         </td>
                         <td style={{ padding: 4 }}>
                           <input
@@ -1444,19 +1791,50 @@ export default function VirtualFinalBSModal({
                         <td style={{ padding: 4, textAlign: 'right', fontWeight: 'bold', color: '#059669', fontSize: 12 }}>
                           ₹{fmt(fa.closingBal)}
                         </td>
+                        <td style={{ padding: 4, textAlign: 'center' }}>
+                          {!isProv && (
+                            <button
+                              type="button"
+                              title="Delete Asset"
+                              onClick={() => deleteAsset(fa.id, fa.name)}
+                              style={{
+                                color: '#ef4444',
+                                background: 'transparent',
+                                border: 'none',
+                                fontWeight: 'bold',
+                                fontSize: 14,
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                borderRadius: 4
+                              }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-                      <td colSpan={2} style={{ padding: 6 }}>TOTAL CLOSING FIXED ASSETS</td>
-                      <td colSpan={4}></td>
+                      <td colSpan={2} style={{ padding: 6 }}>TOTAL FIXED ASSETS</td>
+                      <td style={{ padding: 6, textAlign: 'right', color: '#1e3a8a' }}>
+                        ₹{fmt((activeData.calculatedFASchedule || []).reduce((s, fa) => s + (Number(fa.openingBal) || 0), 0))}
+                      </td>
+                      <td style={{ padding: 6, textAlign: 'right' }}>
+                        ₹{fmt((activeData.calculatedFASchedule || []).reduce((s, fa) => s + (Number(fa.additionBefore) || 0), 0))}
+                      </td>
+                      <td style={{ padding: 6, textAlign: 'right' }}>
+                        ₹{fmt((activeData.calculatedFASchedule || []).reduce((s, fa) => s + (Number(fa.additionAfter) || 0), 0))}
+                      </td>
+                      <td></td>
                       <td style={{ padding: 6, textAlign: 'right', color: '#dc2626' }}>
                         ₹{fmt(activeData.totalDepreciation)}
                       </td>
                       <td style={{ padding: 6, textAlign: 'right', color: '#059669', fontSize: 13 }}>
                         ₹{fmt(activeData.totalClosingFA)}
                       </td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 </table>

@@ -19,7 +19,8 @@ export const DEFAULT_VIRTUAL_FORM_DATA: VirtualFormData = {
   mode: 'actual',
   bsSections: {
     capitalItems: [
-      { id: 'cap-1', name: 'Capital Account', amount: 5000000.00 }
+      { id: 'p-1', name: 'PARTNER 1', amount: 2500000.00 },
+      { id: 'p-2', name: 'PARTNER 2', amount: 2500000.00 },
     ],
     securedLoans: [
       { id: 'sl-1', name: 'Cc Limit With Bank', amount: 125000.00 },

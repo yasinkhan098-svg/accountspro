@@ -27,32 +27,41 @@ export function deriveFASchedule(
   fixedAssets: VirtualFinancialItem[],
   existingFA: VirtualAssetItem[] = []
 ): VirtualAssetItem[] {
-  const faItems = (fixedAssets || []).filter(fa => fa.name || Math.abs(fa.amount) > 0.001);
-  if (faItems.length === 0) {
-    if (existingFA && existingFA.length > 0) return existingFA;
-    return [];
+  if (existingFA && existingFA.length > 0) {
+    return existingFA.map((fa, idx) => {
+      const rate = Number(fa.depreciationRate) || detectDepreciationRate(fa.name);
+      const op = Number(fa.openingBal) || 0;
+      const addB = Number(fa.additionBefore) || 0;
+      const addA = Number(fa.additionAfter) || 0;
+      const depr = r2((op + addB) * (rate / 100) + addA * (rate / 200));
+      const close = r2(Math.max(0, op + addB + addA - depr));
+      return {
+        id: fa.id || `fa-${idx + 1}`,
+        name: (fa.name || `ASSET ${idx + 1}`).toUpperCase(),
+        openingBal: op,
+        additionBefore: addB,
+        additionAfter: addA,
+        depreciationRate: rate,
+        depreciation: depr,
+        closingBal: close,
+      };
+    });
   }
 
+  const faItems = (fixedAssets || []).filter(fa => fa.name || Math.abs(fa.amount) > 0.001);
+  if (faItems.length === 0) return [];
+
   return faItems.map((fa, idx) => {
-    const existing = (existingFA || []).find(
-      e => e.id === fa.id || e.name.trim().toLowerCase() === fa.name.trim().toLowerCase()
-    ) || (existingFA && existingFA[idx]);
-
-    const rate = Number(existing?.depreciationRate) || detectDepreciationRate(fa.name);
+    const rate = detectDepreciationRate(fa.name);
     const op = Number(fa.amount) || 0;
-    const addB = Number(existing?.additionBefore) || 0;
-    const addA = Number(existing?.additionAfter) || 0;
-    const depr = existing?.depreciation !== undefined && existing.depreciation > 0
-      ? r2(existing.depreciation)
-      : r2((op + addB) * (rate / 100) + addA * (rate / 200));
-    const close = r2(Math.max(0, op + addB + addA - depr));
-
+    const depr = r2(op * (rate / 100));
+    const close = r2(Math.max(0, op - depr));
     return {
-      id: fa.id || `fa-${idx}`,
-      name: (existing?.name || fa.name || `ASSET ${idx + 1}`).toUpperCase(),
+      id: fa.id || `fa-${idx + 1}`,
+      name: (fa.name || `ASSET ${idx + 1}`).toUpperCase(),
       openingBal: op,
-      additionBefore: addB,
-      additionAfter: addA,
+      additionBefore: 0,
+      additionAfter: 0,
       depreciationRate: rate,
       depreciation: depr,
       closingBal: close,
@@ -66,27 +75,45 @@ export function derivePartners(
   netProfit: number,
   existingPartners: VirtualPartnerItem[] = []
 ): VirtualPartnerItem[] {
+  // If user has defined partners in existingPartners, use them as authoritative!
+  if (existingPartners && existingPartners.length > 0) {
+    return existingPartners.map((p, idx) => {
+      const name = (p.name || `PARTNER ${idx + 1}`).toUpperCase();
+      const sharePct = Number(p.sharePct) || 0;
+      const op = Number(p.openingBal) || 0;
+      const add = Number(p.addition) || 0;
+      const sal = Number(p.salary) || 0;
+      const iRate = p.interestRate !== undefined && p.interestRate !== null ? Number(p.interestRate) : 12;
+      const iAmt = r2(op * (iRate / 100));
+      const pShare = r2(netProfit * (sharePct / 100));
+      const tot = r2(op + add + sal + iAmt + pShare);
+      const wAmt = Number(p.withdrawalsAmt) || 0;
+      const close = r2(tot - wAmt);
+      return {
+        id: p.id || `p-${idx + 1}`,
+        name,
+        sharePct,
+        openingBal: op,
+        addition: add,
+        salary: sal,
+        interestRate: iRate,
+        interestAmt: iAmt,
+        profitShare: pShare,
+        total: tot,
+        withdrawalsAmt: wAmt,
+        withdrawalsNature: p.withdrawalsNature || '',
+        closingBal: close,
+      };
+    });
+  }
+
+  // Fallback: derive from capitalItems if existingPartners is empty
   const capList = (capitalItems || []).filter(c => c.name || Math.abs(c.amount) > 0.001);
   if (capList.length === 0) {
-    if (existingPartners && existingPartners.length > 0) {
-      return existingPartners.map(p => {
-        const op = r2(p.openingBal);
-        const add = r2(p.addition);
-        const sal = r2(p.salary);
-        const iRate = Number(p.interestRate) || 12;
-        const iAmt = p.interestAmt !== undefined ? r2(p.interestAmt) : r2(op * (iRate / 100));
-        const pShare = r2(netProfit * ((Number(p.sharePct) || 0) / 100));
-        const tot = r2(op + add + sal + iAmt + pShare);
-        const wAmt = r2(p.withdrawalsAmt);
-        const close = r2(tot - wAmt);
-        return { ...p, profitShare: pShare, interestAmt: iAmt, total: tot, closingBal: close };
-      });
-    }
-
     const pShare = netProfit;
     return [{
-      id: 'p-default',
-      name: 'PROPRIETOR / PARTNER',
+      id: 'p-1',
+      name: 'PARTNER 1',
       sharePct: 100,
       openingBal: 0,
       addition: 0,
@@ -102,44 +129,29 @@ export function derivePartners(
 
   const count = capList.length;
   const baseShare = Math.round((100 / count) * 100) / 100;
-
   return capList.map((c, idx) => {
-    const existing = (existingPartners || []).find(
-      p => p.id === c.id || p.name.trim().toLowerCase() === c.name.trim().toLowerCase()
-    ) || (existingPartners && existingPartners[idx]);
-
     let pName = c.name.trim();
     if (pName.toUpperCase().endsWith('CAPITAL ACCOUNT') || pName.toUpperCase().endsWith('CAPITAL A/C')) {
       pName = pName.replace(/capital\s+account|capital\s+a\/c/gi, '').trim();
     }
     if (!pName) pName = c.name.trim();
-
-    const defShare = idx === count - 1 ? r2(100 - baseShare * (count - 1)) : baseShare;
-    const sharePct = Number(existing?.sharePct) || defShare;
+    const sharePct = idx === count - 1 ? r2(100 - baseShare * (count - 1)) : baseShare;
     const op = Number(c.amount) || 0;
-    const add = Number(existing?.addition) || 0;
-    const sal = Number(existing?.salary) || 0;
-    const iRate = existing?.interestRate !== undefined ? Number(existing.interestRate) : 12;
-    const iAmt = existing?.interestAmt !== undefined ? r2(existing.interestAmt) : r2(op * (iRate / 100));
     const pShare = r2(netProfit * (sharePct / 100));
-    const tot = r2(op + add + sal + iAmt + pShare);
-    const wAmt = Number(existing?.withdrawalsAmt) || 0;
-    const close = r2(tot - wAmt);
-
+    const tot = r2(op + pShare);
     return {
-      id: c.id || `p-${idx}`,
-      name: (existing?.name || pName).toUpperCase(),
+      id: c.id || `p-${idx + 1}`,
+      name: pName.toUpperCase(),
       sharePct,
       openingBal: op,
-      addition: add,
-      salary: sal,
-      interestRate: iRate,
-      interestAmt: iAmt,
+      addition: 0,
+      salary: 0,
+      interestRate: 12,
+      interestAmt: r2(op * 0.12),
       profitShare: pShare,
       total: tot,
-      withdrawalsAmt: wAmt,
-      withdrawalsNature: existing?.withdrawalsNature || '',
-      closingBal: close,
+      withdrawalsAmt: 0,
+      closingBal: tot,
     };
   });
 }
