@@ -2866,6 +2866,21 @@ export function PurchaseOrderPrint({
     textAlign: "center",
     fontSize: 9.5
   };
+  // Item table cells: ONLY vertical column lines, NO horizontal row lines
+  const tdCol: React.CSSProperties = {
+    borderTop: "none",
+    borderBottom: "none",
+    borderLeft: "none",
+    borderRight: bdr,
+    padding: "3.5px 5px",
+    fontSize: 9.5,
+    verticalAlign: "middle",
+    color: "#000"
+  };
+  const tdColLast: React.CSSProperties = {
+    ...tdCol,
+    borderRight: "none"
+  };
 
   const totalValue = po.items.reduce((s, i) => s + (i.amount || 0), 0);
 
@@ -3029,51 +3044,51 @@ export function PurchaseOrderPrint({
           </tr>
         </tbody>
       </table>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 0 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 0, borderBottom: bdr }}>
         <thead>
           <tr>
-            <th style={{ ...tdH, width: 30 }}>SL. NO.</th>
-            <th style={{ ...tdH, width: 65 }}>HSN CODE</th>
-            <th style={{ ...tdH, textAlign: "left", paddingLeft: 8 }}>DESCRIPTION</th>
-            <th style={{ ...tdH, width: 60 }}>PART NO.</th>
-            <th style={{ ...tdH, width: 42 }}>GST %</th>
-            <th style={{ ...tdH, width: 75 }}>REQUIRED BY</th>
-            <th style={{ ...tdH, width: 38 }}>UOM</th>
-            <th style={{ ...tdH, width: 50, textAlign: "right" }}>QTY</th>
-            <th style={{ ...tdH, width: 75, textAlign: "right" }}>RATE Rs. Ps.</th>
-            <th style={{ ...tdH, width: 42, textAlign: "right" }}>Disc %</th>
-            <th style={{ ...tdH, width: 90, textAlign: "right" }}>AMOUNT Rs. Ps.</th>
+            <th style={{ ...tdH, width: 30, borderRight: bdr }}>SL. NO.</th>
+            <th style={{ ...tdH, width: 65, borderRight: bdr }}>HSN CODE</th>
+            <th style={{ ...tdH, textAlign: "left", paddingLeft: 8, borderRight: bdr }}>DESCRIPTION</th>
+            <th style={{ ...tdH, width: 60, borderRight: bdr }}>PART NO.</th>
+            <th style={{ ...tdH, width: 42, borderRight: bdr }}>GST %</th>
+            <th style={{ ...tdH, width: 75, borderRight: bdr }}>REQUIRED BY</th>
+            <th style={{ ...tdH, width: 38, borderRight: bdr }}>UOM</th>
+            <th style={{ ...tdH, width: 50, textAlign: "right", borderRight: bdr }}>QTY</th>
+            <th style={{ ...tdH, width: 75, textAlign: "right", borderRight: bdr }}>RATE Rs. Ps.</th>
+            <th style={{ ...tdH, width: 42, textAlign: "right", borderRight: bdr }}>Disc %</th>
+            <th style={{ ...tdH, width: 90, textAlign: "right", borderRight: "none" }}>AMOUNT Rs. Ps.</th>
           </tr>
         </thead>
         <tbody>
           {po.items.map((item, i) => (
             <tr key={i} style={{ height: 24 }}>
-              <td style={{ ...tdB, textAlign: "center" }}>{item.slNo || i + 1}</td>
-              <td style={{ ...tdB, textAlign: "center" }}>{item.hsnCode}</td>
-              <td style={{ ...tdB, paddingLeft: 8, fontWeight: "bold" }}>{item.description}</td>
-              <td style={{ ...tdB, textAlign: "center" }}>{item.partNo || "—"}</td>
-              <td style={{ ...tdB, textAlign: "center" }}>{item.gstRate}%</td>
-              <td style={{ ...tdB, textAlign: "center" }}>{formatDate(item.requiredBy)}</td>
-              <td style={{ ...tdB, textAlign: "center" }}>{item.uom}</td>
-              <td style={{ ...tdB, textAlign: "right", fontWeight: "bold" }}>{item.qty}</td>
-              <td style={{ ...tdB, textAlign: "right" }}>{fmt(item.rate)}</td>
-              <td style={{ ...tdB, textAlign: "right" }}>{item.discountPerc || 0}</td>
-              <td style={{ ...tdB, textAlign: "right", fontWeight: "bold" }}>{fmt(item.amount)}</td>
+              <td style={{ ...tdCol, textAlign: "center" }}>{item.slNo || i + 1}</td>
+              <td style={{ ...tdCol, textAlign: "center" }}>{item.hsnCode}</td>
+              <td style={{ ...tdCol, paddingLeft: 8, fontWeight: "bold" }}>{item.description}</td>
+              <td style={{ ...tdCol, textAlign: "center" }}>{item.partNo || "—"}</td>
+              <td style={{ ...tdCol, textAlign: "center" }}>{item.gstRate}%</td>
+              <td style={{ ...tdCol, textAlign: "center" }}>{formatDate(item.requiredBy)}</td>
+              <td style={{ ...tdCol, textAlign: "center" }}>{item.uom}</td>
+              <td style={{ ...tdCol, textAlign: "right", fontWeight: "bold" }}>{item.qty}</td>
+              <td style={{ ...tdCol, textAlign: "right" }}>{fmt(item.rate)}</td>
+              <td style={{ ...tdCol, textAlign: "right" }}>{item.discountPerc || 0}</td>
+              <td style={{ ...tdColLast, textAlign: "right", fontWeight: "bold" }}>{fmt(item.amount)}</td>
             </tr>
           ))}
           {Array.from({ length: blankRowsCount }).map((_, i) => (
             <tr key={"blank-" + i} style={{ height: 24 }}>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
-              <td style={tdB}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdCol}>&nbsp;</td>
+              <td style={tdColLast}>&nbsp;</td>
             </tr>
           ))}
         </tbody>
@@ -3284,7 +3299,7 @@ export function PurchaseOrderPrint({
           Print Preview - {po.poNumber}
         </span>
         <div style={{ background: "#2a2d3d", padding: "3px 10px", borderRadius: 4, fontSize: 11, color: "#cbd5e1" }}>
-          🖨️ For Best Print: In Print Dialog, set <strong>Scale: 100% (Default)</strong> | <strong>Margins: Default</strong>
+          🖨️ Print Tip: Chrome Print settings mein <strong>&quot;Headers and footers&quot; ko Uncheck</strong> karein | <strong>Scale: 100%</strong>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ fontSize: 11, color: po.enableTnC ? "#2ecc71" : "#f39c12" }}>
@@ -3319,7 +3334,7 @@ export function PurchaseOrderPrint({
       <style>{`
         @page {
           size: A4 portrait;
-          margin: 8mm 8mm 8mm 8mm !important;
+          margin: 0 !important;
         }
         @media print {
           html, body {
@@ -3347,10 +3362,10 @@ export function PurchaseOrderPrint({
             width: 100% !important;
           }
           .po-page {
-            width: 100% !important;
-            max-width: 100% !important;
+            width: 194mm !important;
+            max-width: 194mm !important;
             min-height: auto !important;
-            margin: 0 auto !important;
+            margin: 8mm auto !important;
             padding: 0 !important;
             border: 1.5px solid #111 !important;
             box-shadow: none !important;
