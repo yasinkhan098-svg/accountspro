@@ -7,12 +7,12 @@ export interface POItem {
   hsnCode: string;
   description: string;
   partNo: string;
-  gstRate: number;
+  gstRate: number | string;
   requiredBy: string;
   uom: string;
-  qty: number;
-  rate: number;
-  discountPerc: number;
+  qty: number | string;
+  rate: number | string;
+  discountPerc: number | string;
   discountAmt: number;
   amount: number;
   receivedQty?: number;
@@ -533,7 +533,7 @@ export function PurchaseOrderForm({
     setPO((p) => {
       const items = [...p.items];
       const item = { ...items[idx], [field]: val };
-      if (["qty", "rate", "discountPerc"].includes(field as string)) {
+      if (["qty", "rate", "discountPerc", "gstRate"].includes(field as string)) {
         const qty = parseFloat(String(item.qty)) || 0;
         const rate = parseFloat(String(item.rate)) || 0;
         const discP = parseFloat(String(item.discountPerc)) || 0;
@@ -554,9 +554,9 @@ export function PurchaseOrderForm({
       (typeof item.unit === "string" ? item.unit : item.unit?.symbol || item.unit?.name) ||
       "Nos";
     const defaultRate = (item as any).openingRate || (item as any).rate || 0;
-    const currentQty = po.items[rowIdx]?.qty || 1;
+    const currentQty = parseFloat(String(po.items[rowIdx]?.qty)) || 1;
     const gross = currentQty * defaultRate;
-    const discPerc = po.items[rowIdx]?.discountPerc || 0;
+    const discPerc = parseFloat(String(po.items[rowIdx]?.discountPerc)) || 0;
     const discAmt = Math.round(((gross * discPerc) / 100) * 100) / 100;
     const amount = Math.round((gross - discAmt) * 100) / 100;
 
@@ -658,7 +658,7 @@ export function PurchaseOrderForm({
 
   const totalTax = useMemo(() => {
     return po.items.reduce((sum, it) => {
-      const rate = (it.gstRate ?? 18) / 100;
+      const rate = (parseFloat(String(it.gstRate)) || 18) / 100;
       return sum + (it.amount || 0) * rate;
     }, 0);
   }, [po.items]);
@@ -688,10 +688,25 @@ export function PurchaseOrderForm({
         ...po,
         totalValue,
         grossAmount,
-        items: po.items.map((i) => ({
-          ...i,
-          balanceQty: Math.max(0, (i.qty || 0) - (i.receivedQty || 0))
-        }))
+        items: po.items.map((i) => {
+          const q = parseFloat(String(i.qty)) || 0;
+          const r = parseFloat(String(i.rate)) || 0;
+          const dP = parseFloat(String(i.discountPerc)) || 0;
+          const gst = parseFloat(String(i.gstRate)) || 0;
+          const gross = q * r;
+          const discAmt = Math.round(((gross * dP) / 100) * 100) / 100;
+          const amount = Math.round((gross - discAmt) * 100) / 100;
+          return {
+            ...i,
+            qty: q,
+            rate: r,
+            discountPerc: dP,
+            discountAmt: discAmt,
+            amount,
+            gstRate: gst,
+            balanceQty: Math.max(0, q - (i.receivedQty || 0))
+          };
+        })
       });
     } finally {
       setSaving(false);
@@ -1344,11 +1359,9 @@ export function PurchaseOrderForm({
                             padding: "2px 4px",
                             textAlign: "center"
                           }}
-                          value={item.gstRate}
-                          onChange={(e) =>
-                            updateItem(idx, "gstRate", parseFloat(e.target.value) || 0)
-                          }
-                          type="number"
+                          value={item.gstRate ?? ""}
+                          onChange={(e) => updateItem(idx, "gstRate", e.target.value)}
+                          placeholder="18"
                         />
                       </td>
                       <td style={{ ...cel, width: 85 }}>
@@ -1382,12 +1395,9 @@ export function PurchaseOrderForm({
                             fontWeight: "bold",
                             background: "#eff6ff"
                           }}
-                          value={item.qty || ""}
-                          onChange={(e) =>
-                            updateItem(idx, "qty", parseFloat(e.target.value) || 0)
-                          }
-                          type="number"
-                          placeholder="Qty"
+                          value={item.qty ?? ""}
+                          onChange={(e) => updateItem(idx, "qty", e.target.value)}
+                          placeholder="0"
                         />
                       </td>
                       <td style={{ ...cel, width: 80 }}>
@@ -1401,12 +1411,9 @@ export function PurchaseOrderForm({
                             fontWeight: "bold",
                             background: "#eff6ff"
                           }}
-                          value={item.rate || ""}
-                          onChange={(e) =>
-                            updateItem(idx, "rate", parseFloat(e.target.value) || 0)
-                          }
-                          type="number"
-                          placeholder="Rate"
+                          value={item.rate ?? ""}
+                          onChange={(e) => updateItem(idx, "rate", e.target.value)}
+                          placeholder="0.00"
                         />
                       </td>
                       <td style={{ ...cel, width: 50 }}>
@@ -1417,11 +1424,8 @@ export function PurchaseOrderForm({
                             padding: "2px 4px",
                             textAlign: "right"
                           }}
-                          value={item.discountPerc || ""}
-                          onChange={(e) =>
-                            updateItem(idx, "discountPerc", parseFloat(e.target.value) || 0)
-                          }
-                          type="number"
+                          value={item.discountPerc ?? ""}
+                          onChange={(e) => updateItem(idx, "discountPerc", e.target.value)}
                           placeholder="0"
                         />
                       </td>
