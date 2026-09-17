@@ -100,8 +100,8 @@ export interface StockItem {
   groupName?: string;
 }
 
-const fmt = (n: number) =>
-  (n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (n: number | string) =>
+  (Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const todayStr = () => {
   const d = new Date();
@@ -2748,9 +2748,9 @@ export function PurchaseOrderRegister({
               </thead>
               <tbody>
                 {filtered.map((po, i) => {
-                  const tq = po.items.reduce((s, it) => s + (it.qty || 0), 0);
-                  const rq = po.items.reduce((s, it) => s + (it.receivedQty || 0), 0);
-                  const bq = po.items.reduce((s, it) => s + (it.balanceQty || 0), 0);
+                  const tq = po.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+                  const rq = po.items.reduce((s, it) => s + (Number(it.receivedQty) || 0), 0);
+                  const bq = po.items.reduce((s, it) => s + (Number(it.balanceQty) || 0), 0);
                   return (
                     <tr key={po.id || i} style={{ background: i % 2 === 0 ? "white" : "#fafafa" }}>
                       <td style={{ ...td, fontWeight: "bold", color: "#1a1a2e" }}>{po.poNumber}</td>
@@ -2875,7 +2875,7 @@ export function PurchaseOrderPrint({
   const isInterState = Boolean(compGstin2 && vendGstin2 && compGstin2 !== vendGstin2);
 
   const totalTax = po.items.reduce((sum, it) => {
-    const rate = (it.gstRate ?? 18) / 100;
+    const rate = (Number(it.gstRate) || 18) / 100;
     return sum + (it.amount || 0) * rate;
   }, 0);
 
