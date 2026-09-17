@@ -2224,7 +2224,6 @@ export default function App() {
     { label:'Sales Register',         highlight:'S', action:()=>nav('SALES_REGISTER') },
     { label:'Sales Quotation Register',highlight:'U', action:()=>nav('QUOTATION_REGISTER') },
     { label:'Purchase Register',      highlight:'P', action:()=>nav('PURCHASE_REGISTER') },
-    { label:'Purchase Order Entry',    highlight:'O', action:()=>nav('PURCHASE_ORDER_ENTRY') },
     { label:'Purchase Order Register', highlight:'R', action:()=>nav('PURCHASE_ORDER_REGISTER') },
     { label:'Journal Register',       highlight:'J', action:()=>nav('JOURNAL_REGISTER') },
     { label:'Debit Note Register',    highlight:'D', action:()=>nav('DEBIT_NOTE_REGISTER') },
@@ -2414,6 +2413,7 @@ export default function App() {
       if (e.key === 'F3')  { e.preventDefault(); setShowCompanySelect(true); }
       if (e.key === 'F2' && !e.altKey)  { e.preventDefault(); setShowDate(true); }
       if (e.key === 'F2' && e.altKey)   { e.preventDefault(); setShowPeriod(true); }
+      if (e.key === 'F9' && e.ctrlKey)  { e.preventDefault(); nav('PURCHASE_ORDER_ENTRY'); }
       if (screen === 'VOUCHER_ENTRY') {
         if (e.key === 'F4') { e.preventDefault(); setActiveVoucher('Contra'); }
         if (e.key === 'F5') { e.preventDefault(); setActiveVoucher('Payment'); }
@@ -2421,7 +2421,8 @@ export default function App() {
         if (e.key === 'F7') { e.preventDefault(); setActiveVoucher('Journal'); }
         if (e.key === 'F8' && !e.altKey && !e.ctrlKey) { e.preventDefault(); setActiveVoucher('Sales'); }
         if (e.key === 'F8' && (e.altKey || e.ctrlKey)) { e.preventDefault(); setActiveVoucher('Sales Quotation'); }
-        if (e.key === 'F9') { e.preventDefault(); setActiveVoucher('Purchase'); }
+        if (e.key === 'F9' && !e.ctrlKey && !e.altKey) { e.preventDefault(); setActiveVoucher('Purchase'); }
+        if (e.key === 'F9' && e.altKey) { e.preventDefault(); setActiveVoucher('Debit Note'); }
         if (e.key === 'F10') { e.preventDefault(); setActiveVoucher('Sales Quotation'); }
       }
       if (e.altKey && e.key.toLowerCase() === 'd' && alterItem) {
@@ -2775,10 +2776,17 @@ export default function App() {
           <div className="mobile-nav-section">
             <div className="mobile-nav-section-title">Transactions</div>
             {(['Sales','Purchase','Receipt','Payment','Journal','Contra','Credit Note','Debit Note'] as const).map(vt => (
-              <div key={vt} className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('VOUCHER_ENTRY'); setActiveVoucher(vt as VoucherTypeKey); }}>
-                <span className="nav-icon">{vt==='Sales'?'🛒':vt==='Purchase'?'📦':vt==='Receipt'?'💰':vt==='Payment'?'💸':vt==='Journal'?'📒':vt==='Contra'?'🔄':vt==='Credit Note'?'➕':'➖'}</span>
-                {vt} Voucher
-              </div>
+              <React.Fragment key={vt}>
+                <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('VOUCHER_ENTRY'); setActiveVoucher(vt as VoucherTypeKey); }}>
+                  <span className="nav-icon">{vt==='Sales'?'🛒':vt==='Purchase'?'📦':vt==='Receipt'?'💰':vt==='Payment'?'💸':vt==='Journal'?'📒':vt==='Contra'?'🔄':vt==='Credit Note'?'➕':'➖'}</span>
+                  {vt} Voucher
+                </div>
+                {vt === 'Purchase' && (
+                  <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('PURCHASE_ORDER_ENTRY'); }} style={{color:'#38bdf8'}}>
+                    <span className="nav-icon">📋</span> Purchase Order (Ctrl+F9)
+                  </div>
+                )}
+              </React.Fragment>
             ))}
           </div>
           {/* Reports */}
@@ -3022,6 +3030,7 @@ export default function App() {
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales');}}>F8: Sales</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>Alt+F8: Quotation</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Purchase');}}>F9: Purchase</div>
+          <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>F10: Quotation</div>
           <div className="sidebar-btn-spacer"/>
           <div className="sidebar-btn" onClick={()=>setShowFeatures(true)}>F11: Features</div>
@@ -8213,6 +8222,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           onPrintPreview(getVoucherData() as Voucher);
         }
         else if (e.key === 'F2') { e.preventDefault(); e.stopPropagation(); onF2(); }
+        else if (e.ctrlKey && e.key === 'F9') { e.preventDefault(); e.stopPropagation(); onNav('PURCHASE_ORDER_ENTRY'); }
       }}
     >
       {/* Voucher type bar */}
@@ -8230,10 +8240,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             'Debit Note': 'Alt+F9: Debit Note'
           };
           return (
-            <div key={i} style={{padding:'5px 10px',cursor:'pointer',fontWeight:'bold',background:activeVoucher===v?vc:'transparent',color:activeVoucher===v?'white':'#aaa',borderRight:'1px solid #333'}}
-              onClick={()=>onChangeType(v)}>
-              {labelMap[v] || v}
-            </div>
+            <React.Fragment key={i}>
+              <div style={{padding:'5px 10px',cursor:'pointer',fontWeight:'bold',background:activeVoucher===v?vc:'transparent',color:activeVoucher===v?'white':'#aaa',borderRight:'1px solid #333'}}
+                onClick={()=>onChangeType(v)}>
+                {labelMap[v] || v}
+              </div>
+              {v === 'Purchase' && (
+                <div 
+                  style={{padding:'5px 10px',cursor:'pointer',fontWeight:'bold',background:'transparent',color:'#38bdf8',borderRight:'1px solid #333'}}
+                  onClick={()=>onNav('PURCHASE_ORDER_ENTRY')}
+                  title="Create Purchase Order (Ctrl+F9)"
+                >
+                  Ctrl+F9: Pur. Order
+                </div>
+              )}
+            </React.Fragment>
           );
         })}
         <div style={{marginLeft:'auto',padding:'5px 12px',color:'#888',fontSize:10}}>Alt+C: Inline Create | Ctrl+A: Save | Esc: Back</div>
