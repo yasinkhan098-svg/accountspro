@@ -350,56 +350,132 @@ export function PurchaseOrderForm({
   const [saving, setSaving] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
 
-  // Vendor selection state
-  const [showVendorDrop, setShowVendorDrop] = useState(false);
-  const [vendorSearch, setVendorSearch] = useState("");
+  // Live collections fetched directly to guarantee data is available
+  const [liveStockItems, setLiveStockItems] = useState<StockItem[]>(stockItems || []);
+  const [liveLedgers, setLiveLedgers] = useState<Ledger[]>(ledgers || []);
 
-  // Stock item selection state (active row index)
+  useEffect(() => {
+    if (stockItems && stockItems.length > 0) setLiveStockItems(stockItems);
+  }, [stockItems]);
+
+  useEffect(() => {
+    if (ledgers && ledgers.length > 0) setLiveLedgers(ledgers);
+  }, [ledgers]);
+
+  // Direct fetch fallback for stock items & ledgers (both company and general)
+  useEffect(() => {
+    const fetchMasters = async () => {
+      try {
+        const itemUrl = company?.id ? `/api/stock-items?companyId=${company.id}` : `/api/stock-items`;
+        const res = await fetch(itemUrl);
+        const d = await res.json();
+        if (d.success && Array.isArray(d.items) && d.items.length > 0) {
+          setLiveStockItems(d.items);
+        } else {
+          // Fallback to fetch all stock items
+          const rAll = await fetch('/api/stock-items');
+          const dAll = await rAll.json();
+          if (dAll.success && Array.isArray(dAll.items) && dAll.items.length > 0) {
+            setLiveStockItems(dAll.items);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load stock items:", e);
+      }
+
+      try {
+        const ledgerUrl = company?.id ? `/api/ledgers?companyId=${company.id}` : `/api/ledgers`;
+        const res = await fetch(ledgerUrl);
+        const d = await res.json();
+        if (d.success && Array.isArray(d.ledgers) && d.ledgers.length > 0) {
+          setLiveLedgers(d.ledgers);
+        } else {
+          // Fallback to fetch all ledgers
+          const rAll = await fetch('/api/ledgers');
+          const dAll = await rAll.json();
+          if (dAll.success && Array.isArray(dAll.ledgers) && dAll.ledgers.length > 0) {
+            setLiveLedgers(dAll.ledgers);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load ledgers:", e);
+      }
+    };
+    fetchMasters();
+  }, [company?.id]);
+
+  // Vendor selection state (Right Side Panel + In-place Dropdown)
+  const [showVendorPanel, setShowVendorPanel] = useState(false);
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [vendorDropdownPos, setVendorDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  // Stock item selection state (Right Side Panel + In-place Dropdown)
   const [activeItemPickerIndex, setActiveItemPickerIndex] = useState<number | null>(null);
   const [itemSearch, setItemSearch] = useState("");
+  const [itemDropdownPos, setItemDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  const vendorDropRef = useRef<HTMLDivElement>(null);
-  const itemDropRef = useRef<HTMLDivElement>(null);
+  // Quick item creation modal inside stock item list if none exist
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
+  const [quickItemName, setQuickItemName] = useState("");
+  const [quickItemHsn, setQuickItemHsn] = useState("");
+  const [quickItemUnit, setQuickItemUnit] = useState("Nos");
+  const [quickItemGst, setQuickItemGst] = useState(18);
+  const [quickItemRate, setQuickItemRate] = useState(0);
+  const [quickItemCreating, setQuickItemCreating] = useState(false);
 
   // Ledgers sorted with Sundry Creditors first
   const supplierLedgers = useMemo(() => {
-    const creditors = ledgers.filter((l) => l.groupName === "Sundry Creditors");
-    const others = ledgers.filter((l) => l.groupName !== "Sundry Creditors");
+    const creditors = liveLedgers.filter((l) => l.groupName === "Sundry Creditors");
+    const others = liveLedgers.filter((l) => l.groupName !== "Sundry Creditors");
     return [...creditors, ...others];
-  }, [ledgers]);
+  }, [liveLedgers]);
 
   // Filtered vendor suggestions
   const filteredVendors = useMemo(() => {
-    const term = (vendorSearch || po.vendorName || "").toLowerCase().trim();
-    if (!term) return supplierLedgers.slice(0, 15);
-    return supplierLedgers
-      .filter(
-        (l) =>
-          l.name.toLowerCase().includes(term) ||
-          (l.alias && l.alias.toLowerCase().includes(term)) ||
-          (l.gstin && l.gstin.toLowerCase().includes(term)) ||
-          l.groupName.toLowerCase().includes(term)
-      )
-      .slice(0, 20);
-  }, [supplierLedgers, vendorSearch, po.vendorName]);
+    const term = (vendorSearch || "").toLowerCase().trim();
+    if (!term) return supplierLedgers;
+    return supplierLedgers.filter(
+      (l) =>
+        l.name.toLowerCase().includes(term) ||
+        (l.alias && l.alias.toLowerCase().includes(term)) ||
+        (l.gstin && l.gstin.toLowerCase().includes(term)) ||
+        l.groupName.toLowerCase().includes(term)
+    );
+  }, [supplierLedgers, vendorSearch]);
 
   // Filtered stock items
   const filteredStockItems = useMemo(() => {
     const term = itemSearch.toLowerCase().trim();
-    if (!term) return stockItems.slice(0, 20);
-    return stockItems
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(term) ||
-          (s.hsnCode && s.hsnCode.toLowerCase().includes(term)) ||
-          (s.alias && s.alias.toLowerCase().includes(term)) ||
-          (s.groupName && s.groupName.toLowerCase().includes(term))
-      )
-      .slice(0, 25);
-  }, [stockItems, itemSearch]);
+    if (!term) return liveStockItems;
+    return liveStockItems.filter(
+      (s) =>
+        s.name.toLowerCase().includes(term) ||
+        (s.hsnCode && s.hsnCode.toLowerCase().includes(term)) ||
+        (s.alias && s.alias.toLowerCase().includes(term)) ||
+        (s.groupName && s.groupName.toLowerCase().includes(term))
+    );
+  }, [liveStockItems, itemSearch]);
 
   const updatePO = (field: keyof PurchaseOrderData, val: any) =>
     setPO((p) => ({ ...p, [field]: val }));
+
+  const openVendorPicker = (el?: HTMLElement | null) => {
+    setShowVendorPanel(true);
+    setVendorSearch("");
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setVendorDropdownPos({
+        top: rect.bottom + 2,
+        left: rect.left,
+        width: Math.max(380, rect.width)
+      });
+    }
+  };
+
+  const closeVendorPicker = () => {
+    setShowVendorPanel(false);
+    setVendorDropdownPos(null);
+  };
 
   // Auto-fill all vendor details when a ledger is selected
   const selectVendor = (l: Ledger) => {
@@ -414,7 +490,7 @@ export function PurchaseOrderForm({
       invoiceFromAddress: l.address || "",
       invoiceFromGstin: l.gstin || ""
     }));
-    setShowVendorDrop(false);
+    closeVendorPicker();
   };
 
   // When user types in Vendor Code, auto-fill if matched
@@ -422,7 +498,7 @@ export function PurchaseOrderForm({
     updatePO("vendorCode", codeVal);
     const clean = codeVal.trim().toLowerCase();
     if (clean) {
-      const match = ledgers.find(
+      const match = liveLedgers.find(
         (l) =>
           String(l.id) === clean ||
           ((l as any).alias && String((l as any).alias).toLowerCase() === clean) ||
@@ -432,6 +508,24 @@ export function PurchaseOrderForm({
         selectVendor(match);
       }
     }
+  };
+
+  const openItemPicker = (idx: number, el?: HTMLElement | null) => {
+    setActiveItemPickerIndex(idx);
+    setItemSearch(""); // Show ALL items by default so list is never blank!
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setItemDropdownPos({
+        top: rect.bottom + 2,
+        left: rect.left,
+        width: Math.max(440, rect.width)
+      });
+    }
+  };
+
+  const closeItemPicker = () => {
+    setActiveItemPickerIndex(null);
+    setItemDropdownPos(null);
   };
 
   // Update item field and recalculate amounts
@@ -453,11 +547,11 @@ export function PurchaseOrderForm({
       return { ...p, items };
     });
 
-  // Select stock item from dropdown for a specific row
+  // Select stock item from list for a specific row
   const selectStockItem = (rowIdx: number, item: StockItem) => {
     const uomName =
       (item as any).unitName ||
-      (typeof item.unit === "string" ? item.unit : item.unit?.name) ||
+      (typeof item.unit === "string" ? item.unit : item.unit?.symbol || item.unit?.name) ||
       "Nos";
     const defaultRate = (item as any).openingRate || (item as any).rate || 0;
     const currentQty = po.items[rowIdx]?.qty || 1;
@@ -486,7 +580,49 @@ export function PurchaseOrderForm({
       };
       return { ...p, items };
     });
-    setActiveItemPickerIndex(null);
+    closeItemPicker();
+    setTimeout(() => {
+      document.getElementById(`po-item-qty-${rowIdx}`)?.focus();
+    }, 50);
+  };
+
+  // Quick add stock item if none exists
+  const handleQuickAddStockItem = async () => {
+    if (!quickItemName.trim()) {
+      alert("Item name is required");
+      return;
+    }
+    if (!company?.id) return;
+    setQuickItemCreating(true);
+    try {
+      const res = await fetch("/api/stock-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: quickItemName.trim(),
+          hsnCode: quickItemHsn.trim(),
+          unit: quickItemUnit,
+          gstRate: quickItemGst,
+          openingRate: quickItemRate,
+          companyId: company.id
+        })
+      });
+      const d = await res.json();
+      if (d.success && d.item) {
+        setLiveStockItems((prev) => [...prev, d.item]);
+        if (activeItemPickerIndex !== null) {
+          selectStockItem(activeItemPickerIndex, d.item);
+        }
+        setShowQuickAddModal(false);
+        setQuickItemName("");
+        setQuickItemHsn("");
+        setQuickItemRate(0);
+      } else {
+        alert("Failed to create item: " + (d.error || "Unknown error"));
+      }
+    } finally {
+      setQuickItemCreating(false);
+    }
   };
 
   const addItem = () => {
@@ -495,8 +631,11 @@ export function PurchaseOrderForm({
       ...p,
       items: [...p.items, emptyItem(p.items.length + 1)]
     }));
-    setActiveItemPickerIndex(newIdx);
-    setItemSearch("");
+    setTimeout(() => {
+      const el = document.getElementById(`po-item-desc-${newIdx}`);
+      openItemPicker(newIdx, el);
+      el?.focus();
+    }, 60);
   };
 
   const removeItem = (idx: number) => {
@@ -504,7 +643,7 @@ export function PurchaseOrderForm({
       ...p,
       items: p.items.filter((_, i) => i !== idx).map((it, i) => ({ ...it, slNo: i + 1 }))
     }));
-    if (activeItemPickerIndex === idx) setActiveItemPickerIndex(null);
+    if (activeItemPickerIndex === idx) closeItemPicker();
   };
 
   // Calculations
@@ -567,13 +706,18 @@ export function PurchaseOrderForm({
         e.stopPropagation();
         handleSave();
       } else if (e.key === "Escape") {
-        if (showVendorDrop) setShowVendorDrop(false);
-        else if (activeItemPickerIndex !== null) setActiveItemPickerIndex(null);
+        if (activeItemPickerIndex !== null) {
+          e.preventDefault();
+          setActiveItemPickerIndex(null);
+        } else if (showVendorPanel) {
+          e.preventDefault();
+          setShowVendorPanel(false);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleSave, showVendorDrop, activeItemPickerIndex]);
+  }, [handleSave, showVendorPanel, activeItemPickerIndex]);
 
   const inp: React.CSSProperties = {
     border: "1px solid #cbd5e1",
@@ -618,7 +762,7 @@ export function PurchaseOrderForm({
   }
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#f8fafc" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#f8fafc", position: "relative" }}>
       {/* Header Toolbar */}
       <div
         style={{
@@ -863,7 +1007,7 @@ export function PurchaseOrderForm({
               >
                 <span>VENDOR DETAILS</span>
                 <span style={{ fontSize: 10, fontWeight: "normal", color: "#64748b" }}>
-                  (Type code or select ledger to auto-fill)
+                  (Enter code or select ledger to auto-fill)
                 </span>
               </div>
 
@@ -874,137 +1018,53 @@ export function PurchaseOrderForm({
                   style={inp}
                   value={po.vendorCode}
                   onChange={(e) => handleVendorCodeChange(e.target.value)}
-                  placeholder="Enter Vendor ID or Alias..."
+                  placeholder="Type code/alias (e.g. 1, SUP01)..."
                 />
               </div>
 
-              {/* Vendor Name with Interactive Ledger Dropdown */}
-              <div style={{ marginBottom: 8, position: "relative" }} ref={vendorDropRef}>
+              {/* Vendor Name with interactive Picker */}
+              <div style={{ marginBottom: 8 }}>
                 <span style={lbl}>Vendor Name *</span>
-                <div style={{ display: "flex", gap: 4 }}>
+                <div style={{ display: "flex", gap: 6 }}>
                   <input
-                    style={{ ...inp, flex: 1, fontWeight: "bold" }}
+                    id="po-vendor-name-input"
+                    style={{ ...inp, flex: 1, fontWeight: "bold", background: "#fff" }}
                     value={po.vendorName}
                     onChange={(e) => {
                       updatePO("vendorName", e.target.value);
                       setVendorSearch(e.target.value);
-                      setShowVendorDrop(true);
                     }}
-                    onFocus={() => setShowVendorDrop(true)}
-                    placeholder="Click to select or type vendor name..."
+                    onClick={(e) => openVendorPicker(e.currentTarget)}
+                    onFocus={(e) => openVendorPicker(e.currentTarget)}
+                    placeholder="👉 Click to select vendor from ledger list..."
                   />
                   <button
                     type="button"
-                    onClick={() => setShowVendorDrop((v) => !v)}
+                    onClick={() => {
+                      const inputEl = document.getElementById("po-vendor-name-input");
+                      openVendorPicker(inputEl);
+                    }}
                     style={{
-                      background: "#3b82f6",
+                      background: "#0284c7",
                       color: "white",
                       border: "none",
                       borderRadius: 3,
-                      padding: "0 10px",
+                      padding: "0 12px",
                       cursor: "pointer",
-                      fontSize: 11
+                      fontSize: 11,
+                      fontWeight: "bold",
+                      whiteSpace: "nowrap"
                     }}
                   >
-                    ▼ List
+                    👥 Pick Ledger
                   </button>
                 </div>
-
-                {/* Ledger Dropdown Popup */}
-                {showVendorDrop && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      zIndex: 1000,
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      background: "white",
-                      border: "1px solid #3b82f6",
-                      borderRadius: 4,
-                      maxHeight: 220,
-                      overflowY: "auto",
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.18)"
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "6px 10px",
-                        background: "#eff6ff",
-                        fontSize: 10,
-                        fontWeight: "bold",
-                        color: "#1e40af",
-                        borderBottom: "1px solid #dbeafe"
-                      }}
-                    >
-                      SELECT VENDOR / SUPPLIER LEDGER
-                    </div>
-                    {filteredVendors.length === 0 ? (
-                      <div style={{ padding: "10px", fontSize: 11, color: "#94a3b8" }}>
-                        No matching ledger found
-                      </div>
-                    ) : (
-                      filteredVendors.map((l) => (
-                        <div
-                          key={l.id}
-                          onClick={() => selectVendor(l)}
-                          style={{
-                            padding: "8px 10px",
-                            cursor: "pointer",
-                            fontSize: 11,
-                            borderBottom: "1px solid #f1f5f9",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center"
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f9ff")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
-                        >
-                          <div>
-                            <strong style={{ color: "#0f172a" }}>{l.name}</strong>
-                            {l.alias && (
-                              <span style={{ color: "#3b82f6", marginLeft: 6, fontSize: 10 }}>
-                                ({l.alias})
-                              </span>
-                            )}
-                            {l.address && (
-                              <div style={{ color: "#64748b", fontSize: 10, marginTop: 1 }}>
-                                {l.address.slice(0, 45)}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <span
-                              style={{
-                                background:
-                                  l.groupName === "Sundry Creditors" ? "#e0f2fe" : "#f1f5f9",
-                                color:
-                                  l.groupName === "Sundry Creditors" ? "#0369a1" : "#475569",
-                                padding: "2px 6px",
-                                borderRadius: 3,
-                                fontSize: 9,
-                                fontWeight: "bold"
-                              }}
-                            >
-                              {l.groupName}
-                            </span>
-                            {l.gstin && (
-                              <div style={{ color: "#059669", fontSize: 10, marginTop: 2 }}>
-                                {l.gstin}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
               </div>
 
               <div style={{ marginBottom: 8 }}>
                 <span style={lbl}>Vendor Address</span>
                 <textarea
-                  style={{ ...inp, height: 50, resize: "vertical" }}
+                  style={{ ...inp, height: 48, resize: "vertical" }}
                   value={po.vendorAddress}
                   onChange={(e) => updatePO("vendorAddress", e.target.value)}
                 />
@@ -1155,7 +1215,7 @@ export function PurchaseOrderForm({
 
           <hr style={{ margin: "16px 0", borderColor: "#e2e8f0" }} />
 
-          {/* ITEMS / MATERIALS TABLE WITH STOCK ITEM LIST DROPDOWN */}
+          {/* ITEMS / MATERIALS TABLE */}
           <div
             style={{
               display: "flex",
@@ -1167,12 +1227,12 @@ export function PurchaseOrderForm({
             <div style={{ fontWeight: "bold", fontSize: 13, color: "#1e293b" }}>
               Items / Materials Details
             </div>
-            <span style={{ fontSize: 11, color: "#64748b" }}>
-              Click on <strong>Description</strong> to pick from Stock Items list
-            </span>
+            <div style={{ fontSize: 11, color: "#0369a1", fontWeight: "bold" }}>
+              👉 Click on <strong>Description / Item Name</strong> or <strong>📦 Pick</strong> to choose stock item
+            </div>
           </div>
 
-          <div style={{ overflowX: "auto", position: "relative" }}>
+          <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
               <thead>
                 <tr>
@@ -1197,255 +1257,201 @@ export function PurchaseOrderForm({
                 </tr>
               </thead>
               <tbody>
-                {po.items.map((item, idx) => (
-                  <tr key={idx} style={{ background: idx % 2 === 0 ? "white" : "#fcfcfc" }}>
-                    <td style={{ ...cel, textAlign: "center", width: 28, color: "#64748b" }}>
-                      {item.slNo}
+                {po.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                      No items added yet. Click <strong>&quot;+ Add Item&quot;</strong> below to select stock item.
                     </td>
-                    <td style={{ ...cel, width: 75 }}>
-                      <input
-                        style={{ ...inp, border: "none", padding: "2px 4px" }}
-                        value={item.hsnCode}
-                        onChange={(e) => updateItem(idx, "hsnCode", e.target.value)}
-                        placeholder="HSN"
-                      />
-                    </td>
-                    {/* Description input with interactive Stock Item dropdown */}
-                    <td style={{ ...cel, minWidth: 220, position: "relative" }}>
-                      <div style={{ display: "flex", alignItems: "center" }}>
+                  </tr>
+                ) : (
+                  po.items.map((item, idx) => (
+                    <tr key={idx} style={{ background: idx % 2 === 0 ? "white" : "#fcfcfc" }}>
+                      <td style={{ ...cel, textAlign: "center", width: 28, color: "#64748b" }}>
+                        {item.slNo}
+                      </td>
+                      <td style={{ ...cel, width: 75 }}>
+                        <input
+                          style={{ ...inp, border: "none", padding: "2px 4px" }}
+                          value={item.hsnCode}
+                          onChange={(e) => updateItem(idx, "hsnCode", e.target.value)}
+                          placeholder="HSN"
+                        />
+                      </td>
+                      {/* Description input with Prominent Pick Button */}
+                      <td style={{ ...cel, minWidth: 240 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <input
+                            id={`po-item-desc-${idx}`}
+                            style={{
+                              ...inp,
+                              border: activeItemPickerIndex === idx ? "2px solid #0284c7" : "1px solid #cbd5e1",
+                              padding: "4px 6px",
+                              fontWeight: item.description ? "bold" : "normal",
+                              color: item.description ? "#0f172a" : "#64748b",
+                              background: "#fff",
+                              flex: 1
+                            }}
+                            value={item.description}
+                            onChange={(e) => {
+                              updateItem(idx, "description", e.target.value);
+                              setItemSearch(e.target.value);
+                            }}
+                            onClick={(e) => openItemPicker(idx, e.currentTarget)}
+                            onFocus={(e) => openItemPicker(idx, e.currentTarget)}
+                            onKeyDown={(e) => {
+                              if (e.key === "ArrowDown" || e.key === "Enter") {
+                                openItemPicker(idx, e.currentTarget);
+                              }
+                            }}
+                            placeholder="👉 Click to select stock item..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const el = document.getElementById(`po-item-desc-${idx}`);
+                              openItemPicker(idx, el);
+                            }}
+                            style={{
+                              background: "#0284c7",
+                              color: "white",
+                              border: "none",
+                              borderRadius: 3,
+                              padding: "4px 8px",
+                              cursor: "pointer",
+                              fontSize: 11,
+                              fontWeight: "bold",
+                              whiteSpace: "nowrap"
+                            }}
+                            title="Click to open Stock Items List"
+                          >
+                            📦 Pick
+                          </button>
+                        </div>
+                      </td>
+                      <td style={{ ...cel, width: 70 }}>
+                        <input
+                          style={{ ...inp, border: "none", padding: "2px 4px" }}
+                          value={item.partNo}
+                          onChange={(e) => updateItem(idx, "partNo", e.target.value)}
+                          placeholder="Part No"
+                        />
+                      </td>
+                      <td style={{ ...cel, width: 45, textAlign: "center" }}>
                         <input
                           style={{
                             ...inp,
                             border: "none",
                             padding: "2px 4px",
-                            fontWeight: item.description ? "bold" : "normal",
-                            color: item.description ? "#0f172a" : "#94a3b8"
+                            textAlign: "center"
                           }}
-                          value={item.description}
-                          onChange={(e) => {
-                            updateItem(idx, "description", e.target.value);
-                            setItemSearch(e.target.value);
-                            setActiveItemPickerIndex(idx);
-                          }}
-                          onFocus={() => {
-                            setActiveItemPickerIndex(idx);
-                            setItemSearch(item.description);
-                          }}
-                          placeholder="Click to pick stock item..."
+                          value={item.gstRate}
+                          onChange={(e) =>
+                            updateItem(idx, "gstRate", parseFloat(e.target.value) || 0)
+                          }
+                          type="number"
                         />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveItemPickerIndex(activeItemPickerIndex === idx ? null : idx);
-                            setItemSearch(item.description);
+                      </td>
+                      <td style={{ ...cel, width: 85 }}>
+                        <input
+                          style={{ ...inp, border: "none", padding: "2px 4px" }}
+                          value={item.requiredBy}
+                          onChange={(e) => updateItem(idx, "requiredBy", e.target.value)}
+                          placeholder="DD-MM-YYYY"
+                        />
+                      </td>
+                      <td style={{ ...cel, width: 55 }}>
+                        <input
+                          style={{
+                            ...inp,
+                            border: "none",
+                            padding: "2px 4px",
+                            textAlign: "center"
                           }}
+                          value={item.uom}
+                          onChange={(e) => updateItem(idx, "uom", e.target.value)}
+                        />
+                      </td>
+                      <td style={{ ...cel, width: 65 }}>
+                        <input
+                          id={`po-item-qty-${idx}`}
+                          style={{
+                            ...inp,
+                            border: "none",
+                            padding: "2px 4px",
+                            textAlign: "right",
+                            fontWeight: "bold",
+                            background: "#eff6ff"
+                          }}
+                          value={item.qty || ""}
+                          onChange={(e) =>
+                            updateItem(idx, "qty", parseFloat(e.target.value) || 0)
+                          }
+                          type="number"
+                          placeholder="Qty"
+                        />
+                      </td>
+                      <td style={{ ...cel, width: 80 }}>
+                        <input
+                          id={`po-item-rate-${idx}`}
+                          style={{
+                            ...inp,
+                            border: "none",
+                            padding: "2px 4px",
+                            textAlign: "right",
+                            fontWeight: "bold",
+                            background: "#eff6ff"
+                          }}
+                          value={item.rate || ""}
+                          onChange={(e) =>
+                            updateItem(idx, "rate", parseFloat(e.target.value) || 0)
+                          }
+                          type="number"
+                          placeholder="Rate"
+                        />
+                      </td>
+                      <td style={{ ...cel, width: 50 }}>
+                        <input
+                          style={{
+                            ...inp,
+                            border: "none",
+                            padding: "2px 4px",
+                            textAlign: "right"
+                          }}
+                          value={item.discountPerc || ""}
+                          onChange={(e) =>
+                            updateItem(idx, "discountPerc", parseFloat(e.target.value) || 0)
+                          }
+                          type="number"
+                          placeholder="0"
+                        />
+                      </td>
+                      <td style={{ ...cel, width: 90, textAlign: "right", fontWeight: "bold" }}>
+                        {fmt(item.amount || 0)}
+                      </td>
+                      <td style={{ ...cel, width: 28, textAlign: "center" }}>
+                        <button
+                          onClick={() => removeItem(idx)}
                           style={{
                             background: "none",
                             border: "none",
-                            color: "#3b82f6",
+                            color: "#ef4444",
                             cursor: "pointer",
-                            fontSize: 10,
-                            padding: "0 4px"
+                            fontSize: 16,
+                            lineHeight: 1
                           }}
+                          title="Remove row"
                         >
-                          ▼
+                          &times;
                         </button>
-                      </div>
-
-                      {/* Floating Stock Item Picker */}
-                      {activeItemPickerIndex === idx && (
-                        <div
-                          ref={itemDropRef}
-                          style={{
-                            position: "absolute",
-                            top: "100%",
-                            left: 0,
-                            zIndex: 1000,
-                            minWidth: 380,
-                            maxWidth: 450,
-                            background: "white",
-                            border: "1px solid #3b82f6",
-                            borderRadius: 4,
-                            boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
-                            maxHeight: 220,
-                            overflowY: "auto"
-                          }}
-                        >
-                          <div
-                            style={{
-                              padding: "6px 10px",
-                              background: "#eff6ff",
-                              fontSize: 10,
-                              fontWeight: "bold",
-                              color: "#1e40af",
-                              borderBottom: "1px solid #dbeafe"
-                            }}
-                          >
-                            SELECT STOCK ITEM (Auto-fills HSN, GST, UOM &amp; Rate)
-                          </div>
-                          {filteredStockItems.length === 0 ? (
-                            <div style={{ padding: "10px", fontSize: 11, color: "#94a3b8" }}>
-                              No matching items found
-                            </div>
-                          ) : (
-                            filteredStockItems.map((stk) => (
-                              <div
-                                key={stk.id}
-                                onClick={() => selectStockItem(idx, stk)}
-                                style={{
-                                  padding: "6px 10px",
-                                  cursor: "pointer",
-                                  fontSize: 11,
-                                  borderBottom: "1px solid #f1f5f9",
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center"
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background = "#f0fdf4")
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background = "white")
-                                }
-                              >
-                                <div>
-                                  <strong style={{ color: "#0f172a" }}>{stk.name}</strong>
-                                  <div style={{ fontSize: 9, color: "#64748b" }}>
-                                    HSN: {stk.hsnCode || "-"} | GST: {stk.gstRate ?? 18}%
-                                  </div>
-                                </div>
-                                <div style={{ textAlign: "right", fontSize: 10 }}>
-                                  <span style={{ color: "#059669", fontWeight: "bold" }}>
-                                    ₹ {fmt((stk as any).openingRate || (stk as any).rate || 0)}
-                                  </span>
-                                  <div style={{ color: "#64748b", fontSize: 9 }}>
-                                    {(stk as any).unitName || "Nos"}
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ ...cel, width: 70 }}>
-                      <input
-                        style={{ ...inp, border: "none", padding: "2px 4px" }}
-                        value={item.partNo}
-                        onChange={(e) => updateItem(idx, "partNo", e.target.value)}
-                        placeholder="Part No"
-                      />
-                    </td>
-                    <td style={{ ...cel, width: 45, textAlign: "center" }}>
-                      <input
-                        style={{
-                          ...inp,
-                          border: "none",
-                          padding: "2px 4px",
-                          textAlign: "center"
-                        }}
-                        value={item.gstRate}
-                        onChange={(e) =>
-                          updateItem(idx, "gstRate", parseFloat(e.target.value) || 0)
-                        }
-                        type="number"
-                      />
-                    </td>
-                    <td style={{ ...cel, width: 85 }}>
-                      <input
-                        style={{ ...inp, border: "none", padding: "2px 4px" }}
-                        value={item.requiredBy}
-                        onChange={(e) => updateItem(idx, "requiredBy", e.target.value)}
-                        placeholder="DD-MM-YYYY"
-                      />
-                    </td>
-                    <td style={{ ...cel, width: 55 }}>
-                      <input
-                        style={{
-                          ...inp,
-                          border: "none",
-                          padding: "2px 4px",
-                          textAlign: "center"
-                        }}
-                        value={item.uom}
-                        onChange={(e) => updateItem(idx, "uom", e.target.value)}
-                      />
-                    </td>
-                    <td style={{ ...cel, width: 65 }}>
-                      <input
-                        style={{
-                          ...inp,
-                          border: "none",
-                          padding: "2px 4px",
-                          textAlign: "right",
-                          fontWeight: "bold"
-                        }}
-                        value={item.qty || ""}
-                        onChange={(e) =>
-                          updateItem(idx, "qty", parseFloat(e.target.value) || 0)
-                        }
-                        type="number"
-                        placeholder="Qty"
-                      />
-                    </td>
-                    <td style={{ ...cel, width: 80 }}>
-                      <input
-                        style={{
-                          ...inp,
-                          border: "none",
-                          padding: "2px 4px",
-                          textAlign: "right"
-                        }}
-                        value={item.rate || ""}
-                        onChange={(e) =>
-                          updateItem(idx, "rate", parseFloat(e.target.value) || 0)
-                        }
-                        type="number"
-                        placeholder="Rate"
-                      />
-                    </td>
-                    <td style={{ ...cel, width: 50 }}>
-                      <input
-                        style={{
-                          ...inp,
-                          border: "none",
-                          padding: "2px 4px",
-                          textAlign: "right"
-                        }}
-                        value={item.discountPerc || ""}
-                        onChange={(e) =>
-                          updateItem(idx, "discountPerc", parseFloat(e.target.value) || 0)
-                        }
-                        type="number"
-                        placeholder="0"
-                      />
-                    </td>
-                    <td style={{ ...cel, width: 90, textAlign: "right", fontWeight: "bold" }}>
-                      {fmt(item.amount || 0)}
-                    </td>
-                    <td style={{ ...cel, width: 28, textAlign: "center" }}>
-                      <button
-                        onClick={() => removeItem(idx)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#ef4444",
-                          cursor: "pointer",
-                          fontSize: 16,
-                          lineHeight: 1
-                        }}
-                        title="Remove row"
-                      >
-                        &times;
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
-          <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+          <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
             <button
               type="button"
               onClick={addItem}
@@ -1454,18 +1460,22 @@ export function PurchaseOrderForm({
                 color: "white",
                 border: "none",
                 borderRadius: 4,
-                padding: "6px 16px",
+                padding: "7px 18px",
                 cursor: "pointer",
-                fontSize: 11,
-                fontWeight: "bold"
+                fontSize: 12,
+                fontWeight: "bold",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
               }}
             >
-              + Add Item (Auto-pick)
+              + Add Item (Auto-opens Stock Item List)
             </button>
+            <span style={{ fontSize: 11, color: "#64748b" }}>
+              Total items: <strong>{po.items.length}</strong>
+            </span>
           </div>
 
           {/* TOTALS & TAX CALCULATION PANEL */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 24, marginTop: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 24, marginTop: 24 }}>
             {/* Specific Terms */}
             <div>
               <div style={{ fontWeight: "bold", fontSize: 12, marginBottom: 8, color: "#1e293b" }}>
@@ -1720,6 +1730,829 @@ export function PurchaseOrderForm({
           </div>
         </div>
       </div>
+
+      {/* ========================================================= */}
+      {/* 🚀 IN-PLACE FLOATING DROPDOWN: STOCK ITEMS (NICHE DROPDOWN) */}
+      {/* ========================================================= */}
+      {activeItemPickerIndex !== null && itemDropdownPos && (
+        <>
+          <div
+            onClick={closeItemPicker}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99998
+            }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: Math.min(itemDropdownPos.top, window.innerHeight - 340),
+              left: Math.max(10, Math.min(itemDropdownPos.left, window.innerWidth - 480)),
+              width: 460,
+              maxWidth: "94vw",
+              maxHeight: 330,
+              background: "white",
+              borderRadius: 6,
+              boxShadow: "0 12px 36px rgba(0,0,0,0.25), 0 0 0 1px #94a3b8",
+              zIndex: 99999,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden"
+            }}
+          >
+            <div
+              style={{
+                background: "#0f172a",
+                color: "white",
+                padding: "8px 12px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: "bold", display: "flex", alignItems: "center", gap: 6 }}>
+                <span>📦</span> Select Stock Item (Row #{activeItemPickerIndex + 1})
+              </div>
+              <button
+                type="button"
+                onClick={closeItemPicker}
+                style={{
+                  background: "#ef4444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 3,
+                  width: 22,
+                  height: 22,
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: "bold"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: "6px 10px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                autoFocus
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+                placeholder="🔍 Type item name, HSN, alias..."
+                style={{
+                  flex: 1,
+                  padding: "5px 8px",
+                  border: "1px solid #0284c7",
+                  borderRadius: 4,
+                  fontSize: 12,
+                  outline: "none"
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowQuickAddModal(true)}
+                style={{
+                  background: "#10b981",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 4,
+                  padding: "5px 10px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  whiteSpace: "nowrap"
+                }}
+              >
+                + New Item
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", maxHeight: 240, padding: 4 }}>
+              {filteredStockItems.length === 0 ? (
+                <div style={{ padding: "18px 12px", textAlign: "center", color: "#64748b", fontSize: 12 }}>
+                  <div>No stock items found {itemSearch ? `matching "${itemSearch}"` : ""}.</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickAddModal(true)}
+                    style={{
+                      marginTop: 8,
+                      background: "#0284c7",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 4,
+                      padding: "5px 12px",
+                      fontSize: 11,
+                      fontWeight: "bold",
+                      cursor: "pointer"
+                    }}
+                  >
+                    + Create New Stock Item
+                  </button>
+                </div>
+              ) : (
+                filteredStockItems.map((stk) => (
+                  <div
+                    key={stk.id}
+                    onClick={() => selectStockItem(activeItemPickerIndex, stk)}
+                    style={{
+                      padding: "8px 10px",
+                      borderBottom: "1px solid #f1f5f9",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      transition: "background 0.1s"
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <strong style={{ fontSize: 12, color: "#0f172a" }}>{stk.name}</strong>
+                      <span style={{ fontSize: 12, fontWeight: "bold", color: "#059669" }}>
+                        ₹ {fmt((stk as any).openingRate || (stk as any).rate || 0)}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 2, fontSize: 10, color: "#64748b", flexWrap: "wrap" }}>
+                      {stk.hsnCode && <span style={{ background: "#f1f5f9", padding: "1px 5px", borderRadius: 2 }}>HSN: {stk.hsnCode}</span>}
+                      <span style={{ background: "#f0fdf4", color: "#166534", padding: "1px 5px", borderRadius: 2 }}>GST: {stk.gstRate ?? 18}%</span>
+                      <span style={{ background: "#fef3c7", color: "#92400e", padding: "1px 5px", borderRadius: 2 }}>Unit: {(stk as any).unitName || (typeof stk.unit === "string" ? stk.unit : stk.unit?.symbol || stk.unit?.name) || "Nos"}</span>
+                      {(stk as any).alias && <span style={{ background: "#ede9fe", color: "#6d28d9", padding: "1px 5px", borderRadius: 2 }}>Alias: {(stk as any).alias}</span>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div style={{ padding: "4px 8px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", fontSize: 10, color: "#64748b", display: "flex", justifyContent: "space-between" }}>
+              <span>{filteredStockItems.length} items available</span>
+              <span>Click to select &amp; auto-fill</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ========================================================= */}
+      {/* 🚀 IN-PLACE FLOATING DROPDOWN: VENDORS / LEDGERS */}
+      {/* ========================================================= */}
+      {showVendorPanel && vendorDropdownPos && (
+        <>
+          <div
+            onClick={closeVendorPicker}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99998
+            }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: Math.min(vendorDropdownPos.top, window.innerHeight - 340),
+              left: Math.max(10, Math.min(vendorDropdownPos.left, window.innerWidth - 440)),
+              width: 420,
+              maxWidth: "94vw",
+              maxHeight: 320,
+              background: "white",
+              borderRadius: 6,
+              boxShadow: "0 12px 36px rgba(0,0,0,0.25), 0 0 0 1px #94a3b8",
+              zIndex: 99999,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden"
+            }}
+          >
+            <div
+              style={{
+                background: "#0f172a",
+                color: "white",
+                padding: "8px 12px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: "bold", display: "flex", alignItems: "center", gap: 6 }}>
+                <span>👥</span> Select Vendor / Supplier Ledger
+              </div>
+              <button
+                type="button"
+                onClick={closeVendorPicker}
+                style={{
+                  background: "#ef4444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 3,
+                  width: 22,
+                  height: 22,
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: "bold"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: "6px 10px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+              <input
+                autoFocus
+                value={vendorSearch}
+                onChange={(e) => setVendorSearch(e.target.value)}
+                placeholder="🔍 Type vendor name, GSTIN, alias..."
+                style={{
+                  width: "100%",
+                  padding: "5px 8px",
+                  border: "1px solid #1e3a8a",
+                  borderRadius: 4,
+                  fontSize: 12,
+                  boxSizing: "border-box",
+                  outline: "none"
+                }}
+              />
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", maxHeight: 240, padding: 4 }}>
+              {filteredVendors.length === 0 ? (
+                <div style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: 12 }}>
+                  No matching ledgers found
+                </div>
+              ) : (
+                filteredVendors.map((l) => (
+                  <div
+                    key={l.id}
+                    onClick={() => selectVendor(l)}
+                    style={{
+                      padding: "8px 10px",
+                      borderBottom: "1px solid #f1f5f9",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      transition: "background 0.1s"
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <strong style={{ fontSize: 12, color: "#0f172a" }}>{l.name}</strong>
+                        {l.alias && (
+                          <span style={{ color: "#0284c7", marginLeft: 4, fontSize: 10 }}>({l.alias})</span>
+                        )}
+                      </div>
+                      <span
+                        style={{
+                          background: l.groupName === "Sundry Creditors" ? "#e0f2fe" : "#f1f5f9",
+                          color: l.groupName === "Sundry Creditors" ? "#0369a1" : "#475569",
+                          padding: "1px 6px",
+                          borderRadius: 3,
+                          fontSize: 9,
+                          fontWeight: "bold"
+                        }}
+                      >
+                        {l.groupName}
+                      </span>
+                    </div>
+                    {l.gstin && (
+                      <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>
+                        GSTIN: <strong>{l.gstin}</strong>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <div style={{ padding: "4px 8px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", fontSize: 10, color: "#64748b", textAlign: "right" }}>
+              {filteredVendors.length} ledgers • Click to auto-fill
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ========================================================= */}
+      {/* 🚀 RIGHT-SIDE FIXED PANEL: LIST OF STOCK ITEMS (TALLY STYLE) */}
+      {/* ========================================================= */}
+      {activeItemPickerIndex !== null && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: 440,
+            maxWidth: "92vw",
+            background: "white",
+            boxShadow: "-6px 0 30px rgba(0,0,0,0.28)",
+            zIndex: 99999,
+            display: "flex",
+            flexDirection: "column",
+            borderLeft: "3px solid #0284c7"
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              background: "#0f172a",
+              color: "white",
+              padding: "12px 16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: "bold", fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                <span>📦</span> List of Stock Items
+              </div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                Selecting for Row #{activeItemPickerIndex + 1}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeItemPicker}
+              style={{
+                background: "#ef4444",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                width: 28,
+                height: 28,
+                cursor: "pointer",
+                fontWeight: "bold",
+                fontSize: 14
+              }}
+              title="Close (Esc)"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+            <input
+              autoFocus
+              value={itemSearch}
+              onChange={(e) => setItemSearch(e.target.value)}
+              placeholder="🔍 Type to search item name, HSN, alias..."
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                border: "2px solid #0284c7",
+                borderRadius: 6,
+                fontSize: 13,
+                boxSizing: "border-box",
+                outline: "none"
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "#64748b" }}>
+                Click an item to auto-fill HSN, Unit, GST &amp; Rate
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowQuickAddModal(true)}
+                style={{
+                  background: "#10b981",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 3,
+                  padding: "2px 8px",
+                  fontSize: 10,
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }}
+              >
+                + New Item
+              </button>
+            </div>
+          </div>
+
+          {/* Items List */}
+          <div style={{ flex: 1, overflowY: "auto", padding: 10 }}>
+            {filteredStockItems.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>📦</div>
+                <div style={{ fontWeight: "bold", fontSize: 14, color: "#1e293b" }}>No Stock Items Found</div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+                  {itemSearch ? `No item matches "${itemSearch}"` : "No stock items created in this company yet"}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddModal(true)}
+                  style={{
+                    marginTop: 16,
+                    background: "#0284c7",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "8px 16px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: "bold"
+                  }}
+                >
+                  + Create New Stock Item Now
+                </button>
+              </div>
+            ) : (
+              filteredStockItems.map((stk) => (
+                <div
+                  key={stk.id}
+                  onClick={() => selectStockItem(activeItemPickerIndex, stk)}
+                  style={{
+                    padding: "10px 12px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    marginBottom: 6,
+                    background: "white",
+                    transition: "all 0.15s ease"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#eff6ff";
+                    e.currentTarget.style.borderColor = "#0284c7";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "white";
+                    e.currentTarget.style.borderColor = "#e2e8f0";
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ fontWeight: "bold", fontSize: 13, color: "#0f172a" }}>
+                      {stk.name}
+                    </div>
+                    <div style={{ fontWeight: "bold", color: "#059669", fontSize: 13 }}>
+                      ₹ {fmt((stk as any).openingRate || (stk as any).rate || 0)}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      marginTop: 4,
+                      fontSize: 10,
+                      color: "#64748b",
+                      flexWrap: "wrap"
+                    }}
+                  >
+                    <span style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: 3 }}>
+                      HSN: <strong>{stk.hsnCode || "-"}</strong>
+                    </span>
+                    <span style={{ background: "#f0fdf4", color: "#166534", padding: "2px 6px", borderRadius: 3 }}>
+                      GST: <strong>{stk.gstRate ?? 18}%</strong>
+                    </span>
+                    <span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 6px", borderRadius: 3 }}>
+                      Unit: <strong>{(stk as any).unitName || (typeof stk.unit === "string" ? stk.unit : stk.unit?.name) || "Nos"}</strong>
+                    </span>
+                    {(stk as any).alias && (
+                      <span style={{ background: "#ede9fe", color: "#6d28d9", padding: "2px 6px", borderRadius: 3 }}>
+                        Part/Alias: {(stk as any).alias}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: "10px 16px",
+              background: "#f8fafc",
+              borderTop: "1px solid #e2e8f0",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: 11,
+              color: "#64748b"
+            }}
+          >
+            <span>{filteredStockItems.length} items available</span>
+            <button
+              type="button"
+              onClick={closeItemPicker}
+              style={{
+                background: "#64748b",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                padding: "4px 12px",
+                cursor: "pointer",
+                fontSize: 11
+              }}
+            >
+              Close (Esc)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 🚀 RIGHT-SIDE FIXED PANEL: LIST OF LEDGERS / VENDORS */}
+      {/* ========================================================= */}
+      {showVendorPanel && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: 440,
+            maxWidth: "92vw",
+            background: "white",
+            boxShadow: "-6px 0 30px rgba(0,0,0,0.28)",
+            zIndex: 99999,
+            display: "flex",
+            flexDirection: "column",
+            borderLeft: "3px solid #1e3a8a"
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              background: "#0f172a",
+              color: "white",
+              padding: "12px 16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: "bold", fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                <span>👥</span> List of Ledger Accounts
+              </div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                Select Vendor / Supplier to Auto-Fill
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeVendorPicker}
+              style={{
+                background: "#ef4444",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                width: 28,
+                height: 28,
+                cursor: "pointer",
+                fontWeight: "bold",
+                fontSize: 14
+              }}
+              title="Close (Esc)"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+            <input
+              autoFocus
+              value={vendorSearch}
+              onChange={(e) => setVendorSearch(e.target.value)}
+              placeholder="🔍 Type vendor name, GSTIN, alias..."
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                border: "2px solid #1e3a8a",
+                borderRadius: 6,
+                fontSize: 13,
+                boxSizing: "border-box",
+                outline: "none"
+              }}
+            />
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+              Click a ledger to auto-fill Vendor Code, Name, GSTIN &amp; Address
+            </div>
+          </div>
+
+          {/* Ledgers List */}
+          <div style={{ flex: 1, overflowY: "auto", padding: 10 }}>
+            {filteredVendors.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>👥</div>
+                <div style={{ fontWeight: "bold", fontSize: 14 }}>No Matching Ledgers</div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+                  Try a different search term
+                </div>
+              </div>
+            ) : (
+              filteredVendors.map((l) => (
+                <div
+                  key={l.id}
+                  onClick={() => selectVendor(l)}
+                  style={{
+                    padding: "10px 12px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    marginBottom: 6,
+                    background: "white",
+                    transition: "all 0.15s ease"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#eff6ff";
+                    e.currentTarget.style.borderColor = "#1e3a8a";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "white";
+                    e.currentTarget.style.borderColor = "#e2e8f0";
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <strong style={{ fontSize: 13, color: "#0f172a" }}>{l.name}</strong>
+                      {l.alias && (
+                        <span style={{ color: "#0284c7", marginLeft: 6, fontSize: 11 }}>
+                          ({l.alias})
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        background: l.groupName === "Sundry Creditors" ? "#e0f2fe" : "#f1f5f9",
+                        color: l.groupName === "Sundry Creditors" ? "#0369a1" : "#475569",
+                        padding: "2px 8px",
+                        borderRadius: 3,
+                        fontSize: 9,
+                        fontWeight: "bold"
+                      }}
+                    >
+                      {l.groupName}
+                    </span>
+                  </div>
+                  {l.gstin && (
+                    <div style={{ fontSize: 11, color: "#059669", marginTop: 3 }}>
+                      GSTIN: <strong>{l.gstin}</strong>
+                    </div>
+                  )}
+                  {l.address && (
+                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+                      {l.address.slice(0, 60)}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: "10px 16px",
+              background: "#f8fafc",
+              borderTop: "1px solid #e2e8f0",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: 11,
+              color: "#64748b"
+            }}
+          >
+            <span>{filteredVendors.length} ledgers found</span>
+            <button
+              type="button"
+              onClick={closeVendorPicker}
+              style={{
+                background: "#64748b",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                padding: "4px 12px",
+                cursor: "pointer",
+                fontSize: 11
+              }}
+            >
+              Close (Esc)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 🚀 QUICK ADD STOCK ITEM MODAL */}
+      {/* ========================================================= */}
+      {showQuickAddModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 100000
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 8,
+              padding: 20,
+              width: 400,
+              maxWidth: "90vw",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.3)"
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: "bold", marginBottom: 12, color: "#1e293b" }}>
+              📦 Create New Stock Item
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <span style={lbl}>Item Name *</span>
+              <input
+                autoFocus
+                style={inp}
+                value={quickItemName}
+                onChange={(e) => setQuickItemName(e.target.value)}
+                placeholder="e.g. Copper Wire 2.5mm"
+              />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <span style={lbl}>HSN Code</span>
+                <input
+                  style={inp}
+                  value={quickItemHsn}
+                  onChange={(e) => setQuickItemHsn(e.target.value)}
+                  placeholder="e.g. 7408"
+                />
+              </div>
+              <div>
+                <span style={lbl}>Unit / UOM</span>
+                <input
+                  style={inp}
+                  value={quickItemUnit}
+                  onChange={(e) => setQuickItemUnit(e.target.value)}
+                  placeholder="Nos / Kg / Mtr"
+                />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+              <div>
+                <span style={lbl}>GST Rate %</span>
+                <input
+                  type="number"
+                  style={inp}
+                  value={quickItemGst}
+                  onChange={(e) => setQuickItemGst(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div>
+                <span style={lbl}>Default Rate (₹)</span>
+                <input
+                  type="number"
+                  style={inp}
+                  value={quickItemRate || ""}
+                  onChange={(e) => setQuickItemRate(parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowQuickAddModal(false)}
+                style={{
+                  background: "#64748b",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 4,
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  fontSize: 12
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleQuickAddStockItem}
+                disabled={quickItemCreating}
+                style={{
+                  background: "#10b981",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 4,
+                  padding: "6px 16px",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: "bold"
+                }}
+              >
+                {quickItemCreating ? "Creating..." : "Save & Select"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
