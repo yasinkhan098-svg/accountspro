@@ -2858,13 +2858,13 @@ export function PurchaseOrderPrint({
   const totalPages = po.enableTnC ? 1 + TNC_SECTIONS.length : 1;
   const ISODoc = "AL-PUR-F-01";
   const bdr = "1px solid #222";
-  const tdB: React.CSSProperties = { border: bdr, padding: "2px 4px", fontSize: 8.5, verticalAlign: "middle" };
+  const tdB: React.CSSProperties = { border: bdr, padding: "3.5px 5px", fontSize: 9.5, verticalAlign: "middle", color: "#000" };
   const tdH: React.CSSProperties = {
     ...tdB,
-    background: "#e0e0e0",
+    background: "#e8e8e8",
     fontWeight: "bold",
     textAlign: "center",
-    fontSize: 8
+    fontSize: 9.5
   };
 
   const totalValue = po.items.reduce((s, i) => s + (i.amount || 0), 0);
@@ -2888,20 +2888,25 @@ export function PurchaseOrderPrint({
   const roundOff = Math.round(grossBeforeRound) - grossBeforeRound;
   const grossAmount = po.grossAmount || Math.round(grossBeforeRound);
 
+  // Minimum rows so that PO fills the A4 page proportionately without empty gaps
+  const minRows = 8;
+  const blankRowsCount = Math.max(0, minRows - po.items.length);
+
   const MainPage = () => (
     <div
       className="po-page po-main-page"
       style={{
         width: "210mm",
         minHeight: "297mm",
-        margin: "0 auto",
+        margin: "0 auto 30px auto",
         background: "white",
         fontFamily: '"Arial Narrow",Arial,sans-serif',
         fontSize: 10,
-        padding: "10mm",
+        padding: 0,
         boxSizing: "border-box",
         position: "relative",
-        border: "1px solid #bbb"
+        border: "1.5px solid #222",
+        boxShadow: "0 4px 15px rgba(0,0,0,0.25)"
       }}
     >
       <div
@@ -2910,26 +2915,28 @@ export function PurchaseOrderPrint({
           justifyContent: "space-between",
           alignItems: "flex-start",
           borderBottom: bdr,
-          paddingBottom: 6,
-          marginBottom: 6
+          padding: "8px 10px 6px 10px",
+          marginBottom: 0
         }}
       >
         <div>
-          <div style={{ fontSize: 22, fontWeight: "bold", letterSpacing: 1 }}>PURCHASE ORDER</div>
-          <div style={{ fontSize: 12, fontWeight: "bold" }}>{company?.mailingName || company?.name}</div>
+          <div style={{ fontSize: 20, fontWeight: "bold", letterSpacing: 1, color: "#000" }}>PURCHASE ORDER</div>
+          <div style={{ fontSize: 13, fontWeight: "bold", marginTop: 2 }}>{company?.mailingName || company?.name}</div>
           {company?.mailingName && (
-            <div style={{ fontSize: 9, fontStyle: "italic" }}>(formerly {company?.name})</div>
+            <div style={{ fontSize: 9.5, fontStyle: "italic" }}>(formerly {company?.name})</div>
           )}
-          <div style={{ marginTop: 4, fontSize: 9, whiteSpace: "pre-wrap" }}>{company?.address}</div>
-          <div style={{ fontSize: 9 }}>T - &nbsp;&nbsp; F -</div>
+          <div style={{ marginTop: 3, fontSize: 9.5, whiteSpace: "pre-wrap", lineHeight: 1.35 }}>{company?.address}</div>
+          <div style={{ fontSize: 9.5, marginTop: 2 }}>
+            {company?.telephone ? `T - ${company.telephone}` : "T -"} &nbsp;&nbsp; {company?.mobile ? `Mob - ${company.mobile}` : "F -"}
+          </div>
         </div>
         <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-          <div style={{ fontSize: 13, fontWeight: "bold", border: bdr, padding: "3px 14px", letterSpacing: 2 }}>
+          <div style={{ fontSize: 12, fontWeight: "bold", border: bdr, padding: "3px 14px", letterSpacing: 2, background: "#f8f8f8" }}>
             Original
           </div>
-          <div style={{ fontSize: 8, color: "#555" }}>ISO Document No.: {ISODoc}</div>
+          <div style={{ fontSize: 8.5, color: "#444", fontWeight: "bold" }}>ISO Document No.: {ISODoc}</div>
           {company?.showLogo && company?.logo ? (
-            <img src={company.logo} alt="Logo" style={{ height: 45, objectFit: "contain", marginTop: 4 }} />
+            <img src={company.logo} alt="Logo" style={{ height: 46, objectFit: "contain", marginTop: 4 }} />
           ) : (
             <div style={{ fontSize: 11, fontWeight: "bold", color: "#1a1a2e", border: bdr, padding: "4px 10px", marginTop: 4 }}>
               {company?.name}
@@ -2937,86 +2944,86 @@ export function PurchaseOrderPrint({
           )}
         </div>
       </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 0 }}>
         <tbody>
           <tr>
             <td style={{ ...tdB, fontWeight: "bold", width: "20%" }}>Purchase Order No.</td>
-            <td style={{ ...tdB, width: "20%", fontWeight: "bold", color: "#1a3a6e" }}>{po.poNumber}</td>
+            <td style={{ ...tdB, width: "20%", fontWeight: "bold", color: "#000", fontSize: 10.5 }}>{po.poNumber}</td>
             <td style={{ ...tdB, width: "8%" }}>Dated</td>
-            <td style={{ ...tdB, width: "15%" }}>{formatDate(po.poDate)}</td>
+            <td style={{ ...tdB, width: "15%", fontWeight: "bold" }}>{formatDate(po.poDate)}</td>
             <td style={{ ...tdB, width: "8%" }}>PAN</td>
-            <td style={tdB}>{po.pan || company?.pan}</td>
+            <td style={{ ...tdB, fontWeight: "bold" }}>{po.pan || company?.pan}</td>
           </tr>
           <tr>
             <td style={tdB}>Amendment No.</td>
-            <td style={tdB}>{po.amendmentNo}</td>
+            <td style={tdB}>{po.amendmentNo || "—"}</td>
             <td style={tdB}>Dated</td>
-            <td style={tdB}>{formatDate(po.amendmentDate)}</td>
+            <td style={tdB}>{formatDate(po.amendmentDate) || "—"}</td>
             <td style={tdB}>GSTIN</td>
-            <td style={tdB}>{po.gstin || company?.gstin}</td>
+            <td style={{ ...tdB, fontWeight: "bold" }}>{po.gstin || company?.gstin}</td>
           </tr>
           <tr>
             <td style={tdB}>Internal Indent No.</td>
-            <td style={tdB}>{po.internalIndentNo}</td>
+            <td style={tdB}>{po.internalIndentNo || "—"}</td>
             <td style={tdB}>Dated</td>
-            <td style={tdB}>{formatDate(po.internalIndentDate)}</td>
+            <td style={tdB}>{formatDate(po.internalIndentDate) || "—"}</td>
             <td style={tdB}>IEC No.</td>
-            <td style={tdB}>{po.iecNo}</td>
+            <td style={tdB}>{po.iecNo || "—"}</td>
           </tr>
           <tr>
             <td style={tdB}>Your Quotation No.</td>
-            <td style={tdB}>{po.yourQuotationNo}</td>
+            <td style={tdB}>{po.yourQuotationNo || "—"}</td>
             <td colSpan={4} style={tdB}></td>
           </tr>
         </tbody>
       </table>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 0 }}>
         <tbody>
           <tr>
-            <td style={{ ...tdB, width: "50%", verticalAlign: "top" }}>
-              {po.vendorCode && <div style={{ fontSize: 9, color: "#555" }}>VEND{po.vendorCode}</div>}
-              <div style={{ fontWeight: "bold", fontSize: 10 }}>{po.vendorName}</div>
-              <div style={{ fontSize: 9, whiteSpace: "pre-wrap" }}>{po.vendorAddress}</div>
-              {po.vendorGstin && <div style={{ fontSize: 9 }}>GSTIN: {po.vendorGstin}</div>}
+            <td style={{ ...tdB, width: "50%", verticalAlign: "top", padding: "6px 8px" }}>
+              {po.vendorCode && <div style={{ fontSize: 9, color: "#555" }}>VEND: {po.vendorCode}</div>}
+              <div style={{ fontWeight: "bold", fontSize: 11, color: "#000" }}>{po.vendorName}</div>
+              <div style={{ fontSize: 9.5, whiteSpace: "pre-wrap", lineHeight: 1.35, marginTop: 2 }}>{po.vendorAddress}</div>
+              {po.vendorGstin && <div style={{ fontSize: 9.5, marginTop: 3 }}>GSTIN: <strong>{po.vendorGstin}</strong></div>}
             </td>
-            <td style={{ ...tdB, verticalAlign: "top" }}>
+            <td style={{ ...tdB, verticalAlign: "top", padding: "6px 8px", fontSize: 9.5 }}>
               <div>
-                <strong>Currency :</strong> {po.currency}
+                <strong>Currency :</strong> {po.currency || "INR"}
               </div>
               <div style={{ marginTop: 3 }}>
-                <strong>Terms of Delivery :</strong> {po.termsOfDelivery}
+                <strong>Terms of Delivery :</strong> {po.termsOfDelivery || "—"}
               </div>
               <div style={{ marginTop: 3 }}>
-                <strong>Terms of Payment</strong> {po.termsOfPayment}
+                <strong>Terms of Payment :</strong> {po.termsOfPayment || "—"}
               </div>
               <div style={{ marginTop: 3 }}>
-                <strong>Contact Purchase Representatives :</strong> {po.contactPurchaseRep}
+                <strong>Contact Purchase Representatives :</strong> {po.contactPurchaseRep || "—"}
               </div>
             </td>
           </tr>
         </tbody>
       </table>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 0 }}>
         <tbody>
           <tr>
-            <td style={{ ...tdB, width: "50%", verticalAlign: "top" }}>
-              <div style={{ fontWeight: "bold", fontSize: 9, textDecoration: "underline" }}>Invoice from:</div>
-              <div style={{ fontWeight: "bold" }}>{po.invoiceFromName || po.vendorName}</div>
-              <div style={{ fontSize: 9, whiteSpace: "pre-wrap" }}>
+            <td style={{ ...tdB, width: "50%", verticalAlign: "top", padding: "6px 8px" }}>
+              <div style={{ fontWeight: "bold", fontSize: 9.5, textDecoration: "underline" }}>Invoice from:</div>
+              <div style={{ fontWeight: "bold", fontSize: 10.5, marginTop: 2 }}>{po.invoiceFromName || po.vendorName}</div>
+              <div style={{ fontSize: 9.5, whiteSpace: "pre-wrap", lineHeight: 1.35, marginTop: 2 }}>
                 {po.invoiceFromAddress || po.vendorAddress}
               </div>
               {(po.invoiceFromGstin || po.vendorGstin) && (
-                <div style={{ fontSize: 9 }}>GSTIN: {po.invoiceFromGstin || po.vendorGstin}</div>
+                <div style={{ fontSize: 9.5, marginTop: 3 }}>GSTIN: <strong>{po.invoiceFromGstin || po.vendorGstin}</strong></div>
               )}
             </td>
-            <td style={{ ...tdB, verticalAlign: "top" }}>
-              <div style={{ fontWeight: "bold", fontSize: 9, textDecoration: "underline" }}>Deliver to:</div>
-              <div style={{ fontWeight: "bold" }}>{po.deliverToName || company?.mailingName || company?.name}</div>
-              <div style={{ fontSize: 9, whiteSpace: "pre-wrap" }}>
+            <td style={{ ...tdB, verticalAlign: "top", padding: "6px 8px" }}>
+              <div style={{ fontWeight: "bold", fontSize: 9.5, textDecoration: "underline" }}>Deliver to:</div>
+              <div style={{ fontWeight: "bold", fontSize: 10.5, marginTop: 2 }}>{po.deliverToName || company?.mailingName || company?.name}</div>
+              <div style={{ fontSize: 9.5, whiteSpace: "pre-wrap", lineHeight: 1.35, marginTop: 2 }}>
                 {po.deliverToAddress || company?.address}
               </div>
               {(po.deliverToGstin || company?.gstin) && (
-                <div style={{ fontSize: 9 }}>GSTIN: {po.deliverToGstin || company?.gstin}</div>
+                <div style={{ fontSize: 9.5, marginTop: 3 }}>GSTIN: <strong>{po.deliverToGstin || company?.gstin}</strong></div>
               )}
             </td>
           </tr>
@@ -3025,106 +3032,116 @@ export function PurchaseOrderPrint({
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 0 }}>
         <thead>
           <tr>
-            <th style={{ ...tdH, width: 25 }}>SL. NO.</th>
-            <th style={{ ...tdH, width: 55 }}>HSN CODE</th>
-            <th style={tdH}>DESCRIPTION</th>
-            <th style={{ ...tdH, width: 55 }}>PART NO.</th>
-            <th style={{ ...tdH, width: 30 }}>GST %</th>
-            <th style={{ ...tdH, width: 58 }}>REQUIRED BY</th>
-            <th style={{ ...tdH, width: 35 }}>UOM</th>
-            <th style={{ ...tdH, width: 35 }}>QTY</th>
-            <th style={{ ...tdH, width: 58 }}>RATE Rs. Ps.</th>
-            <th style={{ ...tdH, width: 30 }}>Disc ount %</th>
-            <th style={{ ...tdH, width: 62 }}>AMOUNT Rs. Ps.</th>
+            <th style={{ ...tdH, width: 30 }}>SL. NO.</th>
+            <th style={{ ...tdH, width: 65 }}>HSN CODE</th>
+            <th style={{ ...tdH, textAlign: "left", paddingLeft: 8 }}>DESCRIPTION</th>
+            <th style={{ ...tdH, width: 60 }}>PART NO.</th>
+            <th style={{ ...tdH, width: 42 }}>GST %</th>
+            <th style={{ ...tdH, width: 75 }}>REQUIRED BY</th>
+            <th style={{ ...tdH, width: 38 }}>UOM</th>
+            <th style={{ ...tdH, width: 50, textAlign: "right" }}>QTY</th>
+            <th style={{ ...tdH, width: 75, textAlign: "right" }}>RATE Rs. Ps.</th>
+            <th style={{ ...tdH, width: 42, textAlign: "right" }}>Disc %</th>
+            <th style={{ ...tdH, width: 90, textAlign: "right" }}>AMOUNT Rs. Ps.</th>
           </tr>
         </thead>
         <tbody>
           {po.items.map((item, i) => (
-            <tr key={i}>
-              <td style={{ ...tdB, textAlign: "center" }}>{item.slNo}</td>
+            <tr key={i} style={{ height: 24 }}>
+              <td style={{ ...tdB, textAlign: "center" }}>{item.slNo || i + 1}</td>
               <td style={{ ...tdB, textAlign: "center" }}>{item.hsnCode}</td>
-              <td style={tdB}>{item.description}</td>
-              <td style={{ ...tdB, textAlign: "center" }}>{item.partNo}</td>
+              <td style={{ ...tdB, paddingLeft: 8, fontWeight: "bold" }}>{item.description}</td>
+              <td style={{ ...tdB, textAlign: "center" }}>{item.partNo || "—"}</td>
               <td style={{ ...tdB, textAlign: "center" }}>{item.gstRate}%</td>
               <td style={{ ...tdB, textAlign: "center" }}>{formatDate(item.requiredBy)}</td>
               <td style={{ ...tdB, textAlign: "center" }}>{item.uom}</td>
-              <td style={{ ...tdB, textAlign: "right" }}>{item.qty}</td>
+              <td style={{ ...tdB, textAlign: "right", fontWeight: "bold" }}>{item.qty}</td>
               <td style={{ ...tdB, textAlign: "right" }}>{fmt(item.rate)}</td>
               <td style={{ ...tdB, textAlign: "right" }}>{item.discountPerc || 0}</td>
               <td style={{ ...tdB, textAlign: "right", fontWeight: "bold" }}>{fmt(item.amount)}</td>
             </tr>
           ))}
-          {Array.from({ length: Math.max(0, 3 - po.items.length) }).map((_, i) => (
-            <tr key={"p" + i} style={{ height: 20 }}>
-              {Array.from({ length: 11 }).map((_, j) => (
-                <td key={j} style={tdB}>
-                  &nbsp;
-                </td>
-              ))}
+          {Array.from({ length: blankRowsCount }).map((_, i) => (
+            <tr key={"blank-" + i} style={{ height: 24 }}>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
+              <td style={tdB}>&nbsp;</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 0 }}>
         <tbody>
           <tr>
-            <td style={{ ...tdB, width: "50%", verticalAlign: "top" }}>
-              <div style={{ fontWeight: "bold", fontSize: 9, textDecoration: "underline", marginBottom: 4 }}>
+            <td style={{ ...tdB, width: "50%", verticalAlign: "top", padding: "6px 8px" }}>
+              <div style={{ fontWeight: "bold", fontSize: 9.5, textDecoration: "underline", marginBottom: 4 }}>
                 Specific Terms and Conditions
               </div>
-              {(po.specificTerms || []).map((term, i) => (
-                <div key={i} style={{ fontSize: 9, marginBottom: 2 }}>
-                  {i + 1}&nbsp; {term}
-                </div>
-              ))}
+              {(po.specificTerms && po.specificTerms.length > 0) ? (
+                po.specificTerms.map((term, i) => (
+                  <div key={i} style={{ fontSize: 9.5, marginBottom: 3, lineHeight: 1.35 }}>
+                    {i + 1}.&nbsp; {term}
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: 9, color: "#777", fontStyle: "italic" }}>Standard terms applicable as per purchase agreement.</div>
+              )}
             </td>
-            <td style={{ ...tdB, verticalAlign: "top" }}>
+            <td style={{ ...tdB, verticalAlign: "top", padding: 0 }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <tbody>
                   <tr>
-                    <td style={{ ...tdB, textAlign: "right", fontSize: 9 }}>TOTAL VALUE</td>
-                    <td style={{ ...tdB, textAlign: "right", fontSize: 9, width: 70 }}>{fmt(totalValue)}</td>
+                    <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, borderTop: "none", borderLeft: "none" }}>TOTAL VALUE</td>
+                    <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, width: 90, borderTop: "none", borderRight: "none", fontWeight: "bold" }}>{fmt(totalValue)}</td>
                   </tr>
                   <tr>
-                    <td style={{ ...tdB, textAlign: "right", fontSize: 9 }}>Discount</td>
-                    <td style={{ ...tdB, textAlign: "right", fontSize: 9, width: 70 }}>0.00</td>
+                    <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, borderLeft: "none" }}>Discount</td>
+                    <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, width: 90, borderRight: "none" }}>0.00</td>
                   </tr>
                   {isInterState ? (
                     <tr>
-                      <td style={{ ...tdB, textAlign: "right", fontSize: 9 }}>IGST</td>
-                      <td style={{ ...tdB, textAlign: "right", fontSize: 9, width: 70 }}>{fmt(igstAmt)}</td>
+                      <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, borderLeft: "none" }}>IGST</td>
+                      <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, width: 90, borderRight: "none" }}>{fmt(igstAmt)}</td>
                     </tr>
                   ) : (
                     <>
                       <tr>
-                        <td style={{ ...tdB, textAlign: "right", fontSize: 9 }}>CGST</td>
-                        <td style={{ ...tdB, textAlign: "right", fontSize: 9, width: 70 }}>{fmt(cgstAmt)}</td>
+                        <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, borderLeft: "none" }}>CGST</td>
+                        <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, width: 90, borderRight: "none" }}>{fmt(cgstAmt)}</td>
                       </tr>
                       <tr>
-                        <td style={{ ...tdB, textAlign: "right", fontSize: 9 }}>SGST</td>
-                        <td style={{ ...tdB, textAlign: "right", fontSize: 9, width: 70 }}>{fmt(sgstAmt)}</td>
+                        <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, borderLeft: "none" }}>SGST</td>
+                        <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, width: 90, borderRight: "none" }}>{fmt(sgstAmt)}</td>
                       </tr>
                     </>
                   )}
                   <tr>
-                    <td style={{ ...tdB, textAlign: "right", fontSize: 9 }}>Rounding Off</td>
-                    <td style={{ ...tdB, textAlign: "right", fontSize: 9, width: 70 }}>
+                    <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, borderLeft: "none" }}>Rounding Off</td>
+                    <td style={{ ...tdB, textAlign: "right", fontSize: 9.5, width: 90, borderRight: "none" }}>
                       {fmt(Math.abs(roundOff))}
                     </td>
                   </tr>
                   <tr style={{ fontWeight: "bold" }}>
-                    <td style={{ ...tdB, textAlign: "right", fontSize: 10, background: "#e8e8e8" }}>
+                    <td style={{ ...tdB, textAlign: "right", fontSize: 11, background: "#e8e8e8", borderLeft: "none" }}>
                       GROSS AMOUNT
                     </td>
-                    <td style={{ ...tdB, textAlign: "right", fontSize: 10, background: "#e8e8e8" }}>
-                      {fmt(grossAmount)}
+                    <td style={{ ...tdB, textAlign: "right", fontSize: 11, background: "#e8e8e8", borderRight: "none", fontWeight: "bold" }}>
+                      ₹ {fmt(grossAmount)}
                     </td>
                   </tr>
                   <tr>
-                    <td colSpan={2} style={{ ...tdB, fontSize: 9 }}>
+                    <td colSpan={2} style={{ ...tdB, fontSize: 9.5, borderLeft: "none", borderRight: "none", borderBottom: "none", padding: "5px 8px" }}>
                       <strong>TOTAL VALUE IN WORDS :</strong>
                       <br />
-                      <span style={{ fontSize: 9, fontStyle: "italic" }}>
+                      <span style={{ fontSize: 9.5, fontStyle: "italic", fontWeight: "bold" }}>
                         {numberToWords(grossAmount)}
                       </span>
                     </td>
@@ -3135,30 +3152,30 @@ export function PurchaseOrderPrint({
           </tr>
         </tbody>
       </table>
-      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 0, borderTop: bdr }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 0, borderTop: bdr }}>
         {["Prepared By :", "Approved By :", "Finance Check", `For ${company?.mailingName || company?.name || "Company"}`].map((label, i) => (
-          <div key={i} style={{ padding: "6px 8px", borderRight: i < 3 ? bdr : "none" }}>
-            <div style={{ fontSize: 9, color: "#555" }}>{label}</div>
-            <div style={{ marginTop: 18, fontSize: 10, fontWeight: "bold" }}>
+          <div key={i} style={{ padding: "6px 8px", borderRight: i < 3 ? bdr : "none", minHeight: 60, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div style={{ fontSize: 9, color: "#444" }}>{label}</div>
+            <div style={{ marginTop: 24, fontSize: 10, fontWeight: "bold" }}>
               {i === 0 ? po.preparedBy : i === 1 ? po.approvedBy : i === 2 ? po.financeCheck : ""}
             </div>
-            {i === 3 && <div style={{ fontSize: 9, color: "#555", marginTop: 4 }}>Authorised Signatory</div>}
+            {i === 3 && <div style={{ fontSize: 9, color: "#444" }}>Authorised Signatory</div>}
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 6, fontSize: 8, color: "#555", borderTop: bdr, paddingTop: 4, textAlign: "center" }}>
-        This purchase order is digital approved hence seal and signature is not required.
+      <div style={{ fontSize: 8.5, color: "#444", borderTop: bdr, padding: "3px 8px", textAlign: "center", fontStyle: "italic" }}>
+        This purchase order is digitally approved hence seal and signature is not required.
       </div>
       {company?.address && (
-        <div style={{ fontSize: 7.5, color: "#444", marginTop: 4, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 8, color: "#333", borderTop: "1px dashed #999", padding: "3px 8px", lineHeight: 1.35, textAlign: "center" }}>
           REGISTERED OFFICE : {company.address}
           {company.pinCode ? ", Pin: " + company.pinCode : ""}
-          {company.email ? " E: " + company.email : ""}
-          {company.website ? " W: " + company.website : ""}
+          {company.email ? " | E: " + company.email : ""}
+          {company.website ? " | W: " + company.website : ""}
         </div>
       )}
       {po.enableTnC && (
-        <div style={{ marginTop: 6, fontSize: 7.5, color: "#333", lineHeight: 1.5, borderTop: bdr, paddingTop: 4 }}>
+        <div style={{ fontSize: 7.5, color: "#333", lineHeight: 1.4, borderTop: bdr, padding: "3px 8px" }}>
           Purchase Order General Terms and Conditions (&quot;GTC&quot;) shall be unequivocally applicable to the suppliers and or service providers to {company?.mailingName || company?.name || "the Company"} for the sourcing of products and services. No modifications, whether in writing or verbal, to this GTCs shall be accepted by {company?.mailingName || company?.name || "the Company"} unless expressly agreed between the parties in writing.<br />
           Any failure or delay in exercising any right or remedy under the GTC or by law shall not be deemed as a waiver by {company?.mailingName || company?.name || "the Company"} of any subsequent breach or default. Similarly, it shall not constitute a restriction to further exercise that right or remedy or any other right or remedy.
         </div>
@@ -3181,7 +3198,8 @@ export function PurchaseOrderPrint({
           padding: "12mm 14mm",
           boxSizing: "border-box",
           position: "relative",
-          border: "1px solid #bbb",
+          border: "1.5px solid #222",
+          boxShadow: "0 4px 15px rgba(0,0,0,0.25)",
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between"
@@ -3265,6 +3283,9 @@ export function PurchaseOrderPrint({
         <span style={{ fontSize: 14, fontWeight: "bold" }}>
           Print Preview - {po.poNumber}
         </span>
+        <div style={{ background: "#2a2d3d", padding: "3px 10px", borderRadius: 4, fontSize: 11, color: "#cbd5e1" }}>
+          🖨️ For Best Print: In Print Dialog, set <strong>Scale: 100% (Default)</strong> | <strong>Margins: Default</strong>
+        </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ fontSize: 11, color: po.enableTnC ? "#2ecc71" : "#f39c12" }}>
             {po.enableTnC ? `T&C Enabled (${totalPages} pages)` : `T&C Disabled (1 page only)`}
@@ -3276,10 +3297,11 @@ export function PurchaseOrderPrint({
               color: "white",
               border: "none",
               borderRadius: 4,
-              padding: "4px 16px",
+              padding: "5px 18px",
               cursor: "pointer",
-              fontSize: 12,
-              fontWeight: "bold"
+              fontSize: 13,
+              fontWeight: "bold",
+              boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
             }}
           >
             Print
@@ -3295,13 +3317,62 @@ export function PurchaseOrderPrint({
           TNC_SECTIONS.map((_, idx) => <TnCPage key={idx} sIdx={idx} pageNo={idx + 2} />)}
       </div>
       <style>{`
+        @page {
+          size: A4 portrait;
+          margin: 8mm 8mm 8mm 8mm !important;
+        }
         @media print {
-          .po-print-toolbar { display: none !important; }
-          body > * { display: none !important; }
-          .po-print-content { display: block !important; overflow: visible !important; padding: 0 !important; background: white !important; }
-          .po-page { border: none !important; margin: 0 !important; box-shadow: none !important; }
-          .po-main-page { page-break-after: ${po.enableTnC ? "always" : "auto"}; }
-          .po-tnc-page { page-break-before: always; }
+          html, body {
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .po-print-toolbar,
+          .top-nav, .sub-nav, .sidebar, .left-panel, .voucher-header, .no-print, .tally-sidebar,
+          .mobile-bottom-nav, .mobile-company-bar, .mobile-ham-btn, .mobile-nav-drawer,
+          .mobile-nav-overlay, .mobile-dashboard-cards, .mobile-quick-actions,
+          .mobile-menu-screen, .report-app-bar {
+            display: none !important;
+          }
+          .po-print-content {
+            display: block !important;
+            overflow: visible !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
+            width: 100% !important;
+          }
+          .po-page {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-height: auto !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            border: 1.5px solid #111 !important;
+            box-shadow: none !important;
+            box-sizing: border-box !important;
+          }
+          .po-main-page {
+            page-break-after: ${po.enableTnC ? "always" : "auto"} !important;
+            page-break-inside: avoid !important;
+          }
+          .po-tnc-page {
+            page-break-before: always !important;
+            page-break-inside: avoid !important;
+            padding: 8mm 10mm !important;
+            border: 1.5px solid #111 !important;
+          }
+          .po-page table {
+            border-collapse: collapse !important;
+          }
+          .po-page th, .po-page td {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
       `}</style>
     </>
