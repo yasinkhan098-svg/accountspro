@@ -64,6 +64,7 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   vouchers  Voucher[]
+  purchaseOrders PurchaseOrder[]
   ledgers   Ledger[]
   stockGroups StockGroup[]
   stockItems  StockItem[]
@@ -197,4 +198,68 @@ model InventoryEntry {
   desc3       String?
   voucher     Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   stockItem   StockItem @relation(fields: [stockItemId], references: [id])
+}
+
+model PurchaseOrder {
+  id                  Int                 @id @default(autoincrement())
+  companyId           Int
+  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  poNumber            String
+  poDate              DateTime
+  amendmentNo         String?
+  amendmentDate       DateTime?
+  internalIndentNo    String?
+  internalIndentDate  DateTime?
+  yourQuotationNo     String?
+  vendorCode          String?
+  vendorName          String
+  vendorAddress       String?
+  vendorGstin         String?
+  currency            String              @default("INR")
+  termsOfDelivery     String?
+  termsOfPayment      String?
+  contactPurchaseRep  String?
+  pan                 String?
+  gstin               String?
+  iecNo               String?
+  invoiceFromName     String?
+  invoiceFromAddress  String?
+  invoiceFromGstin    String?
+  deliverToName       String?
+  deliverToAddress    String?
+  deliverToGstin      String?
+  specificTerms       String?             // JSON array of specific T&C lines
+  enableTnC           Boolean             @default(false)
+  status              String              @default("Open") // Open, PartiallyReceived, Closed
+  totalValue          Float               @default(0)
+  grossAmount         Float               @default(0)
+  narration           String?
+  preparedBy          String?
+  approvedBy          String?
+  financeCheck        String?
+  items               PurchaseOrderItem[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id              Int           @id @default(autoincrement())
+  purchaseOrderId Int
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  slNo            Int
+  hsnCode         String?
+  description     String
+  partNo          String?
+  gstRate         Float         @default(18)
+  requiredBy      DateTime?
+  uom             String        @default("Nos")
+  qty             Float
+  rate            Float
+  discountPerc    Float         @default(0)
+  discountAmt     Float         @default(0)
+  amount          Float
+  receivedQty     Float         @default(0)
+  balanceQty      Float         @default(0)
+  stockItemId     Int?
+  createdAt       DateTime      @default(now())
 }

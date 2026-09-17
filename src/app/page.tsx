@@ -4,6 +4,7 @@ import AuthUI from '@/components/AuthUI';
 import SubscriptionRenewalUI from '@/components/SubscriptionRenewalUI';
 import PlanUpgradeModal from '@/components/PlanUpgradeModal';
 import VirtualFinalBSModal from '@/virtual-bs/VirtualFinalBSModal';
+import { PurchaseOrderModule } from '@/components/PurchaseOrderModule';
 import { authClient } from '@/lib/auth-client';
 import {
   computeBaseFinancials,
@@ -24,6 +25,7 @@ type ScreenType =
   | 'SALES_REGISTER' | 'PURCHASE_REGISTER' | 'CONTRA_REGISTER' | 'PAYMENT_REGISTER'
   | 'RECEIPT_REGISTER' | 'JOURNAL_REGISTER' | 'DEBIT_NOTE_REGISTER' | 'CREDIT_NOTE_REGISTER'
   | 'QUOTATION_REGISTER'
+  | 'PURCHASE_ORDER_ENTRY' | 'PURCHASE_ORDER_REGISTER'
   | 'LEDGER_REPORT' | 'GROUP_SUMMARY' | 'STOCK_SUMMARY'
   | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
   | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE';
@@ -2222,6 +2224,8 @@ export default function App() {
     { label:'Sales Register',         highlight:'S', action:()=>nav('SALES_REGISTER') },
     { label:'Sales Quotation Register',highlight:'U', action:()=>nav('QUOTATION_REGISTER') },
     { label:'Purchase Register',      highlight:'P', action:()=>nav('PURCHASE_REGISTER') },
+    { label:'Purchase Order Entry',    highlight:'O', action:()=>nav('PURCHASE_ORDER_ENTRY') },
+    { label:'Purchase Order Register', highlight:'R', action:()=>nav('PURCHASE_ORDER_REGISTER') },
     { label:'Journal Register',       highlight:'J', action:()=>nav('JOURNAL_REGISTER') },
     { label:'Debit Note Register',    highlight:'D', action:()=>nav('DEBIT_NOTE_REGISTER') },
     { label:'CrEdit Note Register',   highlight:'E', action:()=>nav('CREDIT_NOTE_REGISTER') },
@@ -2942,6 +2946,8 @@ export default function App() {
             {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onSaveOpeningBalance={async (ledgerId, ob, bt) => { const token = authClient.getToken(); const res = await fetch('/api/ledgers', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:ledgerId,openingBalance:ob,balanceType:bt})}); const d = await res.json(); if(d.success){setAllLedgers(p=>p.map(x=>x.id===ledgerId?{...x,openingBalance:ob,balanceType:bt}:x));} }} />}
             {screen==='SALES_REGISTER'       && <UniversalRegisterView voucherType='Sales'       vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='QUOTATION_REGISTER'   && <UniversalRegisterView voucherType='Sales Quotation' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
+            {screen==='PURCHASE_ORDER_ENTRY'    && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} onBack={()=>nav('ACCOUNT_BOOKS_MENU')}/>}
+            {screen==='PURCHASE_ORDER_REGISTER' && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} onBack={()=>nav('ACCOUNT_BOOKS_MENU')}/>}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='CONTRA_REGISTER'      && <UniversalRegisterView voucherType='Contra'      vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PAYMENT_REGISTER'     && <UniversalRegisterView voucherType='Payment'     vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
@@ -7233,6 +7239,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const [refNo, setRefNo] = useState(activeAlterItem?.refNo || '');
   const [supplierInvNo, setSupplierInvNo] = useState(activeAlterItem?.partyDetails?.supplierInvNo || '');
   const [supplierInvDate, setSupplierInvDate] = useState(activeAlterItem?.partyDetails?.supplierInvDate || '');
+  const [poRefNo, setPoRefNo] = useState(''); // Purchase Order No. link field
+  const [poLinking, setPoLinking] = useState(false); // loading state when fetching PO
   const [rows, setRows] = useState<VoucherRow[]>(
     activeAlterItem?.inventoryEntries?.length > 0 
     ? activeAlterItem.inventoryEntries.map((ie: any) => ({
@@ -8129,6 +8137,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         }
       }
       const savedV = await onSave(voucherData);
+      // If a PO number was linked, update PO received qty
+      if (poRefNo.trim() && activeCompany?.id && (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note')) {
+        try {
+          const poRes = await fetch(`/api/purchase-orders?companyId=${activeCompany.id}&poNumber=${encodeURIComponent(poRefNo.trim())}`);
+          const poData = await poRes.json();
+          if (poData.success && poData.po) {
+            const receivedItems = rows.filter(r => r.itemName).map(r => ({ description: r.itemName, qty: r.qty }));
+            await fetch('/api/purchase-orders', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ poId: poData.po.id, receivedItems })
+            });
+          }
+        } catch(e) { console.warn('PO receive update failed:', e); }
+      }
       setSaveToast(null);
       setPrintPromptSel('yes');
       setShowPrintPrompt({
@@ -8145,6 +8168,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const clearVoucherForm = () => {
     if(activeAlterItem) { onCancel(); return; }
     setPartyName('');
+    setPoRefNo('');
     setVoucherDate(formatDateToTally(currentDate) || currentDate);
     setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
     // Journal: Initialize with Dr (By) + Cr (To) pair
@@ -8492,6 +8516,56 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           )}
           {(activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') && (
             <>
+              <div className="form-row" style={{marginBottom:0, background:'#f0f7ff', borderRadius:3, padding:'2px 0'}}>
+                <label style={{width:150, color:'#1a3a6e', fontWeight:'bold'}}>Purchase Order No.</label><span className="colon">:</span>
+                <input id="v-po-ref-no" type="text" className="form-input" style={{width:160, border:'1px solid #2980b9'}} value={poRefNo}
+                  onChange={e=>setPoRefNo(e.target.value)}
+                  placeholder="Enter PO No. to auto-fill"
+                  onKeyDown={async e=>{
+                    if (e.key === 'Enter' || e.key === 'Tab') {
+                      e.preventDefault(); e.stopPropagation();
+                      const poNo = poRefNo.trim();
+                      if (!poNo || !activeCompany?.id) return;
+                      setPoLinking(true);
+                      try {
+                        const res = await fetch(`/api/purchase-orders?companyId=${activeCompany.id}&poNumber=${encodeURIComponent(poNo)}`);
+                        const data = await res.json();
+                        if (data.success && data.po) {
+                          const po = data.po;
+                          setPartyName(po.vendorName || '');
+                          if (po.items && po.items.length > 0) {
+                            const newRows = po.items.map((item: any) => ({
+                              itemId: item.stockItemId || 0,
+                              itemName: item.description || '',
+                              qty: item.balanceQty > 0 ? item.balanceQty : item.qty,
+                              rate: item.rate || 0,
+                              rateInclTax: 0, amountInclTax: 0,
+                              unit: item.uom || 'Nos',
+                              amount: (item.balanceQty > 0 ? item.balanceQty : item.qty) * (item.rate || 0),
+                              discountPerc: item.discountPerc || 0,
+                              discountAmt: item.discountAmt || 0,
+                              taxableAmount: (item.balanceQty > 0 ? item.balanceQty : item.qty) * (item.rate || 0),
+                              gstRate: item.gstRate || 18,
+                              hsnCode: item.hsnCode || ''
+                            }));
+                            setRows(newRows);
+                          }
+                          setSaveToast(`PO ${poNo} loaded — ${po.items?.length || 0} items filled`);
+                          setTimeout(() => setSaveToast(null), 3000);
+                        } else {
+                          setSaveToast(`No PO found with number: ${poNo}`);
+                          setTimeout(() => setSaveToast(null), 3000);
+                        }
+                      } catch(err) {
+                        setSaveToast('Error fetching PO data');
+                        setTimeout(() => setSaveToast(null), 2000);
+                      } finally { setPoLinking(false); }
+                      setTimeout(() => document.getElementById('v-supplier-inv-no')?.focus(), 80);
+                    }
+                  }}
+                />
+                {poLinking && <span style={{marginLeft:8, fontSize:11, color:'#2980b9'}}>Loading PO...</span>}
+              </div>
               <div className="form-row" style={{marginBottom:0}}>
                 <label style={{width:150}}>Supplier Invoice No.</label><span className="colon">:</span>
                 <input id="v-supplier-inv-no" type="text" className="form-input" style={{width:160}} value={supplierInvNo} onChange={e=>setSupplierInvNo(e.target.value)} placeholder="Supplier's Inv No."
