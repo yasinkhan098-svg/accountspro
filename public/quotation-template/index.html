@@ -1,0 +1,224 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quotation - Scrap Material Purchase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="toolbar no-print">
+    <div class="toolbar-left">
+      <span class="toolbar-title">&#128196; Quotation Template</span>
+      <span class="toolbar-hint">Click on any text to edit</span>
+    </div>
+    <div class="toolbar-right">
+      <button class="btn-reset" onclick="resetToDefaults()">&#8635; Reset</button>
+      <button class="btn-print" onclick="window.print()">&#128424; Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div class="page-wrapper">
+    <div class="quotation-doc" id="quotation-doc">
+
+      <!-- ══ GSTIN & POLLUTION ROW (TOP) ══ -->
+      <div class="reg-row">
+        <div class="reg-item">
+          <span class="reg-label">GSTIN No. :</span>
+          <span class="reg-val uf" contenteditable="true" id="gstin-no">___________________________</span>
+        </div>
+        <div class="reg-item">
+          <span class="reg-label">Pollution Reg. No. :</span>
+          <span class="reg-val uf" contenteditable="true" id="pollution-no">___________________________</span>
+        </div>
+      </div>
+
+      <!-- ══ HEADER ══ -->
+      <div class="header-wrap">
+        <div class="logo-box">
+          <div class="ap-logo">
+            <div class="ap-circle">
+              <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+                <circle cx="40" cy="40" r="38" fill="#1e3a5f" stroke="#2d7a3a" stroke-width="2"/>
+                <text x="16" y="52" font-family="Poppins,Arial" font-size="30" font-weight="800" fill="#2d9e4f">A</text>
+                <line x1="41" y1="14" x2="41" y2="66" stroke="#2d9e4f" stroke-width="2.5"/>
+                <text x="44" y="52" font-family="Poppins,Arial" font-size="30" font-weight="800" fill="#ffffff">P</text>
+                <path d="M6,70 Q40,55 74,70" stroke="#2d9e4f" stroke-width="1.5" fill="none"/>
+              </svg>
+            </div>
+          </div>
+          <div class="logo-tagline">
+            <div class="logo-company-name" id="company-logo-name" contenteditable="true">EXAMPLE POLYMERS</div>
+            <div class="logo-sub" contenteditable="true">Recycle Today</div>
+            <div class="logo-sub" contenteditable="true">For A Better Tomorrow</div>
+          </div>
+        </div>
+        <div class="header-divider"></div>
+        <div class="company-info-center">
+          <div class="company-name-big" id="company-name" contenteditable="true">EXAMPLE POLYMERS</div>
+          <div class="company-mfg-line yellow-bold" id="company-mfg" contenteditable="true">MANUFACTURERS OF ALL KIND OF PLASTIC PACKAGING MATERIALS LIKE PP STRAP, ROPE, PIPE GRANULES, TANEX AND SUTLI ETC.</div>
+          <div class="contact-row"><span class="cicon">&#9993;</span><span contenteditable="true" id="company-email" class="contact-bold">example@gmail.com</span></div>
+          <div class="contact-row"><span class="cicon">&#128222;</span><span contenteditable="true" id="company-phone" class="contact-bold">1234567890</span></div>
+          <div class="contact-row"><span class="cicon">&#128205;</span><span contenteditable="true" id="company-address" class="contact-bold">Your Address Here, City, State, Pincode</span></div>
+        </div>
+        <div class="header-right">
+          <div class="tagline-card">
+            <div class="tagline-script"><em>Stronger Solutions<br/>for a Cleaner<br/>Tomorrow</em></div>
+            <div class="tagline-leaf">&#127807;</div>
+          </div>
+          <div class="recycle-card">
+            <div class="recycle-sym">&#9851;</div>
+            <div class="recycle-words">
+              <span>RECYCLE</span><span>REUSE</span><span>SUSTAIN</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ GREEN BANNER ══ -->
+      <div class="green-banner">
+        <div class="b-item"><span>&#9881;</span> Quality Products</div>
+        <div class="b-sep">|</div>
+        <div class="b-item"><span>&#129309;</span> Reliable Service</div>
+        <div class="b-sep">|</div>
+        <div class="b-item"><span>&#127807;</span> Sustainable Future</div>
+        <div class="b-plastictoday" contenteditable="true" title="Click to edit">PLASTIC TODAY<br/><span>A GREENER TOMORROW</span></div>
+      </div>
+
+      <!-- ══ REF & DATE ══ -->
+      <div class="ref-date-row">
+        <div class="ref-box">Ref. No. : <span class="uf" contenteditable="true" id="ref-no">________________</span></div>
+        <div class="date-box">Date : <span class="uf" contenteditable="true" id="doc-date">___/___/______</span></div>
+      </div>
+
+      <!-- ══ MAIN TITLE (EDITABLE) ══ -->
+      <div class="doc-title" contenteditable="true" id="doc-title">QUOTATION FOR PURCHASE OF SCRAP MATERIAL</div>
+      <div class="doc-subtitle-band" contenteditable="true" id="doc-subtitle">WE ARE INTERESTED IN PURCHASING THE FOLLOWING SCRAP MATERIALS</div>
+
+      <!-- ══ TO SECTION ══ -->
+      <div class="to-section">
+        <div class="to-left">
+          <div class="to-label">To,</div>
+          <div class="to-field" contenteditable="true">&nbsp;</div>
+          <div class="to-field" contenteditable="true">&nbsp;</div>
+          <div class="to-field" contenteditable="true">&nbsp;</div>
+        </div>
+        <div class="to-right">
+          <div class="stamp-box"><em>(Company Name &amp; Address<br/>to be filled by hand)</em></div>
+        </div>
+      </div>
+
+      <!-- ══ ITEMS TABLE ══ -->
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th class="th-sno">S. No.</th>
+            <th class="th-desc" contenteditable="true" title="Click to edit">Description of Scrap Material</th>
+            <th class="th-unit">Unit</th>
+            <th class="th-rate">Rate (&#8377;)</th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody"></tbody>
+      </table>
+
+      <div class="row-controls no-print">
+        <button class="btn-addrow" onclick="addRow()">+ Add Row</button>
+        <button class="btn-rmrow" onclick="removeLastRow()">&#8722; Remove Last</button>
+      </div>
+
+      <!-- ══ TERMS ══ -->
+      <div class="terms-section">
+        <div class="terms-left">
+          <div class="terms-title">Terms &amp; Conditions:</div>
+          <ol class="terms-list" id="terms-list">
+            <li contenteditable="true">Rates are subject to change as per market conditions.</li>
+            <li contenteditable="true">Material should be free from hazardous or prohibited items.</li>
+            <li contenteditable="true">Final quantity and quality will be subject to our inspection at our premises.</li>
+            <li contenteditable="true">Loading and transportation to our factory site will be arranged as per mutual understanding.</li>
+            <li contenteditable="true">Payment terms will be discussed and confirmed at the time of finalization.</li>
+            <li contenteditable="true">This quotation is valid for a limited period and may be revised without prior notice.</li>
+            <li contenteditable="true">We reserve the right to accept or reject any or all offers without assigning any reason.</li>
+            <li contenteditable="true">All disputes shall be subject to Sitarganj (Uttarakhand) jurisdiction only.</li>
+          </ol>
+        </div>
+        <div class="terms-right">
+          <div class="thankyou-box"><em>Thank you<br/>for contributing<br/>to a Cleaner &amp;<br/>Greener Environment</em><div class="ty-leaf">&#127807;&#127811;</div></div>
+        </div>
+      </div>
+
+      <!-- ══ SIGNATURE ══ -->
+      <div class="sig-section">
+        <div class="sig-left">
+          <div class="sig-for">For <strong><span id="sig-company" contenteditable="true">EXAMPLE POLYMERS</span></strong></div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Authorised Signatory</div>
+        </div>
+        <div class="sig-center"><div class="recycle-slogan"><em>Let&rsquo;s Recycle for a Better Tomorrow</em></div></div>
+        <div class="sig-right"><div class="plant">&#127807;</div></div>
+      </div>
+
+      <!-- ══ FOOTER BAND ══ -->
+      <div class="footer-band">
+        <span>REDUCE</span><span class="fd">&#9632;</span>
+        <span>REUSE</span><span class="fd">&#9632;</span>
+        <span>RECYCLE</span><span class="fd">&#9632;</span>
+        <span>SUSTAIN</span>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_ITEMS = [
+      {desc:'Wooden Scraps',unit:'KG',rate:'7/-'},
+      {desc:'M.S Scraps',unit:'KG',rate:'33/-'},
+      {desc:'Polythene',unit:'KG',rate:'22/-'},
+      {desc:'Empty Bags Raffia',unit:'KG',rate:'9/-'},
+      {desc:'Aluminume Scraps',unit:'KG',rate:'190/-'},
+      {desc:'Gatta',unit:'KG',rate:'14/-'},
+      {desc:'Regmall',unit:'KG',rate:'22/-'},
+      {desc:'Plastic Pipe Core',unit:'KG',rate:'14/-'},
+      {desc:'Rubber Belt Scraps',unit:'KG',rate:'12/-'},
+      {desc:'Plastic Drum 200 Ltr',unit:'PC',rate:'600/-'},
+      {desc:'Plastic Can 50 Ltr',unit:'PC',rate:'110/-'},
+      {desc:'MS Drum 200 Ltr',unit:'PC',rate:'450/-'},
+      {desc:'Waste Gear Oil (200 Ltr Drum)',unit:'DRUM',rate:'800/-'},
+      {desc:'Garvage Kachra',unit:'KG',rate:'5/-'},
+    ];
+    function renderRows(data){
+      const tb=document.getElementById('items-tbody');
+      tb.innerHTML='';
+      data.forEach((it,i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td class="td-sno">${i+1}</td><td class="td-desc" contenteditable="true">${it.desc}</td><td class="td-unit" contenteditable="true">${it.unit}</td><td class="td-rate" contenteditable="true">${it.rate}</td>`;
+        tb.appendChild(tr);
+      });
+    }
+    function renumber(){const tb=document.getElementById('items-tbody');Array.from(tb.rows).forEach((r,i)=>{r.cells[0].textContent=i+1;});}
+    function addRow(){const tb=document.getElementById('items-tbody');const n=tb.rows.length+1;const tr=document.createElement('tr');tr.innerHTML=`<td class="td-sno">${n}</td><td class="td-desc" contenteditable="true">New Item</td><td class="td-unit" contenteditable="true">KG</td><td class="td-rate" contenteditable="true">0/-</td>`;tb.appendChild(tr);renumber();}
+    function removeLastRow(){const tb=document.getElementById('items-tbody');if(tb.rows.length>1){tb.deleteRow(tb.rows.length-1);renumber();}}
+    function resetToDefaults(){
+      if(confirm('Reset all data to defaults?')){
+        renderRows(DEFAULT_ITEMS);
+        document.getElementById('company-name').textContent='EXAMPLE POLYMERS';
+        document.getElementById('company-logo-name').textContent='EXAMPLE POLYMERS';
+        document.getElementById('company-mfg').textContent='MANUFACTURERS OF ALL KIND OF PLASTIC PACKAGING MATERIALS LIKE PP STRAP, ROPE, PIPE GRANULES, TANEX AND SUTLI ETC.';
+        document.getElementById('company-email').textContent='example@gmail.com';
+        document.getElementById('company-phone').textContent='1234567890';
+        document.getElementById('company-address').textContent='Your Address Here, City, State, Pincode';
+        document.getElementById('sig-company').textContent='EXAMPLE POLYMERS';
+        document.getElementById('ref-no').textContent='________________';
+        document.getElementById('doc-date').textContent='___/___/______';
+        document.getElementById('gstin-no').textContent='___________________________';
+        document.getElementById('pollution-no').textContent='___________________________';
+        document.getElementById('doc-title').textContent='QUOTATION FOR PURCHASE OF SCRAP MATERIAL';
+        document.getElementById('doc-subtitle').textContent='WE ARE INTERESTED IN PURCHASING THE FOLLOWING SCRAP MATERIALS';
+      }
+    }
+    renderRows(DEFAULT_ITEMS);
+  </script>
+</body>
+</html>

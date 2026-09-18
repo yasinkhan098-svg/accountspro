@@ -2637,6 +2637,26 @@ export default function App() {
             <div onClick={()=>setShowDate(true)}><u>F2</u>: Date</div>
             <div onClick={()=>setShowPeriod(true)}><u>F2</u>: Period</div>
             <div><u>Z</u>: Exchange</div>
+            <div
+              onClick={() => window.open('/quotation-template/index.html', '_blank')}
+              title="Open Quotation Print Template"
+              style={{
+                cursor:'pointer',
+                background:'linear-gradient(135deg,#2d7a3a,#1e5c2a)',
+                color:'#fff',
+                padding:'2px 9px',
+                borderRadius:'4px',
+                fontWeight:'bold',
+                fontSize:'11px',
+                letterSpacing:'0.3px',
+                boxShadow:'0 1px 4px rgba(45,122,58,0.4)',
+                display:'flex',
+                alignItems:'center',
+                gap:'4px',
+                whiteSpace:'nowrap',
+                border:'none',
+              }}
+            >📄 Quotation</div>
           </div>
         </div>
         <div 
