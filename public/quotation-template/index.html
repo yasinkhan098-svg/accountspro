@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -43,9 +43,9 @@
             <div class="ap-circle">
               <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
                 <circle cx="40" cy="40" r="38" fill="#1e3a5f" stroke="#2d7a3a" stroke-width="2"/>
-                <text x="16" y="52" font-family="Poppins,Arial" font-size="30" font-weight="800" fill="#2d9e4f">A</text>
+                <text id="svg-letter-1" x="13" y="52" font-family="Poppins,Arial" font-size="30" font-weight="800" fill="#2d9e4f">E</text>
                 <line x1="41" y1="14" x2="41" y2="66" stroke="#2d9e4f" stroke-width="2.5"/>
-                <text x="44" y="52" font-family="Poppins,Arial" font-size="30" font-weight="800" fill="#ffffff">P</text>
+                <text id="svg-letter-2" x="44" y="52" font-family="Poppins,Arial" font-size="30" font-weight="800" fill="#ffffff">P</text>
                 <path d="M6,70 Q40,55 74,70" stroke="#2d9e4f" stroke-width="1.5" fill="none"/>
               </svg>
             </div>
@@ -188,6 +188,50 @@
       {desc:'Waste Gear Oil (200 Ltr Drum)',unit:'DRUM',rate:'800/-'},
       {desc:'Garvage Kachra',unit:'KG',rate:'5/-'},
     ];
+
+    /* ── Update SVG logo letters from company name ── */
+    function updateLogoLetters(name) {
+      const words = name.trim().split(/\s+/).filter(w => w.length > 0);
+      const l1 = words[0] ? words[0][0].toUpperCase() : '?';
+      const l2 = words[1] ? words[1][0].toUpperCase() : '';
+      const svgL1 = document.getElementById('svg-letter-1');
+      const svgL2 = document.getElementById('svg-letter-2');
+      if (svgL1) svgL1.textContent = l1;
+      if (svgL2) svgL2.textContent = l2;
+      // Adjust x position based on letter width (single letter slightly different)
+      if (svgL1) svgL1.setAttribute('x', l1 ? '13' : '13');
+      // sync logo-name text below logo circle
+      const logoName = document.getElementById('company-logo-name');
+      if (logoName && logoName.textContent !== name) logoName.textContent = name;
+      // sync sig-company
+      const sigCo = document.getElementById('sig-company');
+      if (sigCo && sigCo.textContent !== name) sigCo.textContent = name;
+    }
+
+    /* ── Listen to company name edits ── */
+    document.addEventListener('DOMContentLoaded', function() {
+      const nameEl = document.getElementById('company-name');
+      const logoNameEl = document.getElementById('company-logo-name');
+
+      function onNameChange() {
+        updateLogoLetters(nameEl.textContent.trim());
+      }
+      if (nameEl) {
+        nameEl.addEventListener('input', onNameChange);
+        nameEl.addEventListener('blur', onNameChange);
+      }
+      // Also listen to logo-name field (below circle)
+      if (logoNameEl) {
+        logoNameEl.addEventListener('input', function() {
+          updateLogoLetters(logoNameEl.textContent.trim());
+          const mainName = document.getElementById('company-name');
+          if (mainName) mainName.textContent = logoNameEl.textContent.trim();
+        });
+      }
+      // Init logo letters from current name
+      if (nameEl) updateLogoLetters(nameEl.textContent.trim());
+    });
+
     function renderRows(data){
       const tb=document.getElementById('items-tbody');
       tb.innerHTML='';
@@ -203,19 +247,21 @@
     function resetToDefaults(){
       if(confirm('Reset all data to defaults?')){
         renderRows(DEFAULT_ITEMS);
-        document.getElementById('company-name').textContent='EXAMPLE POLYMERS';
-        document.getElementById('company-logo-name').textContent='EXAMPLE POLYMERS';
+        const defaultName = 'EXAMPLE POLYMERS';
+        document.getElementById('company-name').textContent=defaultName;
+        document.getElementById('company-logo-name').textContent=defaultName;
         document.getElementById('company-mfg').textContent='MANUFACTURERS OF ALL KIND OF PLASTIC PACKAGING MATERIALS LIKE PP STRAP, ROPE, PIPE GRANULES, TANEX AND SUTLI ETC.';
         document.getElementById('company-email').textContent='example@gmail.com';
         document.getElementById('company-phone').textContent='1234567890';
         document.getElementById('company-address').textContent='Your Address Here, City, State, Pincode';
-        document.getElementById('sig-company').textContent='EXAMPLE POLYMERS';
+        document.getElementById('sig-company').textContent=defaultName;
         document.getElementById('ref-no').textContent='________________';
         document.getElementById('doc-date').textContent='___/___/______';
         document.getElementById('gstin-no').textContent='___________________________';
         document.getElementById('pollution-no').textContent='___________________________';
         document.getElementById('doc-title').textContent='QUOTATION FOR PURCHASE OF SCRAP MATERIAL';
         document.getElementById('doc-subtitle').textContent='WE ARE INTERESTED IN PURCHASING THE FOLLOWING SCRAP MATERIALS';
+        updateLogoLetters(defaultName);
       }
     }
     renderRows(DEFAULT_ITEMS);
