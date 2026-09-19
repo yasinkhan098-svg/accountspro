@@ -447,99 +447,111 @@ td[contenteditable="true"]:focus { background: #fffde7 !important; outline: 1.5p
 @media print {
   .no-print { display: none !important; }
 
-  /* ── Page setup ── */
-  @page { size: A4 portrait; margin: 4mm 5mm; }
-  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { background: #fff; margin: 0; padding: 0; }
-  .page-wrapper { padding: 0; margin: 0; }
+  /* ── Page setup: margin 0 removes browser header/footer area ── */
+  @page { size: A4 portrait; margin: 0; }
+  html, body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: #fff;
+    margin: 0; padding: 0;
+    height: 100%;
+  }
+  .page-wrapper { padding: 0; margin: 0; height: 100%; }
 
-  /* ── Doc container ── */
+  /* ── Doc fills full A4 page ── */
   .quotation-doc {
     box-shadow: none !important;
     border: none !important;
     width: 100% !important;
     max-width: 100% !important;
     overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100vh !important;
   }
 
-  /* ── Reg row (GSTIN/Pollution) ── */
-  .reg-row { padding: 3px 12px; }
+  /* ── Reg row ── */
+  .reg-row { padding: 4px 14px; }
   input.reg-val {
     border: none !important;
     border-bottom: 1px solid rgba(255,255,255,0.6) !important;
     background: transparent !important;
     color: #fff !important;
-    min-width: 120px;
-    font-size: 9px !important;
+    min-width: 140px;
+    font-size: 10px !important;
   }
 
   /* ── Header ── */
-  .header-wrap { padding: 6px 12px 6px; gap: 6px; }
-  .logo-box { min-width: 72px; max-width: 80px; }
-  .ap-circle svg { width: 54px !important; height: 54px !important; }
-  .logo-company-name { font-size: 7.5px !important; }
-  .logo-sub { font-size: 6.5px !important; }
-  .company-name-big { font-size: 18px !important; margin-bottom: 2px; }
-  .company-mfg-line { font-size: 7px !important; margin-bottom: 4px; line-height: 1.3 !important; }
-  .contact-row { margin-bottom: 1px !important; font-size: 8px !important; line-height: 1.3 !important; }
-  .contact-bold { font-size: 8px !important; }
-  .cicon { font-size: 8.5px; }
-  .tagline-card { padding: 4px 7px; }
-  .tagline-script { font-size: 7.5px; }
-  .tagline-leaf { font-size: 13px; }
-  .recycle-card { padding: 3px 7px; }
-  .recycle-sym { font-size: 20px; }
-  .recycle-words span { font-size: 6px; }
+  .header-wrap { padding: 8px 14px 8px; gap: 8px; }
+  .logo-box { min-width: 78px; max-width: 90px; }
+  .ap-circle svg { width: 62px !important; height: 62px !important; }
+  .logo-company-name { font-size: 8px !important; }
+  .logo-sub { font-size: 7px !important; }
+  .company-name-big { font-size: 20px !important; margin-bottom: 3px; }
+  .company-mfg-line { font-size: 7.5px !important; margin-bottom: 5px; line-height: 1.4 !important; }
+  .contact-row { margin-bottom: 2px !important; font-size: 9px !important; line-height: 1.4 !important; }
+  .contact-bold { font-size: 9px !important; }
+  .cicon { font-size: 9px; }
+  .tagline-card { padding: 5px 8px; }
+  .tagline-script { font-size: 8px; }
+  .tagline-leaf { font-size: 15px; }
+  .recycle-card { padding: 4px 8px; }
+  .recycle-sym { font-size: 22px; }
+  .recycle-words span { font-size: 6.5px; }
 
   /* ── Green banner ── */
-  .green-banner { padding: 4px 12px; font-size: 8px; }
-  .b-item span { font-size: 9px; }
-  .b-plastictoday { font-size: 7.5px; padding: 2px 8px; line-height: 1.4; }
-  .b-plastictoday span { font-size: 6.5px; }
+  .green-banner { padding: 5px 14px; font-size: 8.5px; }
+  .b-item span { font-size: 10px; }
+  .b-plastictoday { font-size: 8px; padding: 2px 9px; line-height: 1.5; }
+  .b-plastictoday span { font-size: 7px; }
 
   /* ── Ref & Date ── */
-  .ref-date-row { padding: 4px 16px 2px; font-size: 9px; }
+  .ref-date-row { padding: 5px 18px 3px; font-size: 9.5px; }
   input.uf-input {
     border: none !important;
     border-bottom: 1px solid #999 !important;
     background: transparent !important;
-    font-size: 9px !important;
-    min-width: 80px;
+    font-size: 9.5px !important;
+    min-width: 90px;
   }
 
   /* ── Title ── */
-  .doc-title { font-size: 12px !important; padding: 5px 10px 1px; }
-  .doc-subtitle-band { font-size: 7.5px !important; padding: 2px 8px; margin: 2px 14px 4px; }
+  .doc-title { font-size: 13px !important; padding: 6px 12px 2px; }
+  .doc-subtitle-band { font-size: 8px !important; padding: 3px 10px; margin: 3px 16px 5px; }
 
   /* ── To section ── */
-  .to-section { padding: 2px 14px 4px; gap: 12px; }
-  .to-label { font-size: 9px; margin-bottom: 2px; }
-  .to-field { border-bottom: 1px solid #999; min-height: 12px; margin-bottom: 3px; font-size: 9px; }
-  .stamp-box { padding: 5px 8px; min-height: 36px; font-size: 7.5px; }
+  .to-section { padding: 3px 16px 5px; gap: 14px; }
+  .to-label { font-size: 10px; margin-bottom: 3px; }
+  .to-field { border-bottom: 1px solid #999; min-height: 14px; margin-bottom: 4px; font-size: 9.5px; }
+  .stamp-box { padding: 6px 10px; min-height: 42px; font-size: 8px; }
 
   /* ── Items table ── */
-  .items-table { margin: 0 10px 4px; font-size: 8.5px; }
-  .items-table th { padding: 4px 6px; font-size: 8px; }
-  .items-table td { padding: 2.5px 6px; font-size: 8.5px; }
+  .items-table { margin: 0 12px 5px; font-size: 9px; }
+  .items-table th { padding: 5px 7px; font-size: 8.5px; }
+  .items-table td { padding: 3px 7px; font-size: 9px; }
   .row-controls { display: none !important; }
 
-  /* ── Terms ── */
-  .terms-section { padding: 5px 12px 4px; border-top: 1px solid #ccc; }
-  .terms-title { font-size: 9px; margin-bottom: 2px; }
-  .terms-list { padding-left: 12px; }
-  .terms-list li { font-size: 7.5px; margin-bottom: 1px; line-height: 1.35; }
-  .thankyou-box { padding: 5px 8px; font-size: 8px; }
-  .ty-leaf { font-size: 14px; margin-top: 3px; }
+  /* ── Terms: flex:1 makes it expand to fill remaining page space ── */
+  .terms-section {
+    padding: 8px 14px 6px;
+    border-top: 1px solid #ccc;
+    flex: 1 !important;
+  }
+  .terms-title { font-size: 10px; margin-bottom: 3px; }
+  .terms-list { padding-left: 14px; }
+  .terms-list li { font-size: 8px; margin-bottom: 2px; line-height: 1.45; }
+  .thankyou-box { padding: 8px 10px; font-size: 9px; }
+  .ty-leaf { font-size: 16px; margin-top: 4px; }
 
   /* ── Signature ── */
-  .sig-section { padding: 5px 16px 6px; border-top: 1px solid #ccc; }
-  .sig-for { font-size: 9.5px; margin-bottom: 18px; }
-  .sig-label { font-size: 8px; }
-  .recycle-slogan { font-size: 11px; }
-  .plant { font-size: 28px; }
+  .sig-section { padding: 7px 18px 8px; border-top: 1px solid #ccc; }
+  .sig-for { font-size: 10px; margin-bottom: 22px; }
+  .sig-label { font-size: 8.5px; }
+  .recycle-slogan { font-size: 12px; }
+  .plant { font-size: 32px; }
 
   /* ── Footer band ── */
-  .footer-band { padding: 5px 14px; font-size: 8.5px; letter-spacing: 1.5px; }
+  .footer-band { padding: 6px 16px; font-size: 9px; letter-spacing: 1.5px; }
 
   /* ── Editable fields ── */
   [contenteditable="true"] { outline: none !important; background: transparent !important; }
