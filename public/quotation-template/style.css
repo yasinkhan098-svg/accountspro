@@ -446,16 +446,104 @@ td[contenteditable="true"]:focus { background: #fffde7 !important; outline: 1.5p
 /* ─── PRINT STYLES ──────────────────────────────── */
 @media print {
   .no-print { display: none !important; }
-  body { background: #fff; }
-  .page-wrapper { padding: 0; }
+
+  /* ── Page setup ── */
+  @page { size: A4 portrait; margin: 4mm 5mm; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff; margin: 0; padding: 0; }
+  .page-wrapper { padding: 0; margin: 0; }
+
+  /* ── Doc container ── */
   .quotation-doc {
-    box-shadow: none; border: none;
-    width: 100%; max-width: 100%;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
   }
+
+  /* ── Reg row (GSTIN/Pollution) ── */
+  .reg-row { padding: 3px 12px; }
+  input.reg-val {
+    border: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.6) !important;
+    background: transparent !important;
+    color: #fff !important;
+    min-width: 120px;
+    font-size: 9px !important;
+  }
+
+  /* ── Header ── */
+  .header-wrap { padding: 6px 12px 6px; gap: 6px; }
+  .logo-box { min-width: 72px; max-width: 80px; }
+  .ap-circle svg { width: 54px !important; height: 54px !important; }
+  .logo-company-name { font-size: 7.5px !important; }
+  .logo-sub { font-size: 6.5px !important; }
+  .company-name-big { font-size: 18px !important; margin-bottom: 2px; }
+  .company-mfg-line { font-size: 7px !important; margin-bottom: 4px; line-height: 1.3 !important; }
+  .contact-row { margin-bottom: 1px !important; font-size: 8px !important; line-height: 1.3 !important; }
+  .contact-bold { font-size: 8px !important; }
+  .cicon { font-size: 8.5px; }
+  .tagline-card { padding: 4px 7px; }
+  .tagline-script { font-size: 7.5px; }
+  .tagline-leaf { font-size: 13px; }
+  .recycle-card { padding: 3px 7px; }
+  .recycle-sym { font-size: 20px; }
+  .recycle-words span { font-size: 6px; }
+
+  /* ── Green banner ── */
+  .green-banner { padding: 4px 12px; font-size: 8px; }
+  .b-item span { font-size: 9px; }
+  .b-plastictoday { font-size: 7.5px; padding: 2px 8px; line-height: 1.4; }
+  .b-plastictoday span { font-size: 6.5px; }
+
+  /* ── Ref & Date ── */
+  .ref-date-row { padding: 4px 16px 2px; font-size: 9px; }
+  input.uf-input {
+    border: none !important;
+    border-bottom: 1px solid #999 !important;
+    background: transparent !important;
+    font-size: 9px !important;
+    min-width: 80px;
+  }
+
+  /* ── Title ── */
+  .doc-title { font-size: 12px !important; padding: 5px 10px 1px; }
+  .doc-subtitle-band { font-size: 7.5px !important; padding: 2px 8px; margin: 2px 14px 4px; }
+
+  /* ── To section ── */
+  .to-section { padding: 2px 14px 4px; gap: 12px; }
+  .to-label { font-size: 9px; margin-bottom: 2px; }
+  .to-field { border-bottom: 1px solid #999; min-height: 12px; margin-bottom: 3px; font-size: 9px; }
+  .stamp-box { padding: 5px 8px; min-height: 36px; font-size: 7.5px; }
+
+  /* ── Items table ── */
+  .items-table { margin: 0 10px 4px; font-size: 8.5px; }
+  .items-table th { padding: 4px 6px; font-size: 8px; }
+  .items-table td { padding: 2.5px 6px; font-size: 8.5px; }
+  .row-controls { display: none !important; }
+
+  /* ── Terms ── */
+  .terms-section { padding: 5px 12px 4px; border-top: 1px solid #ccc; }
+  .terms-title { font-size: 9px; margin-bottom: 2px; }
+  .terms-list { padding-left: 12px; }
+  .terms-list li { font-size: 7.5px; margin-bottom: 1px; line-height: 1.35; }
+  .thankyou-box { padding: 5px 8px; font-size: 8px; }
+  .ty-leaf { font-size: 14px; margin-top: 3px; }
+
+  /* ── Signature ── */
+  .sig-section { padding: 5px 16px 6px; border-top: 1px solid #ccc; }
+  .sig-for { font-size: 9.5px; margin-bottom: 18px; }
+  .sig-label { font-size: 8px; }
+  .recycle-slogan { font-size: 11px; }
+  .plant { font-size: 28px; }
+
+  /* ── Footer band ── */
+  .footer-band { padding: 5px 14px; font-size: 8.5px; letter-spacing: 1.5px; }
+
+  /* ── Editable fields ── */
   [contenteditable="true"] { outline: none !important; background: transparent !important; }
-  .to-field { border-bottom: 1px solid #999; }
   .uf { border-bottom: 1px solid #999; }
-  @page { size: A4; margin: 10mm; }
 }
 
 /* ─── RESPONSIVE ─────────────────────────────────── */
