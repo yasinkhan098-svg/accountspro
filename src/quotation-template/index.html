@@ -90,8 +90,8 @@
 
       <!-- ══ REF & DATE ══ -->
       <div class="ref-date-row">
-        <div class="ref-box">Ref. No. : <span class="uf" contenteditable="true" id="ref-no">________________</span></div>
-        <div class="date-box">Date : <span class="uf" contenteditable="true" id="doc-date">___/___/______</span></div>
+        <div class="ref-box">Ref. No. : <input class="uf-input" type="text" id="ref-no" placeholder="Ref No." /></div>
+        <div class="date-box">Date : <input class="uf-input" type="text" id="doc-date" placeholder="DD/MM/YYYY" /></div>
       </div>
 
       <!-- ══ MAIN TITLE (EDITABLE) ══ -->
@@ -255,8 +255,8 @@
         document.getElementById('company-phone').textContent='1234567890';
         document.getElementById('company-address').textContent='Your Address Here, City, State, Pincode';
         document.getElementById('sig-company').textContent=defaultName;
-        document.getElementById('ref-no').textContent='________________';
-        document.getElementById('doc-date').textContent='___/___/______';
+        document.getElementById('ref-no').value='';
+        document.getElementById('doc-date').value='';
         document.getElementById('gstin-no').value='';
         document.getElementById('pollution-no').value='';
         document.getElementById('doc-title').textContent='QUOTATION FOR PURCHASE OF SCRAP MATERIAL';

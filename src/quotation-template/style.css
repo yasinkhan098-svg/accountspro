@@ -259,6 +259,21 @@ th[contenteditable="true"]:hover {
   padding: 0 2px;
 }
 .uf:focus { border-bottom-color: var(--green); }
+/* Input version of uf - no underscores, clean text box */
+.uf-input {
+  border: none;
+  border-bottom: 1.5px solid var(--text-dark);
+  background: transparent;
+  outline: none;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 10px; font-weight: 500;
+  color: var(--text-dark);
+  min-width: 110px;
+  padding: 0 3px 1px;
+  cursor: text;
+}
+.uf-input:focus { border-bottom-color: var(--green); }
+.uf-input::placeholder { color: #bbb; font-style: italic; font-weight: 400; }
 
 /* ─── TITLE ─────────────────────────────────────── */
 .doc-title {
@@ -428,6 +443,7 @@ td[contenteditable="true"]:focus { background: #fffde7 !important; outline: 1.5p
   [contenteditable="true"] { outline: none !important; background: transparent !important; }
   .to-field { border-bottom: 1px solid #999; }
   .uf { border-bottom: 1px solid #999; }
+  .uf-input { border: none; border-bottom: 1px solid #999; background: transparent; }
   @page { size: A4; margin: 10mm; }
 }
 
