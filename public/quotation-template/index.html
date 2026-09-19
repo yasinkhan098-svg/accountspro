@@ -28,11 +28,11 @@
       <div class="reg-row">
         <div class="reg-item">
           <span class="reg-label">GSTIN No. :</span>
-          <span class="reg-val uf" contenteditable="true" id="gstin-no">___________________________</span>
+          <input class="reg-val" type="text" id="gstin-no" placeholder="Enter GSTIN" />
         </div>
         <div class="reg-item">
           <span class="reg-label">Pollution Reg. No. :</span>
-          <span class="reg-val uf" contenteditable="true" id="pollution-no">___________________________</span>
+          <input class="reg-val" type="text" id="pollution-no" placeholder="Enter Pollution Reg. No." />
         </div>
       </div>
 
@@ -90,8 +90,8 @@
 
       <!-- ══ REF & DATE ══ -->
       <div class="ref-date-row">
-        <div class="ref-box">Ref. No. : <span class="uf" contenteditable="true" id="ref-no">________________</span></div>
-        <div class="date-box">Date : <span class="uf" contenteditable="true" id="doc-date">___/___/______</span></div>
+        <div class="ref-box">Ref. No. : <input class="uf-input" type="text" id="ref-no" placeholder="Ref No." /></div>
+        <div class="date-box">Date : <input class="uf-input" type="text" id="doc-date" placeholder="DD/MM/YYYY" /></div>
       </div>
 
       <!-- ══ MAIN TITLE (EDITABLE) ══ -->
@@ -255,10 +255,10 @@
         document.getElementById('company-phone').textContent='1234567890';
         document.getElementById('company-address').textContent='Your Address Here, City, State, Pincode';
         document.getElementById('sig-company').textContent=defaultName;
-        document.getElementById('ref-no').textContent='________________';
-        document.getElementById('doc-date').textContent='___/___/______';
-        document.getElementById('gstin-no').textContent='___________________________';
-        document.getElementById('pollution-no').textContent='___________________________';
+        document.getElementById('ref-no').value='';
+        document.getElementById('doc-date').value='';
+        document.getElementById('gstin-no').value='';
+        document.getElementById('pollution-no').value='';
         document.getElementById('doc-title').textContent='QUOTATION FOR PURCHASE OF SCRAP MATERIAL';
         document.getElementById('doc-subtitle').textContent='WE ARE INTERESTED IN PURCHASING THE FOLLOWING SCRAP MATERIALS';
         updateLogoLetters(defaultName);
