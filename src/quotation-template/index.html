@@ -28,11 +28,11 @@
       <div class="reg-row">
         <div class="reg-item">
           <span class="reg-label">GSTIN No. :</span>
-          <span class="reg-val uf" contenteditable="true" id="gstin-no">___________________________</span>
+          <input class="reg-val" type="text" id="gstin-no" placeholder="Enter GSTIN" />
         </div>
         <div class="reg-item">
           <span class="reg-label">Pollution Reg. No. :</span>
-          <span class="reg-val uf" contenteditable="true" id="pollution-no">___________________________</span>
+          <input class="reg-val" type="text" id="pollution-no" placeholder="Enter Pollution Reg. No." />
         </div>
       </div>
 
@@ -257,8 +257,8 @@
         document.getElementById('sig-company').textContent=defaultName;
         document.getElementById('ref-no').textContent='________________';
         document.getElementById('doc-date').textContent='___/___/______';
-        document.getElementById('gstin-no').textContent='___________________________';
-        document.getElementById('pollution-no').textContent='___________________________';
+        document.getElementById('gstin-no').value='';
+        document.getElementById('pollution-no').value='';
         document.getElementById('doc-title').textContent='QUOTATION FOR PURCHASE OF SCRAP MATERIAL';
         document.getElementById('doc-subtitle').textContent='WE ARE INTERESTED IN PURCHASING THE FOLLOWING SCRAP MATERIALS';
         updateLogoLetters(defaultName);
