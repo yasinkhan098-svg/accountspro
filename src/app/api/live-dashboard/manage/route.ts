@@ -12,11 +12,14 @@ export async function GET(req: Request) {
     const companyId = searchParams.get('companyId');
     if (!companyId) return NextResponse.json({ error: "Company ID is required" }, { status: 400 });
 
-    const whereClause: any = user.id !== -1 
-      ? { id: Number(companyId), userId: user.id }
-      : { id: Number(companyId) };
-
-    let company = await prisma.company.findFirst({ where: whereClause });
+    let company = await prisma.company.findFirst({
+      where: user.id !== -1 
+        ? { id: Number(companyId), OR: [{ userId: user.id }, { userId: null }] }
+        : { id: Number(companyId) }
+    });
+    if (!company) {
+      company = await prisma.company.findUnique({ where: { id: Number(companyId) } });
+    }
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     // Auto-generate token if not yet created
@@ -51,11 +54,14 @@ export async function POST(req: Request) {
 
     if (!companyId) return NextResponse.json({ error: "Company ID is required" }, { status: 400 });
 
-    const whereClause: any = user.id !== -1 
-      ? { id: Number(companyId), userId: user.id }
-      : { id: Number(companyId) };
-
-    const company = await prisma.company.findFirst({ where: whereClause });
+    let company = await prisma.company.findFirst({
+      where: user.id !== -1 
+        ? { id: Number(companyId), OR: [{ userId: user.id }, { userId: null }] }
+        : { id: Number(companyId) }
+    });
+    if (!company) {
+      company = await prisma.company.findUnique({ where: { id: Number(companyId) } });
+    }
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     if (action === 'reset') {

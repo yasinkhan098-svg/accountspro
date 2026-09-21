@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
+import { authClient } from '@/lib/auth-client';
 
 export interface DashboardProps {
   activeCompany: any;
@@ -39,6 +40,26 @@ export default function RealtimeDashboardModal({
   const [pinMessage, setPinMessage] = useState('');
   const [shareError, setShareError] = useState('');
 
+  // Helper to reliably get auth token across storage mechanisms
+  const getAuthToken = () => {
+    try {
+      const clientToken = authClient.getToken();
+      if (clientToken) return clientToken;
+      if (typeof window !== 'undefined') {
+        return (
+          sessionStorage.getItem('tally_auth_token') ||
+          localStorage.getItem('tally_auth_token') ||
+          localStorage.getItem('tally_session_token') ||
+          localStorage.getItem('token') ||
+          ''
+        );
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  };
+
   // Close on ESC key (only in modal mode)
   useEffect(() => {
     if (isStandalone || !onClose) return;
@@ -61,9 +82,11 @@ export default function RealtimeDashboardModal({
     setShareLoading(true);
     setShareError('');
     try {
-      const authHeader = typeof window !== 'undefined' ? localStorage.getItem('tally_session_token') || '' : '';
+      const token = getAuthToken();
       const res = await fetch(`/api/live-dashboard/manage?companyId=${activeCompany.id}`, {
-        headers: { 'Authorization': `Bearer ${authHeader}` }
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -85,12 +108,12 @@ export default function RealtimeDashboardModal({
     setShareError('');
     setPinMessage('');
     try {
-      const authHeader = typeof window !== 'undefined' ? localStorage.getItem('tally_session_token') || '' : '';
+      const token = getAuthToken();
       const res = await fetch('/api/live-dashboard/manage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authHeader}`
+          'Authorization': token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({
           action,
