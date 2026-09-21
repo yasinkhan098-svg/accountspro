@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 export interface DashboardProps {
   activeCompany: any;
@@ -21,6 +21,7 @@ export default function RealtimeDashboardModal({
   const [hoveredSalesPoint, setHoveredSalesPoint] = useState<{ name: string; label: string; val: number; x: number; y: number } | null>(null);
   const [hoveredPurchasePoint, setHoveredPurchasePoint] = useState<{ name: string; label: string; val: number; x: number; y: number } | null>(null);
   const [activeLedgerGroup, setActiveLedgerGroup] = useState<'Bank Accounts' | 'Sundry Debtors' | 'Sundry Creditors'>('Bank Accounts');
+  const [chartViewMode, setChartViewMode] = useState<'individual' | 'combined'>('individual');
 
   // Close on ESC key
   useEffect(() => {
@@ -37,6 +38,21 @@ export default function RealtimeDashboardModal({
   const fmt = (n: number) => {
     const num = Math.abs(Number(n) || 0);
     return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // Compact Indian Currency Formatter (e.g. ₹ 4.52 L or ₹ 1.20 Cr)
+  const fmtCompact = (n: number) => {
+    const num = Math.abs(Number(n) || 0);
+    if (num >= 10000000) {
+      return `₹ ${(num / 10000000).toFixed(2)} Cr`;
+    }
+    if (num >= 100000) {
+      return `₹ ${(num / 100000).toFixed(2)} L`;
+    }
+    if (num >= 1000) {
+      return `₹ ${(num / 1000).toFixed(1)} K`;
+    }
+    return `₹ ${num.toFixed(2)}`;
   };
 
   // Helper to compute individual ledger balance
@@ -86,6 +102,9 @@ export default function RealtimeDashboardModal({
       bankNet += b.type === 'Dr' ? b.amount : -b.amount;
     });
     const bankAccounts = { amount: Math.abs(bankNet), type: bankNet >= 0 ? 'Dr' : 'Cr' };
+
+    // Total Liquid Cash & Bank
+    const totalLiquidCash = (cashNet >= 0 ? cashNet : 0) + (bankNet >= 0 ? bankNet : 0);
 
     // Receivables (Sundry Debtors)
     let receivablesNet = 0;
@@ -176,6 +195,8 @@ export default function RealtimeDashboardModal({
     // 5. Profit calculations
     const grossProfit = salesTotal + closingStockVal - (openingStockVal + purchaseTotal + directExp);
     const netProfit = grossProfit + indirectInc - indirectExp;
+    const grossProfitMargin = salesTotal > 0 ? ((grossProfit / salesTotal) * 100).toFixed(1) : '0.0';
+    const netProfitMargin = salesTotal > 0 ? ((netProfit / salesTotal) * 100).toFixed(1) : '0.0';
 
     // 6. Assets & Liabilities
     const currAssetGroups = ['stock-in-hand', 'sundry debtors', 'cash-in-hand', 'bank accounts', 'loans & advances (asset)', 'current assets'];
@@ -208,6 +229,9 @@ export default function RealtimeDashboardModal({
       currentAssetsNet += closingStockVal;
     }
 
+    const workingCapital = currentAssetsNet - currentLiabNet;
+    const currentRatio = currentLiabNet > 0 ? (currentAssetsNet / currentLiabNet).toFixed(2) : (currentAssetsNet > 0 ? '∞' : '1.00');
+
     // 7. Cash Flow (Inflow & Outflow)
     let inflow = 0;
     let outflow = 0;
@@ -230,16 +254,20 @@ export default function RealtimeDashboardModal({
       }
     });
     const nettFlow = inflow - outflow;
+    const totalCashTurnover = inflow + outflow;
+    const inflowPercent = totalCashTurnover > 0 ? Math.round((inflow / totalCashTurnover) * 100) : 50;
+    const outflowPercent = totalCashTurnover > 0 ? (100 - inflowPercent) : 50;
 
     // 8. Accounting Ratios
-    const inventoryTurnover = closingStockVal > 0 ? (salesTotal / closingStockVal).toFixed(2) : '0.70';
+    const inventoryTurnover = closingStockVal > 0 ? (salesTotal / closingStockVal).toFixed(2) : '0.00';
     const debtEquityRatio = capitalNet > 0 ? (loansNet / capitalNet).toFixed(2) + ' : 1' : '0.00 : 1';
-    const receivableTurnoverDays = salesTotal > 0 ? ((receivables / salesTotal) * 365).toFixed(2) + ' days' : '219.09 days';
-    const returnOnInvestment = capitalNet > 0 ? ((netProfit / capitalNet) * 100).toFixed(2) + ' %' : '100.00 %';
+    const receivableTurnoverDays = salesTotal > 0 ? ((receivables / salesTotal) * 365).toFixed(0) + ' days' : '0 days';
+    const returnOnInvestment = capitalNet > 0 ? ((netProfit / capitalNet) * 100).toFixed(1) + ' %' : 'N/A';
 
     return {
       cashInHand,
       bankAccounts,
+      totalLiquidCash,
       receivables,
       payables,
       salesTotal,
@@ -249,13 +277,22 @@ export default function RealtimeDashboardModal({
       openingStockVal,
       closingStockVal,
       closingStockQty,
+      directExp,
+      indirectExp,
+      indirectInc,
       grossProfit,
       netProfit,
+      grossProfitMargin,
+      netProfitMargin,
       currentAssets: { amount: Math.abs(currentAssetsNet), type: currentAssetsNet >= 0 ? 'Dr' : 'Cr' },
       currentLiabilities: { amount: Math.abs(currentLiabNet), type: currentLiabNet >= 0 ? 'Dr' : 'Cr' },
+      workingCapital,
+      currentRatio,
       inflow,
       outflow,
-      nettFlow: { amount: Math.abs(nettFlow), type: nettFlow >= 0 ? 'Dr' : 'Cr' },
+      inflowPercent,
+      outflowPercent,
+      nettFlow: { amount: Math.abs(nettFlow), type: nettFlow >= 0 ? 'Dr' : 'Cr', val: nettFlow },
       inventoryTurnover,
       debtEquityRatio,
       receivableTurnoverDays,
@@ -331,17 +368,77 @@ export default function RealtimeDashboardModal({
   }, [vouchers, trendMonths]);
 
   // Date range label
-  const periodLabel = currentPeriod ? `${currentPeriod.start} to ${currentPeriod.end}` : '1-Apr-26 to 28-Aug-26';
+  const periodLabel = currentPeriod ? `${currentPeriod.start} to ${currentPeriod.end}` : '1-Apr-2026 to 31-Mar-2027';
 
-  // SVG Chart Dimensions
-  const chartW = 400;
-  const chartH = 150;
-  const paddingL = 35;
+  // SVG Chart Dimensions & Helpers
+  const chartW = 420;
+  const chartH = 160;
+  const paddingL = 38;
   const paddingR = 15;
   const paddingT = 20;
-  const paddingB = 30;
+  const paddingB = 32;
   const plotW = chartW - paddingL - paddingR;
   const plotH = chartH - paddingT - paddingB;
+
+  // Function to create smooth cubic bezier curve path
+  const createSmoothPath = (points: { x: number; y: number }[]) => {
+    if (points.length === 0) return '';
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const curr = points[i];
+      const next = points[i + 1];
+      const cp1x = curr.x + (next.x - curr.x) / 2;
+      const cp1y = curr.y;
+      const cp2x = curr.x + (next.x - curr.x) / 2;
+      const cp2y = next.y;
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+    }
+    return d;
+  };
+
+  const createAreaPath = (points: { x: number; y: number }[], baseY: number) => {
+    if (points.length === 0) return '';
+    const linePath = createSmoothPath(points);
+    const first = points[0];
+    const last = points[points.length - 1];
+    return `${linePath} L ${last.x} ${baseY} L ${first.x} ${baseY} Z`;
+  };
+
+  // Reusable Pill Badges for Dr and Cr
+  const DrPill = () => (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '1px 6px',
+      fontSize: 10,
+      fontWeight: 700,
+      borderRadius: 4,
+      background: 'rgba(37, 99, 235, 0.12)',
+      color: '#2563eb',
+      border: '1px solid rgba(37, 99, 235, 0.3)',
+      letterSpacing: '0.5px'
+    }}>
+      Dr
+    </span>
+  );
+
+  const CrPill = () => (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '1px 6px',
+      fontSize: 10,
+      fontWeight: 700,
+      borderRadius: 4,
+      background: 'rgba(5, 150, 105, 0.12)',
+      color: '#059669',
+      border: '1px solid rgba(5, 150, 105, 0.3)',
+      letterSpacing: '0.5px'
+    }}>
+      Cr
+    </span>
+  );
 
   return (
     <div 
@@ -350,49 +447,306 @@ export default function RealtimeDashboardModal({
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        background: '#dbe7f3',
+        background: '#0a0f1d',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Tahoma, Arial, sans-serif",
-        color: '#1a1a1a',
+        fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
+        color: '#1e293b',
         overflow: 'hidden'
       }}
     >
-      {/* ─── Top Header Bar (TallyPrime Aesthetic) ─── */}
+      {/* ─── Top Executive Header Bar (Dark Glassmorphism) ─── */}
       <div 
         style={{
-          background: '#9fc2e6',
-          borderBottom: '1px solid #7ea8d6',
-          padding: '4px 12px',
+          background: 'linear-gradient(135deg, #0b1329 0%, #111d3d 50%, #1e293b 100%)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          padding: '10px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          userSelect: 'none'
+          userSelect: 'none',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.35)'
         }}
       >
-        <div style={{fontWeight: 'bold', fontSize: 13, color: '#0f2b48', display: 'flex', alignItems: 'center', gap: 6}}>
-          <span>Dashboard</span>
+        {/* Left: Branding & Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 34,
+            height: 34,
+            borderRadius: 8,
+            background: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 18,
+            boxShadow: '0 2px 10px rgba(16, 185, 129, 0.4)'
+          }}>
+            📊
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 800, fontSize: 16, color: '#ffffff', letterSpacing: '0.5px' }}>
+                EXECUTIVE ANALYTICAL DASHBOARD
+              </span>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '2px 8px',
+                borderRadius: 20,
+                fontSize: 10,
+                fontWeight: 700,
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.3)'
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }}></span>
+                LIVE CALCULATED
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', display: 'flex', gap: 15, marginTop: 2 }}>
+              <span>Period: <strong style={{ color: '#e2e8f0' }}>{periodLabel}</strong></span>
+              <span>•</span>
+              <span>Standard: <strong style={{ color: '#38bdf8' }}>Double-Entry Accounting (Dr / Cr)</strong></span>
+            </div>
+          </div>
         </div>
-        <div style={{fontWeight: 'bold', fontSize: 13, color: '#092442', letterSpacing: 1}}>
-          {activeCompany?.name ? activeCompany.name.toUpperCase() : 'NO COMPANY SELECTED'}
+
+        {/* Center: Company Name */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            padding: '4px 16px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: 6,
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            display: 'inline-block'
+          }}>
+            <span style={{ fontSize: 10, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '1px', display: 'block' }}>
+              Active Entity
+            </span>
+            <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc', letterSpacing: '0.8px' }}>
+              {activeCompany?.name ? activeCompany.name.toUpperCase() : 'NO COMPANY SELECTED'}
+            </span>
+          </div>
         </div>
-        <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+
+        {/* Right: Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => setChartViewMode(chartViewMode === 'individual' ? 'combined' : 'individual')}
+            style={{
+              background: chartViewMode === 'combined' ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              padding: '6px 12px',
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all 0.2s'
+            }}
+            title="Toggle Dual Chart View"
+          >
+            <span>{chartViewMode === 'combined' ? 'Split Charts' : 'Dual Overlay'}</span>
+          </button>
+
           <button 
             onClick={onClose}
             style={{
-              background: 'transparent',
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
               border: 'none',
+              borderRadius: 6,
               cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: 16,
-              color: '#092442',
-              padding: '0 4px',
-              lineHeight: 1
+              fontWeight: 700,
+              fontSize: 12,
+              color: '#ffffff',
+              padding: '7px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
+              transition: 'all 0.2s'
             }}
-            title="Close (Esc)"
+            title="Close Dashboard (Esc)"
           >
-            ✕
+            <span>✕ Close</span>
+            <span style={{ fontSize: 10, opacity: 0.8 }}>(Esc)</span>
           </button>
+        </div>
+      </div>
+
+      {/* ─── Top Executive KPI Analytics Ribbon (5 Colorful Cards) ─── */}
+      <div 
+        style={{
+          background: '#0f172a',
+          padding: '12px 16px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, 1fr)',
+          gap: 12,
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: 'inset 0 -10px 20px rgba(0,0,0,0.15)'
+        }}
+      >
+        {/* KPI 1: Total Revenue (Sales) - Emerald */}
+        <div style={{
+          background: 'linear-gradient(145deg, #064e3b 0%, #022c22 100%)',
+          border: '1px solid #059669',
+          borderRadius: 10,
+          padding: '10px 14px',
+          boxShadow: '0 4px 15px rgba(5, 150, 105, 0.2)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 48, opacity: 0.12, userSelect: 'none' }}>📈</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#6ee7b7', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Total Revenue (Sales)
+            </span>
+            <CrPill />
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: '#ffffff', marginTop: 4, letterSpacing: '0.5px' }}>
+            ₹ {fmt(calculations.salesTotal)}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, fontSize: 11, color: '#a7f3d0' }}>
+            <span>Qty: <strong>{calculations.salesQty}</strong> units</span>
+            <span style={{ fontWeight: 600 }}>{fmtCompact(calculations.salesTotal)}</span>
+          </div>
+        </div>
+
+        {/* KPI 2: Total Cost (Purchases) - Rose */}
+        <div style={{
+          background: 'linear-gradient(145deg, #881337 0%, #4c0519 100%)',
+          border: '1px solid #e11d48',
+          borderRadius: 10,
+          padding: '10px 14px',
+          boxShadow: '0 4px 15px rgba(225, 29, 72, 0.2)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 48, opacity: 0.12, userSelect: 'none' }}>🛒</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#fda4af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Purchases (Cost)
+            </span>
+            <DrPill />
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: '#ffffff', marginTop: 4, letterSpacing: '0.5px' }}>
+            ₹ {fmt(calculations.purchaseTotal)}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, fontSize: 11, color: '#fecdd3' }}>
+            <span>Qty: <strong>{calculations.purchaseQty}</strong> units</span>
+            <span style={{ fontWeight: 600 }}>{fmtCompact(calculations.purchaseTotal)}</span>
+          </div>
+        </div>
+
+        {/* KPI 3: Net Profit & Margin - Radiant Gold / Emerald */}
+        <div style={{
+          background: calculations.netProfit >= 0 
+            ? 'linear-gradient(145deg, #14532d 0%, #052e16 100%)' 
+            : 'linear-gradient(145deg, #7f1d1d 0%, #450a0a 100%)',
+          border: calculations.netProfit >= 0 ? '1px solid #22c55e' : '1px solid #ef4444',
+          borderRadius: 10,
+          padding: '10px 14px',
+          boxShadow: calculations.netProfit >= 0 ? '0 4px 15px rgba(34, 197, 94, 0.2)' : '0 4px 15px rgba(239, 68, 68, 0.2)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 48, opacity: 0.12, userSelect: 'none' }}>💎</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: calculations.netProfit >= 0 ? '#86efac' : '#fca5a5', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {calculations.netProfit >= 0 ? 'Net Profit' : 'Net Loss'}
+            </span>
+            <span style={{
+              padding: '1px 6px',
+              fontSize: 10,
+              fontWeight: 700,
+              borderRadius: 4,
+              background: calculations.netProfit >= 0 ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+              color: calculations.netProfit >= 0 ? '#4ade80' : '#f87171'
+            }}>
+              Margin {calculations.netProfitMargin}%
+            </span>
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: '#ffffff', marginTop: 4, letterSpacing: '0.5px' }}>
+            ₹ {fmt(calculations.netProfit)}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, fontSize: 11, color: '#d1fae5' }}>
+            <span>Gross: <strong>₹ {fmt(calculations.grossProfit)}</strong></span>
+            <span style={{ fontWeight: 600 }}>GM: {calculations.grossProfitMargin}%</span>
+          </div>
+        </div>
+
+        {/* KPI 4: Cash Flow (Inflow vs Outflow) - Cyan/Teal */}
+        <div style={{
+          background: 'linear-gradient(145deg, #0c4a6e 0%, #082f49 100%)',
+          border: '1px solid #0284c7',
+          borderRadius: 10,
+          padding: '10px 14px',
+          boxShadow: '0 4px 15px rgba(2, 132, 199, 0.2)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 48, opacity: 0.12, userSelect: 'none' }}>🌊</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#7dd3fc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Nett Cash Flow
+            </span>
+            {calculations.nettFlow.type === 'Dr' ? <DrPill /> : <CrPill />}
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: '#ffffff', marginTop: 4, letterSpacing: '0.5px' }}>
+            ₹ {fmt(calculations.nettFlow.amount)}
+          </div>
+          {/* Visual split progress bar */}
+          <div style={{ marginTop: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#bae6fd', marginBottom: 2 }}>
+              <span>In: ₹ {fmtCompact(calculations.inflow)}</span>
+              <span>Out: ₹ {fmtCompact(calculations.outflow)}</span>
+            </div>
+            <div style={{ width: '100%', height: 4, background: '#075985', borderRadius: 2, overflow: 'hidden', display: 'flex' }}>
+              <div style={{ width: `${calculations.inflowPercent}%`, background: '#10b981', transition: 'width 0.3s' }}></div>
+              <div style={{ width: `${calculations.outflowPercent}%`, background: '#f43f5e', transition: 'width 0.3s' }}></div>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 5: Working Capital & Liquidity - Royal Indigo */}
+        <div style={{
+          background: 'linear-gradient(145deg, #312e81 0%, #1e1b4b 100%)',
+          border: '1px solid #6366f1',
+          borderRadius: 10,
+          padding: '10px 14px',
+          boxShadow: '0 4px 15px rgba(99, 102, 241, 0.2)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 48, opacity: 0.12, userSelect: 'none' }}>⚖️</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#c7d2fe', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Working Capital
+            </span>
+            <span style={{
+              padding: '1px 6px',
+              fontSize: 10,
+              fontWeight: 700,
+              borderRadius: 4,
+              background: 'rgba(99, 102, 241, 0.25)',
+              color: '#a5b4fc'
+            }}>
+              Ratio {calculations.currentRatio}
+            </span>
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: '#ffffff', marginTop: 4, letterSpacing: '0.5px' }}>
+            ₹ {fmt(calculations.workingCapital)}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, fontSize: 11, color: '#e0e7ff' }}>
+            <span>Liquid Cash: <strong>₹ {fmtCompact(calculations.totalLiquidCash)}</strong></span>
+            <span style={{ color: calculations.workingCapital >= 0 ? '#4ade80' : '#f87171', fontWeight: 700 }}>
+              {calculations.workingCapital >= 0 ? '● Solvent' : '● Deficit'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -401,56 +755,61 @@ export default function RealtimeDashboardModal({
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: 8,
+          padding: 12,
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 8,
-          background: '#e4ecf5'
+          gap: 12,
+          background: '#0f172a'
         }}
       >
-        {/* ═══════════ COLUMN 1 (LEFT) ═══════════ */}
-        <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-          {/* 1. Sales Trend (Line Chart) */}
+        {/* ═══════════ COLUMN 1: REVENUE & TRADING (EMERALD / GREEN THEME) ═══════════ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* 1. Sales Trend Interactive Area Chart */}
           <div 
             style={{
-              background: '#fff',
-              border: '2px solid #f6af3d',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-              padding: '8px 10px'
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px',
+              position: 'relative'
             }}
           >
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-              <span style={{fontWeight: 'bold', fontSize: 14, color: '#1c3d5a'}}>Sales Trend</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></span>
+                <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Monthly Sales Trend</span>
+              </div>
+              <CrPill />
             </div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 4}}>{periodLabel}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 8, marginTop: 2 }}>
+              Financial Year Trend (Apr - Mar) • In Lakhs (₹)
+            </div>
 
-            {/* Chart */}
-            <div style={{position: 'relative', width: '100%', height: chartH}}>
-              <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{width: '100%', height: '100%'}}>
-                {/* Axes */}
-                <line x1={paddingL} y1={paddingT} x2={paddingL} y2={chartH - paddingB} stroke="#555" strokeWidth="1" />
-                <line x1={paddingL} y1={chartH - paddingB} x2={chartW - paddingR} y2={chartH - paddingB} stroke="#555" strokeWidth="1" />
+            {/* Chart SVG */}
+            <div style={{ position: 'relative', width: '100%', height: chartH }}>
+              <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                <defs>
+                  {/* Sales Gradient Area */}
+                  <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                  </linearGradient>
+                  {/* Glowing line filter */}
+                  <filter id="glowSales" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#10b981" floodOpacity="0.6" />
+                  </filter>
+                </defs>
 
-                {/* Y-Axis Ticks & Labels */}
-                <text x={paddingL - 6} y={paddingT + 4} textAnchor="end" fontSize="9" fill="#333">{maxSalesLakhs}</text>
-                <text x={paddingL - 6} y={paddingT + plotH / 2 + 3} textAnchor="end" fontSize="9" fill="#333">{maxSalesLakhs / 2}</text>
-                <text x={paddingL - 6} y={chartH - paddingB + 3} textAnchor="end" fontSize="9" fill="#333">0</text>
+                {/* Horizontal Grid lines */}
+                <line x1={paddingL} y1={paddingT} x2={chartW - paddingR} y2={paddingT} stroke="#334155" strokeDasharray="3 3" />
+                <line x1={paddingL} y1={paddingT + plotH / 2} x2={chartW - paddingR} y2={paddingT + plotH / 2} stroke="#334155" strokeDasharray="3 3" />
+                <line x1={paddingL} y1={chartH - paddingB} x2={chartW - paddingR} y2={chartH - paddingB} stroke="#475569" strokeWidth="1.2" />
 
-                {/* Y-Axis Title */}
-                <text 
-                  x={12} 
-                  y={paddingT + plotH / 2} 
-                  transform={`rotate(-90, 12, ${paddingT + plotH / 2})`} 
-                  textAnchor="middle" 
-                  fontSize="9" 
-                  fill="#444"
-                >
-                  In Lakhs
-                </text>
-
-                {/* Grid line */}
-                <line x1={paddingL} y1={paddingT + plotH / 2} x2={chartW - paddingR} y2={paddingT + plotH / 2} stroke="#eee" strokeDasharray="3 3" />
+                {/* Y-Axis Labels */}
+                <text x={paddingL - 6} y={paddingT + 4} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="600">{maxSalesLakhs}L</text>
+                <text x={paddingL - 6} y={paddingT + plotH / 2 + 3} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="600">{maxSalesLakhs / 2}L</text>
+                <text x={paddingL - 6} y={chartH - paddingB + 3} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="600">0</text>
 
                 {/* Points & Line */}
                 {(() => {
@@ -461,42 +820,49 @@ export default function RealtimeDashboardModal({
                     return { x, y, ...d };
                   });
 
-                  const pathStr = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                  const lineD = createSmoothPath(points);
+                  const areaD = createAreaPath(points, chartH - paddingB);
 
                   return (
                     <>
-                      <path d={pathStr} fill="none" stroke="#4a90e2" strokeWidth="1.5" />
+                      {/* Translucent Area Fill */}
+                      <path d={areaD} fill="url(#salesGradient)" />
+                      {/* Glowing Stroke */}
+                      <path d={lineD} fill="none" stroke="#10b981" strokeWidth="2.5" filter="url(#glowSales)" />
+
+                      {/* Interactive Circles & X-Labels */}
                       {points.map((p, i) => (
                         <g key={i}>
                           <circle 
                             cx={p.x} 
                             cy={p.y} 
-                            r={i === 0 ? 5 : 3} 
-                            fill={i === 0 ? '#f39c12' : '#5dade2'} 
-                            stroke="#fff" 
-                            strokeWidth="1"
-                            style={{cursor: 'pointer'}}
+                            r={p.val > 0 ? 4.5 : 2.5} 
+                            fill={p.val > 0 ? '#34d399' : '#059669'} 
+                            stroke="#ffffff" 
+                            strokeWidth={p.val > 0 ? 1.5 : 0.8}
+                            style={{ cursor: 'pointer', transition: 'r 0.2s' }}
                             onMouseEnter={() => setHoveredSalesPoint(p)}
                             onMouseLeave={() => setHoveredSalesPoint(null)}
                           />
                           {/* X-axis labels */}
                           <text 
                             x={p.x} 
-                            y={chartH - paddingB + 12} 
+                            y={chartH - paddingB + 13} 
                             textAnchor="middle" 
-                            fontSize="8" 
-                            fill="#333"
+                            fontSize="8.5" 
+                            fill="#cbd5e1"
+                            fontWeight="600"
                           >
                             {p.name}
                           </text>
                           <text 
                             x={p.x} 
-                            y={chartH - paddingB + 21} 
+                            y={chartH - paddingB + 23} 
                             textAnchor="middle" 
-                            fontSize="8" 
-                            fill="#666"
+                            fontSize="7.5" 
+                            fill="#64748b"
                           >
-                            -{p.label.split('-')[1]}
+                            {p.label.split('-')[1]}
                           </text>
                         </g>
                       ))}
@@ -505,208 +871,290 @@ export default function RealtimeDashboardModal({
                 })()}
               </svg>
 
-              {/* Hover Tooltip */}
+              {/* High-Tech Hover Tooltip */}
               {hoveredSalesPoint && (
                 <div 
                   style={{
                     position: 'absolute',
                     left: `${(hoveredSalesPoint.x / chartW) * 100}%`,
                     top: `${(hoveredSalesPoint.y / chartH) * 100}%`,
-                    transform: 'translate(-50%, -120%)',
-                    background: 'rgba(0,0,0,0.85)',
-                    color: '#fff',
-                    padding: '4px 8px',
-                    borderRadius: 3,
-                    fontSize: 10,
+                    transform: 'translate(-50%, -125%)',
+                    background: 'rgba(15, 23, 42, 0.95)',
+                    border: '1px solid #10b981',
+                    color: '#ffffff',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    fontSize: 11,
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
-                    zIndex: 10
+                    zIndex: 20,
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
                   }}
                 >
-                  <strong>{hoveredSalesPoint.label}</strong>: ₹ {fmt(hoveredSalesPoint.val)} Cr
+                  <div style={{ color: '#6ee7b7', fontWeight: 700, fontSize: 10 }}>{hoveredSalesPoint.label} (Credit)</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, marginTop: 1 }}>₹ {fmt(hoveredSalesPoint.val)}</div>
+                  <div style={{ fontSize: 9.5, color: '#94a3b8' }}>{(hoveredSalesPoint.val / 100000).toFixed(2)} Lakhs</div>
                 </div>
               )}
             </div>
 
             {/* Legend */}
-            <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 2}}>
-              <span style={{display: 'inline-block', width: 9, height: 9, background: '#4a90e2'}}></span>
-              <span style={{fontSize: 9, color: '#555'}}>Nett Transactions</span>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></span>
+              <span style={{ fontSize: 10, color: '#94a3b8' }}>Monthly Sales Revenue (Cr)</span>
             </div>
           </div>
 
-          {/* 2. Trading Details */}
+          {/* 2. Trading Details Panel (P&L Breakdown) */}
           <div 
             style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px'
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px'
             }}
           >
-            <div style={{fontWeight: 'bold', fontSize: 13, color: '#1c3d5a'}}>Trading Details</div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 6}}>{periodLabel}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Trading & Profitability</span>
+              <span style={{ fontSize: 10, color: '#94a3b8' }}>P&L Structure</span>
+            </div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8 }}>Revenue, Direct Costs & Margins</div>
 
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
               <thead>
-                <tr style={{borderBottom: '1px solid #ddd', color: '#555'}}>
-                  <th style={{textAlign: 'left', padding: '3px 0', fontWeight: 'normal'}}>Particulars</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}>Amount</th>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: 600 }}>Particulars</th>
+                  <th style={{ textAlign: 'center', padding: '6px 0', fontWeight: 600, width: 45 }}>Type</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Amount (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Gross Profit</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.grossProfit)} {calculations.grossProfit >= 0 ? 'Cr' : 'Dr'}
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Sales Accounts</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><CrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.salesTotal)}
                   </td>
                 </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Nett Profit</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.netProfit)} {calculations.netProfit >= 0 ? 'Cr' : 'Dr'}
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Purchase Accounts</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><DrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#fb7185', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.purchaseTotal)}
                   </td>
                 </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Sales Accounts</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.salesTotal)} Cr
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#cbd5e1' }}>Direct Expenses</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><DrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.directExp)}
                   </td>
                 </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Purchase Accounts</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.purchaseTotal)} Dr
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#cbd5e1' }}>Indirect Expenses</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><DrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.indirectExp)}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#cbd5e1' }}>Indirect Incomes</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><CrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600, color: '#4ade80', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.indirectInc)}
+                  </td>
+                </tr>
+                <tr style={{ borderTop: '1px solid #475569', background: 'rgba(5, 150, 105, 0.08)' }}>
+                  <td style={{ padding: '7px 4px', fontWeight: 700, color: '#6ee7b7' }}>Gross Profit</td>
+                  <td style={{ textAlign: 'center', padding: '7px 0' }}>
+                    {calculations.grossProfit >= 0 ? <CrPill /> : <DrPill />}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '7px 4px', fontWeight: 800, color: calculations.grossProfit >= 0 ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.grossProfit)}
+                  </td>
+                </tr>
+                <tr style={{ borderTop: '1px solid #475569', background: calculations.netProfit >= 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)' }}>
+                  <td style={{ padding: '8px 4px', fontWeight: 800, color: '#ffffff' }}>Net Profit / (Loss)</td>
+                  <td style={{ textAlign: 'center', padding: '8px 0' }}>
+                    {calculations.netProfit >= 0 ? <CrPill /> : <DrPill />}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '8px 4px', fontWeight: 800, fontSize: 13, color: calculations.netProfit >= 0 ? '#4ade80' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.netProfit)}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* 3. Cash/Bank Accounts */}
+          {/* 3. Cash & Bank Accounts Panel */}
           <div 
             style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px'
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px'
             }}
           >
-            <div style={{fontWeight: 'bold', fontSize: 13, color: '#1c3d5a'}}>Cash/Bank Accounts</div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 6}}>{periodLabel}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Cash & Bank Balances</span>
+              <span style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                fontWeight: 700,
+                borderRadius: 12,
+                background: 'rgba(99, 102, 241, 0.2)',
+                color: '#a5b4fc',
+                border: '1px solid rgba(99, 102, 241, 0.4)'
+              }}>
+                Liquid: ₹ {fmtCompact(calculations.totalLiquidCash)}
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, marginTop: 2 }}>Ready Liquidity at Hand</div>
 
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
               <thead>
-                <tr style={{borderBottom: '1px solid #ddd', color: '#555'}}>
-                  <th style={{textAlign: 'left', padding: '3px 0', fontWeight: 'normal'}}>Particulars</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}>Closing Balance</th>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: 600 }}>Account Group</th>
+                  <th style={{ textAlign: 'center', padding: '6px 0', fontWeight: 600, width: 45 }}>Type</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Closing Balance (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Cash-in-Hand</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.cashInHand.amount)} {calculations.cashInHand.type}
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '7px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14 }}>💵</span>
+                    <span>Cash-in-Hand</span>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '7px 0' }}>
+                    {calculations.cashInHand.type === 'Dr' ? <DrPill /> : <CrPill />}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '7px 0', fontWeight: 700, color: '#60a5fa', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.cashInHand.amount)}
                   </td>
                 </tr>
                 <tr>
-                  <td style={{padding: '3px 0'}}>Bank Accounts</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.bankAccounts.amount)} {calculations.bankAccounts.type}
+                  <td style={{ padding: '7px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14 }}>🏦</span>
+                    <span>Bank Accounts</span>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '7px 0' }}>
+                    {calculations.bankAccounts.type === 'Dr' ? <DrPill /> : <CrPill />}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '7px 0', fontWeight: 700, color: '#818cf8', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.bankAccounts.amount)}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* 4. Inventory Details */}
+          {/* 4. Inventory Performance Details */}
           <div 
             style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px'
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px'
             }}
           >
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-              <span style={{fontWeight: 'bold', fontSize: 13, color: '#1c3d5a'}}>Inventory Details</span>
-              <span style={{fontSize: 10, color: '#1c5282'}}>for ♦ Primary</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Inventory Stock & Movement</span>
+              <span style={{ fontSize: 10, color: '#38bdf8' }}>♦ Primary</span>
             </div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 6}}>{periodLabel}</div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, marginTop: 2 }}>Stock Valuation & Turnover</div>
 
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
               <thead>
-                <tr style={{borderBottom: '1px solid #ddd', color: '#555'}}>
-                  <th style={{textAlign: 'left', padding: '3px 0', fontWeight: 'normal'}}>Particulars</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}>Quantity</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}>Value</th>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: 600 }}>Particulars</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Quantity</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Value (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Closing Stock</td>
-                  <td style={{textAlign: 'right', padding: '3px 0'}}>{calculations.closingStockQty > 0 ? calculations.closingStockQty : ''}</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{fmt(calculations.closingStockVal)}</td>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Closing Stock (Asset)</td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', color: '#cbd5e1', fontVariantNumeric: 'tabular-nums' }}>
+                    {calculations.closingStockQty > 0 ? calculations.closingStockQty : '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.closingStockVal)}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Outwards (Dispatches)</td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', color: '#cbd5e1', fontVariantNumeric: 'tabular-nums' }}>
+                    {calculations.salesQty > 0 ? calculations.salesQty : '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.salesTotal)}
+                  </td>
                 </tr>
                 <tr>
-                  <td style={{padding: '3px 0'}}>Outwards</td>
-                  <td style={{textAlign: 'right', padding: '3px 0'}}>{calculations.salesQty > 0 ? calculations.salesQty : ''}</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{fmt(calculations.salesTotal)}</td>
-                </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Inwards</td>
-                  <td style={{textAlign: 'right', padding: '3px 0'}}>{calculations.purchaseQty > 0 ? calculations.purchaseQty : ''}</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{fmt(calculations.purchaseTotal)}</td>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Inwards (Receipts)</td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', color: '#cbd5e1', fontVariantNumeric: 'tabular-nums' }}>
+                    {calculations.purchaseQty > 0 ? calculations.purchaseQty : '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#f43f5e', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.purchaseTotal)}
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* ═══════════ COLUMN 2 (CENTER) ═══════════ */}
-        <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-          {/* 1. Purchase Trend (Line Chart) */}
+        {/* ═══════════ COLUMN 2: PURCHASES & WORKING CAPITAL (ROSE / INDIGO THEME) ═══════════ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* 1. Purchase Trend Interactive Area Chart */}
           <div 
             style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px'
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px',
+              position: 'relative'
             }}
           >
-            <div style={{fontWeight: 'bold', fontSize: 14, color: '#1c3d5a'}}>Purchase Trend</div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 4}}>{periodLabel}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f43f5e' }}></span>
+                <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Monthly Purchase Trend</span>
+              </div>
+              <DrPill />
+            </div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 8, marginTop: 2 }}>
+              Financial Year Trend (Apr - Mar) • In Lakhs (₹)
+            </div>
 
-            {/* Chart */}
-            <div style={{position: 'relative', width: '100%', height: chartH}}>
-              <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{width: '100%', height: '100%'}}>
-                {/* Axes */}
-                <line x1={paddingL} y1={paddingT} x2={paddingL} y2={chartH - paddingB} stroke="#555" strokeWidth="1" />
-                <line x1={paddingL} y1={chartH - paddingB} x2={chartW - paddingR} y2={chartH - paddingB} stroke="#555" strokeWidth="1" />
+            {/* Chart SVG */}
+            <div style={{ position: 'relative', width: '100%', height: chartH }}>
+              <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                <defs>
+                  {/* Purchase Gradient Area */}
+                  <linearGradient id="purchaseGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
+                  </linearGradient>
+                  {/* Glowing line filter */}
+                  <filter id="glowPurchase" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#f43f5e" floodOpacity="0.6" />
+                  </filter>
+                </defs>
 
-                {/* Y-Axis Ticks & Labels */}
-                <text x={paddingL - 6} y={paddingT + 4} textAnchor="end" fontSize="9" fill="#333">{maxPurchaseLakhs}</text>
-                <text x={paddingL - 6} y={paddingT + plotH / 2 + 3} textAnchor="end" fontSize="9" fill="#333">{maxPurchaseLakhs / 2}</text>
-                <text x={paddingL - 6} y={chartH - paddingB + 3} textAnchor="end" fontSize="9" fill="#333">0</text>
+                {/* Horizontal Grid lines */}
+                <line x1={paddingL} y1={paddingT} x2={chartW - paddingR} y2={paddingT} stroke="#334155" strokeDasharray="3 3" />
+                <line x1={paddingL} y1={paddingT + plotH / 2} x2={chartW - paddingR} y2={paddingT + plotH / 2} stroke="#334155" strokeDasharray="3 3" />
+                <line x1={paddingL} y1={chartH - paddingB} x2={chartW - paddingR} y2={chartH - paddingB} stroke="#475569" strokeWidth="1.2" />
 
-                {/* Y-Axis Title */}
-                <text 
-                  x={12} 
-                  y={paddingT + plotH / 2} 
-                  transform={`rotate(-90, 12, ${paddingT + plotH / 2})`} 
-                  textAnchor="middle" 
-                  fontSize="9" 
-                  fill="#444"
-                >
-                  In Lakhs
-                </text>
-
-                {/* Grid line */}
-                <line x1={paddingL} y1={paddingT + plotH / 2} x2={chartW - paddingR} y2={paddingT + plotH / 2} stroke="#eee" strokeDasharray="3 3" />
+                {/* Y-Axis Labels */}
+                <text x={paddingL - 6} y={paddingT + 4} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="600">{maxPurchaseLakhs}L</text>
+                <text x={paddingL - 6} y={paddingT + plotH / 2 + 3} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="600">{maxPurchaseLakhs / 2}L</text>
+                <text x={paddingL - 6} y={chartH - paddingB + 3} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="600">0</text>
 
                 {/* Points & Line */}
                 {(() => {
@@ -717,42 +1165,49 @@ export default function RealtimeDashboardModal({
                     return { x, y, ...d };
                   });
 
-                  const pathStr = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                  const lineD = createSmoothPath(points);
+                  const areaD = createAreaPath(points, chartH - paddingB);
 
                   return (
                     <>
-                      <path d={pathStr} fill="none" stroke="#4a90e2" strokeWidth="1.5" />
+                      {/* Translucent Area Fill */}
+                      <path d={areaD} fill="url(#purchaseGradient)" />
+                      {/* Glowing Stroke */}
+                      <path d={lineD} fill="none" stroke="#f43f5e" strokeWidth="2.5" filter="url(#glowPurchase)" />
+
+                      {/* Interactive Circles & X-Labels */}
                       {points.map((p, i) => (
                         <g key={i}>
                           <circle 
                             cx={p.x} 
                             cy={p.y} 
-                            r={i === 0 ? 4 : 3} 
-                            fill="#5dade2" 
-                            stroke="#fff" 
-                            strokeWidth="1"
-                            style={{cursor: 'pointer'}}
+                            r={p.val > 0 ? 4.5 : 2.5} 
+                            fill={p.val > 0 ? '#fb7185' : '#e11d48'} 
+                            stroke="#ffffff" 
+                            strokeWidth={p.val > 0 ? 1.5 : 0.8}
+                            style={{ cursor: 'pointer', transition: 'r 0.2s' }}
                             onMouseEnter={() => setHoveredPurchasePoint(p)}
                             onMouseLeave={() => setHoveredPurchasePoint(null)}
                           />
                           {/* X-axis labels */}
                           <text 
                             x={p.x} 
-                            y={chartH - paddingB + 12} 
+                            y={chartH - paddingB + 13} 
                             textAnchor="middle" 
-                            fontSize="8" 
-                            fill="#333"
+                            fontSize="8.5" 
+                            fill="#cbd5e1"
+                            fontWeight="600"
                           >
                             {p.name}
                           </text>
                           <text 
                             x={p.x} 
-                            y={chartH - paddingB + 21} 
+                            y={chartH - paddingB + 23} 
                             textAnchor="middle" 
-                            fontSize="8" 
-                            fill="#666"
+                            fontSize="7.5" 
+                            fill="#64748b"
                           >
-                            -{p.label.split('-')[1]}
+                            {p.label.split('-')[1]}
                           </text>
                         </g>
                       ))}
@@ -761,103 +1216,151 @@ export default function RealtimeDashboardModal({
                 })()}
               </svg>
 
-              {/* Hover Tooltip */}
+              {/* High-Tech Hover Tooltip */}
               {hoveredPurchasePoint && (
                 <div 
                   style={{
                     position: 'absolute',
                     left: `${(hoveredPurchasePoint.x / chartW) * 100}%`,
                     top: `${(hoveredPurchasePoint.y / chartH) * 100}%`,
-                    transform: 'translate(-50%, -120%)',
-                    background: 'rgba(0,0,0,0.85)',
-                    color: '#fff',
-                    padding: '4px 8px',
-                    borderRadius: 3,
-                    fontSize: 10,
+                    transform: 'translate(-50%, -125%)',
+                    background: 'rgba(15, 23, 42, 0.95)',
+                    border: '1px solid #f43f5e',
+                    color: '#ffffff',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    fontSize: 11,
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
-                    zIndex: 10
+                    zIndex: 20,
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
                   }}
                 >
-                  <strong>{hoveredPurchasePoint.label}</strong>: ₹ {fmt(hoveredPurchasePoint.val)} Dr
+                  <div style={{ color: '#fda4af', fontWeight: 700, fontSize: 10 }}>{hoveredPurchasePoint.label} (Debit)</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, marginTop: 1 }}>₹ {fmt(hoveredPurchasePoint.val)}</div>
+                  <div style={{ fontSize: 9.5, color: '#94a3b8' }}>{(hoveredPurchasePoint.val / 100000).toFixed(2)} Lakhs</div>
                 </div>
               )}
             </div>
 
             {/* Legend */}
-            <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 2}}>
-              <span style={{display: 'inline-block', width: 9, height: 9, background: '#4a90e2'}}></span>
-              <span style={{fontSize: 9, color: '#555'}}>Nett Transactions</span>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#f43f5e' }}></span>
+              <span style={{ fontSize: 10, color: '#94a3b8' }}>Monthly Purchase Outflow (Dr)</span>
             </div>
           </div>
 
-          {/* 2. Assets/Liabilities */}
+          {/* 2. Assets & Liabilities Balance */}
           <div 
             style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px'
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px'
             }}
           >
-            <div style={{fontWeight: 'bold', fontSize: 13, color: '#1c3d5a'}}>Assets/Liabilities</div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 6}}>{periodLabel}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Current Assets & Liabilities</span>
+              <span style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                fontWeight: 700,
+                borderRadius: 12,
+                background: 'rgba(56, 189, 248, 0.15)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.3)'
+              }}>
+                Current Ratio: {calculations.currentRatio}
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, marginTop: 2 }}>Balance Sheet Solvency</div>
 
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
               <thead>
-                <tr style={{borderBottom: '1px solid #ddd', color: '#555'}}>
-                  <th style={{textAlign: 'left', padding: '3px 0', fontWeight: 'normal'}}>Particulars</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}>Closing Balance</th>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: 600 }}>Category</th>
+                  <th style={{ textAlign: 'center', padding: '6px 0', fontWeight: 600, width: 45 }}>Type</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Closing Balance (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Current Assets</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.currentAssets.amount)} {calculations.currentAssets.type}
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '7px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#38bdf8' }}></span>
+                    <span>Current Assets</span>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '7px 0' }}><DrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '7px 0', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.currentAssets.amount)}
                   </td>
                 </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Current Liabilities</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.currentLiabilities.amount)} {calculations.currentLiabilities.type}
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '7px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }}></span>
+                    <span>Current Liabilities</span>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '7px 0' }}><CrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '7px 0', fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.currentLiabilities.amount)}
+                  </td>
+                </tr>
+                <tr style={{ borderTop: '1px solid #475569', background: 'rgba(99, 102, 241, 0.1)' }}>
+                  <td style={{ padding: '8px 4px', fontWeight: 700, color: '#c7d2fe' }}>Net Working Capital</td>
+                  <td style={{ textAlign: 'center', padding: '8px 0' }}>
+                    {calculations.workingCapital >= 0 ? <DrPill /> : <CrPill />}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '8px 4px', fontWeight: 800, color: calculations.workingCapital >= 0 ? '#a5b4fc' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.workingCapital)}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* 3. Top Groups/Ledgers */}
+          {/* 3. Top Groups / Ledgers with Interactive Selector */}
           <div 
             style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px',
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px',
               flex: 1
             }}
           >
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-              <span style={{fontWeight: 'bold', fontSize: 13, color: '#1c3d5a'}}>Top Groups/Ledgers</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Top Ledgers Breakdown</span>
               <select 
                 value={activeLedgerGroup} 
                 onChange={e => setActiveLedgerGroup(e.target.value as any)}
-                style={{fontSize: 10, border: '1px solid #ccc', borderRadius: 2, padding: '1px 4px', color: '#1c5282', background: '#fdfdfd'}}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  border: '1px solid #475569',
+                  borderRadius: 6,
+                  padding: '3px 8px',
+                  color: '#f8fafc',
+                  background: '#0f172a',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
               >
-                <option value="Bank Accounts">for Bank Accounts (Ledger-wise)</option>
-                <option value="Sundry Debtors">for Sundry Debtors</option>
-                <option value="Sundry Creditors">for Sundry Creditors</option>
+                <option value="Bank Accounts">Bank Accounts</option>
+                <option value="Sundry Debtors">Sundry Debtors (Receivables)</option>
+                <option value="Sundry Creditors">Sundry Creditors (Payables)</option>
               </select>
             </div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 6}}>{periodLabel}</div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, marginTop: 2 }}>
+              Ranked Ledger-wise Position ({activeLedgerGroup})
+            </div>
 
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
               <thead>
-                <tr style={{borderBottom: '1px solid #ddd', color: '#555'}}>
-                  <th style={{textAlign: 'left', padding: '3px 0', fontWeight: 'normal'}}>Particulars</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}>Closing Balance</th>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: 600 }}>Ledger Name</th>
+                  <th style={{ textAlign: 'center', padding: '6px 0', fontWeight: 600, width: 45 }}>Type</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Closing Balance (₹)</th>
                 </tr>
               </thead>
               <tbody>
@@ -870,20 +1373,40 @@ export default function RealtimeDashboardModal({
                   if (!list || list.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={2} style={{textAlign: 'center', padding: '15px 0', color: '#888'}}>
-                          No ledgers found in this group
+                        <td colSpan={3} style={{ textAlign: 'center', padding: '20px 0', color: '#64748b' }}>
+                          No ledgers found under {activeLedgerGroup}
                         </td>
                       </tr>
                     );
                   }
 
-                  return list.slice(0, 8).map((l, i) => {
+                  return list.slice(0, 7).map((l, i) => {
                     const b = getLedgerBalance(l);
                     return (
-                      <tr key={i} style={{borderBottom: '1px solid #f2f2f2'}}>
-                        <td style={{padding: '3px 0', textTransform: 'uppercase'}}>{l.name}</td>
-                        <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                          {fmt(b.amount)} {b.type}
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '6px 0', textTransform: 'uppercase', color: '#f1f5f9', fontWeight: 500 }}>
+                          <span style={{
+                            display: 'inline-block',
+                            width: 18,
+                            fontSize: 9,
+                            fontWeight: 700,
+                            color: '#94a3b8'
+                          }}>
+                            #{i + 1}
+                          </span>
+                          {l.name}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '6px 0' }}>
+                          {b.type === 'Dr' ? <DrPill /> : <CrPill />}
+                        </td>
+                        <td style={{ 
+                          textAlign: 'right', 
+                          padding: '6px 0', 
+                          fontWeight: 700, 
+                          color: b.type === 'Dr' ? '#60a5fa' : '#34d399',
+                          fontVariantNumeric: 'tabular-nums' 
+                        }}>
+                          {fmt(b.amount)}
                         </td>
                       </tr>
                     );
@@ -894,131 +1417,204 @@ export default function RealtimeDashboardModal({
           </div>
         </div>
 
-        {/* ═══════════ COLUMN 3 (RIGHT) ═══════════ */}
-        <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-          {/* 1. Cash In/Out Flow */}
+        {/* ═══════════ COLUMN 3: CASH FLOW, RECEIVABLES & KEY RATIOS (CYAN / AMBER THEME) ═══════════ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* 1. Cash In/Out Flow Analysis */}
           <div 
             style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px'
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px'
             }}
           >
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-              <span style={{fontWeight: 'bold', fontSize: 13, color: '#1c3d5a'}}>Cash In/Out Flow</span>
-              <span style={{fontSize: 10, color: '#1c5282'}}>for ♦ Primary</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Cash Inflow & Outflow</span>
+              <span style={{ fontSize: 10, color: '#38bdf8' }}>♦ Primary</span>
             </div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 6}}>{periodLabel}</div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, marginTop: 2 }}>Operational Liquidity Movement</div>
 
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
               <thead>
-                <tr style={{borderBottom: '1px solid #ddd', color: '#555'}}>
-                  <th style={{textAlign: 'left', padding: '3px 0', fontWeight: 'normal'}}>Particulars</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}>Amount</th>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: 600 }}>Particulars</th>
+                  <th style={{ textAlign: 'center', padding: '6px 0', fontWeight: 600, width: 45 }}>Type</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Amount (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Nett Flow</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: 'bold'}}>
-                    {fmt(calculations.nettFlow.amount)} {calculations.nettFlow.type}
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></span>
+                    <span>Total Inflow (Receipts)</span>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><DrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.inflow)}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f43f5e' }}></span>
+                    <span>Total Outflow (Payments)</span>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><CrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#fb7185', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.outflow)}
+                  </td>
+                </tr>
+                <tr style={{ borderTop: '1px solid #475569', background: 'rgba(56, 189, 248, 0.1)' }}>
+                  <td style={{ padding: '8px 4px', fontWeight: 700, color: '#7dd3fc' }}>Nett Cash Position</td>
+                  <td style={{ textAlign: 'center', padding: '8px 0' }}>
+                    {calculations.nettFlow.type === 'Dr' ? <DrPill /> : <CrPill />}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '8px 4px', fontWeight: 800, color: calculations.nettFlow.type === 'Dr' ? '#38bdf8' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.nettFlow.amount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Visual ratio bar */}
+            <div style={{ marginTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, color: '#94a3b8', marginBottom: 3 }}>
+                <span>Inflow {calculations.inflowPercent}%</span>
+                <span>Outflow {calculations.outflowPercent}%</span>
+              </div>
+              <div style={{ width: '100%', height: 6, background: '#334155', borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
+                <div style={{ width: `${calculations.inflowPercent}%`, background: '#10b981' }}></div>
+                <div style={{ width: `${calculations.outflowPercent}%`, background: '#f43f5e' }}></div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Receivables vs Payables (Debtors vs Creditors) */}
+          <div 
+            style={{
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Receivables & Payables</span>
+              <span style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                fontWeight: 700,
+                borderRadius: 12,
+                background: 'rgba(245, 158, 11, 0.15)',
+                color: '#fbbf24',
+                border: '1px solid rgba(245, 158, 11, 0.3)'
+              }}>
+                Net: ₹ {fmtCompact(Math.abs(calculations.receivables - calculations.payables))} {calculations.receivables >= calculations.payables ? 'Dr' : 'Cr'}
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, marginTop: 2 }}>Debtor & Creditor Commitments</div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: 600 }}>Particulars</th>
+                  <th style={{ textAlign: 'center', padding: '6px 0', fontWeight: 600, width: 45 }}>Type</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Pending Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Receivables (Sundry Debtors)</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><DrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.receivables)}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#cbd5e1' }}>Overdue Receivables</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><DrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600, color: '#7dd3fc', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.receivables)}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Payables (Sundry Creditors)</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><CrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.payables)}
                   </td>
                 </tr>
                 <tr>
-                  <td style={{padding: '3px 0'}}>Inflow</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.inflow)} Dr
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Outflow</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>
-                    {fmt(calculations.outflow)} Cr
+                  <td style={{ padding: '6px 0', color: '#cbd5e1' }}>Overdue Payables</td>
+                  <td style={{ textAlign: 'center', padding: '6px 0' }}><CrPill /></td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600, color: '#fde68a', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(calculations.payables)}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* 2. Receivables/Payables */}
+          {/* 3. Executive Accounting Ratios */}
           <div 
             style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px'
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              padding: '12px 14px'
             }}
           >
-            <div style={{fontWeight: 'bold', fontSize: 13, color: '#1c3d5a'}}>Receivables/Payables</div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 6}}>{periodLabel}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Accounting & Financial Ratios</span>
+              <span style={{ fontSize: 10, color: '#a78bfa' }}>KPI Health</span>
+            </div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, marginTop: 2 }}>Calculated Performance Indicators</div>
 
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
               <thead>
-                <tr style={{borderBottom: '1px solid #ddd', color: '#555'}}>
-                  <th style={{textAlign: 'left', padding: '3px 0', fontWeight: 'normal'}}>Particulars</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}>Pending Amount</th>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: 600 }}>Ratio Metric</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Calculated Value</th>
+                  <th style={{ textAlign: 'right', padding: '6px 0', fontWeight: 600 }}>Benchmark</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Receivables</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{fmt(calculations.receivables)}</td>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Inventory Turnover</td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>
+                    {calculations.inventoryTurnover}x
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', color: '#94a3b8', fontSize: 10 }}>&gt; 0.5x</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Debt / Equity Ratio</td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>
+                    {calculations.debtEquityRatio}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', color: '#94a3b8', fontSize: 10 }}>&lt; 2.0</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Receivable Turnover</td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#a78bfa', fontVariantNumeric: 'tabular-nums' }}>
+                    {calculations.receivableTurnoverDays}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', color: '#94a3b8', fontSize: 10 }}>&lt; 90 d</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Return on Investment (ROI)</td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                    {calculations.returnOnInvestment}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', color: '#94a3b8', fontSize: 10 }}>&gt; 15%</td>
                 </tr>
                 <tr>
-                  <td style={{padding: '3px 0'}}>Overdue Receivables</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{fmt(calculations.receivables)}</td>
-                </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Payables</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{fmt(calculations.payables)}</td>
-                </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Overdue Payables</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{fmt(calculations.payables)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* 3. Accounting Ratios */}
-          <div 
-            style={{
-              background: '#fff',
-              border: '1px solid #c2d3e4',
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              padding: '8px 10px'
-            }}
-          >
-            <div style={{fontWeight: 'bold', fontSize: 13, color: '#1c3d5a'}}>Accounting Ratios</div>
-            <div style={{fontSize: 10, color: '#666', marginBottom: 6}}>{periodLabel}</div>
-
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
-              <thead>
-                <tr style={{borderBottom: '1px solid #ddd', color: '#555'}}>
-                  <th style={{textAlign: 'left', padding: '3px 0', fontWeight: 'normal'}}>Particulars</th>
-                  <th style={{textAlign: 'right', padding: '3px 0', fontWeight: 'normal'}}></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Inventory Turnover</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{calculations.inventoryTurnover}</td>
-                </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Debt/Equity Ratio</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{calculations.debtEquityRatio}</td>
-                </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Receivable Turnover in Days</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{calculations.receivableTurnoverDays}</td>
-                </tr>
-                <tr>
-                  <td style={{padding: '3px 0'}}>Return on Investment %</td>
-                  <td style={{textAlign: 'right', padding: '3px 0', fontWeight: '500'}}>{calculations.returnOnInvestment}</td>
+                  <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Net Profit Margin</td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: calculations.netProfit >= 0 ? '#4ade80' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                    {calculations.netProfitMargin}%
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '6px 0', color: '#94a3b8', fontSize: 10 }}>&gt; 10%</td>
                 </tr>
               </tbody>
             </table>
@@ -1029,9 +1625,10 @@ export default function RealtimeDashboardModal({
       {/* ─── Bottom Status Bar ─── */}
       <div 
         style={{
-          background: '#1c5282',
-          color: '#fff',
-          padding: '4px 15px',
+          background: '#0b1329',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          color: '#94a3b8',
+          padding: '6px 20px',
           fontSize: 11,
           display: 'flex',
           justifyContent: 'space-between',
@@ -1039,25 +1636,30 @@ export default function RealtimeDashboardModal({
           userSelect: 'none'
         }}
       >
-        <div>
-          <span>Company: <strong>{activeCompany?.name || 'No Company Selected'}</strong></span>
-          <span style={{marginLeft: 20}}>Period: <strong>{periodLabel}</strong></span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <span>Entity: <strong style={{ color: '#f8fafc' }}>{activeCompany?.name || 'No Company Selected'}</strong></span>
+          <span>•</span>
+          <span>Period: <strong style={{ color: '#f8fafc' }}>{periodLabel}</strong></span>
+          <span>•</span>
+          <span>Base Currency: <strong style={{ color: '#38bdf8' }}>INR (₹)</strong></span>
         </div>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+          <span style={{ color: '#64748b' }}>Press <strong>Esc</strong> key anytime to close</span>
           <button 
             onClick={onClose}
             style={{
-              background: '#f6af3d',
-              color: '#000',
-              fontWeight: 'bold',
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              color: '#000000',
+              fontWeight: 800,
               border: 'none',
-              borderRadius: 2,
-              padding: '2px 8px',
+              borderRadius: 4,
+              padding: '3px 10px',
               fontSize: 10,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              letterSpacing: '0.5px'
             }}
           >
-            Esc: Close Dashboard
+            Esc: Exit
           </button>
         </div>
       </div>
