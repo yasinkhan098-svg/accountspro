@@ -4,6 +4,7 @@ import AuthUI from '@/components/AuthUI';
 import SubscriptionRenewalUI from '@/components/SubscriptionRenewalUI';
 import PlanUpgradeModal from '@/components/PlanUpgradeModal';
 import VirtualFinalBSModal from '@/virtual-bs/VirtualFinalBSModal';
+import RealtimeDashboardModal from '@/components/dashboard/RealtimeDashboardModal';
 import { PurchaseOrderModule } from '@/components/PurchaseOrderModule';
 import { authClient } from '@/lib/auth-client';
 import {
@@ -623,6 +624,7 @@ export default function App() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Final Balance Sheet & P&L Export Modal
+  const [showRealtimeDashboard, setShowRealtimeDashboard] = useState(false);
   const [showVirtualBSModal, setShowVirtualBSModal] = useState(false);
   const [showFinalBSModal, setShowFinalBSModal] = useState(false);
   const [finalBSExporting, setFinalBSExporting] = useState(false);
@@ -2395,6 +2397,7 @@ export default function App() {
           setTimeout(() => lastFocusRef.current?.focus(), 80);
           return; 
         }
+        if (showRealtimeDashboard) { setShowRealtimeDashboard(false); return; }
         if (showVirtualBSModal) { setShowVirtualBSModal(false); return; }
         if (showFinalBSModal) { setShowFinalBSModal(false); return; }
         if (showExportModal) { setShowExportModal(false); return; }
@@ -2667,8 +2670,31 @@ export default function App() {
         >
           ⚡ Virtual B/S
         </div>
-        <div className="header-center">
+        <div className="header-center" style={{display:'flex', alignItems:'center', gap:15, justifyContent:'center'}}>
            <div style={{fontSize:18,fontWeight:'bold',letterSpacing:2,color:'#fff',textShadow:'0 2px 4px rgba(0,0,0,0.3)'}}>LedgerX ERP</div>
+           <button 
+             id="open-realtime-dashboard-btn"
+             onClick={() => setShowRealtimeDashboard(true)}
+             style={{
+               background: 'linear-gradient(135deg, #f6af3d 0%, #e67e22 100%)',
+               color: '#000',
+               fontWeight: 'bold',
+               fontSize: 12,
+               padding: '4px 12px',
+               borderRadius: 4,
+               border: '1px solid rgba(255,255,255,0.4)',
+               boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+               cursor: 'pointer',
+               display: 'flex',
+               alignItems: 'center',
+               gap: 6,
+               transition: 'all 0.2s ease',
+             }}
+             title="Open Realtime Dashboard (Live Company Analytics)"
+           >
+             <span style={{fontSize:14}}>📊</span>
+             <span>Dashboard</span>
+           </button>
         </div>
         <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:15, marginRight:10}}>
            <div style={{textAlign:'right'}}>
@@ -4413,6 +4439,18 @@ export default function App() {
         isOpen={showVirtualBSModal}
         onClose={() => setShowVirtualBSModal(false)}
       />
+
+      {/* Realtime TallyPrime-Style Dashboard Modal */}
+      {showRealtimeDashboard && (
+        <RealtimeDashboardModal
+          activeCompany={activeCompany || (companies && companies.length > 0 ? companies[0] : null)}
+          vouchers={vouchers}
+          ledgers={ledgers}
+          stockItems={stockItems}
+          currentPeriod={currentPeriod}
+          onClose={() => setShowRealtimeDashboard(false)}
+        />
+      )}
 
       {/* ===== MOBILE BOTTOM NAV BAR (hidden on desktop via CSS) ===== */}
       <nav className="mobile-bottom-nav">
