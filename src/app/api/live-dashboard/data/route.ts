@@ -54,22 +54,36 @@ export async function GET(req: Request) {
       }
     }
 
+    // Filter out non-financial vouchers like quotations
+    const validVouchers = (company.vouchers || []).filter((v: any) => 
+      v.type !== 'Sales Quotation' && v.type !== 'Quotation'
+    );
+
     // Format vouchers to match the structure expected by RealtimeDashboardModal
-    const formattedVouchers = (company.vouchers || []).map((v: any) => ({
-      ...v,
-      date: v.date ? new Date(v.date).toISOString().split('T')[0] : '',
-      total: Number(v.total) || 0,
-      entries: (v.entries || []).map((e: any) => ({
-        ...e,
-        amount: Number(e.amount) || 0
-      })),
-      inventoryEntries: (v.inventoryEntries || []).map((ie: any) => ({
-        ...ie,
-        qty: Number(ie.qty) || 0,
-        rate: Number(ie.rate) || 0,
-        amount: Number(ie.amount) || 0
-      }))
-    }));
+    const formattedVouchers = validVouchers.map((v: any) => {
+      const partySide = ['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr';
+      const partyEntry = (v.entries || []).find((e: any) => e.entryType === partySide);
+      const computedTotal = partyEntry?.amount || (v.entries || []).reduce((max: number, e: any) => Math.max(max, Number(e.amount) || 0), 0) || 0;
+
+      return {
+        ...v,
+        date: v.date ? new Date(v.date).toISOString().split('T')[0] : '',
+        total: Number(computedTotal) || 0,
+        entries: (v.entries || []).map((e: any) => ({
+          ...e,
+          ledgerId: Number(e.ledgerId) || 0,
+          amount: Number(e.amount) || 0
+        })),
+        inventoryEntries: (v.inventoryEntries || []).map((ie: any) => ({
+          ...ie,
+          stockItemId: Number(ie.stockItemId || ie.itemId) || 0,
+          itemId: Number(ie.stockItemId || ie.itemId) || 0,
+          qty: Number(ie.qty) || 0,
+          rate: Number(ie.rate) || 0,
+          amount: Number(ie.amount) || 0
+        }))
+      };
+    });
 
     // Format financial year period
     const startYear = company.financialYearStart ? new Date(company.financialYearStart).getFullYear() : 2026;

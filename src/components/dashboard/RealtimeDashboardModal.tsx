@@ -183,6 +183,16 @@ export default function RealtimeDashboardModal({
     };
   };
 
+  // Helper to compute voucher total accurately
+  const getVchTotal = (v: any) => {
+    const t = Number(v.total);
+    if (t > 0) return t;
+    const partySide = ['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr';
+    const partyEntry = (v.entries || []).find((e: any) => e.entryType === partySide);
+    if (partyEntry && Number(partyEntry.amount) > 0) return Number(partyEntry.amount);
+    return (v.entries || []).reduce((max: number, e: any) => Math.max(max, Number(e.amount) || 0), 0) || 0;
+  };
+
   // ─── Financial Calculations ───
   const calculations = useMemo(() => {
     // 1. Group balances
@@ -236,11 +246,12 @@ export default function RealtimeDashboardModal({
     let purchaseQty = 0;
 
     vouchers.forEach(v => {
+      const vTot = getVchTotal(v);
       if (v.type === 'Sales') {
-        salesTotal += Number(v.total) || 0;
+        salesTotal += vTot;
         (v.inventoryEntries || []).forEach((ie: any) => { salesQty += Number(ie.qty) || 0; });
       } else if (v.type === 'Purchase') {
-        purchaseTotal += Number(v.total) || 0;
+        purchaseTotal += vTot;
         (v.inventoryEntries || []).forEach((ie: any) => { purchaseQty += Number(ie.qty) || 0; });
       }
     });
@@ -344,10 +355,11 @@ export default function RealtimeDashboardModal({
     let outflow = 0;
 
     vouchers.forEach(v => {
+      const vTot = getVchTotal(v);
       if (v.type === 'Receipt') {
-        inflow += Number(v.total) || 0;
+        inflow += vTot;
       } else if (v.type === 'Payment') {
-        outflow += Number(v.total) || 0;
+        outflow += vTot;
       } else {
         // Check Dr/Cr on cash/bank
         (v.entries || []).forEach((e: any) => {
@@ -455,10 +467,11 @@ export default function RealtimeDashboardModal({
       if (m !== -1) {
         const sItem = sData.find(item => item.mIdx === m);
         const pItem = pData.find(item => item.mIdx === m);
+        const vTot = getVchTotal(v);
         if (v.type === 'Sales' && sItem) {
-          sItem.val += Number(v.total) || 0;
+          sItem.val += vTot;
         } else if (v.type === 'Purchase' && pItem) {
-          pItem.val += Number(v.total) || 0;
+          pItem.val += vTot;
         }
       }
     });
