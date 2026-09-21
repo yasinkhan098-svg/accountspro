@@ -14762,11 +14762,94 @@ function GSTR1ReportView({
     return () => window.removeEventListener('keydown', onKey);
   }, [drillDown, drillDownParty, selectedRow, selectedVchIdx, sections, partyRows, currentPartyVouchers, currentDrillVouchers, goBack]);
 
-  // EXPORT HANDLERS
+  // EXPORT HANDLERS & STATE
   const [showExportGstModal, setShowExportGstModal] = useState(false);
 
-  // EXPORT HANDLERS
-  const handleActualExport = (exportType: 'combined' | 'separate') => {
+  const formatGstDate = (d: any) => {
+    if (!d) return '01-01-2026';
+    const months: Record<string, string> = {
+      'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+      'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+    };
+    const s = String(d).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      const [yr, mo, dy] = s.slice(0, 10).split('-');
+      return `${dy}-${mo}-${yr}`;
+    }
+    const parts = s.split(/[-/]/);
+    if (parts.length === 3) {
+      let [dPart, mPart, yPart] = parts;
+      if (dPart.length === 4) {
+        return `${yPart.padStart(2, '0')}-${mPart.padStart(2, '0')}-${dPart}`;
+      }
+      const day = dPart.padStart(2, '0');
+      let month = months[mPart.toLowerCase().slice(0, 3)] || mPart.padStart(2, '0');
+      let year = yPart;
+      if (year.length === 2) year = '20' + year;
+      return `${day}-${month}-${year}`;
+    }
+    return s;
+  };
+
+  const defaultFp = useMemo(() => {
+    const salesWithDates = salesVouchers.filter(v => v.date);
+    if (salesWithDates.length > 0) {
+      const formatted = formatGstDate(salesWithDates[0].date);
+      const parts = formatted.split('-');
+      if (parts.length === 3) {
+        return `${parts[1]}${parts[2]}`;
+      }
+    }
+    const endParts = (currentPeriod?.end || '').split(/[-/]/);
+    const months: Record<string, string> = { 'jan':'01','feb':'02','mar':'03','apr':'04','may':'05','jun':'06','jul':'07','aug':'08','sep':'09','oct':'10','nov':'11','dec':'12' };
+    let mStr = (endParts[1]) ? (months[endParts[1].toLowerCase().slice(0,3)] || endParts[1].padStart(2, '0')) : '08';
+    let yr = endParts[2] || '2026';
+    if (yr.length === 2) yr = '20' + yr;
+    return `${mStr}${yr}`;
+  }, [salesVouchers, currentPeriod]);
+
+  const [exportPeriod, setExportPeriod] = useState<string>('');
+  const [exportGstin, setExportGstin] = useState<string>('');
+
+  useEffect(() => {
+    if (showExportGstModal) {
+      setExportPeriod(defaultFp);
+      setExportGstin((activeCompany?.gstin || '').trim().toUpperCase());
+    }
+  }, [showExportGstModal, defaultFp, activeCompany]);
+
+  const getCleanUqc = (unitName?: string, unitSymbol?: string): string => {
+    const u = (unitName || unitSymbol || '').trim().toLowerCase();
+    if (!u) return 'PCS';
+    if (['pcs', 'pc', 'piece', 'pieces', 'pce'].includes(u)) return 'PCS';
+    if (['box', 'boxes', 'bx'].includes(u)) return 'BOX';
+    if (['nos', 'no', 'number', 'numbers', 'num'].includes(u)) return 'NOS';
+    if (['kg', 'kgs', 'kilogram', 'kilograms', 'kilo'].includes(u)) return 'KGS';
+    if (['mtr', 'meter', 'meters', 'metre', 'metres', 'm'].includes(u)) return 'MTR';
+    if (['bag', 'bags', 'bgs'].includes(u)) return 'BAG';
+    if (['btl', 'bottle', 'bottles'].includes(u)) return 'BTL';
+    if (['can', 'cans'].includes(u)) return 'CAN';
+    if (['ctn', 'carton', 'cartons'].includes(u)) return 'CTN';
+    if (['doz', 'dzn', 'dozen', 'dozens'].includes(u)) return 'DOZ';
+    if (['gms', 'gm', 'gram', 'grams'].includes(u)) return 'GMS';
+    if (['ltr', 'liter', 'liters', 'litre', 'litres', 'l'].includes(u)) return 'LTR';
+    if (['pac', 'pack', 'packs', 'packet', 'packets', 'pkt'].includes(u)) return 'PAC';
+    if (['prs', 'pair', 'pairs', 'pr'].includes(u)) return 'PRS';
+    if (['qtl', 'quintal', 'quintals'].includes(u)) return 'QTL';
+    if (['rol', 'roll', 'rolls'].includes(u)) return 'ROL';
+    if (['set', 'sets'].includes(u)) return 'SET';
+    if (['sqf', 'sqft', 'square feet', 'sq.ft'].includes(u)) return 'SQF';
+    if (['sqm', 'sqmt', 'square meter', 'square meters', 'sq.m'].includes(u)) return 'SQM';
+    if (['tub', 'tube', 'tubes'].includes(u)) return 'TUB';
+    if (['unt', 'unit', 'units'].includes(u)) return 'UNT';
+
+    const unitObj = allUnits.find(unit => unit.name?.toLowerCase() === u || unit.symbol?.toLowerCase() === u || unit.formalName?.toLowerCase() === u);
+    if (unitObj?.uqc) return unitObj.uqc.toUpperCase();
+    if (u.length === 3) return u.toUpperCase();
+    return 'PCS';
+  };
+
+  const handleActualExport = (exportType: 'all' | 'b2b' | 'hsn' | 'docs' | 'combined') => {
     const stateCodeMap: Record<string, string> = {
       'Andaman and Nicobar Islands': '35', 'Andhra Pradesh': '37', 'Arunachal Pradesh': '12', 'Assam': '18', 'Bihar': '10',
       'Chandigarh': '04', 'Chhattisgarh': '22', 'Dadra and Nagar Haveli and Daman and Diu': '26', 'Delhi': '07', 'Goa': '30',
@@ -14777,173 +14860,244 @@ function GSTR1ReportView({
       'Tamil Nadu': '33', 'Telangana': '36', 'Tripura': '16', 'Uttar Pradesh': '09', 'Uttarakhand': '05', 'West Bengal': '19'
     };
 
-    const formatGstDate = (d: string) => {
-      const months: Record<string, string> = {
-        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-        'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
-      };
-      const parts = d.split('-');
-      if (parts.length === 3) {
-        const day = parts[0].padStart(2, '0');
-        let month = months[parts[1]] || parts[1];
-        if (month.length === 1) month = '0' + month;
-        let year = parts[2];
-        if (year.length === 2) year = '20' + year;
-        return `${day}-${month}-${year}`;
+    const formatGstNumber = (val: number): string => {
+      if (!val || Math.abs(val) < 0.00001) return "0";
+      const rounded = Math.round(val * 100) / 100;
+      if (Number.isInteger(rounded)) {
+        return rounded.toString();
       }
-      return d;
+      return rounded.toFixed(2);
     };
 
-    // 1. Prepare HSN Data
-    const hsnMap: any = {};
-    salesVouchers.forEach(v => {
-      if (v.type !== 'Sales') return;
-      const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
-      v.inventoryEntries.forEach(item => {
-        const hsn = item.hsnCode || 'N/A';
-        const rate = item.gstRate || 18;
-        const key = `${hsn}_${rate}`;
-        const unitObj = allUnits.find(u => u.name === item.unit || u.symbol === item.unit);
-        const uqc = (unitObj?.uqc || 'NOS').toUpperCase();
-        if(!hsnMap[key]) hsnMap[key] = { hsn_sc: hsn, uqc: uqc, qty: 0, txval: 0, iamt: 0, camt: 0, samt: 0, rt: rate, csamt: 0 };
-        
-        // item.amount is already exclusive (taxable)
-        const txval = item.taxableAmount || item.amount;
-        const tax = txval * rate / 100;
-        
-        hsnMap[key].qty += item.qty; 
-        hsnMap[key].txval += txval;
-        if (isInterState) hsnMap[key].iamt += tax;
-        else { hsnMap[key].camt += tax/2; hsnMap[key].samt += tax/2; }
-      });
-    });
+    const num = (v: number) => `__NUM_${formatGstNumber(v)}`;
 
-    // 2. Prepare B2B Data
+    const getPos = (ctin: string, buyerState?: string): string => {
+      if (ctin && /^\d{2}/.test(ctin.trim())) {
+        return ctin.trim().substring(0, 2);
+      }
+      if (buyerState && stateCodeMap[buyerState.trim()]) {
+        return stateCodeMap[buyerState.trim()];
+      }
+      if (activeCompany?.state && stateCodeMap[activeCompany.state.trim()]) {
+        return stateCodeMap[activeCompany.state.trim()];
+      }
+      if (activeCompany?.gstin && /^\d{2}/.test(activeCompany.gstin.trim())) {
+        return activeCompany.gstin.trim().substring(0, 2);
+      }
+      return '05';
+    };
+
+    const gstin = (exportGstin || activeCompany?.gstin || "05ACIFA3744K1ZC").trim().toUpperCase();
+    const fp = (exportPeriod || defaultFp || "082026").trim();
+
+    // 1. Prepare B2B Data
     const b2bGrouped: Record<string, any> = {};
     b2bList.filter(v => v.type === 'Sales').forEach(v => {
-      const ctin = v.partyDetails?.buyerGstin?.trim();
+      const ctin = getVchGstin(v).trim().toUpperCase();
       if (!ctin) return;
       if (!b2bGrouped[ctin]) b2bGrouped[ctin] = { ctin, inv: [] };
-      
-      const isInterState = v.partyDetails?.buyerState && activeCompany?.state && v.partyDetails.buyerState !== activeCompany.state;
-      const itemsByRate: Record<number, any> = {};
-      
+
+      const pos = getPos(ctin, v.partyDetails?.buyerState);
+      const companyPos = getPos('', activeCompany?.state);
+      const isInterState = pos !== companyPos;
+
+      const itemsByRate: Record<number, { txval: number, iamt: number, camt: number, samt: number }> = {};
       v.inventoryEntries.forEach(item => {
-         const rate = item.gstRate || 18;
-         if (!itemsByRate[rate]) itemsByRate[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
-         
-         const txval = item.taxableAmount || item.amount;
-         const tax = txval * rate / 100;
-         
-         itemsByRate[rate].txval += txval;
-         if (isInterState) itemsByRate[rate].iamt += tax;
-         else { itemsByRate[rate].camt += tax/2; itemsByRate[rate].samt += tax/2; }
+        const rate = Number(item.gstRate ?? 18);
+        if (!itemsByRate[rate]) itemsByRate[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
+
+        const txval = Number(item.taxableAmount || item.amount || 0);
+        const tax = (txval * rate) / 100;
+
+        itemsByRate[rate].txval += txval;
+        if (isInterState) {
+          itemsByRate[rate].iamt += tax;
+        } else {
+          itemsByRate[rate].camt += tax / 2;
+          itemsByRate[rate].samt += tax / 2;
+        }
       });
 
-      const itms = Object.entries(itemsByRate).map(([rate, det], idx) => {
-         const itmDet: any = { txval: det.txval, rt: Number(rate) };
-         if (isInterState) itmDet.iamt = det.iamt;
-         else { itmDet.camt = det.camt; itmDet.samt = det.samt; }
-         itmDet.csamt = 0.0;
-         return { num: idx + 1, itm_det: itmDet };
+      const itms = Object.entries(itemsByRate).map(([rateStr, det], idx) => {
+        const rt = Number(rateStr);
+        return {
+          num: idx + 1,
+          itm_det: {
+            txval: num(det.txval),
+            rt: rt,
+            iamt: num(det.iamt),
+            camt: num(det.camt),
+            samt: num(det.samt),
+            csamt: num(0)
+          }
+        };
       });
 
+      const tb = getTaxBreakdown(v);
       b2bGrouped[ctin].inv.push({
-        inum: v.voucherNo || v.number.toString(), 
-        idt: formatGstDate(v.date), 
-        val: getTaxBreakdown(v).invoiceTotal,
-        pos: stateCodeMap[v.partyDetails?.buyerState||''] || '05', 
-        rchrg: "N", 
-        itms: itms, 
-        inv_typ: "R"
+        inum: String(v.voucherNo || v.number || ''),
+        idt: formatGstDate(v.date),
+        val: num(tb.invoiceTotal),
+        pos: pos,
+        rchrg: "N",
+        inv_typ: "R",
+        itms: itms
       });
     });
 
-    const endParts = currentPeriod.end.split('-');
-    const months: Record<string, string> = { 'jan':'01','feb':'02','mar':'03','apr':'04','may':'05','jun':'06','jul':'07','aug':'08','sep':'09','oct':'10','nov':'11','dec':'12' };
-    let mStr = (endParts[1]) ? (months[endParts[1].toLowerCase().slice(0,3)] || endParts[1].padStart(2, '0')) : '01';
-    let yr = endParts[2] || '2026';
-    if(yr.length === 2) yr = '20' + yr;
-    const fp = mStr + yr;
-    
-    const salesOnly = salesVouchers.filter(v => v.type === 'Sales');
-    const fromNo = salesOnly.length > 0 ? Math.min(...salesOnly.map(v => v.number)) : 0;
-    const toNo = salesOnly.length > 0 ? Math.max(...salesOnly.map(v => v.number)) : 0;
-    const baseData = { gstin: activeCompany?.gstin || "05ABFFA1795E1ZN", fp, gt: 0.00, cur_gt: 0.00 };
-
-    const download = (obj: any, fileName: string) => {
-      const jsonStr = JSON.stringify(obj, (key, value) => {
-        // String fields that should keep quotes
-        const stringFields = ['inum', 'idt', 'ctin', 'fp', 'gstin', 'rchrg', 'inv_typ', 'doc_typ', 'hsn_sc', 'uqc', 'from', 'to', 'pos'];
-        // Integer fields that should not have decimals
-        const integerFields = ['num', 'rt', 'doc_num', 'totnum', 'cancel', 'net_issue'];
-
-        if (stringFields.includes(key)) return value;
-        if (integerFields.includes(key)) return parseInt(value);
-        
-        // Special handling for qty: integer if whole, else decimal
-        if (key === 'qty' && typeof value === 'number') {
-          return Number.isInteger(value) ? value : parseFloat(value.toFixed(3));
-        }
-
-        // For all other numeric fields (amounts), force 2 decimal places as a string
-        // We will then strip the quotes using regex
-        if (typeof value === 'number') {
-          return value.toFixed(2);
-        }
-        return value;
+    // Sort invoices within each party
+    Object.values(b2bGrouped).forEach((party: any) => {
+      party.inv.sort((a: any, b: any) => {
+        const numA = parseInt(a.inum, 10);
+        const numB = parseInt(b.inum, 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.inum.localeCompare(b.inum);
       });
-      
-      // Strict regex to strip quotes from numeric strings with 2 decimals to match Tally format
-      const formattedJson = jsonStr.replace(/"(-?\d+\.\d{2})"/g, '$1');
-      
-      const blob = new Blob([formattedJson], {type: 'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = fileName; a.click();
+    });
+
+    const b2bArray = Object.values(b2bGrouped);
+
+    // 2. Prepare HSN Data
+    const hsnMap: Record<string, any> = {};
+    salesVouchers.forEach(v => {
+      if (v.type !== 'Sales') return;
+      const ctin = getVchGstin(v);
+      const pos = getPos(ctin, v.partyDetails?.buyerState);
+      const companyPos = getPos('', activeCompany?.state);
+      const isInterState = pos !== companyPos;
+
+      v.inventoryEntries.forEach(item => {
+        const hsn = (item.hsnCode || 'N/A').trim();
+        const rate = Number(item.gstRate ?? 18);
+        const uqc = getCleanUqc(item.unit);
+        const userDesc = (item.itemName || item.desc1 || '').trim();
+        const key = `${hsn}_${uqc}_${rate}_${userDesc}`;
+
+        if (!hsnMap[key]) {
+          hsnMap[key] = {
+            hsn_sc: hsn,
+            txval: 0,
+            iamt: 0,
+            camt: 0,
+            samt: 0,
+            csamt: 0,
+            desc: "",
+            user_desc: userDesc,
+            uqc: uqc,
+            qty: 0,
+            rt: rate
+          };
+        }
+
+        const txval = Number(item.taxableAmount || item.amount || 0);
+        const tax = (txval * rate) / 100;
+
+        hsnMap[key].qty += Number(item.qty || 0);
+        hsnMap[key].txval += txval;
+        if (isInterState) {
+          hsnMap[key].iamt += tax;
+        } else {
+          hsnMap[key].camt += tax / 2;
+          hsnMap[key].samt += tax / 2;
+        }
+      });
+    });
+
+    const hsnB2bList = Object.values(hsnMap).map((item: any, idx: number) => ({
+      num: idx + 1,
+      hsn_sc: item.hsn_sc,
+      txval: num(item.txval),
+      iamt: num(item.iamt),
+      camt: num(item.camt),
+      samt: num(item.samt),
+      csamt: num(0),
+      desc: item.desc || "",
+      user_desc: item.user_desc || "",
+      uqc: item.uqc,
+      qty: num(item.qty),
+      rt: item.rt
+    }));
+
+    // 3. Prepare Doc Issue Data
+    const salesOnly = salesVouchers.filter(v => v.type === 'Sales');
+    const invoiceNumbers = salesOnly
+      .map(v => String(v.voucherNo || v.number || ''))
+      .filter(Boolean);
+
+    let fromNo = "1";
+    let toNo = "1";
+    if (invoiceNumbers.length > 0) {
+      const numericNums = invoiceNumbers.map(n => parseInt(n, 10)).filter(n => !isNaN(n));
+      if (numericNums.length === invoiceNumbers.length) {
+        fromNo = String(Math.min(...numericNums));
+        toNo = String(Math.max(...numericNums));
+      } else {
+        fromNo = invoiceNumbers[0];
+        toNo = invoiceNumbers[invoiceNumbers.length - 1];
+      }
+    }
+
+    const docIssueObj = {
+      doc_det: [
+        {
+          doc_num: 1,
+          docs: [
+            {
+              cancel: 0,
+              from: fromNo,
+              net_issue: salesOnly.length,
+              num: 1,
+              to: toNo,
+              totnum: salesOnly.length
+            }
+          ]
+        }
+      ]
     };
 
-    if (exportType === 'combined') {
-      const data = { 
-        ...baseData, 
-        b2b: Object.values(b2bGrouped),
-        hsn: { 
-          data: Object.values(hsnMap).map((item: any, idx: number) => ({ 
-            num: idx + 1, 
-            hsn_sc: item.hsn_sc, 
-            uqc: item.uqc, 
-            qty: item.qty, 
-            rt: item.rt, 
-            txval: item.txval, 
-            iamt: item.iamt, 
-            camt: item.camt, 
-            samt: item.samt, 
-            csamt: item.csamt 
-          })) 
-        },
-        doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", docs: [{ num: 1, from: fromNo.toString(), to: toNo.toString(), totnum: salesOnly.length, cancel: 0, net_issue: salesOnly.length }] }] }
+    const serializeGst = (obj: any): string => {
+      return JSON.stringify(obj).replace(/"__NUM_(-?\d+(?:\.\d+)?)"/g, '$1');
+    };
+
+    const downloadFile = (content: string, fileName: string) => {
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const b2bData = { gstin, fp, b2b: b2bArray };
+    const hsnData = { gstin, fp, hsn: { hsn_b2b: hsnB2bList } };
+    const docsData = { gstin, fp, doc_issue: docIssueObj };
+
+    if (exportType === 'b2b') {
+      downloadFile(serializeGst(b2bData), `B2B_${gstin}_${fp}.json`);
+    } else if (exportType === 'hsn') {
+      downloadFile(serializeGst(hsnData), `HSN_${gstin}_${fp}.json`);
+    } else if (exportType === 'docs') {
+      downloadFile(serializeGst(docsData), `Docs_${gstin}_${fp}.json`);
+    } else if (exportType === 'combined') {
+      const combinedData = {
+        gstin,
+        fp,
+        b2b: b2bArray,
+        hsn: { hsn_b2b: hsnB2bList },
+        doc_issue: docIssueObj
       };
-      download(data, `GSTR1_Full_${fp}.json`);
-    } else {
-      download({ ...baseData, b2b: Object.values(b2bGrouped) }, `B2B_${baseData.gstin}_${fp}.json`);
-      setTimeout(() => download({ 
-        ...baseData, 
-        hsn: { 
-          data: Object.values(hsnMap).map((item: any, idx: number) => ({ 
-            num: idx + 1, 
-            hsn_sc: item.hsn_sc, 
-            uqc: item.uqc, 
-            qty: item.qty, 
-            rt: item.rt, 
-            txval: item.txval, 
-            iamt: item.iamt, 
-            camt: item.camt, 
-            samt: item.samt, 
-            csamt: item.csamt 
-          })) 
-        } 
-      }, `HSN_${baseData.gstin}_${fp}.json`), 500);
-      setTimeout(() => download({ ...baseData, doc_issue: { doc_det: [{ doc_num: 1, doc_typ: "Invoices for outward supply", docs: [{ num: 1, from: fromNo.toString(), to: toNo.toString(), totnum: salesOnly.length, cancel: 0, net_issue: salesOnly.length }] }] } }, `Docs_${baseData.gstin}_${fp}.json`), 1000);
+      downloadFile(serializeGst(combinedData), `GSTR1_Full_${gstin}_${fp}.json`);
+    } else if (exportType === 'all') {
+      downloadFile(serializeGst(b2bData), `B2B_${gstin}_${fp}.json`);
+      setTimeout(() => {
+        downloadFile(serializeGst(hsnData), `HSN_${gstin}_${fp}.json`);
+      }, 400);
+      setTimeout(() => {
+        downloadFile(serializeGst(docsData), `Docs_${gstin}_${fp}.json`);
+      }, 800);
     }
+
     setShowExportGstModal(false);
   };
 
@@ -15240,20 +15394,96 @@ function GSTR1ReportView({
 
       {showExportGstModal && (
         <div className="modal-overlay" style={{zIndex:10000}} onClick={()=>setShowExportGstModal(false)}>
-          <div className="modal-box" style={{width:400}} onClick={e=>e.stopPropagation()}>
-            <div className="modal-header">Export GSTR-1 Configuration</div>
+          <div className="modal-box" style={{width:480, maxWidth:'95vw'}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header" style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <span>Export GSTR-1 JSON (GST Portal Format)</span>
+              <span style={{cursor:'pointer', fontSize:16}} onClick={()=>setShowExportGstModal(false)}>✕</span>
+            </div>
             <div style={{padding:20}}>
-              <div style={{marginBottom:15, fontWeight:'bold', color:'#1c5282'}}>Export Data:</div>
+              {/* Configuration Inputs */}
+              <div style={{background:'#f7fafc', border:'1px solid #e2e8f0', borderRadius:6, padding:12, marginBottom:16}}>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                  <div>
+                    <label style={{fontSize:11, fontWeight:'bold', color:'#4a5568', display:'block', marginBottom:4}}>
+                      Return Period (fp):
+                    </label>
+                    <input 
+                      type="text" 
+                      value={exportPeriod} 
+                      onChange={e => setExportPeriod(e.target.value)} 
+                      placeholder="MMYYYY (e.g. 082026)"
+                      style={{width:'100%', padding:'6px 8px', fontSize:12, border:'1px solid #cbd5e0', borderRadius:4}}
+                    />
+                    <span style={{fontSize:10, color:'#718096'}}>Format: MMYYYY (e.g. 082026)</span>
+                  </div>
+                  <div>
+                    <label style={{fontSize:11, fontWeight:'bold', color:'#4a5568', display:'block', marginBottom:4}}>
+                      Company GSTIN:
+                    </label>
+                    <input 
+                      type="text" 
+                      value={exportGstin} 
+                      onChange={e => setExportGstin(e.target.value.toUpperCase())} 
+                      placeholder="05ACIFA3744K1ZC"
+                      style={{width:'100%', padding:'6px 8px', fontSize:12, border:'1px solid #cbd5e0', borderRadius:4, textTransform:'uppercase'}}
+                    />
+                    <span style={{fontSize:10, color:'#718096'}}>15-digit GSTIN</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{marginBottom:12, fontWeight:'bold', color:'#1c5282', fontSize:13}}>
+                Select Export Option (Single-Line JSON):
+              </div>
+              
               <div style={{display:'flex', flexDirection:'column', gap:10}}>
-                <button className="tally-btn" style={{textAlign:'left', justifyContent:'flex-start'}} onClick={()=>handleActualExport('combined')}>
-                  1. Combined JSON (Single File)
+                <button 
+                  className="tally-btn" 
+                  style={{textAlign:'left', justifyContent:'flex-start', background:'#1c5282', color:'#fff', padding:'10px 14px', borderRadius:5, display:'flex', alignItems:'center', gap:10}} 
+                  onClick={()=>handleActualExport('all')}
+                >
+                  <span style={{fontSize:16}}>📦</span>
+                  <div>
+                    <div style={{fontWeight:'bold'}}>1. Export All 3 Files (B2B, HSN, Docs)</div>
+                    <div style={{fontSize:11, opacity:0.85}}>Recommended: Downloads all 3 files ready for GST portal upload</div>
+                  </div>
                 </button>
-                <button className="tally-btn" style={{textAlign:'left', justifyContent:'flex-start'}} onClick={()=>handleActualExport('separate')}>
-                  2. Separate JSON Files (B2B, HSN, Docs)
+
+                <button 
+                  className="tally-btn" 
+                  style={{textAlign:'left', justifyContent:'flex-start', background:'#f8fafc', color:'#1e293b', border:'1px solid #cbd5e1', padding:'8px 12px', borderRadius:5}} 
+                  onClick={()=>handleActualExport('b2b')}
+                >
+                  📁 <strong>B2B Invoices Only</strong> <span style={{fontSize:11, color:'#64748b'}}>({b2bList.length} vouchers) → B2B_{exportGstin || 'GSTIN'}_{exportPeriod || 'FP'}.json</span>
+                </button>
+
+                <button 
+                  className="tally-btn" 
+                  style={{textAlign:'left', justifyContent:'flex-start', background:'#f8fafc', color:'#1e293b', border:'1px solid #cbd5e1', padding:'8px 12px', borderRadius:5}} 
+                  onClick={()=>handleActualExport('hsn')}
+                >
+                  📊 <strong>HSN/SAC Summary Only</strong> <span style={{fontSize:11, color:'#64748b'}}>(Table 12 hsn_b2b) → HSN_{exportGstin || 'GSTIN'}_{exportPeriod || 'FP'}.json</span>
+                </button>
+
+                <button 
+                  className="tally-btn" 
+                  style={{textAlign:'left', justifyContent:'flex-start', background:'#f8fafc', color:'#1e293b', border:'1px solid #cbd5e1', padding:'8px 12px', borderRadius:5}} 
+                  onClick={()=>handleActualExport('docs')}
+                >
+                  📑 <strong>Document Summary Only</strong> <span style={{fontSize:11, color:'#64748b'}}>(Table 13 doc_issue) → Docs_{exportGstin || 'GSTIN'}_{exportPeriod || 'FP'}.json</span>
+                </button>
+
+                <button 
+                  className="tally-btn" 
+                  style={{textAlign:'left', justifyContent:'flex-start', background:'#f8fafc', color:'#1e293b', border:'1px solid #cbd5e1', padding:'8px 12px', borderRadius:5}} 
+                  onClick={()=>handleActualExport('combined')}
+                >
+                  🔗 <strong>Combined JSON (All-in-One)</strong> <span style={{fontSize:11, color:'#64748b'}}>→ GSTR1_Full_{exportGstin || 'GSTIN'}_{exportPeriod || 'FP'}.json</span>
                 </button>
               </div>
             </div>
-            <div style={{background:'#f0f4f8', padding:'8px 15px', textAlign:'right', borderTop:'1px solid #ddd'}}>
+            <div style={{background:'#f0f4f8', padding:'10px 15px', display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #ddd'}}>
+              <span style={{fontSize:11, color:'#666'}}>All exports are Phase 3 GST portal compliant.</span>
               <button className="tally-btn" style={{background:'#eee', color:'#333', border:'1px solid #ccc'}} onClick={()=>setShowExportGstModal(false)}>Close</button>
             </div>
           </div>
