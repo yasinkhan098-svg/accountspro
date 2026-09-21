@@ -1,0 +1,24 @@
+{
+  "name": "AccountPro Live Executive Dashboard",
+  "short_name": "Live Dashboard",
+  "description": "Realtime View-Only Executive Financial Dashboard for Business Owners",
+  "start_url": "/live",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0f1d",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/auth-bg.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/auth-bg.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

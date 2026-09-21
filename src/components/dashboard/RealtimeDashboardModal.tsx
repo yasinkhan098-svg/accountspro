@@ -7,7 +7,8 @@ export interface DashboardProps {
   ledgers: any[];
   stockItems?: any[];
   currentPeriod?: { start: string; end: string };
-  onClose: () => void;
+  onClose?: () => void;
+  isStandalone?: boolean;
 }
 
 export default function RealtimeDashboardModal({
@@ -16,23 +17,106 @@ export default function RealtimeDashboardModal({
   ledgers,
   stockItems = [],
   currentPeriod,
-  onClose
+  onClose,
+  isStandalone = false
 }: DashboardProps) {
   const [hoveredSalesPoint, setHoveredSalesPoint] = useState<{ name: string; label: string; val: number; x: number; y: number } | null>(null);
   const [hoveredPurchasePoint, setHoveredPurchasePoint] = useState<{ name: string; label: string; val: number; x: number; y: number } | null>(null);
   const [activeLedgerGroup, setActiveLedgerGroup] = useState<'Bank Accounts' | 'Sundry Debtors' | 'Sundry Creditors'>('Bank Accounts');
   const [chartViewMode, setChartViewMode] = useState<'individual' | 'combined'>('individual');
 
-  // Close on ESC key
+  // Share Modal States
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareData, setShareData] = useState<{
+    token: string;
+    hasPin: boolean;
+    enabled: boolean;
+    companyName: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinMessage, setPinMessage] = useState('');
+  const [shareError, setShareError] = useState('');
+
+  // Close on ESC key (only in modal mode)
   useEffect(() => {
+    if (isStandalone || !onClose) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (showShareModal) {
+          setShowShareModal(false);
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, isStandalone, showShareModal]);
+
+  // Load Share Data
+  const loadShareData = async () => {
+    if (!activeCompany?.id) return;
+    setShareLoading(true);
+    setShareError('');
+    try {
+      const authHeader = typeof window !== 'undefined' ? localStorage.getItem('tally_session_token') || '' : '';
+      const res = await fetch(`/api/live-dashboard/manage?companyId=${activeCompany.id}`, {
+        headers: { 'Authorization': `Bearer ${authHeader}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShareData(data);
+      } else {
+        setShareError(data.error || "Failed to load share settings.");
+      }
+    } catch (err: any) {
+      setShareError("Network error while loading share link.");
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  // Action on Share (reset, set_pin, toggle_enabled)
+  const handleShareAction = async (action: string, payload: any = {}) => {
+    if (!activeCompany?.id) return;
+    setShareLoading(true);
+    setShareError('');
+    setPinMessage('');
+    try {
+      const authHeader = typeof window !== 'undefined' ? localStorage.getItem('tally_session_token') || '' : '';
+      const res = await fetch('/api/live-dashboard/manage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authHeader}`
+        },
+        body: JSON.stringify({
+          action,
+          companyId: activeCompany.id,
+          ...payload
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (action === 'reset') {
+          setShareData(prev => prev ? { ...prev, token: data.token } : null);
+          setPinMessage("Link reset successfully! Old link has expired.");
+        } else if (action === 'set_pin') {
+          setShareData(prev => prev ? { ...prev, hasPin: data.hasPin } : null);
+          setPinMessage(data.message);
+          setPinInput('');
+        }
+      } else {
+        setShareError(data.error || "Operation failed.");
+      }
+    } catch (err: any) {
+      setShareError("Failed to update share settings.");
+    } finally {
+      setShareLoading(false);
+    }
+  };
 
   // Indian currency formatter
   const fmt = (n: number) => {
@@ -733,6 +817,32 @@ export default function RealtimeDashboardModal({
 
         {/* Right: Actions */}
         <div className="dashboard-header-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Share Mobile Link Button (Only in main software) */}
+          {!isStandalone && (
+            <button
+              onClick={() => { setShowShareModal(true); loadShareData(); }}
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: 'none',
+                color: '#ffffff',
+                padding: '6px 14px',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 10px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap'
+              }}
+              title="Share Live Dashboard Link with Owner / Mobile Link"
+            >
+              <span>📱 Share Mobile Link</span>
+            </button>
+          )}
+
           <button
             onClick={() => setChartViewMode(chartViewMode === 'individual' ? 'combined' : 'individual')}
             style={{
@@ -755,29 +865,64 @@ export default function RealtimeDashboardModal({
             <span>{chartViewMode === 'combined' ? 'Split' : 'Dual Overlay'}</span>
           </button>
 
-          <button 
-            onClick={onClose}
-            style={{
-              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-              border: 'none',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontWeight: 700,
-              fontSize: 12,
-              color: '#ffffff',
-              padding: '7px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
-              transition: 'all 0.2s',
-              whiteSpace: 'nowrap'
-            }}
-            title="Close Dashboard (Esc)"
-          >
-            <span>✕ Close</span>
-            <span style={{ fontSize: 10, opacity: 0.8 }}>(Esc)</span>
-          </button>
+          {/* Fullscreen Button in Standalone Mode */}
+          {isStandalone && (
+            <button
+              onClick={() => {
+                if (typeof document !== 'undefined') {
+                  if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                  } else {
+                    document.exitFullscreen().catch(() => {});
+                  }
+                }
+              }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                padding: '6px 12px',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                whiteSpace: 'nowrap'
+              }}
+              title="Toggle Fullscreen"
+            >
+              <span>⛶ Fullscreen</span>
+            </button>
+          )}
+
+          {/* Close Button (only when not standalone) */}
+          {!isStandalone && onClose && (
+            <button 
+              onClick={onClose}
+              style={{
+                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 12,
+                color: '#ffffff',
+                padding: '7px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap'
+              }}
+              title="Close Dashboard (Esc)"
+            >
+              <span>✕ Close</span>
+              <span style={{ fontSize: 10, opacity: 0.8 }}>(Esc)</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1865,25 +2010,341 @@ export default function RealtimeDashboardModal({
           <span>Base Currency: <strong style={{ color: '#38bdf8' }}>INR (₹)</strong></span>
         </div>
         <div className="dashboard-footer-right" style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-          <span style={{ color: '#64748b' }}>Press <strong>Esc</strong> key to close</span>
-          <button 
-            onClick={onClose}
-            style={{
-              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              color: '#000000',
-              fontWeight: 800,
-              border: 'none',
-              borderRadius: 4,
-              padding: '4px 12px',
-              fontSize: 11,
-              cursor: 'pointer',
-              letterSpacing: '0.5px'
-            }}
-          >
-            Esc: Exit
-          </button>
+          {!isStandalone && onClose ? (
+            <>
+              <span style={{ color: '#64748b' }}>Press <strong>Esc</strong> key to close</span>
+              <button 
+                onClick={onClose}
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: '#000000',
+                  fontWeight: 800,
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '4px 12px',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  letterSpacing: '0.5px'
+                }}
+              >
+                Esc: Exit
+              </button>
+            </>
+          ) : (
+            <span style={{ color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }}></span>
+              Live Standalone View
+            </span>
+          )}
         </div>
       </div>
+
+      {/* ─── Share Mobile Link Modal ─── */}
+      {showShareModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 100002,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: 480,
+            background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: 16,
+            padding: 24,
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)',
+            color: '#f8fafc',
+            fontFamily: "'Segoe UI', -apple-system, sans-serif"
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 24 }}>📱</span>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800 }}>Share Live Dashboard</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{activeCompany?.name || 'Active Company'}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 30,
+                  height: 30,
+                  color: '#94a3b8',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {shareLoading && !shareData ? (
+              <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8', fontSize: 13 }}>
+                Loading live share link...
+              </div>
+            ) : shareError ? (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: 8,
+                padding: '12px 16px',
+                color: '#fca5a5',
+                fontSize: 12,
+                marginBottom: 16
+              }}>
+                {shareError}
+              </div>
+            ) : shareData ? (() => {
+              const origin = typeof window !== 'undefined' ? window.location.origin : '';
+              const fullShareUrl = `${origin}/live/${shareData.token}`;
+              return (
+                <div>
+                  {/* Share Link Display */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6 }}>
+                      Live View-Only Link (Company-Specific):
+                    </label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        readOnly
+                        value={fullShareUrl}
+                        style={{
+                          flex: 1,
+                          background: '#0a0f1d',
+                          border: '1px solid #334155',
+                          borderRadius: 8,
+                          padding: '8px 12px',
+                          color: '#38bdf8',
+                          fontSize: 11.5,
+                          outline: 'none',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (navigator.clipboard) {
+                            navigator.clipboard.writeText(fullShareUrl);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2500);
+                          }
+                        }}
+                        style={{
+                          background: copied ? '#10b981' : '#3b82f6',
+                          border: 'none',
+                          borderRadius: 8,
+                          padding: '8px 14px',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: 11.5,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          whiteSpace: 'nowrap',
+                          transition: 'background 0.2s'
+                        }}
+                      >
+                        {copied ? '✓ Copied' : '📋 Copy'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Share Button */}
+                  <button
+                    onClick={() => {
+                      const msg = `View live business analytics for ${activeCompany?.name || 'our company'}: ${fullShareUrl}`;
+                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      background: '#25D366',
+                      border: 'none',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      marginBottom: 16,
+                      boxShadow: '0 2px 10px rgba(37, 211, 102, 0.3)'
+                    }}
+                  >
+                    <span>📲 Share on WhatsApp</span>
+                  </button>
+
+                  {/* QR Code Section */}
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: 12,
+                    padding: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 16,
+                    marginBottom: 16
+                  }}>
+                    <div style={{
+                      background: '#ffffff',
+                      padding: 6,
+                      borderRadius: 8,
+                      display: 'inline-block',
+                      flexShrink: 0
+                    }}>
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(fullShareUrl)}`}
+                        alt="Scan QR Code"
+                        style={{ width: 100, height: 100, display: 'block' }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>Scan with Phone Camera</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, lineHeight: 1.4 }}>
+                        Scan this QR code from any smartphone or tablet to instantly open this company's live dashboard.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4-Digit PIN Protection Section */}
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 16
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#f8fafc' }}>
+                        🔒 4-Digit Passcode Protection
+                      </span>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 10,
+                        background: shareData.hasPin ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                        color: shareData.hasPin ? '#34d399' : '#94a3b8'
+                      }}>
+                        {shareData.hasPin ? 'PIN Active' : 'No PIN (Open)'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                      Set a 4-digit PIN so the owner must enter it before viewing the dashboard. Leave blank if not required.
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        maxLength={4}
+                        placeholder={shareData.hasPin ? 'Change PIN' : 'e.g. 1234'}
+                        value={pinInput}
+                        onChange={e => setPinInput(e.target.value.replace(/[^0-9]/g, ''))}
+                        style={{
+                          width: 100,
+                          background: '#0a0f1d',
+                          border: '1px solid #475569',
+                          borderRadius: 6,
+                          padding: '6px 10px',
+                          color: '#ffffff',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          textAlign: 'center',
+                          letterSpacing: '2px'
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (pinInput.length === 4) {
+                            handleShareAction('set_pin', { pin: pinInput });
+                          }
+                        }}
+                        disabled={pinInput.length !== 4}
+                        style={{
+                          background: pinInput.length === 4 ? '#10b981' : '#334155',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '6px 12px',
+                          color: '#fff',
+                          fontWeight: 600,
+                          fontSize: 11,
+                          cursor: pinInput.length === 4 ? 'pointer' : 'default'
+                        }}
+                      >
+                        Save PIN
+                      </button>
+                      {shareData.hasPin && (
+                        <button
+                          onClick={() => handleShareAction('set_pin', { pin: null })}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid #ef4444',
+                            borderRadius: 6,
+                            padding: '6px 10px',
+                            color: '#f87171',
+                            fontWeight: 600,
+                            fontSize: 11,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Remove PIN
+                        </button>
+                      )}
+                    </div>
+                    {pinMessage && (
+                      <div style={{ fontSize: 11, color: '#34d399', marginTop: 8 }}>
+                        ✓ {pinMessage}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Reset Link Action */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <div style={{ fontSize: 10.5, color: '#94a3b8' }}>
+                      Need to revoke access?
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm("Are you sure? This will permanently expire the previous link and generate a new one.")) {
+                          handleShareAction('reset');
+                        }
+                      }}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: 6,
+                        padding: '4px 10px',
+                        color: '#fca5a5',
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🔄 Reset Link
+                    </button>
+                  </div>
+                </div>
+              );
+            })() : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

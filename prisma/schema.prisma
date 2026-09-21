@@ -61,6 +61,9 @@ model Company {
   pan              String?
   password           String?
   showDiscount       Boolean  @default(false)
+  dashboardToken     String?  @unique
+  dashboardPin       String?
+  dashboardEnabled   Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   vouchers  Voucher[]
