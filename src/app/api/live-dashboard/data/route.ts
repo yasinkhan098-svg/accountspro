@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ensureDashboardColumns } from '@/lib/ensureDashboardColumns';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    await ensureDashboardColumns();
+
     const { searchParams } = new URL(req.url);
     const token = searchParams.get('token');
     const pin = req.headers.get('x-dashboard-pin') || searchParams.get('pin');

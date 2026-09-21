@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { randomBytes } from 'crypto';
+import { ensureDashboardColumns } from '@/lib/ensureDashboardColumns';
 
 export async function GET(req: Request) {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    await ensureDashboardColumns();
 
     const { searchParams } = new URL(req.url);
     const companyId = searchParams.get('companyId');
@@ -48,6 +51,8 @@ export async function POST(req: Request) {
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    await ensureDashboardColumns();
 
     const data = await req.json();
     const { action, companyId, pin, enabled } = data;

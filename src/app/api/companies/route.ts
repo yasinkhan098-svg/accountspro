@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { ensureDashboardColumns } from '@/lib/ensureDashboardColumns';
 
 export async function POST(req: Request) {
   try {
+    await ensureDashboardColumns();
     const user = await getAuthenticatedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -203,6 +205,7 @@ export async function DELETE(req: Request) {
 
 export async function GET(req: Request) {
   try {
+    await ensureDashboardColumns();
     const user = await getAuthenticatedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
