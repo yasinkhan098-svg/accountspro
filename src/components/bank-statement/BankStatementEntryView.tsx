@@ -563,14 +563,16 @@ export default function BankStatementEntryView({
                     {entry.date}
                   </div>
 
-                  {/* Narration: Clean Text */}
+                  {/* Narration: Full Multi-line Text */}
                   <div
                     title={entry.narration}
                     style={{
                       color: '#475569',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                      lineHeight: 1.35,
+                      fontSize: 11.5,
                       paddingRight: 10
                     }}
                   >
@@ -740,14 +742,16 @@ export default function BankStatementEntryView({
                     {entry.date}
                   </div>
 
-                  {/* Narration: Clean Text */}
+                  {/* Narration: Full Multi-line Text */}
                   <div
                     title={entry.narration}
                     style={{
                       color: '#475569',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                      lineHeight: 1.35,
+                      fontSize: 11.5,
                       paddingRight: 10
                     }}
                   >
