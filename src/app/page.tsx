@@ -7,8 +7,13 @@ import VirtualFinalBSModal from '@/virtual-bs/VirtualFinalBSModal';
 import RealtimeDashboardModal from '@/components/dashboard/RealtimeDashboardModal';
 import { PurchaseOrderModule } from '@/components/PurchaseOrderModule';
 import { authClient } from '@/lib/auth-client';
+import BankStatementUploadModal from '@/components/bank-statement/BankStatementUploadModal';
+import BankStatementEntryView from '@/components/bank-statement/BankStatementEntryView';
+import BankStatementMenu from '@/components/bank-statement/BankStatementMenu';
+import { getBankStatementState } from '@/components/bank-statement/bankStatementStorage';
 import {
   computeBaseFinancials,
+
   generateProvisionalProjections,
   ProjectionConfig,
   ProjectedYearResult,
@@ -29,7 +34,7 @@ type ScreenType =
   | 'PURCHASE_ORDER_ENTRY' | 'PURCHASE_ORDER_REGISTER'
   | 'LEDGER_REPORT' | 'GROUP_SUMMARY' | 'STOCK_SUMMARY'
   | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
-  | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE';
+  | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE' | 'BANK_STATEMENT_ENTRY';
 
 type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note' | 'Sales Quotation';
 
@@ -625,6 +630,7 @@ export default function App() {
 
   // Final Balance Sheet & P&L Export Modal
   const [showRealtimeDashboard, setShowRealtimeDashboard] = useState(false);
+  const [showBankUploadModal, setShowBankUploadModal] = useState(false);
   const [showVirtualBSModal, setShowVirtualBSModal] = useState(false);
   const [showFinalBSModal, setShowFinalBSModal] = useState(false);
   const [finalBSExporting, setFinalBSExporting] = useState(false);
@@ -2397,6 +2403,8 @@ export default function App() {
           setTimeout(() => lastFocusRef.current?.focus(), 80);
           return; 
         }
+        if (showBankUploadModal) { setShowBankUploadModal(false); return; }
+        if (screen === 'BANK_STATEMENT_ENTRY') { goBack(); return; }
         if (showRealtimeDashboard) { setShowRealtimeDashboard(false); return; }
         if (showVirtualBSModal) { setShowVirtualBSModal(false); return; }
         if (showFinalBSModal) { setShowFinalBSModal(false); return; }
@@ -2993,7 +3001,17 @@ export default function App() {
             {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} activeCompany={activeCompany} setActiveCompany={setActiveCompany} setCompanies={setCompanies} />}
             {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} onSaveMaster={saveMaster} />}
+            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} onSaveMaster={saveMaster} onOpenBankUpload={()=>setShowBankUploadModal(true)} />}
+            {screen==='BANK_STATEMENT_ENTRY' && (
+              <BankStatementEntryView
+                companyId={activeCompany?.id || 0}
+                ledgers={ledgers}
+                vouchers={vouchers}
+                onSaveVoucher={saveVoucher}
+                onBack={goBack}
+                onOpenUpload={()=>setShowBankUploadModal(true)}
+              />
+            )}
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} activeCompany={activeCompany} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} signatoryTitle={finalBSForm.signatoryTitle} />}
             {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} activeCompany={activeCompany} stockItems={stockItems} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} signatoryTitle={finalBSForm.signatoryTitle} />}
@@ -4439,6 +4457,19 @@ export default function App() {
         isOpen={showVirtualBSModal}
         onClose={() => setShowVirtualBSModal(false)}
       />
+
+      {/* Bank Statement Upload Modal */}
+      {showBankUploadModal && (
+        <BankStatementUploadModal
+          companyId={activeCompany?.id || 0}
+          ledgers={ledgers}
+          isOpen={showBankUploadModal}
+          onClose={() => setShowBankUploadModal(false)}
+          onUploadSuccess={() => {
+            nav('BANK_STATEMENT_ENTRY');
+          }}
+        />
+      )}
 
       {/* Realtime TallyPrime-Style Dashboard Modal */}
       {showRealtimeDashboard && (
@@ -7017,14 +7048,22 @@ const PURCHASE_EXAMPLES_DATA = [
 ];
 
 // ==================== VOUCHER ENTRY FORM ====================
-function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes,altCReturnContext,onAltCReturnHandled,setAltCReturnContext,onNav,setSaveToast,onSaveMaster}:{
+function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,units,vouchers,activeCompany,onAltC,onSave,onDelete,onChangeType,currentDate,onF2,onPrintPreview,onCancel,voucherTypes,altCReturnContext,onAltCReturnHandled,setAltCReturnContext,onNav,setSaveToast,onSaveMaster,onOpenBankUpload}:{
   activeAlterItem?:any; activeVoucher:VoucherTypeKey; ledgers:Ledger[]; stockItems:StockItem[]; units:UnitData[]; vouchers:Voucher[]; activeCompany:Company | null; currentDate:string; onF2:()=>void; onPrintPreview:(v:Voucher)=>void; onCancel:()=>void;
   onAltC:(ctx:AltCContext)=>void; onSave:(v:any)=>Promise<Voucher>; onDelete:(id:number)=>void; onChangeType:(t:VoucherTypeKey)=>void; voucherTypes:VoucherTypeData[];
   altCReturnContext?: any; onAltCReturnHandled:()=>void; setAltCReturnContext:(ctx:any)=>void; onNav:(s:any,item?:any,type?:string)=>void;
   setSaveToast: (msg: string | null) => void;
   onSaveMaster?: (type: string, data: any) => Promise<any>;
+  onOpenBankUpload?: () => void;
 }) {
   const [isScanningInvoice, setIsScanningInvoice] = useState(false);
+  const [bankMenuOpen, setBankMenuOpen] = useState(false);
+  const pendingBankCount = useMemo(() => {
+    if (!activeCompany?.id) return 0;
+    const st = getBankStatementState(activeCompany.id);
+    if (!st) return 0;
+    return (st.payments?.length || 0) + (st.receipts?.length || 0);
+  }, [activeCompany?.id, bankMenuOpen]);
 
   const handleInvoiceFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -8310,6 +8349,44 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   title="Create Purchase Order (Ctrl+F9)"
                 >
                   Ctrl+F9: Pur. Order
+                </div>
+              )}
+              {v === 'Debit Note' && (
+                <div style={{ position: 'relative', display: 'inline-flex' }}>
+                  <div 
+                    style={{
+                      padding:'5px 10px',
+                      cursor:'pointer',
+                      fontWeight:'bold',
+                      background: bankMenuOpen ? '#0284c7' : 'transparent',
+                      color: bankMenuOpen ? '#ffffff' : '#38bdf8',
+                      borderRight:'1px solid #333',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setBankMenuOpen(!bankMenuOpen);
+                    }}
+                    title="Bank Statement Management"
+                  >
+                    <span>🏦 Bank</span>
+                    <span style={{ fontSize: 9 }}>▼</span>
+                  </div>
+                  <BankStatementMenu
+                    isOpen={bankMenuOpen}
+                    onClose={() => setBankMenuOpen(false)}
+                    onSelectUpload={() => {
+                      setBankMenuOpen(false);
+                      onOpenBankUpload?.();
+                    }}
+                    onSelectEntry={() => {
+                      setBankMenuOpen(false);
+                      onNav('BANK_STATEMENT_ENTRY');
+                    }}
+                    pendingCount={pendingBankCount}
+                  />
                 </div>
               )}
             </React.Fragment>
