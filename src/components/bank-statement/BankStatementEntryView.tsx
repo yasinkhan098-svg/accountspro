@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { BankStatementEntry, BankStatementState } from './types';
 import { getBankStatementState, saveBankStatementState, removeBankStatementEntry } from './bankStatementStorage';
 
@@ -35,9 +35,51 @@ export default function BankStatementEntryView({
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [bankLedgerWarning, setBankLedgerWarning] = useState<string | null>(null);
 
   // Refs for input elements to enable keyboard navigation
   const inputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+
+  // Verify if statement's bank ledger exists in company ledgers
+  const currentBankLedger = useMemo(() => {
+    const isBank = (l: any) => {
+      const gn = (l.groupName || '').toLowerCase();
+      return gn.includes('bank account') || gn.includes('bank od') || gn.includes('bank occ');
+    };
+
+    if (statementState?.bankAccountNo) {
+      const cleanDet = String(statementState.bankAccountNo).replace(/[\s\-]/g, '').toLowerCase();
+      const found = ledgers.find(l => {
+        if (!isBank(l) || !l.accountNo) return false;
+        const cleanBl = String(l.accountNo).replace(/[\s\-]/g, '').toLowerCase();
+        return cleanBl === cleanDet || cleanBl.includes(cleanDet) || cleanDet.includes(cleanBl);
+      });
+      if (found) return found;
+    }
+
+    if (statementState?.bankLedgerId) {
+      const found = ledgers.find(l => l.id === statementState.bankLedgerId && isBank(l));
+      if (found) return found;
+    }
+
+    if (statementState?.bankLedgerName) {
+      const found = ledgers.find(l => isBank(l) && l.name.toLowerCase() === statementState.bankLedgerName.toLowerCase());
+      if (found) return found;
+    }
+
+    return null;
+  }, [ledgers, statementState]);
+
+  const checkBankLedgerBeforeAction = () => {
+    if (!currentBankLedger) {
+      const acNo = statementState?.bankAccountNo || 'Unknown';
+      setBankLedgerWarning(
+        `Account No. "${acNo}" was found in the statement, but no matching Bank Ledger was found in Company Masters! You cannot save this entry until a Bank Ledger is created for Account No. "${acNo}".`
+      );
+      return false;
+    }
+    return true;
+  };
 
   // Load statement state on mount or companyId change
   useEffect(() => {
@@ -56,7 +98,13 @@ export default function BankStatementEntryView({
   // Global key listener for Esc to close or confirm modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (pendingConfirm) {
+      if (bankLedgerWarning) {
+        if (e.key === 'Escape' || e.key === 'Enter') {
+          e.preventDefault();
+          setBankLedgerWarning(null);
+          return;
+        }
+      } else if (pendingConfirm) {
         if (e.key === 'Enter') {
           e.preventDefault();
           handleConfirmSave();
@@ -77,7 +125,7 @@ export default function BankStatementEntryView({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pendingConfirm, dropdownOpenForId, onBack]);
+  }, [bankLedgerWarning, pendingConfirm, dropdownOpenForId, onBack]);
 
   // Filter ledgers for search dropdown (exclude the bank ledger itself)
   const filteredLedgers = React.useMemo(() => {
@@ -152,6 +200,10 @@ export default function BankStatementEntryView({
 
   // When a ledger is picked from dropdown
   const handleSelectLedger = (entry: BankStatementEntry, ledger: any) => {
+    if (!checkBankLedgerBeforeAction()) {
+      setDropdownOpenForId(null);
+      return;
+    }
     setDropdownOpenForId(null);
     setPendingConfirm({
       entry,
@@ -533,6 +585,9 @@ export default function BankStatementEntryView({
                       placeholder="Select Ledger (Type to search)..."
                       value={dropdownOpenForId === entry.id ? ledgerSearch : (entry.selectedLedgerName || '')}
                       onFocus={() => {
+                        if (!checkBankLedgerBeforeAction()) {
+                          return;
+                        }
                         setActiveSide('payment');
                         setDropdownOpenForId(entry.id);
                         setLedgerSearch(entry.selectedLedgerName || '');
@@ -707,6 +762,9 @@ export default function BankStatementEntryView({
                       placeholder="Select Ledger (Type to search)..."
                       value={dropdownOpenForId === entry.id ? ledgerSearch : (entry.selectedLedgerName || '')}
                       onFocus={() => {
+                        if (!checkBankLedgerBeforeAction()) {
+                          return;
+                        }
                         setActiveSide('receipt');
                         setDropdownOpenForId(entry.id);
                         setLedgerSearch(entry.selectedLedgerName || '');
@@ -913,6 +971,112 @@ export default function BankStatementEntryView({
                   }}
                 >
                   No, Cancel (Esc)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ENGLISH WARNING MODAL WHEN BANK LEDGER IS MISSING ================= */}
+      {bankLedgerWarning && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999999,
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 8,
+            width: 540,
+            maxWidth: '92vw',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+            overflow: 'hidden',
+            border: '2px solid #dc2626'
+          }}>
+            <div style={{
+              background: '#dc2626',
+              color: '#ffffff',
+              padding: '14px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span style={{ fontWeight: 'bold', fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>⚠️</span>
+                <span>Bank Ledger Required</span>
+              </span>
+              <button
+                onClick={() => setBankLedgerWarning(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: 18,
+                  cursor: 'pointer',
+                  lineHeight: 1
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: 24 }}>
+              <div style={{
+                background: '#fef2f2',
+                border: '1.5px solid #f87171',
+                borderRadius: 6,
+                padding: '16px 18px',
+                color: '#991b1b',
+                fontSize: 14,
+                lineHeight: 1.6,
+                marginBottom: 22,
+                fontWeight: 500
+              }}>
+                {bankLedgerWarning}
+              </div>
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => {
+                    setBankLedgerWarning(null);
+                    onBack();
+                  }}
+                  style={{
+                    flex: 1.2,
+                    padding: '11px 0',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontWeight: 'bold',
+                    fontSize: 13,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Go to Masters to Create Bank Ledger
+                </button>
+                <button
+                  onClick={() => setBankLedgerWarning(null)}
+                  autoFocus
+                  style={{
+                    flex: 0.8,
+                    padding: '11px 0',
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer'
+                  }}
+                >
+                  OK / Dismiss (Esc)
                 </button>
               </div>
             </div>

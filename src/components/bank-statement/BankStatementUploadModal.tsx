@@ -93,11 +93,7 @@ export default function BankStatementUploadModal({
         setError(null);
       } else {
         setSelectedBankLedgerId(null);
-        if (data.detectedAccountNo) {
-          setError(`⚠️ Statement me Account No. "${data.detectedAccountNo}" paya gaya hai, lekin is Account Number ka koi Bank Ledger Company me nahi mila! Jab tak is Account Number ka Bank Ledger Company Masters me create nahi hota, tab tak iski entry nahi ho sakti. Kripya pehle Company Masters me jaakar is Account No. ka Bank Ledger banayein.`);
-        } else {
-          setError(`⚠️ Statement ka koi matching Bank Ledger Company me nahi mila! Kripya pehle Bank Ledger banayein ya neeche dropdown se sahi Bank Ledger select karein.`);
-        }
+        setError(null);
       }
 
     } catch (err: any) {
@@ -113,28 +109,20 @@ export default function BankStatementUploadModal({
       return;
     }
 
-    if (!selectedBankLedgerId) {
-      setError('Kripya pehle Company Masters me jaakar is Account Number ka Bank Ledger banayein ya sahi Bank select karein.');
-      return;
-    }
-
-    const bankLedger = bankLedgers.find(bl => bl.id === selectedBankLedgerId);
-    if (!bankLedger) {
-      setError('Kripya pehle Company Masters me jaakar is Account Number ka Bank Ledger banayein ya sahi Bank select karein.');
-      return;
-    }
+    const bankLedger = bankLedgers.find(bl => bl.id === selectedBankLedgerId) || null;
 
     const state: BankStatementState = {
       companyId,
-      bankLedgerId: bankLedger.id,
-      bankLedgerName: bankLedger.name,
-      bankAccountNo: bankLedger.accountNo || detectedAccountNo,
+      bankLedgerId: bankLedger ? bankLedger.id : null,
+      bankLedgerName: bankLedger ? bankLedger.name : (detectedBankName || (detectedAccountNo ? `Bank A/c ${detectedAccountNo}` : 'Bank A/c')),
+      bankAccountNo: detectedAccountNo || bankLedger?.accountNo || '',
       fileName: parsedData.fileName,
       uploadDate: new Date().toISOString(),
       payments: parsedData.payments,
       receipts: parsedData.receipts
     };
 
+    // Completely replaces previous statement
     saveBankStatementState(state);
     onUploadSuccess(state);
     onClose();
@@ -356,17 +344,16 @@ export default function BankStatementUploadModal({
               {/* Open Entry view button */}
               <button
                 onClick={handleProceed}
-                disabled={!selectedBankLedgerId}
                 style={{
                   width: '100%',
                   padding: '11px 0',
-                  background: !selectedBankLedgerId ? '#94a3b8' : '#16a34a',
+                  background: '#16a34a',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: 6,
                   fontWeight: 600,
                   fontSize: 14,
-                  cursor: !selectedBankLedgerId ? 'not-allowed' : 'pointer',
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
