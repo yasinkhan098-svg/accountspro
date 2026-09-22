@@ -7702,7 +7702,19 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
      if(activeAlterItem) {
        let pName = activeAlterItem.partyName;
-       if (isGenericAc(pName)) {
+       if (activeVoucher === 'Payment') {
+         // In Payment, Account is ALWAYS the Bank or Cash account (the Cr entry)
+         const crEnt = activeAlterItem.entries?.find((e: any) => e.entryType === 'Cr');
+         if (crEnt && (crEnt.ledger?.name || crEnt.ledgerName)) {
+           pName = crEnt.ledger?.name || crEnt.ledgerName;
+         }
+       } else if (activeVoucher === 'Receipt' || activeVoucher === 'Contra') {
+         // In Receipt & Contra, Account is ALWAYS the Bank or Cash account (the Dr entry)
+         const drEnt = activeAlterItem.entries?.find((e: any) => e.entryType === 'Dr');
+         if (drEnt && (drEnt.ledger?.name || drEnt.ledgerName)) {
+           pName = drEnt.ledger?.name || drEnt.ledgerName;
+         }
+       } else if (isGenericAc(pName)) {
          if (activeAlterItem.partyDetails?.buyerName && !isGenericAc(activeAlterItem.partyDetails.buyerName)) {
            pName = activeAlterItem.partyDetails.buyerName;
          } else {
@@ -7714,6 +7726,35 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
          }
        }
        setPartyName(pName);
+       let headerAccountName = (pName || '').trim().toLowerCase();
+       const filteredEntries = (activeAlterItem.entries || [])
+         .filter((e: any) => {
+           const lname = (e.ledger?.name || e.ledgerName || '').trim().toLowerCase();
+           if (activeVoucher === 'Payment') {
+             // Payment Particulars MUST ONLY be the Dr entries (party/expenses)
+             // The Bank/Cash account (Cr) must NEVER be in Particulars!
+             if (e.entryType === 'Cr') return false;
+             if (headerAccountName && lname === headerAccountName) return false;
+             return true;
+           }
+           if (activeVoucher === 'Receipt' || activeVoucher === 'Contra') {
+             // Receipt Particulars MUST ONLY be the Cr entries (party/incomes)
+             // The Bank/Cash account (Dr) must NEVER be in Particulars!
+             if (e.entryType === 'Dr') return false;
+             if (headerAccountName && lname === headerAccountName) return false;
+             return true;
+           }
+           return true;
+         })
+         .map((e: any) => ({
+           ledgerId: e.ledgerId || (e.ledger ? e.ledger.id : 0),
+           ledgerName: e.ledger?.name || e.ledgerName || '',
+           amount: e.amount || 0,
+           entryType: e.entryType || (activeVoucher === 'Receipt' ? 'Cr' : 'Dr')
+         }));
+
+       const defaultType = (activeVoucher === 'Receipt' || activeVoucher === 'Contra') ? 'Cr' : 'Dr';
+       setAccEntries(filteredEntries.length > 0 ? filteredEntries : [{ledgerId:0,ledgerName:'',amount:0,entryType:defaultType}]);
        if (activeAlterItem.date) setVoucherDate(formatDateToTally(activeAlterItem.date));
        setRefNo(activeAlterItem.refNo||'');
        
@@ -7737,7 +7778,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
          setRows([{itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''}]);
        }
 
-       setAccEntries(activeAlterItem.entries?.length>0 ? activeAlterItem.entries : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]);
+       // setAccEntries filtered above
        
        const addl = activeAlterItem.entries?.filter((e:any) => {
           const lname = e.ledgerName || e.ledger?.name || '';
@@ -8219,7 +8260,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         } as VoucherEntry)),
         ...(Math.abs(roundOff) > 0.001 && !hasManualRoundOff ? [{id: entryId++, ledgerId: findL('Round Off'), ledgerName: 'Round Off', amount: Math.abs(roundOff), entryType: roundOff > 0 ? otherSide : partySide} as VoucherEntry] : []),
       ] : (() => {
-        const validP = accEntries.filter(e=>e.ledgerName).map((e,i)=>({
+        const validP = accEntries.filter(e => {
+          if (!e.ledgerName) return false;
+          const lName = e.ledgerName.trim().toLowerCase();
+          const pName = (partyName || '').trim().toLowerCase();
+          if (['Payment', 'Receipt', 'Contra'].includes(activeVoucher)) {
+            if (pName && lName === pName) return false;
+            if (activeVoucher === 'Payment' && e.entryType === 'Cr') return false;
+            if ((activeVoucher === 'Receipt' || activeVoucher === 'Contra') && e.entryType === 'Dr') return false;
+          }
+          return true;
+        }).map((e,i)=>({
           id:i+1, 
           ledgerId: e.ledgerId || findL(e.ledgerName), 
           ledgerName: e.ledgerName, 
@@ -9380,6 +9431,13 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           {/* Table Body Rows */}
           <div style={{flex:1,overflowY:'auto',padding:'5px 0'}}>
             {accEntries.map((entry, idx) => {
+              if (['Payment', 'Receipt', 'Contra'].includes(activeVoucher) && entry.ledgerName) {
+                const lName = entry.ledgerName.trim().toLowerCase();
+                const pName = (partyName || '').trim().toLowerCase();
+                if (pName && lName === pName) return null;
+                if (activeVoucher === 'Payment' && entry.entryType === 'Cr') return null;
+                if ((activeVoucher === 'Receipt' || activeVoucher === 'Contra') && entry.entryType === 'Dr') return null;
+              }
               const entryLedger = entry.ledgerName ? ledgers.find(l => l.name === entry.ledgerName) : null;
               const entryBal = entryLedger ? getLedgerClosingBalance(entryLedger, vouchers) : null;
               const entryBalAbs = entryBal !== null ? Math.abs(entryBal) : null;
