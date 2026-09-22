@@ -75,10 +75,12 @@ export default function BankStatementUploadModal({
         fileName: data.fileName
       });
 
-      // Auto-match Bank Ledger if possible
+      // Auto-match Bank Ledger
       let matched = bankLedgers.find(bl => {
-        if (data.detectedAccountNo && bl.accountNo && String(bl.accountNo).trim() === String(data.detectedAccountNo).trim()) {
-          return true;
+        if (data.detectedAccountNo && bl.accountNo) {
+          const cleanBl = String(bl.accountNo).replace(/[\s\-]/g, '').toLowerCase();
+          const cleanDet = String(data.detectedAccountNo).replace(/[\s\-]/g, '').toLowerCase();
+          if (cleanBl === cleanDet || cleanBl.includes(cleanDet) || cleanDet.includes(cleanBl)) return true;
         }
         if (data.detectedBankName && bl.name.toLowerCase().includes(data.detectedBankName.toLowerCase())) {
           return true;
@@ -86,14 +88,16 @@ export default function BankStatementUploadModal({
         return false;
       });
 
-      if (!matched && bankLedgers.length === 1) {
-        matched = bankLedgers[0];
-      }
-
       if (matched) {
         setSelectedBankLedgerId(matched.id);
-      } else if (bankLedgers.length > 0) {
-        setSelectedBankLedgerId(bankLedgers[0].id);
+        setError(null);
+      } else {
+        setSelectedBankLedgerId(null);
+        if (data.detectedAccountNo) {
+          setError(`⚠️ Statement me Account No. "${data.detectedAccountNo}" paya gaya hai, lekin is Account Number ka koi Bank Ledger Company me nahi mila! Jab tak is Account Number ka Bank Ledger Company Masters me create nahi hota, tab tak iski entry nahi ho sakti. Kripya pehle Company Masters me jaakar is Account No. ka Bank Ledger banayein.`);
+        } else {
+          setError(`⚠️ Statement ka koi matching Bank Ledger Company me nahi mila! Kripya pehle Bank Ledger banayein ya neeche dropdown se sahi Bank Ledger select karein.`);
+        }
       }
 
     } catch (err: any) {
@@ -109,9 +113,14 @@ export default function BankStatementUploadModal({
       return;
     }
 
-    const bankLedger = bankLedgers.find(bl => bl.id === selectedBankLedgerId) || bankLedgers[0];
+    if (!selectedBankLedgerId) {
+      setError('Kripya pehle Company Masters me jaakar is Account Number ka Bank Ledger banayein ya sahi Bank select karein.');
+      return;
+    }
+
+    const bankLedger = bankLedgers.find(bl => bl.id === selectedBankLedgerId);
     if (!bankLedger) {
-      setError('Please select a valid Bank Ledger from your company masters.');
+      setError('Kripya pehle Company Masters me jaakar is Account Number ka Bank Ledger banayein ya sahi Bank select karein.');
       return;
     }
 
@@ -347,16 +356,17 @@ export default function BankStatementUploadModal({
               {/* Open Entry view button */}
               <button
                 onClick={handleProceed}
+                disabled={!selectedBankLedgerId}
                 style={{
                   width: '100%',
                   padding: '11px 0',
-                  background: '#16a34a',
+                  background: !selectedBankLedgerId ? '#94a3b8' : '#16a34a',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: 6,
                   fontWeight: 600,
                   fontSize: 14,
-                  cursor: 'pointer',
+                  cursor: !selectedBankLedgerId ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

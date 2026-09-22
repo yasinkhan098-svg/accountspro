@@ -2094,9 +2094,14 @@ export default function App() {
           return !!(le.ledgerName);
         }).map((le: any) => ({ ...le, ledger: null }));
 
+        const computedTotal = Number(v.total) || 
+          v.entries?.reduce((s: number, e: any) => s + (e.entryType === partySide ? e.amount : 0), 0) || 
+          v.entries?.[0]?.amount || 0;
+
         const savedV = {
           ...v,
           ...vRaw,
+          total: computedTotal,
           entries: [...dbEntries, ...missingLocalEntries],
           inventoryEntries: (vRaw.inventoryEntries || []).map((ie: any, idx: number) => {
             const localItem = v.inventoryEntries?.find((li: any) => (li.itemId || li.stockItemId) === ie.stockItemId) || v.inventoryEntries?.[idx];
@@ -7376,12 +7381,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   });
   const [accEntries, setAccEntries] = useState<AccountEntry[]>(
     activeAlterItem && !isInventory && activeAlterItem.entries?.length > 0
-    ? activeAlterItem.entries.map((e: any) => ({
-        ledgerId: e.ledgerId,
-        ledgerName: e.ledger?.name || e.ledgerName,
-        amount: e.amount,
-        entryType: e.entryType
-      }))
+    ? activeAlterItem.entries
+        .filter((e: any) => {
+          if (['Payment', 'Receipt', 'Contra'].includes(activeVoucher)) {
+            const lname = (e.ledger?.name || e.ledgerName || '').trim().toLowerCase();
+            const pName = (activeAlterItem.partyName || partyName || '').trim().toLowerCase();
+            return lname !== pName;
+          }
+          return true;
+        })
+        .map((e: any) => ({
+          ledgerId: e.ledgerId,
+          ledgerName: e.ledger?.name || e.ledgerName,
+          amount: e.amount,
+          entryType: e.entryType
+        }))
     : [{ledgerId:0,ledgerName:'',amount:0,entryType:'Dr'},{ledgerId:0,ledgerName:'',amount:0,entryType:'Cr'}]
   );
   const [narration, setNarration] = useState(activeAlterItem?.narration || '');
@@ -12083,7 +12097,13 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
   const monthlyData = FISCAL_MONTHS.map((mName, mi) => {
     const mNum = FISCAL_MONTH_NUMS[mi];
     const mvs = allRows.filter(v => { const d=parseVoucherDate(v.date); return d?.month===mNum; });
-    const monthTotal = mvs.reduce((s,v)=>s+v.total,0);
+    const monthTotal = mvs.reduce((s, v) => {
+      const vTot = Number(v.total) || 
+        v.entries?.find(e => e.entryType === (registerIsDebitSide ? 'Dr' : 'Cr'))?.amount || 
+        v.entries?.[0]?.amount || 
+        0;
+      return s + (isNaN(vTot) ? 0 : vTot);
+    }, 0);
     // Debit-side registers: amount goes to debit column; credit-side: to credit column
     const debit = registerIsDebitSide ? monthTotal : 0;
     const credit = registerIsDebitSide ? 0 : monthTotal;
@@ -12102,7 +12122,13 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
 
   // Detail view rows
   const detailRows = monthlyData[selMonthIdx]?.vouchers || [];
-  const detailTotal = detailRows.reduce((s,v)=>s+v.total,0);
+  const detailTotal = detailRows.reduce((s, v) => {
+    const vTot = Number(v.total) || 
+      v.entries?.find(e => e.entryType === (registerIsDebitSide ? 'Dr' : 'Cr'))?.amount || 
+      v.entries?.[0]?.amount || 
+      0;
+    return s + (isNaN(vTot) ? 0 : vTot);
+  }, 0);
   const detailDebit = registerIsDebitSide ? detailTotal : 0;
   const detailCredit = registerIsDebitSide ? 0 : detailTotal;
 

@@ -165,23 +165,38 @@ export default function BankStatementEntryView({
 
     const { entry, ledger } = pendingConfirm;
     const isPayment = entry.type === 'payment';
-    const bankLedgerId = statementState.bankLedgerId;
-    const bankLedgerName = statementState.bankLedgerName || 'Bank A/c';
+    
+    // Ensure bank ledger exists in company ledgers
+    const bankLedger = ledgers.find(l => l.id === statementState.bankLedgerId) || 
+      ledgers.find(l => statementState.bankAccountNo && l.accountNo && String(l.accountNo).trim() === String(statementState.bankAccountNo).trim()) ||
+      ledgers.find(l => l.name.toLowerCase() === statementState.bankLedgerName.toLowerCase());
+
+    if (!bankLedger) {
+      alert(`⚠️ Bank Account (${statementState.bankLedgerName || statementState.bankAccountNo}) ka Ledger Company Masters me nahi mila! Pehle Bank Ledger banayein, tabhi entry ho sakti hai.`);
+      return;
+    }
+
+    const bankLedgerId = bankLedger.id;
+    const bankLedgerName = bankLedger.name;
 
     setIsSaving(true);
 
     try {
-      // Build standard voucher data
-      // Payment: Dr = Party/Expense, Cr = Bank
-      // Receipt: Dr = Bank, Cr = Party/Income
+      // In Tally Payment & Receipt vouchers:
+      // Header Account (partyName) = Bank Ledger (e.g. Punjab National Bank 155)
+      // Particulars = Selected Party/Expense Ledger (e.g. Shri Shukhmani Plastic)
+      // Payment: Dr = Selected Party/Expense, Cr = Bank
+      // Receipt: Dr = Bank, Cr = Selected Party/Income
       const voucherData = {
         companyId,
         type: isPayment ? 'Payment' : 'Receipt',
         date: entry.rawDate || entry.date,
         voucherNo: `${isPayment ? 'PMT' : 'RCT'}-${Date.now().toString().slice(-6)}`,
         narration: entry.narration,
-        partyName: ledger.name,
-        partyId: ledger.id,
+        partyName: bankLedgerName,
+        partyId: bankLedgerId,
+        total: entry.amount,
+        amount: entry.amount,
         entries: isPayment ? [
           {
             id: 1,
