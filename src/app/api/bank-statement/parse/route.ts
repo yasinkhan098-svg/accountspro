@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
-import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 
 // Helper to clean and normalize text
 function cleanText(val: any): string {
   if (val === null || val === undefined) return '';
-  if (typeof val === 'object') {
-    // ExcelJS might return rich text or formula result
-    if (val.text) return String(val.text).trim();
-    if (val.result) return String(val.result).trim();
+  if (val instanceof Date) {
+    return val.toISOString();
   }
   return String(val).trim();
 }
@@ -16,9 +14,6 @@ function cleanText(val: any): string {
 function parseAmount(val: any): number {
   if (val === null || val === undefined) return 0;
   if (typeof val === 'number') return Math.abs(val);
-  if (typeof val === 'object' && val.result !== undefined) {
-    return parseAmount(val.result);
-  }
   const str = cleanText(val)
     .replace(/[₹$,]/g, '')
     .replace(/\s+/g, '')
@@ -116,23 +111,33 @@ export async function POST(req: Request) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-
-    const workbook = new ExcelJS.Workbook();
     const fileName = file.name || 'statement.xlsx';
-    const isCsv = fileName.toLowerCase().endsWith('.csv');
 
-    if (isCsv) {
-      const stream = require('stream');
-      const bufferStream = new stream.PassThrough();
-      bufferStream.end(buffer);
-      await workbook.csv.read(bufferStream);
-    } else {
-      await workbook.xlsx.load(buffer as any);
+    // XLSX.read handles real .xlsx, binary .xls (BIFF8), HTML-disguised .xls, .csv, etc.
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
+    } catch (e: any) {
+      // Fallback: try parsing as text/csv if binary read failed
+      try {
+        const text = buffer.toString('utf-8');
+        workbook = XLSX.read(text, { type: 'string', cellDates: true });
+      } catch (e2: any) {
+        throw new Error("Unable to read this file format. Please ensure it is a valid Excel or CSV statement.");
+      }
     }
 
-    const worksheet = workbook.worksheets[0];
-    if (!worksheet) {
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) {
       return NextResponse.json({ success: false, error: 'Empty Excel sheet' }, { status: 400 });
+    }
+
+    const worksheet = workbook.Sheets[firstSheetName];
+    // Convert sheet to 2D array of rows
+    const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+    if (!rows || rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'No data found in statement' }, { status: 400 });
     }
 
     // 1. Scan metadata (first 25 rows) for Account Number and Bank Name
@@ -141,9 +146,9 @@ export async function POST(req: Request) {
 
     const bankKeywords = ['sbi', 'state bank', 'hdfc', 'icici', 'axis', 'punjab national', 'pnb', 'kotak', 'bank of baroda', 'bob', 'canara', 'indusind', 'union bank', 'yes bank', 'idfc'];
 
-    for (let r = 1; r <= Math.min(25, worksheet.rowCount); r++) {
-      const row = worksheet.getRow(r);
-      const rowText = row.values ? (row.values as any[]).map(cleanText).join(' ') : '';
+    for (let r = 0; r < Math.min(25, rows.length); r++) {
+      const row = rows[r];
+      const rowText = Array.isArray(row) ? row.map(cleanText).join(' ') : '';
       const rowLower = rowText.toLowerCase();
 
       // Account number detection
@@ -193,13 +198,9 @@ export async function POST(req: Request) {
     const refKws = ['chq', 'cheque', 'ref no', 'reference', 'utr', 'chq./ref.no.', 'cheque / ref. no.', 'ref/cheque no', 'transaction id'];
     const balKws = ['balance', 'closing balance', 'bal'];
 
-    for (let r = 1; r <= Math.min(30, worksheet.rowCount); r++) {
-      const row = worksheet.getRow(r);
-      const cells: { col: number; text: string; lower: string }[] = [];
-      row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-        const text = cleanText(cell.value);
-        cells.push({ col: colNumber, text, lower: text.toLowerCase() });
-      });
+    for (let r = 0; r < Math.min(30, rows.length); r++) {
+      const row = rows[r];
+      if (!Array.isArray(row)) continue;
 
       let foundDate = -1;
       let foundNarr = -1;
@@ -210,24 +211,27 @@ export async function POST(req: Request) {
       let foundSingleAmt = -1;
       let foundDrCr = -1;
 
-      for (const c of cells) {
-        const l = c.lower;
+      for (let c = 0; c < row.length; c++) {
+        const text = cleanText(row[c]);
+        const l = text.toLowerCase();
+        if (!l) continue;
+
         if (foundDate === -1 && dateKws.some(k => l === k || l.startsWith(k))) {
-          foundDate = c.col;
+          foundDate = c;
         } else if (foundNarr === -1 && narrKws.some(k => l === k || l.includes(k))) {
-          foundNarr = c.col;
+          foundNarr = c;
         } else if (foundWithdraw === -1 && withdrawKws.some(k => l === k || l.includes(k))) {
-          foundWithdraw = c.col;
+          foundWithdraw = c;
         } else if (foundDeposit === -1 && depositKws.some(k => l === k || l.includes(k))) {
-          foundDeposit = c.col;
+          foundDeposit = c;
         } else if (foundRef === -1 && refKws.some(k => l === k || l.includes(k))) {
-          foundRef = c.col;
+          foundRef = c;
         } else if (foundBal === -1 && balKws.some(k => l === k || l.includes(k))) {
-          foundBal = c.col;
+          foundBal = c;
         } else if (foundSingleAmt === -1 && (l === 'amount' || l === 'amount (inr)' || l === 'txn amount')) {
-          foundSingleAmt = c.col;
+          foundSingleAmt = c;
         } else if (foundDrCr === -1 && (l === 'cr/dr' || l === 'dr/cr' || l === 'type' || l === 'txn type')) {
-          foundDrCr = c.col;
+          foundDrCr = c;
         }
       }
 
@@ -256,21 +260,19 @@ export async function POST(req: Request) {
     // 3. Parse Data Rows
     const payments: any[] = [];
     const receipts: any[] = [];
-
     let entryIndex = 1;
 
-    for (let r = headerRowIdx + 1; r <= worksheet.rowCount; r++) {
-      const row = worksheet.getRow(r);
-      const dateCell = row.getCell(colDate).value;
+    for (let r = headerRowIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!Array.isArray(row)) continue;
+
+      const dateCell = row[colDate];
       if (!dateCell) continue;
 
       const { displayDate, rawDate } = parseDate(dateCell);
       if (!displayDate) continue;
 
-      // Extract Narration / Particulars
-      let narration = colNarration !== -1 ? cleanText(row.getCell(colNarration).value) : '';
-      
-      // Skip summary / opening / closing rows
+      let narration = colNarration !== -1 ? cleanText(row[colNarration]) : '';
       const lowerNarr = narration.toLowerCase();
       if (
         lowerNarr.includes('opening balance') || 
@@ -282,25 +284,24 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const refNo = colRefNo !== -1 ? cleanText(row.getCell(colRefNo).value) : '';
-      const balance = colBalance !== -1 ? parseAmount(row.getCell(colBalance).value) : undefined;
+      const refNo = colRefNo !== -1 ? cleanText(row[colRefNo]) : '';
+      const balance = colBalance !== -1 ? parseAmount(row[colBalance]) : undefined;
 
       let withdrawAmt = 0;
       let depositAmt = 0;
 
       if (colWithdrawal !== -1 && colDeposit !== -1) {
-        withdrawAmt = parseAmount(row.getCell(colWithdrawal).value);
-        depositAmt = parseAmount(row.getCell(colDeposit).value);
+        withdrawAmt = parseAmount(row[colWithdrawal]);
+        depositAmt = parseAmount(row[colDeposit]);
       } else if (colAmountSingle !== -1) {
-        const amt = parseAmount(row.getCell(colAmountSingle).value);
-        const typeStr = colDrCrSingle !== -1 ? cleanText(row.getCell(colDrCrSingle).value).toLowerCase() : '';
+        const amt = parseAmount(row[colAmountSingle]);
+        const typeStr = colDrCrSingle !== -1 ? cleanText(row[colDrCrSingle]).toLowerCase() : '';
         if (typeStr.includes('dr') || typeStr.includes('debit')) {
           withdrawAmt = amt;
         } else if (typeStr.includes('cr') || typeStr.includes('credit')) {
           depositAmt = amt;
         } else {
-          // If no separate type column, check if raw cell had negative sign
-          const rawCellStr = cleanText(row.getCell(colAmountSingle).value);
+          const rawCellStr = cleanText(row[colAmountSingle]);
           if (rawCellStr.includes('-') || rawCellStr.includes('Dr')) {
             withdrawAmt = amt;
           } else {
@@ -308,17 +309,15 @@ export async function POST(req: Request) {
           }
         }
       } else if (colWithdrawal !== -1) {
-        withdrawAmt = parseAmount(row.getCell(colWithdrawal).value);
+        withdrawAmt = parseAmount(row[colWithdrawal]);
       } else if (colDeposit !== -1) {
-        depositAmt = parseAmount(row.getCell(colDeposit).value);
+        depositAmt = parseAmount(row[colDeposit]);
       }
 
-      // If narration was empty, use refNo or fallback
       if (!narration) {
         narration = refNo ? `Bank Transaction Ref: ${refNo}` : `Bank Transaction`;
       }
 
-      // Categorize into Payments (Withdrawal) or Receipts (Deposit)
       if (withdrawAmt > 0) {
         payments.push({
           id: `bs-pay-${entryIndex++}`,
