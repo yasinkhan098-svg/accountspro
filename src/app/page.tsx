@@ -2309,7 +2309,6 @@ export default function App() {
     { label:'Final Balance Sheet (CA Format)', highlight:'F', action:()=>openFinalBSModal() },
     { label:'Stock Summary',      highlight:'S', action:()=>nav('STOCK_SUMMARY') },
     { label:'Trial Balance',      highlight:'T', action:()=>nav('TRIAL_BALANCE') },
-    { label:'Audit Trail (MCA Log)', highlight:'U', action:()=>nav('AUDIT_TRAIL') },
     { label:'Display More Reports',highlight:'D', action:()=>nav('DISPLAY_REPORTS_MENU') },
     { label:'',highlight:'',action:()=>{},category:'header'},
     { label:'Quit',               highlight:'Q', action:()=>alert('Close application?') },
@@ -2728,14 +2727,6 @@ export default function App() {
         >
           ⚡ Virtual B/S
         </div>
-        <div 
-          className="go-to-btn audit-go-to" 
-          onClick={() => nav('AUDIT_TRAIL')} 
-          style={{ cursor: 'pointer', background: '#0284c7', color: '#ffffff', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}
-          title="Tamper-Proof Audit Trail (MCA Compliant)"
-        >
-          🛡️ Audit Trail
-        </div>
         <div className="header-center" style={{display:'flex', alignItems:'center', gap:15, justifyContent:'center'}}>
            <div style={{fontSize:18,fontWeight:'bold',letterSpacing:2,color:'#fff',textShadow:'0 2px 4px rgba(0,0,0,0.3)'}}>LedgerX ERP</div>
            <button 
@@ -2761,29 +2752,6 @@ export default function App() {
              <span style={{fontSize:14}}>📊</span>
              <span>Dashboard</span>
            </button>
-            <button 
-              id="open-audit-trail-btn"
-              onClick={() => nav('AUDIT_TRAIL')}
-              style={{
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                color: '#fff',
-                fontWeight: 'bold',
-                fontSize: 12,
-                padding: '4px 12px',
-                borderRadius: 4,
-                border: '1px solid rgba(255,255,255,0.4)',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.2s ease',
-              }}
-              title="Tamper-Proof Audit Trail & Ledger (MCA Rule 3)"
-            >
-              <span style={{fontSize:14}}>🛡️</span>
-              <span>Audit Trail</span>
-            </button>
         </div>
         <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:15, marginRight:10}}>
            <div style={{textAlign:'right'}}>
@@ -2833,7 +2801,6 @@ export default function App() {
           <div onClick={()=>setShowEmailModal(true)}><u>M</u>: E-mail</div>
           <div onClick={()=>nav('PRINT_PREVIEW')}><u>P</u>: Print</div>
           <div onClick={()=>openFinalBSModal()} style={{background:'linear-gradient(135deg,#27ae60,#1e8449)',color:'#fff',padding:'2px 8px',borderRadius:3,cursor:'pointer',fontWeight:'bold'}}>📊 Final BS</div>
-          <div onClick={()=>nav('AUDIT_TRAIL')} style={{background:'linear-gradient(135deg,#0284c7,#0369a1)',color:'#fff',padding:'2px 8px',borderRadius:3,cursor:'pointer',fontWeight:'bold',display:'flex',alignItems:'center',gap:4}} title="Tamper-Proof Audit Trail (MCA)">🛡️ Audit Trail</div>
           <div onClick={()=>setShowFeatures(true)}>F11: Features</div>
         </div>
       </div>
@@ -2935,7 +2902,6 @@ export default function App() {
             <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('TRIAL_BALANCE'); }}><span className="nav-icon">🗂️</span> Trial Balance</div>
             <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('LEDGER_REPORT'); }}><span className="nav-icon">📖</span> Ledger Report</div>
             <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('STOCK_SUMMARY'); }}><span className="nav-icon">📦</span> Stock Summary</div>
-            <div className="mobile-nav-item" onClick={() => { setMobileDrawerOpen(false); nav('AUDIT_TRAIL'); }} style={{color:'#38bdf8', fontWeight:'bold'}}><span className="nav-icon">🛡️</span> Audit Trail (Tamper-Proof)</div>
           </div>
           {/* Masters */}
           <div className="mobile-nav-section">
