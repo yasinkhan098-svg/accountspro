@@ -72,6 +72,7 @@ model Company {
   stockGroups StockGroup[]
   stockItems  StockItem[]
   units       Unit[]
+  auditTrails AuditTrail[]
 }
 
 model Ledger {
@@ -265,4 +266,26 @@ model PurchaseOrderItem {
   balanceQty      Float         @default(0)
   stockItemId     Int?
   createdAt       DateTime      @default(now())
+}
+
+model AuditTrail {
+  id           Int      @id @default(autoincrement())
+  companyId    Int
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entityType   String   // "VOUCHER", "LEDGER", "STOCK_ITEM"
+  entityId     Int      // ID of the target record
+  action       String   // "CREATE", "UPDATE", "DELETE"
+  voucherNo    String?
+  voucherType  String?
+  amount       Float?
+  narration    String?
+  details      String?  // JSON snapshot containing diff or state
+  performedBy  String?  // User who performed the action
+  ipAddress    String?
+  timestamp    DateTime @default(now())
+  prevHash     String   // Cryptographic SHA-256 hash of previous block in chain
+  currentHash  String   // Cryptographic SHA-256 hash of this entry
+
+  @@index([companyId, id])
+  @@index([companyId, entityType, entityId])
 }

@@ -10,6 +10,7 @@ import { authClient } from '@/lib/auth-client';
 import BankStatementUploadModal from '@/components/bank-statement/BankStatementUploadModal';
 import BankStatementEntryView from '@/components/bank-statement/BankStatementEntryView';
 import BankStatementMenu from '@/components/bank-statement/BankStatementMenu';
+import AuditTrailView from '@/components/AuditTrailView';
 import { getBankStatementState } from '@/components/bank-statement/bankStatementStorage';
 import {
   computeBaseFinancials,
@@ -34,7 +35,7 @@ type ScreenType =
   | 'PURCHASE_ORDER_ENTRY' | 'PURCHASE_ORDER_REGISTER'
   | 'LEDGER_REPORT' | 'GROUP_SUMMARY' | 'STOCK_SUMMARY'
   | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
-  | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE' | 'BANK_STATEMENT_ENTRY';
+  | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE' | 'BANK_STATEMENT_ENTRY' | 'AUDIT_TRAIL';
 
 type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note' | 'Sales Quotation';
 
@@ -2267,6 +2268,8 @@ export default function App() {
     { label:'GSTR1 Report',        highlight:'1', action:()=>nav('GSTR1_REPORT') },
     { label:'GSTR3B Report',       highlight:'3', action:()=>nav('GSTR3B_REPORT') },
     { label:'',highlight:'',action:()=>{},category:'header'},
+    { label:'Audit Trail (Tamper-Proof)', highlight:'U', action:()=>nav('AUDIT_TRAIL') },
+    { label:'',highlight:'',action:()=>{},category:'header'},
     { label:'Quit',                highlight:'Q', action:()=>goBack() },
   ];
 
@@ -2798,6 +2801,7 @@ export default function App() {
           <div onClick={()=>setShowEmailModal(true)}><u>M</u>: E-mail</div>
           <div onClick={()=>nav('PRINT_PREVIEW')}><u>P</u>: Print</div>
           <div onClick={()=>openFinalBSModal()} style={{background:'linear-gradient(135deg,#27ae60,#1e8449)',color:'#fff',padding:'2px 8px',borderRadius:3,cursor:'pointer',fontWeight:'bold'}}>📊 Final BS</div>
+          <div onClick={()=>nav('AUDIT_TRAIL')} style={{background:'linear-gradient(135deg,#0284c7,#0369a1)',color:'#fff',padding:'2px 8px',borderRadius:3,cursor:'pointer',fontWeight:'bold',display:'flex',alignItems:'center',gap:4}} title="Tamper-Proof Audit Trail (MCA)">🛡️ Audit Trail</div>
           <div onClick={()=>setShowFeatures(true)}>F11: Features</div>
         </div>
       </div>
@@ -2808,6 +2812,7 @@ export default function App() {
           {screen==='GATEWAY_MAIN' && 'Gateway of LedgerX'}
           {['MASTER_MENU','ALTER_MENU'].includes(screen) && ('List of Masters'+(screen==='ALTER_MENU'?' (Alter)':''))}
           {screen==='DISPLAY_REPORTS_MENU' && 'Display More Reports'}
+          {screen==='AUDIT_TRAIL' && 'Audit Trail & Edit Log (MCA Compliant)'}
           {screen==='ACCOUNT_BOOKS_MENU' && 'Account Books'}
           {screen==='GROUP_CREATION' && (alterItem?'Group Alteration':'Group Creation')}
           {screen==='LEDGER_CREATION' && (alterItem?'Ledger Alteration':'Ledger Creation')}
@@ -3099,6 +3104,7 @@ export default function App() {
               />
             )}
             {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
+            {screen==='AUDIT_TRAIL'          && <AuditTrailView company={activeCompany} onBack={goBack} />}
             {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} />}
             {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} ledgers={ledgers} vouchers={vouchers} stockItems={stockItems} activeCompany={activeCompany} onDataImported={()=>window.location.reload()} />}
             {screen==='ALTER_LIST' && (

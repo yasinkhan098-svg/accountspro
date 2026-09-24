@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logAuditAction } from '@/lib/auditTrail';
 
 const normalizeDate = (d: any): Date => {
   if (!d) return new Date();
@@ -172,6 +173,36 @@ export async function POST(req: Request) {
       partyDetails: result.partyDetails ? JSON.parse(result.partyDetails) : null,
       dispatchDetails: result.dispatchDetails ? JSON.parse(result.dispatchDetails) : null,
     };
+
+    // Non-blocking Audit Trail Log (fail-safe)
+    const totalVoucherAmount = (result.entries || []).reduce((acc: number, e: any) => {
+      return (e.entryType === 'Dr' || !e.entryType) ? acc + (parseFloat(String(e.amount)) || 0) : acc;
+    }, 0) || (result.inventoryEntries || []).reduce((acc: number, i: any) => acc + (parseFloat(String(i.amount)) || 0), 0);
+
+    logAuditAction({
+      companyId: cid,
+      entityType: 'VOUCHER',
+      entityId: result.id,
+      action: 'CREATE',
+      voucherNo: result.voucherNo,
+      voucherType: result.type,
+      amount: totalVoucherAmount,
+      narration: result.narration || '',
+      details: {
+        id: result.id,
+        voucherNo: result.voucherNo,
+        type: result.type,
+        date: result.date,
+        narration: result.narration,
+        entries: (result.entries || []).map((e: any) => ({
+          ledgerName: e.ledger?.name || e.ledgerName,
+          amount: e.amount,
+          entryType: e.entryType
+        }))
+      },
+      performedBy: data.performedBy || 'Authorized User'
+    }).catch(err => console.error('Audit trail logging error:', err));
+
     return NextResponse.json({ success: true, voucher: parsedVoucher });
   } catch (error: any) {
     console.error("Voucher Save Error:", error);
@@ -186,16 +217,23 @@ export async function PUT(req: Request) {
 
     if (!id) return NextResponse.json({ success: false, error: "Missing voucher ID" }, { status: 400 });
     const cid = parseInt(String(companyId));
+    const vid = parseInt(String(id));
+
+    // Capture previous state for audit diff
+    const oldVoucher = await prisma.voucher.findUnique({
+      where: { id: vid },
+      include: { entries: { include: { ledger: true } } }
+    });
 
     const result = await prisma.$transaction(async (tx) => {
       // Delete existing entries and inventoryEntries first
-      await tx.voucherEntry.deleteMany({ where: { voucherId: parseInt(id) } });
-      await tx.inventoryEntry.deleteMany({ where: { voucherId: parseInt(id) } });
+      await tx.voucherEntry.deleteMany({ where: { voucherId: vid } });
+      await tx.inventoryEntry.deleteMany({ where: { voucherId: vid } });
 
       const resolvedEntries = await resolveVoucherEntries(tx, cid, type, entries);
 
       const voucher = await tx.voucher.update({
-        where: { id: parseInt(id) },
+        where: { id: vid },
         data: {
           companyId: cid,
           type,
@@ -237,6 +275,52 @@ export async function PUT(req: Request) {
       partyDetails: result.partyDetails ? JSON.parse(result.partyDetails) : null,
       dispatchDetails: result.dispatchDetails ? JSON.parse(result.dispatchDetails) : null,
     };
+
+    // Non-blocking Audit Trail Log on Update
+    const totalVoucherAmount = (result.entries || []).reduce((acc: number, e: any) => {
+      return (e.entryType === 'Dr' || !e.entryType) ? acc + (parseFloat(String(e.amount)) || 0) : acc;
+    }, 0) || (result.inventoryEntries || []).reduce((acc: number, i: any) => acc + (parseFloat(String(i.amount)) || 0), 0);
+
+    logAuditAction({
+      companyId: cid,
+      entityType: 'VOUCHER',
+      entityId: result.id,
+      action: 'UPDATE',
+      voucherNo: result.voucherNo,
+      voucherType: result.type,
+      amount: totalVoucherAmount,
+      narration: result.narration || '',
+      details: {
+        id: result.id,
+        voucherNo: result.voucherNo,
+        type: result.type,
+        date: result.date,
+        previousState: oldVoucher ? {
+          voucherNo: oldVoucher.voucherNo,
+          type: oldVoucher.type,
+          date: oldVoucher.date,
+          narration: oldVoucher.narration,
+          entries: oldVoucher.entries.map((e: any) => ({
+            ledgerName: e.ledger?.name || e.ledgerName,
+            amount: e.amount,
+            entryType: e.entryType
+          }))
+        } : null,
+        newState: {
+          voucherNo: result.voucherNo,
+          type: result.type,
+          date: result.date,
+          narration: result.narration,
+          entries: (result.entries || []).map((e: any) => ({
+            ledgerName: e.ledger?.name || e.ledgerName,
+            amount: e.amount,
+            entryType: e.entryType
+          }))
+        }
+      },
+      performedBy: data.performedBy || 'Authorized User'
+    }).catch(err => console.error('Audit trail update logging error:', err));
+
     return NextResponse.json({ success: true, voucher: parsedVoucher });
   } catch (error: any) {
     console.error("Voucher Update Error:", error);
@@ -260,15 +344,58 @@ export async function GET(req: Request) {
   }));
   return NextResponse.json({ success: true, vouchers: parsedVouchers });
 }
+
 export async function DELETE(req: Request) {
   try {
     const data = await req.json();
     if (!data.id) throw new Error("Voucher ID is required");
-    await prisma.voucher.delete({
-      where: { id: parseInt(data.id) }
+    const vid = parseInt(data.id);
+
+    // Capture snapshot before delete for audit trail
+    const existingVoucher = await prisma.voucher.findUnique({
+      where: { id: vid },
+      include: { entries: { include: { ledger: true } } }
     });
+
+    await prisma.voucher.delete({
+      where: { id: vid }
+    });
+
+    if (existingVoucher) {
+      const totalVoucherAmount = (existingVoucher.entries || []).reduce((acc: number, e: any) => {
+        return (e.entryType === 'Dr' || !e.entryType) ? acc + (parseFloat(String(e.amount)) || 0) : acc;
+      }, 0);
+
+      logAuditAction({
+        companyId: existingVoucher.companyId,
+        entityType: 'VOUCHER',
+        entityId: vid,
+        action: 'DELETE',
+        voucherNo: existingVoucher.voucherNo,
+        voucherType: existingVoucher.type,
+        amount: totalVoucherAmount,
+        narration: existingVoucher.narration || '',
+        details: {
+          deletedVoucher: {
+            id: vid,
+            voucherNo: existingVoucher.voucherNo,
+            type: existingVoucher.type,
+            date: existingVoucher.date,
+            narration: existingVoucher.narration,
+            entries: existingVoucher.entries.map((e: any) => ({
+              ledgerName: e.ledger?.name || e.ledgerName,
+              amount: e.amount,
+              entryType: e.entryType
+            }))
+          }
+        },
+        performedBy: data.performedBy || 'Authorized User'
+      }).catch(err => console.error('Audit trail delete logging error:', err));
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+
