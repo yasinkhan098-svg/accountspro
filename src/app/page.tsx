@@ -2799,7 +2799,15 @@ export default function App() {
           <div><u>O</u>: Import</div>
           <div onClick={()=>setShowExportModal(true)}><u>E</u>: Export</div>
           <div onClick={()=>setShowEmailModal(true)}><u>M</u>: E-mail</div>
-          <div onClick={()=>nav('PRINT_PREVIEW')}><u>P</u>: Print</div>
+          <div onClick={()=>{
+            if (screen === 'VOUCHER_ENTRY' && activeVoucher) {
+              const matched = vouchers.filter(v => v.type === activeVoucher);
+              if (matched.length > 0) {
+                setPrintVoucher(matched[matched.length - 1]);
+              }
+            }
+            nav('PRINT_PREVIEW');
+          }}><u>P</u>: Print</div>
           <div onClick={()=>openFinalBSModal()} style={{background:'linear-gradient(135deg,#27ae60,#1e8449)',color:'#fff',padding:'2px 8px',borderRadius:3,cursor:'pointer',fontWeight:'bold'}}>📊 Final BS</div>
           <div onClick={()=>setShowFeatures(true)}>F11: Features</div>
         </div>
@@ -3082,7 +3090,7 @@ export default function App() {
             {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} stockGroups={stockGroups} vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={(id: number)=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownVoucher={(v: Voucher)=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} onSaveOpeningStock={async (itemId: number, qty: number, rate: number) => { const token = authClient.getToken(); const res = await fetch('/api/stock-items', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:itemId,openingQty:qty,openingRate:rate})}); const d = await res.json(); if(d.success){setAllStockItems(p=>p.map(x=>x.id===itemId?{...x,openingQty:qty,openingRate:rate}:x));} }} />}
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
-            {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={vouchers} company={activeCompany} companies={companies} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} />}
+            {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={vouchers} company={activeCompany} companies={companies} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} onBack={goBack} />}
             {screen==='GSTR1_REPORT'         && (
               <GSTR1ReportView 
                 vouchers={filteredVouchers} 
@@ -13757,12 +13765,51 @@ function numberToWords(num: number): string {
   return result;
 }
 
-function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectVoucher}:{
-  vouchers:Voucher[];company:Company | null;companies?:Company[];printVoucher:Voucher|null;ledgers:Ledger[];onSelectVoucher:(v:Voucher)=>void;
+function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectVoucher,onBack}:{
+  vouchers:Voucher[];company:Company | null;companies?:Company[];printVoucher:Voucher|null;ledgers:Ledger[];onSelectVoucher:(v:Voucher)=>void;onBack?:()=>void;
 }) {
   const [numCopies, setNumCopies] = useState(1);
   const [showOptions, setShowOptions] = useState(true);
   const [tempCopies, setTempCopies] = useState(1);
+
+  const normalizeType = (t?: string) => {
+    if (!t) return '';
+    if (t === 'Quotation' || t === 'Sales Quotation') return 'Sales Quotation';
+    return t;
+  };
+
+  const isSameType = (t1?: string, t2?: string) => {
+    if (!t1 || !t2) return false;
+    return normalizeType(t1).toLowerCase() === normalizeType(t2).toLowerCase();
+  };
+
+  const PRINTABLE_TYPES = [
+    'Sales',
+    'Purchase',
+    'Credit Note',
+    'Debit Note',
+    'Sales Quotation',
+    'Payment',
+    'Receipt',
+    'Contra',
+    'Journal'
+  ];
+
+  const initialType = normalizeType(
+    printVoucher?.type ||
+    vouchers.find(x => PRINTABLE_TYPES.some(pt => isSameType(pt, x.type)))?.type ||
+    'Sales'
+  );
+
+  const [selectedType, setSelectedType] = useState<string>(initialType);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  useEffect(() => {
+    if (printVoucher?.type) {
+      setSelectedType(normalizeType(printVoucher.type));
+      setSearchTerm('');
+    }
+  }, [printVoucher?.id, printVoucher?.type]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -13774,42 +13821,84 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
         e.preventDefault();
         handlePrint();
       }
+      if (e.key === 'Escape') {
+        if (showOptions) {
+          setShowOptions(false);
+        } else if (onBack) {
+          onBack();
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showOptions, tempCopies]);
+  }, [showOptions, tempCopies, onBack]);
 
-  const allPrintableVouchers = vouchers.filter(v=>['Sales','Purchase','Credit Note','Debit Note','Payment','Receipt','Contra','Journal','Sales Quotation'].includes(v.type));
-  const v = printVoucher || allPrintableVouchers[0] || null;
+  const allPrintableVouchers = useMemo(() => {
+    return vouchers.filter(item => PRINTABLE_TYPES.some(pt => isSameType(pt, item.type)));
+  }, [vouchers]);
+
+  // Vouchers strictly of the selected voucher type
+  const typeVouchers = useMemo(() => {
+    const list = vouchers.filter(item => isSameType(item.type, selectedType));
+    if (printVoucher && isSameType(printVoucher.type, selectedType) && !list.some(x => x.id === printVoucher.id)) {
+      return [printVoucher, ...list];
+    }
+    return list;
+  }, [vouchers, selectedType, printVoucher]);
+
+  const v = useMemo(() => {
+    if (printVoucher && isSameType(printVoucher.type, selectedType)) {
+      return printVoucher;
+    }
+    return typeVouchers[0] || null;
+  }, [printVoucher, selectedType, typeVouchers]);
+
+  const displayedVouchers = useMemo(() => {
+    if (!searchTerm.trim()) return typeVouchers;
+    const q = searchTerm.toLowerCase();
+    return typeVouchers.filter(item =>
+      (item.voucherNo && item.voucherNo.toLowerCase().includes(q)) ||
+      (item.partyName && item.partyName.toLowerCase().includes(q)) ||
+      (item.date && item.date.toLowerCase().includes(q)) ||
+      (String(item.total || '')).includes(q)
+    );
+  }, [typeVouchers, searchTerm]);
+
   const currentCompany = (companies || []).find(c => Number(c.id) === Number(v?.companyId)) || company;
   const getEntryLedgerName = (e: any) => {
     if (!e) return '';
     return e.ledgerName || e.ledger?.name || ledgers.find(l => Number(l.id) === Number(e.ledgerId))?.name || '';
   };
 
-  const igst = v ? v.entries.find(e => getEntryLedgerName(e) === 'IGST Payable')?.amount || 0 : 0;
+  const igst = v ? (v.entries || []).find(e => getEntryLedgerName(e) === 'IGST Payable')?.amount || 0 : 0;
   const isInterState = igst > 0;
 
-  if (!v) return (
+  if (allPrintableVouchers.length === 0 && !printVoucher) return (
     <div style={{padding:40,textAlign:'center',color:'#888',fontSize:15}}>
       <div style={{fontSize:40,marginBottom:15}}>🖨️</div>
       <div>No voucher found to print.</div>
       <div style={{fontSize:12,marginTop:8}}>Create a voucher first, then click P: Print</div>
+      {onBack && (
+        <button onClick={onBack} style={{marginTop:15,padding:'6px 16px',background:'#1c5282',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>
+          ← Go Back
+        </button>
+      )}
     </div>
   );
 
-
   const hsnMap = new Map<string,{hsnCode:string;taxable:number;cgst:number;sgst:number;igst:number;total:number;rate:number}>();
-  v.inventoryEntries.forEach(e=>{
-    const r = e.gstRate;
-    const hsnKey = (e.hsnCode||'—') + '_' + r;
-    const existing = hsnMap.get(hsnKey)||{hsnCode:e.hsnCode||'—',taxable:0,cgst:0,sgst:0,igst:0,total:0,rate:r};
-    const taxable = e.amount;
-    const c = isInterState?0:Math.round(taxable*r/200*100)/100;
-    const s = isInterState?0:Math.round(taxable*r/200*100)/100;
-    const ig = isInterState?Math.round(taxable*r/100*100)/100:0;
-    hsnMap.set(hsnKey,{...existing,taxable:existing.taxable+taxable,cgst:existing.cgst+c,sgst:existing.sgst+s,igst:existing.igst+ig,total:existing.total+c+s+ig});
-  });
+  if (v) {
+    (v.inventoryEntries || []).forEach(e=>{
+      const r = e.gstRate || 0;
+      const hsnKey = (e.hsnCode||'—') + '_' + r;
+      const existing = hsnMap.get(hsnKey)||{hsnCode:e.hsnCode||'—',taxable:0,cgst:0,sgst:0,igst:0,total:0,rate:r};
+      const taxable = e.amount || 0;
+      const c = isInterState?0:Math.round(taxable*r/200*100)/100;
+      const s = isInterState?0:Math.round(taxable*r/200*100)/100;
+      const ig = isInterState?Math.round(taxable*r/100*100)/100:0;
+      hsnMap.set(hsnKey,{...existing,taxable:existing.taxable+taxable,cgst:existing.cgst+c,sgst:existing.sgst+s,igst:existing.igst+ig,total:existing.total+c+s+ig});
+    });
+  }
   const hsnRows = Array.from(hsnMap.values());
 
   const tdB:React.CSSProperties = {border:'1px solid #555',padding:'4px 6px',fontSize:11,verticalAlign:'top'};
@@ -14644,23 +14733,175 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
   return (
     <>
     <div className="print-preview-main" style={{display:'flex',height:'100%',overflow:'hidden',background:'#eef2f6'}}>
-      <div className="no-print" style={{width:240,borderRight:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fff'}}>
-        <div style={{background:'#1c5282',color:'white',padding:'10px 15px',fontWeight:'bold'}}>Print Dashboard</div>
-        <div style={{padding:'10px'}}><button onClick={()=>setShowOptions(true)} style={{width:'100%',background:'#1a7a4a',color:'white',padding:'10px',cursor:'pointer'}}>🖨️ Print Invoice (P)</button></div>
-        <div style={{flex:1,overflowY:'auto'}}>
-          {allPrintableVouchers.map((sv,i)=>(
-            <div key={i} onClick={()=>onSelectVoucher(sv)} style={{padding:'10px',cursor:'pointer',borderBottom:'1px solid #eee',background:v.id===sv.id?'#e3efff':'transparent'}}>
-              <div style={{fontWeight:'bold',fontSize:12}}>{sv.type} #{sv.voucherNo}</div>
-              <div style={{fontSize:11,color:'#888'}}>{sv.date}</div>
+      {/* LEFT SIDEBAR: Print Dashboard */}
+      <div className="no-print" style={{width:280,borderRight:'2px solid #1c5282',display:'flex',flexDirection:'column',background:'#fff',boxShadow:'2px 0 8px rgba(0,0,0,0.06)',zIndex:10}}>
+        {/* Header */}
+        <div style={{background:'#1c5282',color:'white',padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontWeight:'bold',fontSize:13,letterSpacing:'0.3px'}}>Print Dashboard</div>
+            <div style={{fontSize:10,opacity:0.9,marginTop:2}}>{selectedType} Bills ({typeVouchers.length})</div>
+          </div>
+          {onBack && (
+            <button
+              onClick={onBack}
+              style={{background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:3,padding:'3px 8px',fontSize:11,cursor:'pointer',fontWeight:'bold'}}
+              title="Close Preview (Esc)"
+            >
+              ✕ Back
+            </button>
+          )}
+        </div>
+
+        {/* Voucher Type Selector (Switch to other voucher types) */}
+        <div style={{padding:'8px 12px',background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+          <div style={{fontSize:10,fontWeight:'bold',color:'#64748b',marginBottom:4,display:'flex',justifyContent:'space-between'}}>
+            <span>VOUCHER TYPE</span>
+            <span style={{color:'#1c5282',fontWeight:'bold'}}>{typeVouchers.length} Bills</span>
+          </div>
+          <select
+            value={selectedType}
+            onChange={e => {
+              const newType = e.target.value;
+              setSelectedType(newType);
+              const firstMatch = vouchers.find(x => isSameType(x.type, newType));
+              if (firstMatch) {
+                onSelectVoucher(firstMatch);
+              }
+            }}
+            style={{
+              width:'100%',
+              padding:'6px 8px',
+              fontSize:12,
+              fontWeight:'bold',
+              color:'#1c5282',
+              background:'#fff',
+              border:'1px solid #cbd5e1',
+              borderRadius:4,
+              cursor:'pointer',
+              outline:'none'
+            }}
+          >
+            {PRINTABLE_TYPES.map(t => {
+              const count = vouchers.filter(x => isSameType(x.type, t)).length + 
+                ((printVoucher && isSameType(printVoucher.type, t) && !vouchers.some(x => x.id === printVoucher.id)) ? 1 : 0);
+              return (
+                <option key={t} value={t}>
+                  {t} ({count})
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        {/* Action Button: Print */}
+        <div style={{padding:'10px 12px',borderBottom:'1px solid #e2e8f0'}}>
+          <button 
+            onClick={()=>setShowOptions(true)} 
+            disabled={!v}
+            style={{
+              width:'100%',
+              background: v ? '#1a7a4a' : '#94a3b8',
+              color:'white',
+              padding:'10px',
+              border:'none',
+              borderRadius:4,
+              cursor: v ? 'pointer' : 'not-allowed',
+              fontWeight:'bold',
+              fontSize:12,
+              display:'flex',
+              alignItems:'center',
+              justifyContent:'center',
+              gap:6,
+              boxShadow:'0 2px 4px rgba(0,0,0,0.1)'
+            }}
+          >
+            <span>🖨️</span>
+            <span>{v && ['Payment','Receipt','Contra','Journal'].includes(v.type) ? 'Print Voucher (P)' : 'Print Invoice (P)'}</span>
+          </button>
+        </div>
+
+        {/* Search Input for bills */}
+        <div style={{padding:'6px 12px',borderBottom:'1px solid #e2e8f0',background:'#f8fafc'}}>
+          <input
+            type="text"
+            placeholder={`Search ${selectedType} bills (No, Party, ₹)...`}
+            value={searchTerm}
+            onChange={e=>setSearchTerm(e.target.value)}
+            style={{
+              width:'100%',
+              padding:'6px 8px',
+              fontSize:11,
+              border:'1px solid #cbd5e1',
+              borderRadius:4,
+              boxSizing:'border-box',
+              outline:'none',
+              background:'#fff'
+            }}
+          />
+        </div>
+
+        {/* Bills list of the selected voucher type */}
+        <div style={{flex:1,overflowY:'auto',background:'#fff'}}>
+          {displayedVouchers.length === 0 ? (
+            <div style={{padding:'30px 15px',textAlign:'center',color:'#94a3b8',fontSize:12}}>
+              {searchTerm ? `No ${selectedType} bills match "${searchTerm}"` : `No ${selectedType} bills found`}
             </div>
-          ))}
+          ) : (
+            displayedVouchers.map((sv,i)=>{
+              const isSelected = v && (v.id === sv.id || (v.voucherNo === sv.voucherNo && isSameType(v.type, sv.type)));
+              return (
+                <div 
+                  key={sv.id || i} 
+                  onClick={()=>onSelectVoucher(sv)} 
+                  style={{
+                    padding:'10px 12px',
+                    cursor:'pointer',
+                    borderBottom:'1px solid #f1f5f9',
+                    background: isSelected ? '#e0f2fe' : '#ffffff',
+                    borderLeft: isSelected ? '4px solid #1c5282' : '4px solid transparent',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={e => {
+                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#f8fafc';
+                  }}
+                  onMouseLeave={e => {
+                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#ffffff';
+                  }}
+                >
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+                    <span style={{fontWeight:'bold',fontSize:12,color:isSelected?'#0c4a6e':'#1e293b'}}>
+                      #{sv.voucherNo || sv.number}
+                    </span>
+                    <span style={{fontSize:10,color:'#64748b'}}>{sv.date}</span>
+                  </div>
+                  <div style={{fontSize:11,color:'#334155',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:3}}>
+                    {sv.partyName || 'Cash / Counter'}
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span style={{fontSize:10,color:'#94a3b8'}}>{sv.type}</span>
+                    <span style={{fontWeight:'bold',fontSize:11,color:'#0f766e'}}>₹ {fmt(sv.total || 0)}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
+
+      {/* RIGHT PANE: Invoice Preview */}
       <div className="print-invoice-container" style={{flex:1,overflowY:'auto',padding:'20px',background:'#e2eaf2'}}>
-        {Array.from({length: numCopies}).map((_, i) =>
-          ['Payment','Receipt','Contra','Journal'].includes(v.type)
-            ? renderAccountingVoucher(i)
-            : (v.type === 'Sales Quotation' || v.type === 'Quotation' ? renderQuotationInvoice(i) : renderInvoice(i))
+        {!v ? (
+          <div style={{padding:60,textAlign:'center',color:'#64748b'}}>
+            <div style={{fontSize:48,marginBottom:12}}>📄</div>
+            <div style={{fontSize:16,fontWeight:'bold',color:'#334155'}}>No {selectedType} bills to print</div>
+            <div style={{fontSize:12,marginTop:6}}>Select another voucher type from the Print Dashboard sidebar.</div>
+          </div>
+        ) : (
+          Array.from({length: numCopies}).map((_, i) =>
+            ['Payment','Receipt','Contra','Journal'].includes(v.type)
+              ? renderAccountingVoucher(i)
+              : (v.type === 'Sales Quotation' || v.type === 'Quotation' ? renderQuotationInvoice(i) : renderInvoice(i))
+          )
         )}
       </div>
     </div>
