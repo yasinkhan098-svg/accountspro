@@ -235,6 +235,15 @@ function BOMForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // ESC key → cancel (step back to main BOM tabs)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   const itemNames = stockItems.map(s => s.name);
 
   const updateRow = (idx: number, key: keyof BOMItem, val: any) => {
@@ -455,6 +464,15 @@ function ManufacturingJournalForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [loadingBOM, setLoadingBOM] = useState(false);
+
+  // ESC key → cancel (step back to main BOM tabs)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
 
   const itemNames = stockItems.map(s => s.name);
   const expenseLedgers = ledgers.filter(l => EXPENSE_LEDGER_GROUPS.includes(l.groupName));
@@ -874,6 +892,23 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab = "
   const [toast, setToast] = useState("");
 
   const companyId = company?.id;
+
+  // ESC key — step-by-step:
+  // If BOM/Journal form open → close form → back to tabs
+  // If on main tabs → go back to previous screen
+  useEffect(() => {
+    // Sub-forms handle their own ESC; this handles main-tabs level only
+    if (showBOMForm || showJournalForm) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onBack();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showBOMForm, showJournalForm, onBack]);
 
   const loadBOMs = useCallback(async () => {
     if (!companyId) return;
