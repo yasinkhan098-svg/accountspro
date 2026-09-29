@@ -2467,6 +2467,8 @@ export default function App() {
         if (showPeriod) { setShowPeriod(false); return; }
         // GATEWAY_MAIN = topmost screen, nothing to go back to
         if (screen === 'GATEWAY_MAIN') return;
+        // BOM_MODULE handles its own ESC step-by-step internally
+        if (screen === 'BOM_MODULE') return;
         // All other screens: step-by-step back through history
         goBack();
       }
