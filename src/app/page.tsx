@@ -6,6 +6,7 @@ import PlanUpgradeModal from '@/components/PlanUpgradeModal';
 import VirtualFinalBSModal from '@/virtual-bs/VirtualFinalBSModal';
 import RealtimeDashboardModal from '@/components/dashboard/RealtimeDashboardModal';
 import { PurchaseOrderModule } from '@/components/PurchaseOrderModule';
+import { BOMModule } from '@/components/BOMModule';
 import { authClient } from '@/lib/auth-client';
 import BankStatementUploadModal from '@/components/bank-statement/BankStatementUploadModal';
 import BankStatementEntryView from '@/components/bank-statement/BankStatementEntryView';
@@ -35,7 +36,8 @@ type ScreenType =
   | 'PURCHASE_ORDER_ENTRY' | 'PURCHASE_ORDER_REGISTER'
   | 'LEDGER_REPORT' | 'GROUP_SUMMARY' | 'STOCK_SUMMARY'
   | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
-  | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE' | 'BANK_STATEMENT_ENTRY' | 'AUDIT_TRAIL';
+  | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE' | 'BANK_STATEMENT_ENTRY' | 'AUDIT_TRAIL'
+  | 'BOM_MODULE';
 
 type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note' | 'Sales Quotation';
 
@@ -2474,6 +2476,7 @@ export default function App() {
       if (e.key === 'F2' && !e.altKey)  { e.preventDefault(); setShowDate(true); }
       if (e.key === 'F2' && e.altKey)   { e.preventDefault(); setShowPeriod(true); }
       if (e.key === 'F9' && e.ctrlKey)  { e.preventDefault(); nav('PURCHASE_ORDER_ENTRY'); }
+      if (e.key === 'b' && e.altKey)    { e.preventDefault(); nav('BOM_MODULE'); }
       if (screen === 'VOUCHER_ENTRY') {
         if (e.key === 'F4') { e.preventDefault(); setActiveVoucher('Contra'); }
         if (e.key === 'F5') { e.preventDefault(); setActiveVoucher('Payment'); }
@@ -3078,6 +3081,7 @@ export default function App() {
             {screen==='QUOTATION_REGISTER'   && <UniversalRegisterView voucherType='Sales Quotation' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PURCHASE_ORDER_ENTRY'    && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="form" onBack={goBack}/>}
             {screen==='PURCHASE_ORDER_REGISTER' && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="register" onBack={goBack}/>}
+            {screen==='BOM_MODULE'              && <BOMModule company={activeCompany} stockItems={stockItems} ledgers={ledgers} initialTab="journal" onBack={goBack}/>}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='CONTRA_REGISTER'      && <UniversalRegisterView voucherType='Contra'      vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PAYMENT_REGISTER'     && <UniversalRegisterView voucherType='Payment'     vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
@@ -3154,6 +3158,7 @@ export default function App() {
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>Alt+F8: Quotation</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Purchase');}}>F9: Purchase</div>
           <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>
+          <div className="sidebar-btn" onClick={()=>nav('BOM_MODULE')} style={{color:'#a78bfa',fontWeight:'bold'}}>Alt+B: BOM / Mfg</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>F10: Quotation</div>
           <div className="sidebar-btn-spacer"/>
           <div className="sidebar-btn" onClick={()=>setShowFeatures(true)}>F11: Features</div>
@@ -8559,6 +8564,25 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                     }}
                     pendingCount={pendingBankCount}
                   />
+                </div>
+              )}
+              {v === 'Debit Note' && (
+                <div
+                  style={{
+                    padding:'5px 10px',
+                    cursor:'pointer',
+                    fontWeight:'bold',
+                    background:'transparent',
+                    color:'#a78bfa',
+                    borderRight:'1px solid #333',
+                    display:'flex',
+                    alignItems:'center',
+                    gap:4
+                  }}
+                  onClick={() => onNav('BOM_MODULE')}
+                  title="Bill of Materials / Manufacturing Journal (Alt+B)"
+                >
+                  <span>🏭 BOM</span>
                 </div>
               )}
             </React.Fragment>
