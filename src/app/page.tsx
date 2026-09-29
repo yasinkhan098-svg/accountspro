@@ -2455,7 +2455,6 @@ export default function App() {
           return; 
         }
         if (showBankUploadModal) { setShowBankUploadModal(false); return; }
-        if (screen === 'BANK_STATEMENT_ENTRY') { goBack(); return; }
         if (showRealtimeDashboard) { setShowRealtimeDashboard(false); return; }
         if (showVirtualBSModal) { setShowVirtualBSModal(false); return; }
         if (showFinalBSModal) { setShowFinalBSModal(false); return; }
@@ -2466,9 +2465,9 @@ export default function App() {
         if (showCompanySelect) { setShowCompanySelect(false); return; }
         if (showDate) { setShowDate(false); return; }
         if (showPeriod) { setShowPeriod(false); return; }
-        // Report screens that handle Escape internally for step-by-step
-        const internalReports = ['LEDGER_REPORT','GSTR1_REPORT','GSTR3B_REPORT','BALANCE_SHEET','PROFIT_LOSS','TRIAL_BALANCE','DAY_BOOK','STOCK_SUMMARY','OUTSTANDING_REPORT','SALES_REGISTER','PURCHASE_REGISTER','QUOTATION_REGISTER'];
-        if (internalReports.includes(screen)) return;
+        // GATEWAY_MAIN = topmost screen, nothing to go back to
+        if (screen === 'GATEWAY_MAIN') return;
+        // All other screens: step-by-step back through history
         goBack();
       }
       if (e.key === 'F11') { e.preventDefault(); setShowFeatures(true); }
