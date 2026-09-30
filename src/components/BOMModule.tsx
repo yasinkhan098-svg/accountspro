@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { authClient } from "@/lib/auth-client";
 
@@ -453,13 +453,13 @@ function ManufacturingJournalForm({
           return {
             ...f, bomId, bomName:d.bom.name, finishedItemId:d.bom.finishedItemId,
             finishedItemName:d.bom.finishedItemName, outputQty:currentOut, outputUnit:d.bom.outputUnit,
-            rawMaterials:(d.items||[]).map((it:any)=>{
+            rawMaterials:(d.items||[]).filter((it:any)=>it.itemName?.trim()).map((it:any)=>{
               const bq=parseFloat(String(it.qty||0));
               const r=parseFloat(String(it.rate||0));
               const calcQty=bq*ratio;
               return {stockItemId:it.stockItemId,itemName:it.itemName,requiredQty:parseFloat(calcQty.toFixed(4)),
                 actualQty:parseFloat(calcQty.toFixed(4)),unit:it.unit,rate:r,amount:parseFloat((calcQty*r).toFixed(2))};
-            }).concat([emptyRawMaterial()])
+            })
           };
         });
       }
@@ -474,7 +474,7 @@ function ManufacturingJournalForm({
       if(!bom||bom.items.length===0) return {...f,outputQty:newQtyStr};
       const bomOutQty=bom.outputQty||1;
       const ratio=newQty/bomOutQty;
-      const newRMs:RawMaterial[]=bom.items.map(it=>{
+      const newRMs:RawMaterial[]=bom.items.filter(it=>String(it.itemName||'').trim()).map(it=>{
         const bq=parseFloat(String(it.qty))||0;
         const r=parseFloat(String(it.rate))||0;
         const cq=bq*ratio;
@@ -482,8 +482,7 @@ function ManufacturingJournalForm({
           requiredQty:parseFloat(cq.toFixed(4)),actualQty:parseFloat(cq.toFixed(4)),
           unit:it.unit,rate:r,amount:parseFloat((cq*r).toFixed(2))};
       });
-      newRMs.push(emptyRawMaterial());
-      return {...f,outputQty:newQtyStr,rawMaterials:newRMs};
+      return {...f,outputQty:newQtyStr,rawMaterials:newRMs.length>0?newRMs:[emptyRawMaterial()]};
     });
   };
 
