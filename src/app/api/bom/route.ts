@@ -175,12 +175,13 @@ export async function POST(req: Request) {
     if (saveType === 'bom') {
       const { companyId, name, finishedItemId, finishedItemName, outputQty, outputUnit, narration, items } = body;
 
-      // Check duplicate BOM name
+      // Check duplicate BOM name (skip if editing same record)
       const existing = await prisma.$queryRawUnsafe<any[]>(
         `SELECT id FROM "BOM" WHERE "companyId" = ? AND lower("name") = lower(?)`,
         parseInt(companyId), name
       );
       if (existing.length > 0) {
+        // Allow if this is the same BOM being updated (POST with no id = new, PUT handles update)
         return NextResponse.json({ success: false, error: `BOM "${name}" already exists` }, { status: 400 });
       }
 
@@ -293,8 +294,15 @@ export async function POST(req: Request) {
           }
         }
 
-        // Update stock: add finished goods to stock (update openingQty + openingRate via weighted average)
-        // In a real manufacturing system this updates the stock item's quantity
+        // Deduct raw material stock (actualQty consumed)
+        if (rawMaterials) {
+          for (const rm of rawMaterials) {
+            if (!rm.itemName?.trim() || !rm.stockItemId) continue;
+            await deductRawMaterialStock(parseInt(companyId), parseInt(rm.stockItemId), parseFloat(rm.actualQty || rm.qty || 0));
+          }
+        }
+
+        // Update stock: add finished goods to stock (weighted average cost)
         await updateStockAfterManufacture(parseInt(companyId), parseInt(finishedItemId), parseFloat(outputQty), parseFloat(costPerUnit || 0));
       }
 
@@ -317,7 +325,16 @@ export async function PUT(req: Request) {
 
   try {
     if (saveType === 'bom' && id) {
-      const { name, finishedItemId, finishedItemName, outputQty, outputUnit, narration, items } = body;
+      const { companyId, name, finishedItemId, finishedItemName, outputQty, outputUnit, narration, items } = body;
+
+      // Check duplicate name but skip current record
+      const existing = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT id FROM "BOM" WHERE "companyId" = ? AND lower("name") = lower(?) AND "id" != ?`,
+        parseInt(companyId || body.companyId || 0), name, parseInt(id)
+      );
+      if (existing.length > 0) {
+        return NextResponse.json({ success: false, error: `BOM "${name}" already exists` }, { status: 400 });
+      }
 
       await prisma.$executeRawUnsafe(
         `UPDATE "BOM" SET "name"=?,"finishedItemId"=?,"finishedItemName"=?,"outputQty"=?,"outputUnit"=?,"narration"=?,"updatedAt"=datetime('now')
@@ -371,7 +388,30 @@ export async function DELETE(req: Request) {
 }
 
 // ============================================================
-// Helper: Update stock quantity after manufacturing
+// Helper: Deduct raw material stock when manufacturing journal is posted
+// ============================================================
+async function deductRawMaterialStock(companyId: number, itemId: number, deductQty: number) {
+  try {
+    if (!itemId || deductQty <= 0) return;
+    const item = await prisma.stockItem.findFirst({ where: { id: itemId, companyId } });
+    if (!item) return;
+    const currentQty = item.openingQty || 0;
+    const newQty = currentQty - deductQty;
+    // Closing stock can go negative (user's responsibility), but we track it
+    await prisma.stockItem.update({
+      where: { id: itemId },
+      data: {
+        openingQty: newQty,
+        openingVal: newQty * (item.openingRate || 0)
+      }
+    });
+  } catch (e) {
+    console.error('Raw material deduction error:', e);
+  }
+}
+
+// ============================================================
+// Helper: Update stock quantity after manufacturing (add finished goods)
 // ============================================================
 async function updateStockAfterManufacture(companyId: number, itemId: number, addQty: number, newRate: number) {
   try {
