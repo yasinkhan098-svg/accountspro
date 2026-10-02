@@ -271,10 +271,19 @@ function BOMForm({
 
   const removeRow = (idx: number) => setForm(f => ({...f, items:f.items.filter((_,i)=>i!==idx)}));
 
+  const cleanupBlankRows = () => {
+    // Remove all blank rows, keep only filled ones + one blank at end
+    setForm(f => {
+      const filled = f.items.filter(i => i.itemName.trim());
+      return {...f, items: filled.length > 0 ? [...filled, {stockItemId:0,itemName:"",qty:"",unit:"Nos",rate:"",amount:0}] : [{stockItemId:0,itemName:"",qty:"",unit:"Nos",rate:"",amount:0}]};
+    });
+  };
+
   const handleRateTab = (idx: number) => {
-    // If current row's item is blank → go to Narration (don't create empty row)
+    // If current row's item is blank → clean up blank rows and go to Narration
     if (!form.items[idx].itemName.trim()) {
-      narrationRef.current?.focus();
+      cleanupBlankRows();
+      setTimeout(() => narrationRef.current?.focus(), 30);
       return;
     }
     if (idx===form.items.length-1) { addRowAndFocus(idx); }
@@ -358,6 +367,9 @@ function BOMForm({
               {form.items.map((row,idx)=>{
                 ensureRefs(idx+1);
                 const refs = rowRefs.current[idx];
+                const isLastRow = idx === form.items.length - 1;
+                // Hide intermediate blank rows (keep only last blank row as active input row)
+                if (!row.itemName.trim() && !isLastRow) return null;
                 return (
                   <tr key={idx} style={{borderBottom:"1px solid #f1f5f9"}}>
                     <td style={{textAlign:"center",color:"#94a3b8",fontSize:11,padding:"4px 6px"}}>{idx+1}</td>
@@ -365,8 +377,8 @@ function BOMForm({
                       <AutocompleteInput inputRef={refs.itemRef} value={row.itemName} options={itemNames}
                         placeholder="Select raw material..." onSelect={v=>updateRow(idx,"itemName",v)}
                         onTab={()=>{
-                          // If item is blank → jump to Narration; else → go to Qty
-                          if (!row.itemName.trim()) { narrationRef.current?.focus(); }
+                          // If item is blank → clean up blank rows and jump to Narration; else → go to Qty
+                          if (!row.itemName.trim()) { cleanupBlankRows(); setTimeout(()=>narrationRef.current?.focus(),30); }
                           else { refs.qtyRef.current?.focus(); }
                         }}/>
                     </td>

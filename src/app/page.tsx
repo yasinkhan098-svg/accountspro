@@ -2503,7 +2503,9 @@ export default function App() {
       if (e.altKey && e.key.toLowerCase() === 'c' && !altCCtx && screen !== 'VOUCHER_ENTRY') {
         e.preventDefault();
         const id = (document.activeElement as HTMLElement)?.id || '';
-        if (id.includes('l-under') || id.includes('g-under')) setAltCCtx({ fieldType:'group', onCreated:()=>{} });
+        // BOM_MODULE: always open Quick Item Creation
+        if (screen === 'BOM_MODULE') { setAltCCtx({ fieldType:'stockItem', onCreated:()=>{} }); }
+        else if (id.includes('l-under') || id.includes('g-under')) setAltCCtx({ fieldType:'group', onCreated:()=>{} });
         else if (id.includes('item-under') || id.includes('sg-under')) setAltCCtx({ fieldType:'stockGroup', onCreated:()=>{} });
         else if (id.includes('item-units')) setAltCCtx({ fieldType:'unit', onCreated:()=>{} });
         else setAltCCtx({ fieldType:'ledger', onCreated:()=>{} });
