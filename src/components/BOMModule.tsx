@@ -166,6 +166,8 @@ function BOMForm({
   // Track which rows are loading their purchase rate
   const [rateLoadingRows, setRateLoadingRows] = useState<Record<number, boolean>>({});
   const narrationRef = useRef<HTMLTextAreaElement>(null);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+  const [saved, setSaved] = useState(false); // prevent double-save
   const [form, setForm] = useState<BOM>(editingBOM || {
     companyId: company?.id||0, name:"", finishedItemId:0, finishedItemName:"",
     outputQty:1, outputUnit:"Nos", narration:"",
@@ -181,7 +183,11 @@ function BOMForm({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key==="Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); }
+      if (e.key==="Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); return; }
+      // Ctrl+A = Save BOM Template
+      if ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="a") {
+        e.preventDefault(); e.stopPropagation(); saveButtonRef.current?.click();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -278,6 +284,7 @@ function BOMForm({
   const totalRawCost = form.items.reduce((s,i)=>s+(parseFloat(String(i.rate))||0)*(parseFloat(String(i.qty))||0),0);
 
   const handleSave = async () => {
+    if (saved || saving) return; // prevent double-save
     if (!form.name.trim()) { setError("BOM Name required"); return; }
     if (!form.finishedItemName.trim()) { setError("Finished Item required"); return; }
     if (form.items.filter(i=>i.itemName.trim()).length===0) { setError("Add at least one Raw Material"); return; }
@@ -291,7 +298,7 @@ function BOMForm({
         body: JSON.stringify({...form, saveType:"bom", items:form.items.filter(i=>i.itemName.trim())})
       });
       const d = await res.json();
-      if (d.success) onSave(); else setError(d.error||"Save failed");
+      if (d.success) { setSaved(true); onSave(); } else setError(d.error||"Save failed");
     } catch(e:any) { setError(e.message); }
     setSaving(false);
   };
@@ -408,13 +415,17 @@ function BOMForm({
           <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>NARRATION</label>
           <textarea ref={narrationRef} value={form.narration} onChange={e=>setForm(f=>({...f,narration:e.target.value}))} rows={2}
             placeholder="Optional notes about this BOM..."
+            onKeyDown={e=>{
+              // Tab or Enter from Narration → focus Save button
+              if (e.key==="Tab"||e.key==="Enter") { e.preventDefault(); saveButtonRef.current?.focus(); }
+            }}
             style={{width:"100%",padding:"8px",border:"1px solid #cbd5e1",borderRadius:4,fontSize:12,resize:"vertical",boxSizing:"border-box"}}/>
         </div>
         {error&&<div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:4,marginBottom:12,fontSize:12}}>{error}</div>}
         <div style={{display:"flex",gap:10}}>
-          <button onClick={handleSave} disabled={saving}
-            style={{background:saving?"#94a3b8":"#1c3a5f",color:"white",border:"none",borderRadius:4,padding:"10px 28px",cursor:saving?"not-allowed":"pointer",fontWeight:"bold",fontSize:13}}>
-            {saving?"Saving...":"✓ Save BOM Template (Ctrl+A)"}
+          <button ref={saveButtonRef} onClick={handleSave} disabled={saving||saved}
+            style={{background:(saving||saved)?"#94a3b8":"#1c3a5f",color:"white",border:"none",borderRadius:4,padding:"10px 28px",cursor:(saving||saved)?"not-allowed":"pointer",fontWeight:"bold",fontSize:13}}>
+            {saving?"Saving...":saved?"✓ Saved!":"✓ Save BOM Template (Ctrl+A)"}
           </button>
           <button onClick={onCancel} style={{background:"#f1f5f9",color:"#475569",border:"1px solid #cbd5e1",borderRadius:4,padding:"10px 20px",cursor:"pointer",fontSize:13}}>Cancel</button>
         </div>
