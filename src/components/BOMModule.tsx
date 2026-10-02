@@ -95,6 +95,8 @@ function AutocompleteInput({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!show || filtered.length === 0) {
       if (e.key === "Tab" && onTab) { e.preventDefault(); onTab(); }
+      // Enter on closed dropdown (or empty field) also triggers onTab
+      if (e.key === "Enter" && onTab) { e.preventDefault(); onTab(); }
       return;
     }
     if (e.key === "ArrowDown") {
@@ -112,6 +114,9 @@ function AutocompleteInput({
         setShow(false);
         if (e.key === "Tab" && onTab) setTimeout(onTab, 10);
       } else if (e.key === "Tab" && onTab) {
+        setShow(false); e.preventDefault(); onTab();
+      } else if (e.key === "Enter" && onTab) {
+        // Enter with dropdown open but nothing selected → also call onTab
         setShow(false); e.preventDefault(); onTab();
       }
     } else if (e.key === "Escape") { setShow(false); }
@@ -160,6 +165,7 @@ function BOMForm({
 }) {
   // Track which rows are loading their purchase rate
   const [rateLoadingRows, setRateLoadingRows] = useState<Record<number, boolean>>({});
+  const narrationRef = useRef<HTMLTextAreaElement>(null);
   const [form, setForm] = useState<BOM>(editingBOM || {
     companyId: company?.id||0, name:"", finishedItemId:0, finishedItemName:"",
     outputQty:1, outputUnit:"Nos", narration:"",
@@ -260,6 +266,11 @@ function BOMForm({
   const removeRow = (idx: number) => setForm(f => ({...f, items:f.items.filter((_,i)=>i!==idx)}));
 
   const handleRateTab = (idx: number) => {
+    // If current row's item is blank → go to Narration (don't create empty row)
+    if (!form.items[idx].itemName.trim()) {
+      narrationRef.current?.focus();
+      return;
+    }
     if (idx===form.items.length-1) { addRowAndFocus(idx); }
     else { rowRefs.current[idx+1]?.itemRef?.current?.focus(); }
   };
@@ -346,7 +357,11 @@ function BOMForm({
                     <td style={{padding:"4px 6px"}}>
                       <AutocompleteInput inputRef={refs.itemRef} value={row.itemName} options={itemNames}
                         placeholder="Select raw material..." onSelect={v=>updateRow(idx,"itemName",v)}
-                        onTab={()=>refs.qtyRef.current?.focus()}/>
+                        onTab={()=>{
+                          // If item is blank → jump to Narration; else → go to Qty
+                          if (!row.itemName.trim()) { narrationRef.current?.focus(); }
+                          else { refs.qtyRef.current?.focus(); }
+                        }}/>
                     </td>
                     <td style={{padding:"4px 6px"}}>
                       <input ref={refs.qtyRef} type="number" min={0} step="any" value={row.qty}
@@ -391,7 +406,7 @@ function BOMForm({
         </div>
         <div style={{marginBottom:16}}>
           <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>NARRATION</label>
-          <textarea value={form.narration} onChange={e=>setForm(f=>({...f,narration:e.target.value}))} rows={2}
+          <textarea ref={narrationRef} value={form.narration} onChange={e=>setForm(f=>({...f,narration:e.target.value}))} rows={2}
             placeholder="Optional notes about this BOM..."
             style={{width:"100%",padding:"8px",border:"1px solid #cbd5e1",borderRadius:4,fontSize:12,resize:"vertical",boxSizing:"border-box"}}/>
         </div>
@@ -421,6 +436,7 @@ function ManufacturingJournalForm({
   const [error, setError] = useState("");
   const [loadingBOM, setLoadingBOM] = useState(false);
   const loadedBOMRef = useRef<LoadedBOM|null>(null);
+  const mjNarrationRef = useRef<HTMLTextAreaElement>(null);
 
   const rmRefs = useRef<Array<{
     itemRef:React.RefObject<HTMLInputElement>; reqRef:React.RefObject<HTMLInputElement>;
@@ -566,6 +582,11 @@ function ManufacturingJournalForm({
   };
 
   const handleRMRateTab = (idx:number) => {
+    // If current row's item is blank → go to Narration (don't create empty row)
+    if (!form.rawMaterials[idx].itemName.trim()) {
+      mjNarrationRef.current?.focus();
+      return;
+    }
     if(idx===form.rawMaterials.length-1){
       setForm(f=>({...f,rawMaterials:[...f.rawMaterials,emptyRawMaterial()]}));
       ensureRMRefs(idx+2);
@@ -691,7 +712,12 @@ function ManufacturingJournalForm({
                       <td style={{textAlign:"center",color:"#94a3b8",padding:"3px 4px"}}>{idx+1}</td>
                       <td style={{padding:"3px 4px"}}>
                         <AutocompleteInput inputRef={refs.itemRef} value={rm.itemName} options={itemNames} placeholder="Item..."
-                          onSelect={v=>updateRM(idx,"itemName",v)} onTab={()=>refs.reqRef.current?.focus()}/>
+                          onSelect={v=>updateRM(idx,"itemName",v)}
+                          onTab={()=>{
+                            // If item is blank → jump to Narration; else → go to Req.Qty
+                            if (!rm.itemName.trim()) { mjNarrationRef.current?.focus(); }
+                            else { refs.reqRef.current?.focus(); }
+                          }}/>
                       </td>
                       <td style={{padding:"3px 4px"}}>
                         <input ref={refs.reqRef} type="number" min={0} step="any" value={rm.requiredQty}
@@ -859,7 +885,7 @@ function ManufacturingJournalForm({
         </div>
 
         <div style={{marginBottom:16}}>
-          <textarea value={form.narration} onChange={e=>setForm(f=>({...f,narration:e.target.value}))} rows={2}
+          <textarea ref={mjNarrationRef} value={form.narration} onChange={e=>setForm(f=>({...f,narration:e.target.value}))} rows={2}
             placeholder="Narration (optional)..."
             style={{width:"100%",padding:"8px",border:"1px solid #cbd5e1",borderRadius:4,fontSize:12,resize:"vertical",boxSizing:"border-box"}}/>
         </div>
