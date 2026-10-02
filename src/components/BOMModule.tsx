@@ -158,6 +158,8 @@ function BOMForm({
   company: Company|null; stockItems: StockItem[]; editingBOM: BOM|null;
   onSave: ()=>void; onCancel: ()=>void;
 }) {
+  // Track which rows are loading their purchase rate
+  const [rateLoadingRows, setRateLoadingRows] = useState<Record<number, boolean>>({});
   const [form, setForm] = useState<BOM>(editingBOM || {
     companyId: company?.id||0, name:"", finishedItemId:0, finishedItemName:"",
     outputQty:1, outputUnit:"Nos", narration:"",
@@ -191,6 +193,29 @@ function BOMForm({
   };
   ensureRefs(form.items.length);
 
+  const fetchPurchaseRate = async (stockItemId: number, idx: number) => {
+    if (!company?.id || !stockItemId) return;
+    setRateLoadingRows(prev => ({...prev, [idx]: true}));
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(
+        `/api/stock-items?purchaseRate=1&stockItemId=${stockItemId}&companyId=${company.id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const d = await res.json();
+      if (d.success && (d.rate !== undefined)) {
+        setForm(f => {
+          const items = [...f.items];
+          if (!items[idx]) return f;
+          const rate = parseFloat(d.rate) || 0;
+          items[idx] = {...items[idx], rate, amount: (parseFloat(String(items[idx].qty))||0) * rate};
+          return {...f, items};
+        });
+      }
+    } catch(e) { /* silent */ }
+    setRateLoadingRows(prev => ({...prev, [idx]: false}));
+  };
+
   const updateRow = (idx: number, key: keyof BOMItem, val: any) => {
     setForm(f => {
       const items = [...f.items];
@@ -203,14 +228,20 @@ function BOMForm({
       if (key==="itemName") {
         const si = stockItems.find(s=>s.name.toLowerCase()===val.toLowerCase());
         if (si) {
-          items[idx].stockItemId=si.id;
-          items[idx].unit=si.unit||si.unitName||"Nos";
-          items[idx].rate=si.openingRate||0;
-          items[idx].amount=(parseFloat(String(items[idx].qty))||0)*(si.openingRate||0);
+          items[idx].stockItemId = si.id;
+          items[idx].unit = si.unit||si.unitName||"Nos";
+          // Temporarily set openingRate; purchase rate will be fetched async below
+          items[idx].rate = si.openingRate||0;
+          items[idx].amount = (parseFloat(String(items[idx].qty))||0) * (si.openingRate||0);
         }
       }
       return {...f, items};
     });
+    // After state update, fetch the real purchase rate
+    if (key==="itemName") {
+      const si = stockItems.find(s=>s.name.toLowerCase()===val.toLowerCase());
+      if (si) fetchPurchaseRate(si.id, idx);
+    }
   };
 
   const addRowAndFocus = (afterIdx: number) => {
@@ -328,11 +359,12 @@ function BOMForm({
                         onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();refs.rateRef.current?.focus();}}}
                         style={{width:"100%",padding:"5px",border:"1px solid #cbd5e1",borderRadius:3,textAlign:"center",fontSize:12}}/>
                     </td>
-                    <td style={{padding:"4px 6px"}}>
+                    <td style={{padding:"4px 6px",position:"relative"}}>
                       <input ref={refs.rateRef} type="number" min={0} step="any" value={row.rate}
                         onChange={e=>updateRow(idx,"rate",e.target.value)}
                         onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();handleRateTab(idx);}}}
-                        style={{width:"100%",padding:"5px",border:"1px solid #cbd5e1",borderRadius:3,textAlign:"right",fontSize:12}}/>
+                        style={{width:"100%",padding:"5px",border:rateLoadingRows[idx]?"1px solid #7c3aed":"1px solid #cbd5e1",borderRadius:3,textAlign:"right",fontSize:12,background:rateLoadingRows[idx]?"#ede9fe":undefined}}/>
+                      {rateLoadingRows[idx]&&<span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:9,color:"#7c3aed"}}>⏳</span>}
                     </td>
                     <td style={{padding:"4px 6px",textAlign:"right",fontWeight:"bold",color:"#0f766e"}}>₹{fmt2(row.amount)}</td>
                     <td style={{padding:"4px 6px",textAlign:"center"}}>
@@ -486,6 +518,25 @@ function ManufacturingJournalForm({
     });
   };
 
+  const fetchRMPurchaseRate = async (stockItemId:number, idx:number) => {
+    if(!company?.id||!stockItemId) return;
+    try {
+      const token=authClient.getToken();
+      const res=await fetch(`/api/stock-items?purchaseRate=1&stockItemId=${stockItemId}&companyId=${company.id}`,
+        {headers:{Authorization:`Bearer ${token}`}});
+      const d=await res.json();
+      if(d.success&&d.rate!==undefined){
+        setForm(f=>{
+          const rms=[...f.rawMaterials];
+          if(!rms[idx]) return f;
+          const rate=parseFloat(d.rate)||0;
+          rms[idx]={...rms[idx],rate,amount:(parseFloat(String(rms[idx].actualQty))||0)*rate};
+          return {...f,rawMaterials:rms};
+        });
+      }
+    } catch(e){}
+  };
+
   const updateRM = (idx:number, key:keyof RawMaterial, val:any) => {
     setForm(f=>{
       const rms=[...f.rawMaterials];
@@ -497,10 +548,21 @@ function ManufacturingJournalForm({
       }
       if(key==="itemName"){
         const si=stockItems.find(s=>s.name.toLowerCase()===val.toLowerCase());
-        if(si){rms[idx].stockItemId=si.id;rms[idx].unit=si.unit||si.unitName||"Nos";rms[idx].rate=si.openingRate||0;rms[idx].amount=(parseFloat(String(rms[idx].actualQty))||0)*(si.openingRate||0);}
+        if(si){
+          rms[idx].stockItemId=si.id;
+          rms[idx].unit=si.unit||si.unitName||"Nos";
+          // Temporarily set openingRate; purchase rate fetched async below
+          rms[idx].rate=si.openingRate||0;
+          rms[idx].amount=(parseFloat(String(rms[idx].actualQty))||0)*(si.openingRate||0);
+        }
       }
       return {...f,rawMaterials:rms};
     });
+    // Fetch real purchase rate after state update
+    if(key==="itemName"){
+      const si=stockItems.find(s=>s.name.toLowerCase()===val.toLowerCase());
+      if(si) fetchRMPurchaseRate(si.id, idx);
+    }
   };
 
   const handleRMRateTab = (idx:number) => {

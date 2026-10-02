@@ -139,6 +139,37 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const companyId = searchParams.get('companyId');
+    const purchaseRate = searchParams.get('purchaseRate');
+    const stockItemId = searchParams.get('stockItemId');
+
+    // --- Fetch last purchase rate for a specific stock item ---
+    if (purchaseRate === '1' && stockItemId && companyId) {
+      const itemId = parseInt(stockItemId);
+      const cid = parseInt(companyId);
+
+      // Find the latest Purchase voucher that has this stock item in inventoryEntries
+      const lastEntry = await prisma.inventoryEntry.findFirst({
+        where: {
+          stockItemId: itemId,
+          voucher: {
+            companyId: cid,
+            type: 'Purchase',
+          },
+        },
+        orderBy: { id: 'desc' },
+        select: { rate: true },
+      });
+
+      if (lastEntry && lastEntry.rate > 0) {
+        return NextResponse.json({ success: true, rate: lastEntry.rate });
+      }
+
+      // Fallback: use openingRate from the stock item
+      const item = await prisma.stockItem.findFirst({ where: { id: itemId, companyId: cid } });
+      return NextResponse.json({ success: true, rate: item?.openingRate ?? 0, fallback: true });
+    }
+
+    // --- Default: list all stock items ---
     const rawItems = await prisma.stockItem.findMany({
       where: companyId ? { companyId: parseInt(companyId) } : undefined
     });
