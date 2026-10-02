@@ -6,7 +6,7 @@ interface StockItem {
   id: number; companyId: number; name: string; unit: string; unitName?: string;
   openingQty: number; openingRate: number; gstRate: number; hsnCode?: string; under?: string;
 }
-interface Ledger { id: number; name: string; groupName: string; }
+interface Ledger { id: number; name: string; groupName: string; openingBalance?: number; balanceType?: string; }
 interface Company { id: number; name: string; }
 interface BOMItem {
   id?: number; stockItemId: number; itemName: string; qty: number | string;
@@ -69,97 +69,192 @@ const emptyJournal = (companyId: number): ManufacturingJournal => ({
   rawMaterials:[emptyRawMaterial()], directExpenses:[emptyDirectExpense()],
 });
 // ============================================================
-// GOLDEN YELLOW AUTOCOMPLETE INPUT WITH ARROW KEY NAVIGATION
+// TALLY-STYLE RIGHT SIDE LIST PANEL (MATCHES SALES & PURCHASE VOUCHER)
 // ============================================================
-function AutocompleteInput({
-  value, options, onSelect, placeholder, style, onTab, inputRef: extRef, onAltC
+interface TallySideListItem {
+  id?: number;
+  name: string;
+  subText?: string;
+  rightText?: string;
+  isNegative?: boolean;
+  raw?: any;
+}
+
+function TallySideListPanel({
+  title,
+  themeColor = "#1c3a5f",
+  items,
+  selectedIndex,
+  showEndOfList,
+  onSelect,
+  onSelectEndOfList,
+  onAltC,
+  altCLabel,
+  onClose,
+  emptyText = "No matching items found"
 }: {
-  value: string; options: string[]; onSelect: (v: string) => void;
-  placeholder?: string; style?: React.CSSProperties;
-  onTab?: () => void; inputRef?: React.RefObject<HTMLInputElement>;
+  title: string;
+  themeColor?: string;
+  items: TallySideListItem[];
+  selectedIndex: number;
+  showEndOfList?: boolean;
+  onSelect: (item: any) => void;
+  onSelectEndOfList?: () => void;
   onAltC?: () => void;
+  altCLabel?: string;
+  onClose?: () => void;
+  emptyText?: string;
 }) {
-  const [show, setShow] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const internalRef = useRef<HTMLInputElement>(null);
-  const inputRef = extRef || internalRef;
   const listRef = useRef<HTMLDivElement>(null);
-  const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase())).slice(0,15);
 
-  useEffect(() => { setActiveIdx(-1); }, [value, show]);
-
-  const scrollToActive = (idx: number) => {
+  useEffect(() => {
     if (!listRef.current) return;
-    const items = listRef.current.querySelectorAll("[data-item]");
-    if (items[idx]) (items[idx] as HTMLElement).scrollIntoView({ block:"nearest" });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.altKey && e.key.toLowerCase() === "c") {
-      e.preventDefault();
-      e.stopPropagation();
-      setShow(false);
-      onAltC?.();
-      return;
+    const elements = listRef.current.querySelectorAll("[data-side-item]");
+    if (elements[selectedIndex]) {
+      (elements[selectedIndex] as HTMLElement).scrollIntoView({ block: "nearest" });
     }
-    if (!show || filtered.length === 0) {
-      if (e.key === "Tab" && onTab) { e.preventDefault(); onTab(); }
-      // Enter on closed dropdown (or empty field) also triggers onTab
-      if (e.key === "Enter" && onTab) { e.preventDefault(); onTab(); }
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      const next = Math.min(activeIdx+1, filtered.length-1);
-      setActiveIdx(next); scrollToActive(next);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      const prev = Math.max(activeIdx-1, -1);
-      setActiveIdx(prev); if (prev >= 0) scrollToActive(prev);
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      if (activeIdx >= 0) {
-        e.preventDefault();
-        onSelect(filtered[activeIdx]);
-        setShow(false);
-        if ((e.key === "Tab" || e.key === "Enter") && onTab) setTimeout(onTab, 10);
-      } else if (e.key === "Tab" && onTab) {
-        setShow(false); e.preventDefault(); onTab();
-      } else if (e.key === "Enter" && onTab) {
-        // Enter with dropdown open but nothing selected → also call onTab
-        setShow(false); e.preventDefault(); onTab();
-      }
-    } else if (e.key === "Escape") { setShow(false); }
-  };
+  }, [selectedIndex]);
 
   return (
-    <div style={{ position:"relative" }}>
-      <input ref={inputRef} type="text" value={value}
-        onChange={e => { onSelect(e.target.value); setShow(true); setActiveIdx(-1); }}
-        onFocus={() => { setShow(true); setActiveIdx(-1); }}
-        onBlur={() => setTimeout(() => setShow(false), 180)}
-        onKeyDown={handleKeyDown} placeholder={placeholder}
-        style={{ width:"100%", padding:"5px 8px", border:"1px solid #cbd5e1", borderRadius:3, fontSize:12, boxSizing:"border-box", ...style }}
-      />
-      {show && filtered.length > 0 && (
-        <div ref={listRef} style={{
-          position:"absolute", top:"100%", left:0, right:0, zIndex:9999,
-          background:"#fff", border:"1px solid #fbbf24", borderRadius:3,
-          boxShadow:"0 4px 16px rgba(0,0,0,0.18)", maxHeight:220, overflowY:"auto"
-        }}>
-          {filtered.map((o,i) => (
-            <div key={i} data-item
-              onMouseDown={() => { onSelect(o); setShow(false); }}
-              onMouseEnter={() => setActiveIdx(i)}
-              style={{
-                padding:"6px 10px", fontSize:12, cursor:"pointer", borderBottom:"1px solid #f1f5f9",
-                background: i===activeIdx ? "#fef08a" : "white",
-                color: i===activeIdx ? "#78350f" : "#1e293b",
-                fontWeight: i===activeIdx ? "bold" : "normal",
-                transition:"background 0.08s"
-              }}>{o}</div>
-          ))}
+    <div style={{
+      position: "absolute",
+      top: 0,
+      right: 0,
+      bottom: 0,
+      width: 320,
+      background: "#dde4f0",
+      zIndex: 100,
+      borderLeft: `2px solid ${themeColor}`,
+      display: "flex",
+      flexDirection: "column",
+      boxShadow: "-4px 0 16px rgba(0,0,0,0.18)",
+      fontFamily: "inherit"
+    }}>
+      {/* Header */}
+      <div style={{
+        background: themeColor,
+        color: "#fff",
+        padding: "8px 14px",
+        fontWeight: "bold",
+        fontSize: 13,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between"
+      }}>
+        <span>{title} ({items.length})</span>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "white",
+              cursor: "pointer",
+              fontSize: 14,
+              opacity: 0.8
+            }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* Alt+C Banner */}
+      {onAltC && (
+        <div
+          onMouseDown={e => {
+            e.preventDefault();
+            onAltC();
+          }}
+          style={{
+            padding: "5px 14px",
+            color: "#8B4000",
+            fontSize: 11,
+            fontWeight: "bold",
+            cursor: "pointer",
+            background: "#fffbe6",
+            borderBottom: "1px solid #f0d060",
+            userSelect: "none"
+          }}
+        >
+          ⚡ {altCLabel || "Alt+C: Create New"}
         </div>
       )}
+
+      {/* List items */}
+      <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: "4px 0" }}>
+        {showEndOfList && (
+          <div
+            data-side-item
+            onMouseDown={e => {
+              e.preventDefault();
+              onSelectEndOfList?.();
+            }}
+            style={{
+              padding: "6px 16px",
+              cursor: "pointer",
+              background: selectedIndex === 0 ? "#ffc436" : "transparent",
+              fontWeight: selectedIndex === 0 ? "bold" : "normal",
+              fontSize: 12,
+              color: "#8B0000",
+              borderBottom: "1px solid #cbd5e1"
+            }}
+          >
+            End of List
+          </div>
+        )}
+
+        {items.length === 0 ? (
+          <div style={{ padding: "16px 14px", fontSize: 12, color: "#64748b", fontStyle: "italic", textAlign: "center" }}>
+            {emptyText}
+          </div>
+        ) : (
+          items.map((it, idx) => {
+            const itemIndex = showEndOfList ? idx + 1 : idx;
+            const isSelected = selectedIndex === itemIndex;
+            return (
+              <div
+                key={idx}
+                data-side-item
+                onMouseDown={e => {
+                  e.preventDefault();
+                  onSelect(it.raw || it.name);
+                }}
+                style={{
+                  padding: "6px 16px",
+                  cursor: "pointer",
+                  background: isSelected ? "#ffc436" : "transparent",
+                  fontWeight: isSelected ? "bold" : "normal",
+                  fontSize: 12,
+                  color: "#1e293b",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderBottom: "1px solid rgba(0,0,0,0.03)"
+                }}
+              >
+                <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: 8 }}>
+                  <span>{it.name}</span>
+                  {it.subText && (
+                    <div style={{ fontSize: 10, color: "#64748b", fontWeight: "normal" }}>{it.subText}</div>
+                  )}
+                </div>
+                {it.rightText && (
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: "bold",
+                    color: it.isNegative ? "#dc2626" : "#0f766e",
+                    whiteSpace: "nowrap"
+                  }}>
+                    {it.rightText}
+                  </span>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
@@ -177,6 +272,7 @@ function BOMForm({
   const [rateLoadingRows, setRateLoadingRows] = useState<Record<number, boolean>>({});
   const narrationRef = useRef<HTMLTextAreaElement>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
+  const outputQtyRef = useRef<HTMLInputElement>(null);
   const [saved, setSaved] = useState(false); // prevent double-save
   const [form, setForm] = useState<BOM>(editingBOM || {
     companyId: company?.id||0, name:"", finishedItemId:0, finishedItemName:"",
@@ -189,7 +285,33 @@ function BOMForm({
     itemRef: React.RefObject<HTMLInputElement>; qtyRef: React.RefObject<HTMLInputElement>;
     unitRef: React.RefObject<HTMLInputElement>; rateRef: React.RefObject<HTMLInputElement>;
   }>>([]);
-  const itemNames = stockItems.map(s => s.name);
+
+  // Side List Drawer State
+  const [activeSideField, setActiveSideField] = useState<
+    { type: 'finishedProduct' } | { type: 'rawMaterial'; idx: number } | null
+  >(null);
+  const [sideFilter, setSideFilter] = useState("");
+  const [sideSelectedIndex, setSideSelectedIndex] = useState(0);
+
+  const filteredStockItems = stockItems.filter(s =>
+    s.name.toLowerCase().includes(sideFilter.toLowerCase().trim())
+  );
+
+  const finishedSideItems: TallySideListItem[] = filteredStockItems.map(s => ({
+    id: s.id,
+    name: s.name,
+    subText: s.under || undefined,
+    rightText: `${s.openingQty || 0} ${s.unit || s.unitName || 'Nos'}`,
+    raw: s
+  }));
+
+  const rawSideItems: TallySideListItem[] = filteredStockItems.map(s => ({
+    id: s.id,
+    name: s.name,
+    subText: s.under || undefined,
+    rightText: `${s.openingQty || 0} ${s.unit || s.unitName || 'Nos'}`,
+    raw: s
+  }));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -248,7 +370,7 @@ function BOMForm({
         items[idx].amount = q*r;
       }
       if (key==="itemName") {
-        const si = stockItems.find(s=>s.name.toLowerCase()===val.toLowerCase());
+        const si = stockItems.find(s=>s.name.toLowerCase()===String(val).toLowerCase());
         if (si) {
           items[idx].stockItemId = si.id;
           items[idx].unit = si.unit||si.unitName||"Nos";
@@ -261,8 +383,133 @@ function BOMForm({
     });
     // After state update, fetch the real purchase rate
     if (key==="itemName") {
-      const si = stockItems.find(s=>s.name.toLowerCase()===val.toLowerCase());
+      const si = stockItems.find(s=>s.name.toLowerCase()===String(val).toLowerCase());
       if (si) fetchPurchaseRate(si.id, idx);
+    }
+  };
+
+  const selectFinishedItem = (item: any) => {
+    const si = typeof item === 'string'
+      ? stockItems.find(s => s.name.toLowerCase() === item.toLowerCase())
+      : item;
+    if (si) {
+      setForm(f => ({
+        ...f,
+        finishedItemName: si.name,
+        finishedItemId: si.id || 0,
+        outputUnit: si.unit || si.unitName || f.outputUnit
+      }));
+    } else if (typeof item === 'string') {
+      setForm(f => ({ ...f, finishedItemName: item }));
+    }
+    setActiveSideField(null);
+    setTimeout(() => outputQtyRef.current?.focus(), 30);
+  };
+
+  const handleFinishedKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.altKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      e.stopPropagation();
+      onAltC?.({
+        fieldType: 'stockItem',
+        onCreated: (newItem: any) => {
+          if (newItem?.name) {
+            const unit = newItem.unit || newItem.unitName || form.outputUnit;
+            setForm(f => ({
+              ...f,
+              finishedItemName: newItem.name,
+              finishedItemId: newItem.id || 0,
+              outputUnit: unit
+            }));
+            setActiveSideField(null);
+            setTimeout(() => outputQtyRef.current?.focus(), 30);
+          }
+        }
+      });
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.min(prev + 1, Math.max(0, filteredStockItems.length - 1)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      const picked = filteredStockItems[sideSelectedIndex];
+      if (picked) {
+        selectFinishedItem(picked);
+      } else {
+        setActiveSideField(null);
+        outputQtyRef.current?.focus();
+      }
+    } else if (e.key === "Escape") {
+      setActiveSideField(null);
+    }
+  };
+
+  const selectRawItem = (idx: number, item: any) => {
+    const itemName = typeof item === 'string' ? item : item?.name;
+    if (itemName) {
+      updateRow(idx, "itemName", itemName);
+      setActiveSideField(null);
+      setTimeout(() => rowRefs.current[idx]?.qtyRef?.current?.focus(), 30);
+    }
+  };
+
+  const handleSelectEndOfList = () => {
+    cleanupBlankRows();
+    setActiveSideField(null);
+    setTimeout(() => narrationRef.current?.focus(), 30);
+  };
+
+  const handleRawItemKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    if ((e.altKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      e.stopPropagation();
+      onAltC?.({
+        fieldType: 'stockItem',
+        onCreated: (newItem: any) => {
+          if (newItem?.name) {
+            updateRow(idx, "itemName", newItem.name);
+            setActiveSideField(null);
+            setTimeout(() => rowRefs.current[idx]?.qtyRef?.current?.focus(), 30);
+          }
+        }
+      });
+      return;
+    }
+    const maxIndex = filteredStockItems.length; // 0 is End of List
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.min(prev + 1, maxIndex));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (sideSelectedIndex === 0 || !form.items[idx]?.itemName.trim()) {
+        handleSelectEndOfList();
+      } else {
+        const picked = filteredStockItems[sideSelectedIndex - 1];
+        if (picked) {
+          selectRawItem(idx, picked);
+        } else {
+          setActiveSideField(null);
+          rowRefs.current[idx]?.qtyRef?.current?.focus();
+        }
+      }
+    } else if (e.key === "Tab") {
+      if (!form.items[idx]?.itemName.trim()) {
+        e.preventDefault();
+        handleSelectEndOfList();
+      } else {
+        setActiveSideField(null);
+        e.preventDefault();
+        rowRefs.current[idx]?.qtyRef?.current?.focus();
+      }
+    } else if (e.key === "Escape") {
+      setActiveSideField(null);
     }
   };
 
@@ -282,7 +529,6 @@ function BOMForm({
   const removeRow = (idx: number) => setForm(f => ({...f, items:f.items.filter((_,i)=>i!==idx)}));
 
   const cleanupBlankRows = () => {
-    // Remove all blank rows; if filled items exist, keep only filled ones
     setForm(f => {
       const filled = f.items.filter(i => i.itemName.trim());
       return {
@@ -307,6 +553,7 @@ function BOMForm({
     // If current row's item is blank → clean up blank rows and go to Narration
     if (!form.items[idx]?.itemName.trim()) {
       cleanupBlankRows();
+      setActiveSideField(null);
       setTimeout(() => narrationRef.current?.focus(), 30);
       return;
     }
@@ -337,7 +584,7 @@ function BOMForm({
   };
 
   return (
-    <div style={{height:"100%",display:"flex",flexDirection:"column"}}>
+    <div style={{height:"100%",display:"flex",flexDirection:"column",position:"relative",overflow:"hidden"}}>
       <div style={{background:"#1c3a5f",color:"white",padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
         <span style={{fontSize:18}}>🏭</span>
         <div>
@@ -346,7 +593,13 @@ function BOMForm({
         </div>
         <button onClick={onCancel} style={{marginLeft:"auto",background:"rgba(255,255,255,0.15)",border:"none",color:"white",padding:"5px 14px",borderRadius:3,cursor:"pointer"}}>✕ Cancel</button>
       </div>
-      <div style={{flex:1,overflowY:"auto",padding:20}}>
+      <div style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: 20,
+        marginRight: activeSideField ? 320 : 0,
+        transition: "margin-right 0.15s ease"
+      }}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:16,background:"#f8fafc",padding:14,borderRadius:6,border:"1px solid #e2e8f0"}}>
           <div>
             <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>BOM NAME *</label>
@@ -355,35 +608,40 @@ function BOMForm({
           </div>
           <div>
             <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>FINISHED PRODUCT *</label>
-            <AutocompleteInput
+            <input
               value={form.finishedItemName}
-              options={itemNames}
-              placeholder="Select Item..."
-              onAltC={() => {
-                onAltC?.({
-                  fieldType: 'stockItem',
-                  onCreated: (newItem: any) => {
-                    if (newItem?.name) {
-                      const unit = newItem.unit || newItem.unitName || form.outputUnit;
-                      setForm(f => ({
-                        ...f,
-                        finishedItemName: newItem.name,
-                        finishedItemId: newItem.id || 0,
-                        outputUnit: unit
-                      }));
-                    }
-                  }
-                });
+              onChange={e => {
+                setForm(f => ({ ...f, finishedItemName: e.target.value }));
+                setSideFilter(e.target.value);
+                setSideSelectedIndex(0);
               }}
-              onSelect={v=>{
-                const si=stockItems.find(s=>s.name.toLowerCase()===v.toLowerCase());
-                setForm(f=>({...f,finishedItemName:v,finishedItemId:si?.id||0,outputUnit:si?.unit||si?.unitName||f.outputUnit}));
+              onFocus={() => {
+                setActiveSideField({ type: 'finishedProduct' });
+                setSideFilter(form.finishedItemName);
+                setSideSelectedIndex(0);
+              }}
+              onClick={() => {
+                setActiveSideField({ type: 'finishedProduct' });
+                setSideFilter(form.finishedItemName);
+                setSideSelectedIndex(0);
+              }}
+              onKeyDown={handleFinishedKeyDown}
+              placeholder="Select Item..."
+              style={{
+                width: "100%",
+                padding: "7px 10px",
+                border: activeSideField?.type === 'finishedProduct' ? "2px solid #1c3a5f" : "1px solid #cbd5e1",
+                borderRadius: 4,
+                fontSize: 13,
+                fontWeight: "bold",
+                boxSizing: "border-box",
+                background: "#fff"
               }}
             />
           </div>
           <div>
             <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>OUTPUT QUANTITY</label>
-            <input type="number" min={0} step="any" value={form.outputQty} onChange={e=>setForm(f=>({...f,outputQty:e.target.value}))}
+            <input ref={outputQtyRef} type="number" min={0} step="any" value={form.outputQty} onChange={e=>setForm(f=>({...f,outputQty:e.target.value}))}
               style={{width:"100%",padding:"7px 10px",border:"1px solid #cbd5e1",borderRadius:4,fontSize:13,boxSizing:"border-box"}}/>
           </div>
           <div>
@@ -414,34 +672,39 @@ function BOMForm({
               {form.items.map((row,idx)=>{
                 ensureRefs(idx+1);
                 const refs = rowRefs.current[idx];
+                const isItemActive = activeSideField?.type === 'rawMaterial' && activeSideField.idx === idx;
                 return (
                   <tr key={idx} style={{borderBottom:"1px solid #f1f5f9"}}>
                     <td style={{textAlign:"center",color:"#94a3b8",fontSize:11,padding:"4px 6px"}}>{idx+1}</td>
                     <td style={{padding:"4px 6px"}}>
-                      <AutocompleteInput
-                        inputRef={refs.itemRef}
+                      <input
+                        ref={refs.itemRef}
                         value={row.itemName}
-                        options={itemNames}
-                        placeholder="Select raw material..."
-                        onAltC={() => {
-                          onAltC?.({
-                            fieldType: 'stockItem',
-                            onCreated: (newItem: any) => {
-                              if (newItem?.name) {
-                                updateRow(idx, "itemName", newItem.name);
-                              }
-                            }
-                          });
+                        onChange={e => {
+                          updateRow(idx, "itemName", e.target.value);
+                          setSideFilter(e.target.value);
+                          setSideSelectedIndex(0);
                         }}
-                        onSelect={v=>updateRow(idx,"itemName",v)}
-                        onTab={()=>{
-                          // If item is blank → clean up blank rows and jump to Narration; else → go to Qty
-                          if (!row.itemName.trim()) {
-                            cleanupBlankRows();
-                            setTimeout(()=>narrationRef.current?.focus(), 30);
-                          } else {
-                            refs.qtyRef.current?.focus();
-                          }
+                        onFocus={() => {
+                          setActiveSideField({ type: 'rawMaterial', idx });
+                          setSideFilter(row.itemName);
+                          setSideSelectedIndex(0);
+                        }}
+                        onClick={() => {
+                          setActiveSideField({ type: 'rawMaterial', idx });
+                          setSideFilter(row.itemName);
+                          setSideSelectedIndex(0);
+                        }}
+                        onKeyDown={e => handleRawItemKeyDown(e, idx)}
+                        placeholder="Select raw material..."
+                        style={{
+                          width: "100%",
+                          padding: "6px 8px",
+                          border: isItemActive ? "2px solid #1c3a5f" : "1px solid #cbd5e1",
+                          borderRadius: 3,
+                          fontSize: 12,
+                          boxSizing: "border-box",
+                          background: "#fff"
                         }}
                       />
                     </td>
@@ -489,7 +752,7 @@ function BOMForm({
             <button type="button" onClick={addNewRow} style={{background:"#fff",border:"1px solid #cbd5e1",color:"#1e293b",padding:"4px 12px",borderRadius:4,fontSize:11,cursor:"pointer",fontWeight:"600",display:"inline-flex",alignItems:"center",gap:4}}>
               + Add Raw Material
             </button>
-            <span style={{fontSize:11,color:"#64748b"}}>💡 Enter on blank item jumps to Narration &amp; hides empty row</span>
+            <span style={{fontSize:11,color:"#64748b"}}>💡 Enter on blank item or &apos;End of List&apos; jumps to Narration</span>
           </div>
         </div>
         <div style={{marginBottom:16}}>
@@ -511,6 +774,52 @@ function BOMForm({
           <button onClick={onCancel} style={{background:"#f1f5f9",color:"#475569",border:"1px solid #cbd5e1",borderRadius:4,padding:"10px 20px",cursor:"pointer",fontSize:13}}>Cancel</button>
         </div>
       </div>
+
+      {/* Tally Right-Side Drawer Panel for BOM Form */}
+      {activeSideField && (
+        <TallySideListPanel
+          title="List of Stock Items"
+          themeColor="#1c3a5f"
+          items={activeSideField.type === 'finishedProduct' ? finishedSideItems : rawSideItems}
+          selectedIndex={sideSelectedIndex}
+          showEndOfList={activeSideField.type === 'rawMaterial'}
+          onSelect={item => {
+            if (activeSideField.type === 'finishedProduct') {
+              selectFinishedItem(item);
+            } else {
+              selectRawItem(activeSideField.idx, item);
+            }
+          }}
+          onSelectEndOfList={handleSelectEndOfList}
+          onAltC={() => {
+            onAltC?.({
+              fieldType: 'stockItem',
+              onCreated: (newItem: any) => {
+                if (newItem?.name) {
+                  if (activeSideField.type === 'finishedProduct') {
+                    const unit = newItem.unit || newItem.unitName || form.outputUnit;
+                    setForm(f => ({
+                      ...f,
+                      finishedItemName: newItem.name,
+                      finishedItemId: newItem.id || 0,
+                      outputUnit: unit
+                    }));
+                    setActiveSideField(null);
+                    setTimeout(() => outputQtyRef.current?.focus(), 30);
+                  } else {
+                    updateRow(activeSideField.idx, "itemName", newItem.name);
+                    setActiveSideField(null);
+                    setTimeout(() => rowRefs.current[activeSideField.idx]?.qtyRef?.current?.focus(), 30);
+                  }
+                }
+              }
+            });
+          }}
+          altCLabel="Alt+C: Create New Stock Item"
+          onClose={() => setActiveSideField(null)}
+          emptyText="No matching stock items found"
+        />
+      )}
     </div>
   );
 }
@@ -530,6 +839,7 @@ function ManufacturingJournalForm({
   const [loadingBOM, setLoadingBOM] = useState(false);
   const loadedBOMRef = useRef<LoadedBOM|null>(null);
   const mjNarrationRef = useRef<HTMLTextAreaElement>(null);
+  const mjOutputQtyRef = useRef<HTMLInputElement>(null);
 
   const rmRefs = useRef<Array<{
     itemRef:React.RefObject<HTMLInputElement>; reqRef:React.RefObject<HTMLInputElement>;
@@ -538,15 +848,53 @@ function ManufacturingJournalForm({
   }>>([]);
   const deRefs = useRef<Array<{ledgerRef:React.RefObject<HTMLInputElement>;amtRef:React.RefObject<HTMLInputElement>}>>([]);
 
+  // Side drawer state
+  const [activeSideField, setActiveSideField] = useState<
+    { type: 'finishedProduct' } | { type: 'rawMaterial'; idx: number } | { type: 'expenseLedger'; idx: number } | null
+  >(null);
+  const [sideFilter, setSideFilter] = useState("");
+  const [sideSelectedIndex, setSideSelectedIndex] = useState(0);
+
+  const filteredStockItems = stockItems.filter(s =>
+    s.name.toLowerCase().includes(sideFilter.toLowerCase().trim())
+  );
+  const expenseLedgers = ledgers.filter(l => EXPENSE_LEDGER_GROUPS.includes(l.groupName));
+  const availableLedgers = expenseLedgers.length > 0 ? expenseLedgers : ledgers;
+  const filteredLedgers = availableLedgers.filter(l =>
+    l.name.toLowerCase().includes(sideFilter.toLowerCase().trim())
+  );
+
+  const mjFinishedSideItems: TallySideListItem[] = filteredStockItems.map(s => ({
+    id: s.id,
+    name: s.name,
+    subText: s.under || undefined,
+    rightText: `${s.openingQty || 0} ${s.unit || s.unitName || 'Nos'}`,
+    raw: s
+  }));
+
+  const mjRawSideItems: TallySideListItem[] = filteredStockItems.map(s => ({
+    id: s.id,
+    name: s.name,
+    subText: s.under || undefined,
+    rightText: `${s.openingQty || 0} ${s.unit || s.unitName || 'Nos'}`,
+    raw: s
+  }));
+
+  const deSideItems: TallySideListItem[] = filteredLedgers.map(l => ({
+    id: l.id,
+    name: l.name,
+    subText: l.groupName,
+    rightText: l.openingBalance !== undefined
+      ? `${Math.abs(l.openingBalance).toFixed(2)} ${l.balanceType || (l.openingBalance >= 0 ? 'Dr' : 'Cr')}`
+      : undefined,
+    raw: l
+  }));
+
   useEffect(()=>{
     const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape"){e.preventDefault();e.stopPropagation();onCancel();}};
     window.addEventListener("keydown",onKey);
     return ()=>window.removeEventListener("keydown",onKey);
   },[onCancel]);
-
-  const itemNames = stockItems.map(s=>s.name);
-  const expenseLedgers = ledgers.filter(l=>EXPENSE_LEDGER_GROUPS.includes(l.groupName));
-  const expenseLedgerNames = expenseLedgers.map(l=>l.name);
 
   const totalRawCost = form.rawMaterials.reduce((s,r)=>s+(parseFloat(String(r.rate))||0)*(parseFloat(String(r.actualQty))||0),0);
   const totalDirectExp = form.directExpenses.reduce((s,d)=>s+(parseFloat(String(d.amount))||0),0);
@@ -656,7 +1004,7 @@ function ManufacturingJournalForm({
         rms[idx].amount=q*r;
       }
       if(key==="itemName"){
-        const si=stockItems.find(s=>s.name.toLowerCase()===val.toLowerCase());
+        const si=stockItems.find(s=>s.name.toLowerCase()===String(val).toLowerCase());
         if(si){
           rms[idx].stockItemId=si.id;
           rms[idx].unit=si.unit||si.unitName||"Nos";
@@ -669,8 +1017,77 @@ function ManufacturingJournalForm({
     });
     // Fetch real purchase rate after state update
     if(key==="itemName"){
-      const si=stockItems.find(s=>s.name.toLowerCase()===val.toLowerCase());
+      const si=stockItems.find(s=>s.name.toLowerCase()===String(val).toLowerCase());
       if(si) fetchRMPurchaseRate(si.id, idx);
+    }
+  };
+
+  const selectMJFinishedItem = (item: any) => {
+    const si = typeof item === 'string'
+      ? stockItems.find(s => s.name.toLowerCase() === item.toLowerCase())
+      : item;
+    if (si) {
+      setForm(f => ({
+        ...f,
+        finishedItemName: si.name,
+        finishedItemId: si.id || 0,
+        outputUnit: si.unit || si.unitName || f.outputUnit
+      }));
+    } else if (typeof item === 'string') {
+      setForm(f => ({ ...f, finishedItemName: item }));
+    }
+    setActiveSideField(null);
+    setTimeout(() => mjOutputQtyRef.current?.focus(), 30);
+  };
+
+  const handleMJFinishedKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.altKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      e.stopPropagation();
+      onAltC?.({
+        fieldType: 'stockItem',
+        onCreated: (newItem: any) => {
+          if (newItem?.name) {
+            const unit = newItem.unit || newItem.unitName || form.outputUnit;
+            setForm(f => ({
+              ...f,
+              finishedItemName: newItem.name,
+              finishedItemId: newItem.id || 0,
+              outputUnit: unit
+            }));
+            setActiveSideField(null);
+            setTimeout(() => mjOutputQtyRef.current?.focus(), 30);
+          }
+        }
+      });
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.min(prev + 1, Math.max(0, filteredStockItems.length - 1)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      const picked = filteredStockItems[sideSelectedIndex];
+      if (picked) {
+        selectMJFinishedItem(picked);
+      } else {
+        setActiveSideField(null);
+        mjOutputQtyRef.current?.focus();
+      }
+    } else if (e.key === "Escape") {
+      setActiveSideField(null);
+    }
+  };
+
+  const selectMJRawItem = (idx: number, item: any) => {
+    const itemName = typeof item === 'string' ? item : item?.name;
+    if (itemName) {
+      updateRM(idx, "itemName", itemName);
+      setActiveSideField(null);
+      setTimeout(() => rmRefs.current[idx]?.reqRef?.current?.focus(), 30);
     }
   };
 
@@ -684,11 +1101,72 @@ function ManufacturingJournalForm({
     });
   };
 
+  const handleMJRawEndOfList = () => {
+    cleanupRMBlankRows();
+    setActiveSideField(null);
+    setTimeout(() => {
+      if (deRefs.current[0]?.ledgerRef?.current) {
+        deRefs.current[0].ledgerRef.current.focus();
+      } else {
+        mjNarrationRef.current?.focus();
+      }
+    }, 30);
+  };
+
+  const handleMJRawKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    if ((e.altKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      e.stopPropagation();
+      onAltC?.({
+        fieldType: 'stockItem',
+        onCreated: (newItem: any) => {
+          if (newItem?.name) {
+            updateRM(idx, "itemName", newItem.name);
+            setActiveSideField(null);
+            setTimeout(() => rmRefs.current[idx]?.reqRef?.current?.focus(), 30);
+          }
+        }
+      });
+      return;
+    }
+    const maxIndex = filteredStockItems.length; // 0 is End of List
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.min(prev + 1, maxIndex));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (sideSelectedIndex === 0 || !form.rawMaterials[idx]?.itemName.trim()) {
+        handleMJRawEndOfList();
+      } else {
+        const picked = filteredStockItems[sideSelectedIndex - 1];
+        if (picked) {
+          selectMJRawItem(idx, picked);
+        } else {
+          setActiveSideField(null);
+          rmRefs.current[idx]?.reqRef?.current?.focus();
+        }
+      }
+    } else if (e.key === "Tab") {
+      if (!form.rawMaterials[idx]?.itemName.trim()) {
+        e.preventDefault();
+        handleMJRawEndOfList();
+      } else {
+        setActiveSideField(null);
+        e.preventDefault();
+        rmRefs.current[idx]?.reqRef?.current?.focus();
+      }
+    } else if (e.key === "Escape") {
+      setActiveSideField(null);
+    }
+  };
+
   const handleRMRateTab = (idx:number) => {
-    // If current row's item is blank → clean up blank rows and go to Narration
+    // If current row's item is blank → clean up blank rows and go to Direct Expenses or Narration
     if (!form.rawMaterials[idx]?.itemName.trim()) {
-      cleanupRMBlankRows();
-      setTimeout(() => mjNarrationRef.current?.focus(), 30);
+      handleMJRawEndOfList();
       return;
     }
     if(idx===form.rawMaterials.length-1){
@@ -702,13 +1180,92 @@ function ManufacturingJournalForm({
     setForm(f=>{
       const des=[...f.directExpenses];
       des[idx]={...des[idx],[key]:val};
-      if(key==="ledgerName"){const led=expenseLedgers.find(l=>l.name.toLowerCase()===val.toLowerCase());if(led)des[idx].ledgerId=led.id;}
+      if(key==="ledgerName"){const led=availableLedgers.find(l=>l.name.toLowerCase()===String(val).toLowerCase());if(led)des[idx].ledgerId=led.id;}
       if(des[idx].method==="Percentage"&&(key==="percentage"||key==="method")){
         const pct=parseFloat(key==="percentage"?val:String(des[idx].percentage))||0;
         des[idx].amount=(totalRawCost*pct)/100;
       }
       return {...f,directExpenses:des};
     });
+  };
+
+  const selectMJExpenseLedger = (idx: number, item: any) => {
+    const lName = typeof item === 'string' ? item : item?.name;
+    const lId = typeof item === 'object' ? item?.id : availableLedgers.find(l=>l.name.toLowerCase()===lName?.toLowerCase())?.id;
+    if (lName) {
+      updateDE(idx, "ledgerName", lName);
+      if (lId) {
+        setForm(f => {
+          const des = [...f.directExpenses];
+          if (des[idx]) des[idx] = { ...des[idx], ledgerId: lId };
+          return { ...f, directExpenses: des };
+        });
+      }
+      setActiveSideField(null);
+      setTimeout(() => deRefs.current[idx]?.amtRef?.current?.focus(), 30);
+    }
+  };
+
+  const handleMJExpenseEndOfList = () => {
+    setForm(f => {
+      const filled = f.directExpenses.filter(d => d.ledgerName.trim());
+      return {
+        ...f,
+        directExpenses: filled.length > 0 ? filled : [emptyDirectExpense()]
+      };
+    });
+    setActiveSideField(null);
+    setTimeout(() => mjNarrationRef.current?.focus(), 30);
+  };
+
+  const handleMJExpenseKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    if ((e.altKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      e.stopPropagation();
+      onAltC?.({
+        fieldType: 'ledger',
+        onCreated: (newItem: any) => {
+          if (newItem?.name) {
+            updateDE(idx, "ledgerName", newItem.name);
+            setActiveSideField(null);
+            setTimeout(() => deRefs.current[idx]?.amtRef?.current?.focus(), 30);
+          }
+        }
+      });
+      return;
+    }
+    const maxIndex = filteredLedgers.length; // 0 is End of List
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.min(prev + 1, maxIndex));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSideSelectedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (sideSelectedIndex === 0 || !form.directExpenses[idx]?.ledgerName.trim()) {
+        handleMJExpenseEndOfList();
+      } else {
+        const picked = filteredLedgers[sideSelectedIndex - 1];
+        if (picked) {
+          selectMJExpenseLedger(idx, picked);
+        } else {
+          setActiveSideField(null);
+          deRefs.current[idx]?.amtRef?.current?.focus();
+        }
+      }
+    } else if (e.key === "Tab") {
+      if (!form.directExpenses[idx]?.ledgerName.trim()) {
+        e.preventDefault();
+        handleMJExpenseEndOfList();
+      } else {
+        setActiveSideField(null);
+        e.preventDefault();
+        deRefs.current[idx]?.amtRef?.current?.focus();
+      }
+    } else if (e.key === "Escape") {
+      setActiveSideField(null);
+    }
   };
 
   const handleDEAmtTab = (idx:number) => {
@@ -743,7 +1300,7 @@ function ManufacturingJournalForm({
   };
 
   return (
-    <div style={{height:"100%",display:"flex",flexDirection:"column"}}>
+    <div style={{height:"100%",display:"flex",flexDirection:"column",position:"relative",overflow:"hidden"}}>
       <div style={{background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"white",padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
         <span style={{fontSize:20}}>⚙️</span>
         <div>
@@ -752,7 +1309,14 @@ function ManufacturingJournalForm({
         </div>
         <button onClick={onCancel} style={{marginLeft:"auto",background:"rgba(255,255,255,0.2)",border:"none",color:"white",padding:"5px 14px",borderRadius:3,cursor:"pointer"}}>✕ Cancel</button>
       </div>
-      <div style={{flex:1,overflowY:"auto",padding:20,background:"#f8fafc"}}>
+      <div style={{
+        flex:1,
+        overflowY:"auto",
+        padding:20,
+        background:"#f8fafc",
+        marginRight: activeSideField ? 320 : 0,
+        transition: "margin-right 0.15s ease"
+      }}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:16,background:"#fff",padding:14,borderRadius:6,border:"1px solid #e2e8f0"}}>
           <div>
             <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>DATE</label>
@@ -770,33 +1334,41 @@ function ManufacturingJournalForm({
           </div>
           <div>
             <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>FINISHED PRODUCT *</label>
-            <AutocompleteInput
+            <input
               value={form.finishedItemName}
-              options={itemNames}
-              placeholder="Select Item..."
-              onAltC={() => {
-                onAltC?.({
-                  fieldType: 'stockItem',
-                  onCreated: (newItem: any) => {
-                    if (newItem?.name) {
-                      const unit = newItem.unit || newItem.unitName || form.outputUnit;
-                      setForm(f => ({
-                        ...f,
-                        finishedItemName: newItem.name,
-                        finishedItemId: newItem.id || 0,
-                        outputUnit: unit
-                      }));
-                    }
-                  }
-                });
+              onChange={e => {
+                setForm(f => ({ ...f, finishedItemName: e.target.value }));
+                setSideFilter(e.target.value);
+                setSideSelectedIndex(0);
               }}
-              onSelect={v=>{const si=stockItems.find(s=>s.name.toLowerCase()===v.toLowerCase());setForm(f=>({...f,finishedItemName:v,finishedItemId:si?.id||0,outputUnit:si?.unit||si?.unitName||f.outputUnit}));}}
+              onFocus={() => {
+                setActiveSideField({ type: 'finishedProduct' });
+                setSideFilter(form.finishedItemName);
+                setSideSelectedIndex(0);
+              }}
+              onClick={() => {
+                setActiveSideField({ type: 'finishedProduct' });
+                setSideFilter(form.finishedItemName);
+                setSideSelectedIndex(0);
+              }}
+              onKeyDown={handleMJFinishedKeyDown}
+              placeholder="Select Item..."
+              style={{
+                width: "100%",
+                padding: "7px 10px",
+                border: activeSideField?.type === 'finishedProduct' ? "2px solid #7c3aed" : "1px solid #cbd5e1",
+                borderRadius: 4,
+                fontSize: 13,
+                fontWeight: "bold",
+                boxSizing: "border-box",
+                background: "#fff"
+              }}
             />
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
             <div>
               <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>OUTPUT QTY *</label>
-              <input type="number" min={0} step="any" value={form.outputQty}
+              <input ref={mjOutputQtyRef} type="number" min={0} step="any" value={form.outputQty}
                 onChange={e=>handleOutputQtyChange(e.target.value)}
                 style={{width:"100%",padding:"7px 10px",border:"2px solid #7c3aed",borderRadius:4,fontSize:13,fontWeight:"bold",boxSizing:"border-box"}}/>
             </div>
@@ -831,32 +1403,39 @@ function ManufacturingJournalForm({
                 {form.rawMaterials.map((rm,idx)=>{
                   ensureRMRefs(idx+1);
                   const refs=rmRefs.current[idx];
+                  const isItemActive = activeSideField?.type === 'rawMaterial' && activeSideField.idx === idx;
                   return (
                     <tr key={idx} style={{borderBottom:"1px solid #f8fafc"}}>
                       <td style={{textAlign:"center",color:"#94a3b8",padding:"3px 4px"}}>{idx+1}</td>
                       <td style={{padding:"3px 4px"}}>
-                        <AutocompleteInput
-                          inputRef={refs.itemRef}
+                        <input
+                          ref={refs.itemRef}
                           value={rm.itemName}
-                          options={itemNames}
-                          placeholder="Item..."
-                          onAltC={() => {
-                            onAltC?.({
-                              fieldType: 'stockItem',
-                              onCreated: (newItem: any) => {
-                                if (newItem?.name) updateRM(idx, "itemName", newItem.name);
-                              }
-                            });
+                          onChange={e => {
+                            updateRM(idx, "itemName", e.target.value);
+                            setSideFilter(e.target.value);
+                            setSideSelectedIndex(0);
                           }}
-                          onSelect={v=>updateRM(idx,"itemName",v)}
-                          onTab={()=>{
-                            // If item is blank → jump to Narration; else → go to Req.Qty
-                            if (!rm.itemName.trim()) {
-                              cleanupRMBlankRows();
-                              setTimeout(() => mjNarrationRef.current?.focus(), 30);
-                            } else {
-                              refs.reqRef.current?.focus();
-                            }
+                          onFocus={() => {
+                            setActiveSideField({ type: 'rawMaterial', idx });
+                            setSideFilter(rm.itemName);
+                            setSideSelectedIndex(0);
+                          }}
+                          onClick={() => {
+                            setActiveSideField({ type: 'rawMaterial', idx });
+                            setSideFilter(rm.itemName);
+                            setSideSelectedIndex(0);
+                          }}
+                          onKeyDown={e => handleMJRawKeyDown(e, idx)}
+                          placeholder="Item..."
+                          style={{
+                            width: "100%",
+                            padding: "5px 6px",
+                            border: isItemActive ? "2px solid #7c3aed" : "1px solid #cbd5e1",
+                            borderRadius: 3,
+                            fontSize: 11,
+                            boxSizing: "border-box",
+                            background: "#fff"
                           }}
                         />
                       </td>
@@ -925,24 +1504,39 @@ function ManufacturingJournalForm({
                   {form.directExpenses.map((de,idx)=>{
                     ensureDERefs(idx+1);
                     const refs=deRefs.current[idx];
+                    const isLedgerActive = activeSideField?.type === 'expenseLedger' && activeSideField.idx === idx;
                     return (
                       <tr key={idx} style={{borderBottom:"1px solid #fef9c3"}}>
                         <td style={{padding:"3px 5px"}}>
-                          <AutocompleteInput
-                            inputRef={refs.ledgerRef}
+                          <input
+                            ref={refs.ledgerRef}
                             value={de.ledgerName}
-                            options={expenseLedgerNames}
-                            placeholder="Wages, Electricity..."
-                            onAltC={() => {
-                              onAltC?.({
-                                fieldType: 'ledger',
-                                onCreated: (newItem: any) => {
-                                  if (newItem?.name) updateDE(idx, "ledgerName", newItem.name);
-                                }
-                              });
+                            onChange={e => {
+                              updateDE(idx, "ledgerName", e.target.value);
+                              setSideFilter(e.target.value);
+                              setSideSelectedIndex(0);
                             }}
-                            onSelect={v=>updateDE(idx,"ledgerName",v)}
-                            onTab={()=>refs.amtRef.current?.focus()}
+                            onFocus={() => {
+                              setActiveSideField({ type: 'expenseLedger', idx });
+                              setSideFilter(de.ledgerName);
+                              setSideSelectedIndex(0);
+                            }}
+                            onClick={() => {
+                              setActiveSideField({ type: 'expenseLedger', idx });
+                              setSideFilter(de.ledgerName);
+                              setSideSelectedIndex(0);
+                            }}
+                            onKeyDown={e => handleMJExpenseKeyDown(e, idx)}
+                            placeholder="Wages, Electricity..."
+                            style={{
+                              width: "100%",
+                              padding: "5px 6px",
+                              border: isLedgerActive ? "2px solid #b45309" : "1px solid #cbd5e1",
+                              borderRadius: 3,
+                              fontSize: 11,
+                              boxSizing: "border-box",
+                              background: "#fff"
+                            }}
                           />
                         </td>
                         <td style={{padding:"3px 4px"}}>
@@ -1057,6 +1651,89 @@ function ManufacturingJournalForm({
           </div>
         </div>
       </div>
+
+      {/* Tally Right-Side Drawer Panel for Manufacturing Journal */}
+      {activeSideField && (
+        <TallySideListPanel
+          title={
+            activeSideField.type === 'expenseLedger'
+              ? "List of Expense Ledgers"
+              : "List of Stock Items"
+          }
+          themeColor={activeSideField.type === 'expenseLedger' ? "#b45309" : "#7c3aed"}
+          items={
+            activeSideField.type === 'expenseLedger'
+              ? deSideItems
+              : activeSideField.type === 'finishedProduct'
+              ? mjFinishedSideItems
+              : mjRawSideItems
+          }
+          selectedIndex={sideSelectedIndex}
+          showEndOfList={activeSideField.type === 'rawMaterial' || activeSideField.type === 'expenseLedger'}
+          onSelect={item => {
+            if (activeSideField.type === 'finishedProduct') {
+              selectMJFinishedItem(item);
+            } else if (activeSideField.type === 'rawMaterial') {
+              selectMJRawItem(activeSideField.idx, item);
+            } else if (activeSideField.type === 'expenseLedger') {
+              selectMJExpenseLedger(activeSideField.idx, item);
+            }
+          }}
+          onSelectEndOfList={() => {
+            if (activeSideField.type === 'rawMaterial') {
+              handleMJRawEndOfList();
+            } else if (activeSideField.type === 'expenseLedger') {
+              handleMJExpenseEndOfList();
+            }
+          }}
+          onAltC={() => {
+            if (activeSideField.type === 'expenseLedger') {
+              const idx = activeSideField.idx;
+              onAltC?.({
+                fieldType: 'ledger',
+                onCreated: (newItem: any) => {
+                  if (newItem?.name) {
+                    setForm(f => {
+                      const des = [...f.directExpenses];
+                      des[idx] = { ...des[idx], ledgerName: newItem.name, ledgerId: newItem.id || null };
+                      return { ...f, directExpenses: des };
+                    });
+                    setActiveSideField(null);
+                    setTimeout(() => deRefs.current[idx]?.amtRef?.current?.focus(), 30);
+                  }
+                }
+              });
+            } else {
+              onAltC?.({
+                fieldType: 'stockItem',
+                onCreated: (newItem: any) => {
+                  if (newItem?.name) {
+                    if (activeSideField.type === 'finishedProduct') {
+                      const unit = newItem.unit || newItem.unitName || form.outputUnit;
+                      setForm(f => ({
+                        ...f,
+                        finishedItemName: newItem.name,
+                        finishedItemId: newItem.id || 0,
+                        outputUnit: unit
+                      }));
+                      setActiveSideField(null);
+                      setTimeout(() => mjOutputQtyRef.current?.focus(), 30);
+                    } else if (activeSideField.type === 'rawMaterial') {
+                      const idx = activeSideField.idx;
+                      updateRM(idx, "itemName", newItem.name);
+                      setActiveSideField(null);
+                      setTimeout(() => rmRefs.current[idx]?.reqRef?.current?.focus(), 30);
+                    }
+                  }
+                }
+              });
+            }
+          }}
+          altCLabel={activeSideField.type === 'expenseLedger' ? "Alt+C: Create New Ledger" : "Alt+C: Create New Stock Item"}
+          onClose={() => setActiveSideField(null)}
+          emptyText={activeSideField.type === 'expenseLedger' ? "No matching expense ledgers found" : "No matching stock items found"}
+        />
+      )}
     </div>
   );
 }
