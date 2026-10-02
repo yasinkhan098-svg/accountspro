@@ -45,6 +45,7 @@ interface LoadedBOM {
 interface BOMModuleProps {
   company: Company | null; stockItems: StockItem[]; ledgers: Ledger[];
   onBack: () => void; initialTab?: "bom" | "journal" | "register";
+  onAltC?: (ctx: { fieldType: 'stockItem' | 'ledger' | 'group' | 'stockGroup' | 'unit'; onCreated: (newItem: any) => void }) => void;
 }
 
 const WASTAGE_TYPES: WastageType[] = ["None", "Vaporised", "Burnt", "Drainage", "Washed", "Scrap"];
@@ -71,11 +72,12 @@ const emptyJournal = (companyId: number): ManufacturingJournal => ({
 // GOLDEN YELLOW AUTOCOMPLETE INPUT WITH ARROW KEY NAVIGATION
 // ============================================================
 function AutocompleteInput({
-  value, options, onSelect, placeholder, style, onTab, inputRef: extRef
+  value, options, onSelect, placeholder, style, onTab, inputRef: extRef, onAltC
 }: {
   value: string; options: string[]; onSelect: (v: string) => void;
   placeholder?: string; style?: React.CSSProperties;
   onTab?: () => void; inputRef?: React.RefObject<HTMLInputElement>;
+  onAltC?: () => void;
 }) {
   const [show, setShow] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -93,6 +95,13 @@ function AutocompleteInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.altKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      e.stopPropagation();
+      setShow(false);
+      onAltC?.();
+      return;
+    }
     if (!show || filtered.length === 0) {
       if (e.key === "Tab" && onTab) { e.preventDefault(); onTab(); }
       // Enter on closed dropdown (or empty field) also triggers onTab
@@ -112,7 +121,7 @@ function AutocompleteInput({
         e.preventDefault();
         onSelect(filtered[activeIdx]);
         setShow(false);
-        if (e.key === "Tab" && onTab) setTimeout(onTab, 10);
+        if ((e.key === "Tab" || e.key === "Enter") && onTab) setTimeout(onTab, 10);
       } else if (e.key === "Tab" && onTab) {
         setShow(false); e.preventDefault(); onTab();
       } else if (e.key === "Enter" && onTab) {
@@ -158,10 +167,11 @@ function AutocompleteInput({
 // BOM TEMPLATE FORM
 // ============================================================
 function BOMForm({
-  company, stockItems, editingBOM, onSave, onCancel
+  company, stockItems, editingBOM, onSave, onCancel, onAltC
 }: {
   company: Company|null; stockItems: StockItem[]; editingBOM: BOM|null;
   onSave: ()=>void; onCancel: ()=>void;
+  onAltC?: (ctx: { fieldType: 'stockItem' | 'ledger' | 'group' | 'stockGroup' | 'unit'; onCreated: (newItem: any) => void }) => void;
 }) {
   // Track which rows are loading their purchase rate
   const [rateLoadingRows, setRateLoadingRows] = useState<Record<number, boolean>>({});
@@ -272,16 +282,30 @@ function BOMForm({
   const removeRow = (idx: number) => setForm(f => ({...f, items:f.items.filter((_,i)=>i!==idx)}));
 
   const cleanupBlankRows = () => {
-    // Remove all blank rows, keep only filled ones + one blank at end
+    // Remove all blank rows; if filled items exist, keep only filled ones
     setForm(f => {
       const filled = f.items.filter(i => i.itemName.trim());
-      return {...f, items: filled.length > 0 ? [...filled, {stockItemId:0,itemName:"",qty:"",unit:"Nos",rate:"",amount:0}] : [{stockItemId:0,itemName:"",qty:"",unit:"Nos",rate:"",amount:0}]};
+      return {
+        ...f,
+        items: filled.length > 0 ? filled : [{stockItemId:0,itemName:"",qty:"",unit:"Nos",rate:"",amount:0}]
+      };
     });
+  };
+
+  const addNewRow = () => {
+    setForm(f => ({
+      ...f,
+      items: [...f.items, {stockItemId:0,itemName:"",qty:"",unit:"Nos",rate:"",amount:0}]
+    }));
+    ensureRefs(form.items.length + 1);
+    setTimeout(() => {
+      rowRefs.current[form.items.length]?.itemRef?.current?.focus();
+    }, 50);
   };
 
   const handleRateTab = (idx: number) => {
     // If current row's item is blank → clean up blank rows and go to Narration
-    if (!form.items[idx].itemName.trim()) {
+    if (!form.items[idx]?.itemName.trim()) {
       cleanupBlankRows();
       setTimeout(() => narrationRef.current?.focus(), 30);
       return;
@@ -331,8 +355,31 @@ function BOMForm({
           </div>
           <div>
             <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>FINISHED PRODUCT *</label>
-            <AutocompleteInput value={form.finishedItemName} options={itemNames} placeholder="Select Item..."
-              onSelect={v=>{const si=stockItems.find(s=>s.name.toLowerCase()===v.toLowerCase());setForm(f=>({...f,finishedItemName:v,finishedItemId:si?.id||0,outputUnit:si?.unit||si?.unitName||f.outputUnit}));}}/>
+            <AutocompleteInput
+              value={form.finishedItemName}
+              options={itemNames}
+              placeholder="Select Item..."
+              onAltC={() => {
+                onAltC?.({
+                  fieldType: 'stockItem',
+                  onCreated: (newItem: any) => {
+                    if (newItem?.name) {
+                      const unit = newItem.unit || newItem.unitName || form.outputUnit;
+                      setForm(f => ({
+                        ...f,
+                        finishedItemName: newItem.name,
+                        finishedItemId: newItem.id || 0,
+                        outputUnit: unit
+                      }));
+                    }
+                  }
+                });
+              }}
+              onSelect={v=>{
+                const si=stockItems.find(s=>s.name.toLowerCase()===v.toLowerCase());
+                setForm(f=>({...f,finishedItemName:v,finishedItemId:si?.id||0,outputUnit:si?.unit||si?.unitName||f.outputUnit}));
+              }}
+            />
           </div>
           <div>
             <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>OUTPUT QUANTITY</label>
@@ -367,20 +414,36 @@ function BOMForm({
               {form.items.map((row,idx)=>{
                 ensureRefs(idx+1);
                 const refs = rowRefs.current[idx];
-                const isLastRow = idx === form.items.length - 1;
-                // Hide intermediate blank rows (keep only last blank row as active input row)
-                if (!row.itemName.trim() && !isLastRow) return null;
                 return (
                   <tr key={idx} style={{borderBottom:"1px solid #f1f5f9"}}>
                     <td style={{textAlign:"center",color:"#94a3b8",fontSize:11,padding:"4px 6px"}}>{idx+1}</td>
                     <td style={{padding:"4px 6px"}}>
-                      <AutocompleteInput inputRef={refs.itemRef} value={row.itemName} options={itemNames}
-                        placeholder="Select raw material..." onSelect={v=>updateRow(idx,"itemName",v)}
+                      <AutocompleteInput
+                        inputRef={refs.itemRef}
+                        value={row.itemName}
+                        options={itemNames}
+                        placeholder="Select raw material..."
+                        onAltC={() => {
+                          onAltC?.({
+                            fieldType: 'stockItem',
+                            onCreated: (newItem: any) => {
+                              if (newItem?.name) {
+                                updateRow(idx, "itemName", newItem.name);
+                              }
+                            }
+                          });
+                        }}
+                        onSelect={v=>updateRow(idx,"itemName",v)}
                         onTab={()=>{
                           // If item is blank → clean up blank rows and jump to Narration; else → go to Qty
-                          if (!row.itemName.trim()) { cleanupBlankRows(); setTimeout(()=>narrationRef.current?.focus(),30); }
-                          else { refs.qtyRef.current?.focus(); }
-                        }}/>
+                          if (!row.itemName.trim()) {
+                            cleanupBlankRows();
+                            setTimeout(()=>narrationRef.current?.focus(), 30);
+                          } else {
+                            refs.qtyRef.current?.focus();
+                          }
+                        }}
+                      />
                     </td>
                     <td style={{padding:"4px 6px"}}>
                       <input ref={refs.qtyRef} type="number" min={0} step="any" value={row.qty}
@@ -422,6 +485,12 @@ function BOMForm({
               </tr>
             </tfoot>
           </table>
+          <div style={{padding:"6px 12px",background:"#f8fafc",borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <button type="button" onClick={addNewRow} style={{background:"#fff",border:"1px solid #cbd5e1",color:"#1e293b",padding:"4px 12px",borderRadius:4,fontSize:11,cursor:"pointer",fontWeight:"600",display:"inline-flex",alignItems:"center",gap:4}}>
+              + Add Raw Material
+            </button>
+            <span style={{fontSize:11,color:"#64748b"}}>💡 Enter on blank item jumps to Narration &amp; hides empty row</span>
+          </div>
         </div>
         <div style={{marginBottom:16}}>
           <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>NARRATION</label>
@@ -449,10 +518,11 @@ function BOMForm({
 // MANUFACTURING JOURNAL FORM
 // ============================================================
 function ManufacturingJournalForm({
-  company, stockItems, ledgers, boms, onSave, onCancel
+  company, stockItems, ledgers, boms, onSave, onCancel, onAltC
 }: {
   company: Company|null; stockItems: StockItem[]; ledgers: Ledger[];
   boms: any[]; onSave: ()=>void; onCancel: ()=>void;
+  onAltC?: (ctx: { fieldType: 'stockItem' | 'ledger' | 'group' | 'stockGroup' | 'unit'; onCreated: (newItem: any) => void }) => void;
 }) {
   const [form, setForm] = useState<ManufacturingJournal>(emptyJournal(company?.id||0));
   const [saving, setSaving] = useState(false);
@@ -604,10 +674,21 @@ function ManufacturingJournalForm({
     }
   };
 
+  const cleanupRMBlankRows = () => {
+    setForm(f => {
+      const filled = f.rawMaterials.filter(r => r.itemName.trim());
+      return {
+        ...f,
+        rawMaterials: filled.length > 0 ? filled : [emptyRawMaterial()]
+      };
+    });
+  };
+
   const handleRMRateTab = (idx:number) => {
-    // If current row's item is blank → go to Narration (don't create empty row)
-    if (!form.rawMaterials[idx].itemName.trim()) {
-      mjNarrationRef.current?.focus();
+    // If current row's item is blank → clean up blank rows and go to Narration
+    if (!form.rawMaterials[idx]?.itemName.trim()) {
+      cleanupRMBlankRows();
+      setTimeout(() => mjNarrationRef.current?.focus(), 30);
       return;
     }
     if(idx===form.rawMaterials.length-1){
@@ -689,8 +770,28 @@ function ManufacturingJournalForm({
           </div>
           <div>
             <label style={{fontSize:11,color:"#64748b",display:"block",marginBottom:4,fontWeight:"bold"}}>FINISHED PRODUCT *</label>
-            <AutocompleteInput value={form.finishedItemName} options={itemNames} placeholder="Select Item..."
-              onSelect={v=>{const si=stockItems.find(s=>s.name.toLowerCase()===v.toLowerCase());setForm(f=>({...f,finishedItemName:v,finishedItemId:si?.id||0,outputUnit:si?.unit||si?.unitName||f.outputUnit}));}}/>
+            <AutocompleteInput
+              value={form.finishedItemName}
+              options={itemNames}
+              placeholder="Select Item..."
+              onAltC={() => {
+                onAltC?.({
+                  fieldType: 'stockItem',
+                  onCreated: (newItem: any) => {
+                    if (newItem?.name) {
+                      const unit = newItem.unit || newItem.unitName || form.outputUnit;
+                      setForm(f => ({
+                        ...f,
+                        finishedItemName: newItem.name,
+                        finishedItemId: newItem.id || 0,
+                        outputUnit: unit
+                      }));
+                    }
+                  }
+                });
+              }}
+              onSelect={v=>{const si=stockItems.find(s=>s.name.toLowerCase()===v.toLowerCase());setForm(f=>({...f,finishedItemName:v,finishedItemId:si?.id||0,outputUnit:si?.unit||si?.unitName||f.outputUnit}));}}
+            />
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
             <div>
@@ -734,13 +835,30 @@ function ManufacturingJournalForm({
                     <tr key={idx} style={{borderBottom:"1px solid #f8fafc"}}>
                       <td style={{textAlign:"center",color:"#94a3b8",padding:"3px 4px"}}>{idx+1}</td>
                       <td style={{padding:"3px 4px"}}>
-                        <AutocompleteInput inputRef={refs.itemRef} value={rm.itemName} options={itemNames} placeholder="Item..."
+                        <AutocompleteInput
+                          inputRef={refs.itemRef}
+                          value={rm.itemName}
+                          options={itemNames}
+                          placeholder="Item..."
+                          onAltC={() => {
+                            onAltC?.({
+                              fieldType: 'stockItem',
+                              onCreated: (newItem: any) => {
+                                if (newItem?.name) updateRM(idx, "itemName", newItem.name);
+                              }
+                            });
+                          }}
                           onSelect={v=>updateRM(idx,"itemName",v)}
                           onTab={()=>{
                             // If item is blank → jump to Narration; else → go to Req.Qty
-                            if (!rm.itemName.trim()) { mjNarrationRef.current?.focus(); }
-                            else { refs.reqRef.current?.focus(); }
-                          }}/>
+                            if (!rm.itemName.trim()) {
+                              cleanupRMBlankRows();
+                              setTimeout(() => mjNarrationRef.current?.focus(), 30);
+                            } else {
+                              refs.reqRef.current?.focus();
+                            }
+                          }}
+                        />
                       </td>
                       <td style={{padding:"3px 4px"}}>
                         <input ref={refs.reqRef} type="number" min={0} step="any" value={rm.requiredQty}
@@ -810,9 +928,22 @@ function ManufacturingJournalForm({
                     return (
                       <tr key={idx} style={{borderBottom:"1px solid #fef9c3"}}>
                         <td style={{padding:"3px 5px"}}>
-                          <AutocompleteInput inputRef={refs.ledgerRef} value={de.ledgerName} options={expenseLedgerNames}
-                            placeholder="Wages, Electricity..." onSelect={v=>updateDE(idx,"ledgerName",v)}
-                            onTab={()=>refs.amtRef.current?.focus()}/>
+                          <AutocompleteInput
+                            inputRef={refs.ledgerRef}
+                            value={de.ledgerName}
+                            options={expenseLedgerNames}
+                            placeholder="Wages, Electricity..."
+                            onAltC={() => {
+                              onAltC?.({
+                                fieldType: 'ledger',
+                                onCreated: (newItem: any) => {
+                                  if (newItem?.name) updateDE(idx, "ledgerName", newItem.name);
+                                }
+                              });
+                            }}
+                            onSelect={v=>updateDE(idx,"ledgerName",v)}
+                            onTab={()=>refs.amtRef.current?.focus()}
+                          />
                         </td>
                         <td style={{padding:"3px 4px"}}>
                           <select value={de.method} onChange={e=>updateDE(idx,"method",e.target.value as "Amount"|"Percentage")}
@@ -932,7 +1063,7 @@ function ManufacturingJournalForm({
 // ============================================================
 // MAIN BOM MODULE
 // ============================================================
-export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="journal" }: BOMModuleProps) {
+export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="journal", onAltC }: BOMModuleProps) {
   const [tab, setTab] = useState<"bom"|"journal"|"register">(initialTab);
   const [boms, setBOMs] = useState<any[]>([]);
   const [journals, setJournals] = useState<SavedJournal[]>([]);
@@ -1017,6 +1148,7 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
   if(showBOMForm) {
     return (
       <BOMForm company={company} stockItems={stockItems} editingBOM={editBOM}
+        onAltC={onAltC}
         onSave={async()=>{ await loadBOMs(); setShowBOMForm(false); setEditBOM(null); showToast("BOM saved!"); }}
         onCancel={()=>{ setShowBOMForm(false); setEditBOM(null); }}/>
     );
@@ -1025,6 +1157,7 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
   if(showJournalForm) {
     return (
       <ManufacturingJournalForm company={company} stockItems={stockItems} ledgers={ledgers} boms={boms}
+        onAltC={onAltC}
         onSave={async()=>{ await loadJournals(); setShowJournalForm(false); showToast("Manufacturing Journal posted! Stock updated ✓"); }}
         onCancel={()=>setShowJournalForm(false)}/>
     );
