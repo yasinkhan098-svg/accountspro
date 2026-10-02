@@ -351,18 +351,18 @@ function BOMForm({
                     <td style={{padding:"4px 6px"}}>
                       <input ref={refs.qtyRef} type="number" min={0} step="any" value={row.qty}
                         onChange={e=>updateRow(idx,"qty",e.target.value)}
-                        onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();refs.unitRef.current?.focus();}}}
+                        onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();refs.unitRef.current?.focus();}}}
                         style={{width:"100%",padding:"5px",border:"1px solid #cbd5e1",borderRadius:3,textAlign:"right",fontSize:12}}/>
                     </td>
                     <td style={{padding:"4px 6px"}}>
                       <input ref={refs.unitRef} value={row.unit} onChange={e=>updateRow(idx,"unit",e.target.value)}
-                        onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();refs.rateRef.current?.focus();}}}
+                        onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();refs.rateRef.current?.focus();}}}
                         style={{width:"100%",padding:"5px",border:"1px solid #cbd5e1",borderRadius:3,textAlign:"center",fontSize:12}}/>
                     </td>
                     <td style={{padding:"4px 6px",position:"relative"}}>
                       <input ref={refs.rateRef} type="number" min={0} step="any" value={row.rate}
                         onChange={e=>updateRow(idx,"rate",e.target.value)}
-                        onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();handleRateTab(idx);}}}
+                        onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();handleRateTab(idx);}}}
                         style={{width:"100%",padding:"5px",border:rateLoadingRows[idx]?"1px solid #7c3aed":"1px solid #cbd5e1",borderRadius:3,textAlign:"right",fontSize:12,background:rateLoadingRows[idx]?"#ede9fe":undefined}}/>
                       {rateLoadingRows[idx]&&<span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:9,color:"#7c3aed"}}>⏳</span>}
                     </td>
@@ -696,25 +696,25 @@ function ManufacturingJournalForm({
                       <td style={{padding:"3px 4px"}}>
                         <input ref={refs.reqRef} type="number" min={0} step="any" value={rm.requiredQty}
                           onChange={e=>setForm(f=>{const rms=[...f.rawMaterials];rms[idx]={...rms[idx],requiredQty:e.target.value};return{...f,rawMaterials:rms};})}
-                          onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();refs.actRef.current?.focus();}}}
+                          onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();refs.actRef.current?.focus();}}}
                           style={{width:"100%",padding:"4px",border:"1px solid #e2e8f0",borderRadius:3,textAlign:"right",fontSize:11,background:"#f0f9ff"}}/>
                       </td>
                       <td style={{padding:"3px 4px"}}>
                         <input ref={refs.actRef} type="number" min={0} step="any" value={rm.actualQty}
                           onChange={e=>updateRM(idx,"actualQty",e.target.value)}
-                          onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();refs.unitRef.current?.focus();}}}
+                          onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();refs.unitRef.current?.focus();}}}
                           style={{width:"100%",padding:"4px",border:"1px solid #cbd5e1",borderRadius:3,textAlign:"right",fontSize:11,fontWeight:"bold"}}/>
                       </td>
                       <td style={{padding:"3px 4px"}}>
                         <input ref={refs.unitRef} value={rm.unit}
                           onChange={e=>setForm(f=>{const rms=[...f.rawMaterials];rms[idx].unit=e.target.value;return{...f,rawMaterials:rms};})}
-                          onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();refs.rateRef.current?.focus();}}}
+                          onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();refs.rateRef.current?.focus();}}}
                           style={{width:"100%",padding:"4px",border:"1px solid #e2e8f0",borderRadius:3,textAlign:"center",fontSize:11}}/>
                       </td>
                       <td style={{padding:"3px 4px"}}>
                         <input ref={refs.rateRef} type="number" min={0} step="any" value={rm.rate}
                           onChange={e=>updateRM(idx,"rate",e.target.value)}
-                          onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();handleRMRateTab(idx);}}}
+                          onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();handleRMRateTab(idx);}}}
                           style={{width:"100%",padding:"4px",border:"1px solid #cbd5e1",borderRadius:3,textAlign:"right",fontSize:11}}/>
                       </td>
                       <td style={{padding:"3px 4px",textAlign:"right",fontWeight:"bold",color:"#0f766e",fontSize:11}}>₹{fmt2(rm.amount)}</td>
