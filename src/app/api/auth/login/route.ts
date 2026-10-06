@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { ensureLicenseTables, generateLicenseKey } from "@/lib/ensureLicenseTables";
 
 export async function POST(req: Request) {
   try {
+    await ensureLicenseTables();
     const { email, password } = await req.json();
 
     if (!email || !password) {
@@ -52,10 +54,15 @@ export async function POST(req: Request) {
     // Generate a secure random session token
     const sessionToken = crypto.randomBytes(32).toString("hex");
 
+    let userLicenseKey = (user as any).licenseKey;
+    if (!userLicenseKey) {
+      userLicenseKey = generateLicenseKey(user.id);
+    }
+
     // Update user with new session token
     await prisma.user.update({
       where: { id: user.id },
-      data: { sessionToken },
+      data: { sessionToken, licenseKey: userLicenseKey },
     });
 
     return NextResponse.json({
@@ -68,7 +75,7 @@ export async function POST(req: Request) {
         organizationName: user.organizationName,
         plan: user.plan,
         subscriptionExpiry: user.subscriptionExpiry,
-        licenseKey: (user as any).licenseKey || null,
+        licenseKey: userLicenseKey,
       }
     });
   } catch (error) {

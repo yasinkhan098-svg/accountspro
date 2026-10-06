@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
+import { ensureLicenseTables, generateLicenseKey } from "@/lib/ensureLicenseTables";
+
 export async function POST(req: Request) {
   try {
+    await ensureLicenseTables();
     const body = await req.json();
     const { name, organizationName, mobile, address, profession, email, password, plan } = body;
 
@@ -49,6 +52,7 @@ export async function POST(req: Request) {
         plan,
         paymentStatus,
         subscriptionExpiry,
+        licenseKey: generateLicenseKey(Date.now().toString().slice(-4)),
       },
     });
 

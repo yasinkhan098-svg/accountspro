@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { Download, Copy, Check, Monitor, ShieldCheck, WifiOff, RefreshCw, X, Laptop } from 'lucide-react';
+import { authClient } from '@/lib/auth-client';
 
 interface Props {
   isOpen: boolean;
@@ -10,7 +11,11 @@ interface Props {
 
 export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }: Props) {
   const [loading, setLoading] = useState(false);
-  const [licenseData, setLicenseData] = useState<any>(null);
+  const [licenseData, setLicenseData] = useState<any>(currentUser ? {
+    licenseKey: currentUser.licenseKey,
+    plan: currentUser.plan,
+    subscriptionExpiry: currentUser.subscriptionExpiry
+  } : null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -22,7 +27,7 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
   const fetchLicenseInfo = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('auth_token');
+      const token = authClient.getToken();
       const res = await fetch('/api/license/my-key', {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -40,10 +45,39 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
   };
 
   const copyLicense = () => {
-    if (licenseData?.licenseKey) {
-      navigator.clipboard.writeText(licenseData.licenseKey);
+    const key = licenseData?.licenseKey || currentUser?.licenseKey;
+    if (key) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(key).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+          }).catch(() => {
+            fallbackCopy(key);
+          });
+        } else {
+          fallbackCopy(key);
+        }
+      } catch (e) {
+        fallbackCopy(key);
+      }
+    }
+  };
+
+  const fallbackCopy = (text: string) => {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+    } catch (err) {
+      console.error("Fallback copy failed", err);
     }
   };
 
