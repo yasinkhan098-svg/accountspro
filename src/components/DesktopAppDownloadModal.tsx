@@ -240,65 +240,99 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
                 border: '1.5px solid #86efac',
                 borderRadius: 12,
                 padding: '20px 22px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
                 marginBottom: 24,
               }}>
-                <div>
+                <div style={{ marginBottom: 14 }}>
                   <h4 style={{ margin: 0, fontSize: 16, color: '#0f172a', fontWeight: 800 }}>
-                    Download Windows Installer (.exe)
+                    Download Desktop Application
                   </h4>
                   <p style={{ margin: '4px 0 0', fontSize: 12, color: '#475569' }}>
-                    Compatible with Windows 10, Windows 11 (64-bit) &bull; Standalone Setup
+                    Select your operating system to download the standalone offline installer:
                   </p>
                 </div>
 
-                <a
-                  href={licenseData?.downloadUrl || '/api/download/desktop-setup'}
-                  download="LedgerX-Setup.exe"
-                  style={{
-                    background: '#16a34a',
-                    color: '#ffffff',
-                    textDecoration: 'none',
-                    padding: '12px 22px',
-                    borderRadius: 8,
-                    fontWeight: 700,
-                    fontSize: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Download size={18} />
-                  Download Setup (.exe)
-                </a>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {/* Windows .exe Button */}
+                  <a
+                    href="/api/download/desktop-setup?os=windows"
+                    download="LedgerX-Setup.exe"
+                    style={{
+                      flex: 1,
+                      minWidth: 220,
+                      background: '#16a34a',
+                      color: '#ffffff',
+                      textDecoration: 'none',
+                      padding: '12px 18px',
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Download size={18} />
+                    <span>Download for <b>Windows (.exe)</b></span>
+                  </a>
+
+                  {/* macOS .dmg Button */}
+                  <a
+                    href="/api/download/desktop-setup?os=mac"
+                    download="LedgerX-Setup.dmg"
+                    style={{
+                      flex: 1,
+                      minWidth: 220,
+                      background: '#0f172a',
+                      color: '#ffffff',
+                      textDecoration: 'none',
+                      padding: '12px 18px',
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 12px rgba(15, 23, 42, 0.25)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Download size={18} />
+                    <span>Download for <b>macOS (.dmg)</b></span>
+                  </a>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 11, color: '#64748b' }}>
+                  <span>&bull; Windows 10, 11 (64-bit)</span>
+                  <span>&bull; macOS 11+ (Apple Silicon M-Series & Intel)</span>
+                </div>
               </div>
 
-              {/* 3 Step Guide */}
+              {/* 3 Step Guide (English) */}
               <div style={{ marginBottom: 20 }}>
                 <h4 style={{ margin: '0 0 14px', fontSize: 14, color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  How to setup on your PC (3 Simple Steps)
+                  How to setup on your computer (3 Simple Steps)
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   <div style={{ background: '#f8fafc', padding: '14px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                     <div style={{ color: '#0284c7', fontWeight: 800, fontSize: 13, marginBottom: 4 }}>1. Install</div>
                     <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.4 }}>
-                      Download `.exe` setup aur double click karke install karein.
+                      Download the installer and double-click to install on your computer.
                     </div>
                   </div>
                   <div style={{ background: '#f8fafc', padding: '14px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                     <div style={{ color: '#0284c7', fontWeight: 800, fontSize: 13, marginBottom: 4 }}>2. 1-Sec Activation</div>
                     <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.4 }}>
-                      Email aur upar di gayi <b>License Key</b> daalkar activate karein.
+                      Open the app, enter your Email & the <b>License Key</b> above to activate.
                     </div>
                   </div>
                   <div style={{ background: '#f8fafc', padding: '14px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                     <div style={{ color: '#16a34a', fontWeight: 800, fontSize: 13, marginBottom: 4 }}>3. Work Offline</div>
                     <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.4 }}>
-                      Bina internet ke vouchers banayein. Online hote hi auto-sync hoga!
+                      Create vouchers and reports without internet. Auto-syncs to cloud when online!
                     </div>
                   </div>
                 </div>

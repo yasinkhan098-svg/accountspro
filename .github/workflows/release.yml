@@ -27,7 +27,7 @@ jobs:
 
       - name: Package Windows Installer
         run: |
-          & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:winexe /out:"public\downloads\LedgerX-Setup.exe" /r:System.Windows.Forms.dll /r:System.Drawing.dll "scratch\Installer.cs"
+          & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /target:winexe /out:"public\downloads\LedgerX-Setup.exe" /r:System.Windows.Forms.dll /r:System.Drawing.dll "electron\Installer.cs"
 
       - name: Upload Installer Artifact
         uses: actions/upload-artifact@v4
