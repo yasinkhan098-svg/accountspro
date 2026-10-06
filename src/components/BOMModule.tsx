@@ -102,6 +102,7 @@ function TallySideListPanel({
   items,
   selectedIndex,
   showEndOfList,
+  filterText = "",
   onSelect,
   onSelectEndOfList,
   onAltC,
@@ -114,6 +115,7 @@ function TallySideListPanel({
   items: TallySideListItem[];
   selectedIndex: number;
   showEndOfList?: boolean;
+  filterText?: string;
   onSelect: (item: any) => void;
   onSelectEndOfList?: () => void;
   onAltC?: () => void;
@@ -122,6 +124,8 @@ function TallySideListPanel({
   emptyText?: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
+  const hasFilter = (filterText || "").trim().length > 0;
+  const shouldShowEol = Boolean(showEndOfList && !hasFilter);
 
   useEffect(() => {
     if (!listRef.current) return;
@@ -200,7 +204,7 @@ function TallySideListPanel({
 
       {/* List items */}
       <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: "4px 0" }}>
-        {showEndOfList && (
+        {shouldShowEol && (
           <div
             data-side-item
             onMouseDown={e => {
@@ -227,7 +231,7 @@ function TallySideListPanel({
           </div>
         ) : (
           items.map((it, idx) => {
-            const itemIndex = showEndOfList ? idx + 1 : idx;
+            const itemIndex = shouldShowEol ? idx + 1 : idx;
             const isSelected = selectedIndex === itemIndex;
             return (
               <div
@@ -495,7 +499,9 @@ function BOMForm({
       });
       return;
     }
-    const maxIndex = filteredStockItems.length; // 0 is End of List
+    const hasFilter = sideFilter.trim().length > 0;
+    const hasEol = !hasFilter;
+    const maxIndex = hasEol ? filteredStockItems.length : Math.max(0, filteredStockItems.length - 1);
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSideSelectedIndex(prev => Math.min(prev + 1, maxIndex));
@@ -504,15 +510,29 @@ function BOMForm({
       setSideSelectedIndex(prev => Math.max(prev - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (sideSelectedIndex === 0 || !form.items[idx]?.itemName.trim()) {
-        handleSelectEndOfList();
+      if (hasEol) {
+        if (sideSelectedIndex === 0) {
+          handleSelectEndOfList();
+        } else {
+          const picked = filteredStockItems[sideSelectedIndex - 1];
+          if (picked) {
+            selectRawItem(idx, picked);
+          } else if (form.items[idx]?.itemName.trim()) {
+            setActiveSideField(null);
+            rowRefs.current[idx]?.qtyRef?.current?.focus();
+          } else {
+            handleSelectEndOfList();
+          }
+        }
       } else {
-        const picked = filteredStockItems[sideSelectedIndex - 1];
+        const picked = filteredStockItems[sideSelectedIndex];
         if (picked) {
           selectRawItem(idx, picked);
-        } else {
+        } else if (form.items[idx]?.itemName.trim()) {
           setActiveSideField(null);
           rowRefs.current[idx]?.qtyRef?.current?.focus();
+        } else {
+          handleSelectEndOfList();
         }
       }
     } else if (e.key === "Tab") {
@@ -799,6 +819,7 @@ function BOMForm({
           items={activeSideField.type === 'finishedProduct' ? finishedSideItems : rawSideItems}
           selectedIndex={sideSelectedIndex}
           showEndOfList={activeSideField.type === 'rawMaterial'}
+          filterText={sideFilter}
           onSelect={item => {
             if (activeSideField.type === 'finishedProduct') {
               selectFinishedItem(item);
@@ -884,9 +905,15 @@ function ManufacturingJournalForm({
     s.name.toLowerCase().includes(sideFilter.toLowerCase().trim())
   );
   const expenseLedgers = ledgers.filter(l => EXPENSE_LEDGER_GROUPS.includes(l.groupName));
+  const otherLedgers = ledgers.filter(l => !EXPENSE_LEDGER_GROUPS.includes(l.groupName));
   const availableLedgers = expenseLedgers.length > 0 ? expenseLedgers : ledgers;
-  const filteredLedgers = availableLedgers.filter(l =>
-    l.name.toLowerCase().includes(sideFilter.toLowerCase().trim())
+  const filteredLedgers = (
+    expenseLedgers.length > 0
+      ? [
+          ...expenseLedgers.filter(l => l.name.toLowerCase().includes(sideFilter.toLowerCase().trim())),
+          ...(sideFilter.trim() ? otherLedgers.filter(l => l.name.toLowerCase().includes(sideFilter.toLowerCase().trim())) : [])
+        ]
+      : ledgers.filter(l => l.name.toLowerCase().includes(sideFilter.toLowerCase().trim()))
   );
 
   const mjFinishedSideItems: TallySideListItem[] = filteredStockItems.map(s => ({
@@ -1159,7 +1186,9 @@ function ManufacturingJournalForm({
       });
       return;
     }
-    const maxIndex = filteredStockItems.length; // 0 is End of List
+    const hasFilter = sideFilter.trim().length > 0;
+    const hasEol = !hasFilter;
+    const maxIndex = hasEol ? filteredStockItems.length : Math.max(0, filteredStockItems.length - 1);
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSideSelectedIndex(prev => Math.min(prev + 1, maxIndex));
@@ -1168,15 +1197,29 @@ function ManufacturingJournalForm({
       setSideSelectedIndex(prev => Math.max(prev - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (sideSelectedIndex === 0 || !form.rawMaterials[idx]?.itemName.trim()) {
-        handleMJRawEndOfList();
+      if (hasEol) {
+        if (sideSelectedIndex === 0) {
+          handleMJRawEndOfList();
+        } else {
+          const picked = filteredStockItems[sideSelectedIndex - 1];
+          if (picked) {
+            selectMJRawItem(idx, picked);
+          } else if (form.rawMaterials[idx]?.itemName.trim()) {
+            setActiveSideField(null);
+            rmRefs.current[idx]?.reqRef?.current?.focus();
+          } else {
+            handleMJRawEndOfList();
+          }
+        }
       } else {
-        const picked = filteredStockItems[sideSelectedIndex - 1];
+        const picked = filteredStockItems[sideSelectedIndex];
         if (picked) {
           selectMJRawItem(idx, picked);
-        } else {
+        } else if (form.rawMaterials[idx]?.itemName.trim()) {
           setActiveSideField(null);
           rmRefs.current[idx]?.reqRef?.current?.focus();
+        } else {
+          handleMJRawEndOfList();
         }
       }
     } else if (e.key === "Tab") {
@@ -1221,24 +1264,27 @@ function ManufacturingJournalForm({
 
   const selectMJExpenseLedger = (idx: number, item: any) => {
     const lName = typeof item === 'string' ? item : item?.name;
-    const lId = typeof item === 'object' ? item?.id : availableLedgers.find(l=>l.name.toLowerCase()===lName?.toLowerCase())?.id;
+    const matchedLedger = typeof item === 'object' && item?.id ? item : (availableLedgers.find(l=>l.name.toLowerCase()===lName?.toLowerCase()) || ledgers.find(l=>l.name.toLowerCase()===lName?.toLowerCase()));
+    const lId = matchedLedger?.id || null;
     if (lName) {
-      updateDE(idx, "ledgerName", lName);
-      if (lId) {
-        setForm(f => {
-          const des = [...f.directExpenses];
-          if (des[idx]) des[idx] = { ...des[idx], ledgerId: lId };
-          return { ...f, directExpenses: des };
-        });
-      }
+      setForm(f => {
+        const des = [...f.directExpenses];
+        if (des[idx]) {
+          des[idx] = { ...des[idx], ledgerName: lName, ledgerId: lId };
+        }
+        return { ...f, directExpenses: des };
+      });
       setActiveSideField(null);
+      setSideFilter("");
+      setSideSelectedIndex(0);
       setTimeout(() => {
-        if (form.directExpenses[idx]?.method === "Percentage") {
+        const currentMethod = form.directExpenses[idx]?.method || "Amount";
+        if (currentMethod === "Percentage") {
           deRefs.current[idx]?.pctRef?.current?.focus();
         } else {
           deRefs.current[idx]?.amtRef?.current?.focus();
         }
-      }, 30);
+      }, 50);
     }
   };
 
@@ -1255,6 +1301,8 @@ function ManufacturingJournalForm({
       };
     });
     setActiveSideField(null);
+    setSideFilter("");
+    setSideSelectedIndex(0);
     setTimeout(() => mjNarrationRef.current?.focus(), 30);
   };
 
@@ -1266,21 +1314,15 @@ function ManufacturingJournalForm({
         fieldType: 'ledger',
         onCreated: (newItem: any) => {
           if (newItem?.name) {
-            updateDE(idx, "ledgerName", newItem.name);
-            setActiveSideField(null);
-            setTimeout(() => {
-              if (form.directExpenses[idx]?.method === "Percentage") {
-                deRefs.current[idx]?.pctRef?.current?.focus();
-              } else {
-                deRefs.current[idx]?.amtRef?.current?.focus();
-              }
-            }, 30);
+            selectMJExpenseLedger(idx, newItem);
           }
         }
       });
       return;
     }
-    const maxIndex = filteredLedgers.length; // 0 is End of List
+    const hasFilter = sideFilter.trim().length > 0;
+    const hasEol = !hasFilter; // End of List only shown at top when no search query
+    const maxIndex = hasEol ? filteredLedgers.length : Math.max(0, filteredLedgers.length - 1);
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSideSelectedIndex(prev => Math.min(prev + 1, maxIndex));
@@ -1289,10 +1331,26 @@ function ManufacturingJournalForm({
       setSideSelectedIndex(prev => Math.max(prev - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (sideSelectedIndex === 0 || !form.directExpenses[idx]?.ledgerName.trim()) {
-        handleMJExpenseEndOfList(idx);
+      if (hasEol) {
+        if (sideSelectedIndex === 0) {
+          handleMJExpenseEndOfList(idx);
+        } else {
+          const picked = filteredLedgers[sideSelectedIndex - 1];
+          if (picked) {
+            selectMJExpenseLedger(idx, picked);
+          } else if (form.directExpenses[idx]?.ledgerName.trim()) {
+            setActiveSideField(null);
+            if (form.directExpenses[idx]?.method === "Percentage") {
+              deRefs.current[idx]?.pctRef?.current?.focus();
+            } else {
+              deRefs.current[idx]?.amtRef?.current?.focus();
+            }
+          } else {
+            handleMJExpenseEndOfList(idx);
+          }
+        }
       } else {
-        const picked = filteredLedgers[sideSelectedIndex - 1];
+        const picked = filteredLedgers[sideSelectedIndex];
         if (picked) {
           selectMJExpenseLedger(idx, picked);
         } else if (form.directExpenses[idx]?.ledgerName.trim()) {
@@ -1716,12 +1774,12 @@ function ManufacturingJournalForm({
                             }}
                             onFocus={() => {
                               setActiveSideField({ type: 'expenseLedger', idx });
-                              setSideFilter(de.ledgerName);
+                              setSideFilter("");
                               setSideSelectedIndex(0);
                             }}
                             onClick={() => {
                               setActiveSideField({ type: 'expenseLedger', idx });
-                              setSideFilter(de.ledgerName);
+                              setSideFilter("");
                               setSideSelectedIndex(0);
                             }}
                             onKeyDown={e => handleMJExpenseKeyDown(e, idx)}
@@ -2025,6 +2083,7 @@ function ManufacturingJournalForm({
           }
           selectedIndex={sideSelectedIndex}
           showEndOfList={activeSideField.type === 'rawMaterial' || activeSideField.type === 'expenseLedger'}
+          filterText={sideFilter}
           onSelect={item => {
             if (activeSideField.type === 'finishedProduct') {
               selectMJFinishedItem(item);
@@ -2038,7 +2097,7 @@ function ManufacturingJournalForm({
             if (activeSideField.type === 'rawMaterial') {
               handleMJRawEndOfList();
             } else if (activeSideField.type === 'expenseLedger') {
-              handleMJExpenseEndOfList();
+              handleMJExpenseEndOfList(activeSideField.idx);
             }
           }}
           onAltC={() => {
