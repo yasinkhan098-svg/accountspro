@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import AuthUI from '@/components/AuthUI';
 import SubscriptionRenewalUI from '@/components/SubscriptionRenewalUI';
 import PlanUpgradeModal from '@/components/PlanUpgradeModal';
+import DesktopAppDownloadModal from '@/components/DesktopAppDownloadModal';
 import VirtualFinalBSModal from '@/virtual-bs/VirtualFinalBSModal';
 import RealtimeDashboardModal from '@/components/dashboard/RealtimeDashboardModal';
 import { PurchaseOrderModule } from '@/components/PurchaseOrderModule';
@@ -629,6 +630,7 @@ export default function App() {
   const [subscriptionExpired, setSubscriptionExpired] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showDesktopDownloadModal, setShowDesktopDownloadModal] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Final Balance Sheet & P&L Export Modal
@@ -2786,6 +2788,19 @@ export default function App() {
                ⬆ UPGRADE
              </button>
            )}
+           <button
+             onClick={() => setShowDesktopDownloadModal(true)}
+             title="Download Desktop App for 100% Offline Work with Auto-Sync"
+             style={{
+               background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+               color: 'white', border: 'none',
+               padding: '4px 10px', fontSize: '10px',
+               fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+               display: 'inline-flex', alignItems: 'center', gap: '4px'
+             }}
+           >
+             💻 DESKTOP APP
+           </button>
            <button 
              onClick={handleLogout}
              style={{
@@ -2933,6 +2948,7 @@ export default function App() {
           </div>
           {/* Footer */}
           <div className="mobile-nav-footer">
+            <button className="mobile-nav-upgrade-btn" style={{ background: '#0284c7', borderColor: '#0284c7', marginBottom: 6 }} onClick={() => { setMobileDrawerOpen(false); setShowDesktopDownloadModal(true); }}>💻 Desktop App</button>
             {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && (
               <button className="mobile-nav-upgrade-btn" onClick={() => { setMobileDrawerOpen(false); setShowUpgradeModal(true); }}>⬆ Upgrade</button>
             )}
@@ -4518,6 +4534,13 @@ export default function App() {
           onClose={() => setShowUpgradeModal(false)}
         />
       )}
+
+      {/* Desktop App Offline Edition Download Modal */}
+      <DesktopAppDownloadModal
+        isOpen={showDesktopDownloadModal}
+        onClose={() => setShowDesktopDownloadModal(false)}
+        currentUser={currentUser}
+      />
 
       {/* Standalone Virtual / Manual CA Balance Sheet & P&L Modal */}
       <VirtualFinalBSModal

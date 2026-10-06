@@ -23,9 +23,23 @@ model User {
   paymentStatus      String?   // 'PENDING', 'SUCCESS', 'TRIAL_EXPIRED'
   razorpayOrderId    String?
   razorpayPaymentId  String?
+  licenseKey         String?   @unique
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   companies        Company[]
+  devices          DeviceActivation[]
+}
+
+model DeviceActivation {
+  id                 Int       @id @default(autoincrement())
+  userId             Int
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  machineId          String
+  deviceName         String?
+  activatedAt        DateTime  @default(now())
+  lastSyncAt         DateTime?
+  lastSeenTimeGuard  DateTime?
+  isActive           Boolean   @default(true)
 }
 
 model Company {

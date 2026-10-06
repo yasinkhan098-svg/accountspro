@@ -67,7 +67,8 @@ export async function POST(req: Request) {
         email: user.email,
         organizationName: user.organizationName,
         plan: user.plan,
-        subscriptionExpiry: user.subscriptionExpiry
+        subscriptionExpiry: user.subscriptionExpiry,
+        licenseKey: (user as any).licenseKey || null,
       }
     });
   } catch (error) {

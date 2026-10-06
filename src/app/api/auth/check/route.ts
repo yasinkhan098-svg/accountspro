@@ -17,6 +17,7 @@ export async function GET(req: Request) {
         organizationName: user.organizationName,
         plan: user.plan,
         subscriptionExpiry: user.subscriptionExpiry,
+        licenseKey: (user as any).licenseKey || null,
         isAdmin: (user as any).isAdmin || false,
       } 
     });
