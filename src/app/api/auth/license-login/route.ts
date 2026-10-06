@@ -14,6 +14,7 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.toLowerCase().trim();
     const cleanKey = licenseKey.toUpperCase().trim();
+    console.log('[AUTH_LICENSE_LOGIN_REQUEST]', { email: cleanEmail, licenseKey: cleanKey });
 
     // 1. Admin Master Bypass
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@ledgerx.com").toLowerCase().trim();

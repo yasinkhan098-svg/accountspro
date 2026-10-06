@@ -10,7 +10,7 @@ namespace LedgerXLauncher
     public class Program
     {
         [STAThread]
-        public static void Main()
+        public static void Main(string[] args)
         {
             try
             {
@@ -22,9 +22,14 @@ namespace LedgerXLauncher
                 if (!Directory.Exists(appDir)) Directory.CreateDirectory(appDir);
                 if (!Directory.Exists(profileDir)) Directory.CreateDirectory(profileDir);
 
-                // Target URL selection
-                string localUrl = "http://localhost:3000";
-                string cloudUrl = "https://accountspro-iota.vercel.app";
+                // Allow passing server URL via command-line argument e.g. LedgerX.exe https://mysite.vercel.app
+                if (args != null && args.Length > 0 && args[0].Trim().StartsWith("http"))
+                {
+                    try { File.WriteAllText(configFile, args[0].Trim()); } catch { }
+                }
+
+                // Default target URL
+                string targetUrl = "http://localhost:3000";
 
                 if (File.Exists(configFile))
                 {
@@ -32,15 +37,12 @@ namespace LedgerXLauncher
                     {
                         string[] lines = File.ReadAllLines(configFile);
                         if (lines.Length > 0 && lines[0].Trim().StartsWith("http"))
-                            localUrl = lines[0].Trim();
-                        if (lines.Length > 1 && lines[1].Trim().StartsWith("http"))
-                            cloudUrl = lines[1].Trim();
+                        {
+                            targetUrl = lines[0].Trim();
+                        }
                     }
                     catch { }
                 }
-
-                // Check if local dev server or local daemon is listening on port 3000
-                string targetUrl = IsLocalServerAlive("localhost", 3000) ? localUrl : cloudUrl;
 
                 // Find modern browser executable (Edge or Chrome)
                 string browserPath = FindBrowserExecutable();
@@ -70,25 +72,6 @@ namespace LedgerXLauncher
                 catch { }
 
                 MessageBox.Show("Unable to launch LedgerX Desktop:\n\n" + ex.Message, "LedgerX Desktop Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private static bool IsLocalServerAlive(string host, int port)
-        {
-            try
-            {
-                using (var client = new TcpClient())
-                {
-                    var result = client.BeginConnect(host, port, null, null);
-                    bool success = result.AsyncWaitHandle.WaitOne(400); // 400ms timeout
-                    if (!success) return false;
-                    client.EndConnect(result);
-                    return true;
-                }
-            }
-            catch
-            {
-                return false;
             }
         }
 

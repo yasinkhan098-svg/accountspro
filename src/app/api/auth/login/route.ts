@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    console.log('[AUTH_LOGIN_REQUEST]', { email: cleanEmail });
 
     // ✅ ADMIN BYPASS: Check if credentials match env variables or default master admin
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@ledgerx.com").toLowerCase().trim();

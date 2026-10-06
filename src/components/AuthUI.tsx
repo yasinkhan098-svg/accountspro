@@ -573,6 +573,12 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                 </button>
               </div>
 
+              {/* Connected Server Indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 16, fontSize: 11, color: '#64748b' }}>
+                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }}></span>
+                <span>Connected Server: <strong style={{ color: '#0f172a' }}>{typeof window !== 'undefined' ? window.location.origin : 'Cloud'}</strong></span>
+              </div>
+
               {loginMethod === 'password' ? (
                 <form onSubmit={handleLogin} className="premium-form">
                   <div className="input-field">

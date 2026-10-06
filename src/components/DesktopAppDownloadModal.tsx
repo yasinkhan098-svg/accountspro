@@ -254,7 +254,7 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   {/* Windows .exe Button */}
                   <a
-                    href="/api/download/desktop-setup?os=windows"
+                    href={typeof window !== 'undefined' ? `/api/download/desktop-setup?os=windows&serverUrl=${encodeURIComponent(window.location.origin)}` : '/api/download/desktop-setup?os=windows'}
                     download="LedgerX-Setup.exe"
                     style={{
                       flex: 1,
