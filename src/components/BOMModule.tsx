@@ -21,7 +21,14 @@ interface RawMaterial {
   stockItemId: number; itemName: string; requiredQty: number | string;
   actualQty: number | string; unit: string; rate: number | string; amount: number;
 }
-type WastageType = "None" | "Vaporised" | "Burnt" | "Drainage" | "Washed" | "Scrap";
+export interface WastageDetailItem {
+  type: string;
+  qty: number | string;
+  unit: string;
+  rate: number | string;
+  value: number;
+}
+type WastageType = string;
 interface DirectExpense {
   ledgerId: number | null; ledgerName: string; method: "Amount" | "Percentage";
   percentage: number | string; amount: number | string;
@@ -31,7 +38,8 @@ interface ManufacturingJournal {
   bomId?: number | null; bomName?: string; finishedItemId: number; finishedItemName: string;
   outputQty: number | string; outputUnit: string; outputRate: number;
   totalRawCost: number; totalDirectExpenses: number; totalCost: number; costPerUnit: number;
-  wastageType: WastageType; wastageQty: number | string; wastageUnit: string; wastageValue: number;
+  wastageType: string; wastageQty: number | string; wastageUnit: string; wastageValue: number;
+  wastageDetails?: WastageDetailItem[];
   narration: string; rawMaterials: RawMaterial[]; directExpenses: DirectExpense[];
 }
 interface SavedJournal {
@@ -46,11 +54,19 @@ interface BOMModuleProps {
   company: Company | null; stockItems: StockItem[]; ledgers: Ledger[];
   onBack: () => void; initialTab?: "bom" | "journal" | "register";
   onAltC?: (ctx: { fieldType: 'stockItem' | 'ledger' | 'group' | 'stockGroup' | 'unit'; onCreated: (newItem: any) => void }) => void;
+  onStockUpdated?: () => void;
 }
 
-const WASTAGE_TYPES: WastageType[] = ["None", "Vaporised", "Burnt", "Drainage", "Washed", "Scrap"];
-const WASTAGE_ICONS: Record<WastageType, string> = {
-  None: "✓", Vaporised: "💨", Burnt: "🔥", Drainage: "🚿", Washed: "💧", Scrap: "🗑️"
+const AVAILABLE_WASTAGE_TYPES: { type: string; icon: string; label: string }[] = [
+  { type: "Scrap", icon: "🗑️", label: "Scrap" },
+  { type: "Burnt", icon: "🔥", label: "Burnt" },
+  { type: "Vaporised", icon: "💨", label: "Vaporised" },
+  { type: "Drainage", icon: "🚿", label: "Drainage" },
+  { type: "Washed", icon: "💧", label: "Washed" }
+];
+const WASTAGE_TYPES = ["None", "Scrap", "Burnt", "Vaporised", "Drainage", "Washed"];
+const WASTAGE_ICONS: Record<string, string> = {
+  None: "✓", Scrap: "🗑️", Burnt: "🔥", Vaporised: "💨", Drainage: "🚿", Washed: "💧"
 };
 const EXPENSE_LEDGER_GROUPS = ["Direct Expenses","Indirect Expenses","Expenses (Direct)","Expenses (Indirect)"];
 const fmt2 = (n: number | string) =>
@@ -846,7 +862,16 @@ function ManufacturingJournalForm({
     actRef:React.RefObject<HTMLInputElement>; unitRef:React.RefObject<HTMLInputElement>;
     rateRef:React.RefObject<HTMLInputElement>;
   }>>([]);
-  const deRefs = useRef<Array<{ledgerRef:React.RefObject<HTMLInputElement>;amtRef:React.RefObject<HTMLInputElement>}>>([]);
+  const deRefs = useRef<Array<{
+    ledgerRef: React.RefObject<HTMLInputElement>;
+    amtRef: React.RefObject<HTMLInputElement>;
+    methodRef: React.RefObject<HTMLSelectElement>;
+    pctRef: React.RefObject<HTMLInputElement>;
+  }>>([]);
+
+  // Wastage multi-selection & breakdown state
+  const [selectedWastageTypes, setSelectedWastageTypes] = useState<string[]>([]);
+  const [wastageItems, setWastageItems] = useState<Record<string, { qty: string; unit: string; rate: string; value: number }>>({});
 
   // Side drawer state
   const [activeSideField, setActiveSideField] = useState<
@@ -917,10 +942,15 @@ function ManufacturingJournalForm({
 
   const ensureDERefs = (len:number) => {
     while(deRefs.current.length<len) {
-      deRefs.current.push({ledgerRef:React.createRef<HTMLInputElement>(),amtRef:React.createRef<HTMLInputElement>()});
+      deRefs.current.push({
+        ledgerRef: React.createRef<HTMLInputElement>(),
+        amtRef: React.createRef<HTMLInputElement>(),
+        methodRef: React.createRef<HTMLSelectElement>(),
+        pctRef: React.createRef<HTMLInputElement>()
+      });
     }
   };
-  ensureDERefs(form.directExpenses.length);
+  ensureDERefs(form.directExpenses.length + 2);
 
   const loadBOM = async (bomId:number) => {
     if(!bomId) return;
@@ -1202,16 +1232,26 @@ function ManufacturingJournalForm({
         });
       }
       setActiveSideField(null);
-      setTimeout(() => deRefs.current[idx]?.amtRef?.current?.focus(), 30);
+      setTimeout(() => {
+        if (form.directExpenses[idx]?.method === "Percentage") {
+          deRefs.current[idx]?.pctRef?.current?.focus();
+        } else {
+          deRefs.current[idx]?.amtRef?.current?.focus();
+        }
+      }, 30);
     }
   };
 
-  const handleMJExpenseEndOfList = () => {
+  const handleMJExpenseEndOfList = (blankIdx?: number) => {
     setForm(f => {
-      const filled = f.directExpenses.filter(d => d.ledgerName.trim());
+      let filled = f.directExpenses.filter((d, i) => {
+        if (blankIdx !== undefined && i === blankIdx && !d.ledgerName.trim()) return false;
+        return d.ledgerName.trim().length > 0;
+      });
+      if (filled.length === 0) filled = [emptyDirectExpense()];
       return {
         ...f,
-        directExpenses: filled.length > 0 ? filled : [emptyDirectExpense()]
+        directExpenses: filled
       };
     });
     setActiveSideField(null);
@@ -1228,7 +1268,13 @@ function ManufacturingJournalForm({
           if (newItem?.name) {
             updateDE(idx, "ledgerName", newItem.name);
             setActiveSideField(null);
-            setTimeout(() => deRefs.current[idx]?.amtRef?.current?.focus(), 30);
+            setTimeout(() => {
+              if (form.directExpenses[idx]?.method === "Percentage") {
+                deRefs.current[idx]?.pctRef?.current?.focus();
+              } else {
+                deRefs.current[idx]?.amtRef?.current?.focus();
+              }
+            }, 30);
           }
         }
       });
@@ -1244,37 +1290,169 @@ function ManufacturingJournalForm({
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (sideSelectedIndex === 0 || !form.directExpenses[idx]?.ledgerName.trim()) {
-        handleMJExpenseEndOfList();
+        handleMJExpenseEndOfList(idx);
       } else {
         const picked = filteredLedgers[sideSelectedIndex - 1];
         if (picked) {
           selectMJExpenseLedger(idx, picked);
-        } else {
+        } else if (form.directExpenses[idx]?.ledgerName.trim()) {
           setActiveSideField(null);
-          deRefs.current[idx]?.amtRef?.current?.focus();
+          if (form.directExpenses[idx]?.method === "Percentage") {
+            deRefs.current[idx]?.pctRef?.current?.focus();
+          } else {
+            deRefs.current[idx]?.amtRef?.current?.focus();
+          }
+        } else {
+          handleMJExpenseEndOfList(idx);
         }
       }
     } else if (e.key === "Tab") {
       if (!form.directExpenses[idx]?.ledgerName.trim()) {
         e.preventDefault();
-        handleMJExpenseEndOfList();
+        handleMJExpenseEndOfList(idx);
       } else {
         setActiveSideField(null);
         e.preventDefault();
-        deRefs.current[idx]?.amtRef?.current?.focus();
+        if (form.directExpenses[idx]?.method === "Percentage") {
+          deRefs.current[idx]?.pctRef?.current?.focus();
+        } else {
+          deRefs.current[idx]?.amtRef?.current?.focus();
+        }
       }
     } else if (e.key === "Escape") {
       setActiveSideField(null);
     }
   };
 
-  const handleDEAmtTab = (idx:number) => {
-    if(idx===form.directExpenses.length-1){
-      setForm(f=>({...f,directExpenses:[...f.directExpenses,emptyDirectExpense()]}));
-      ensureDERefs(idx+2);
-      setTimeout(()=>{deRefs.current[idx+1]?.ledgerRef?.current?.focus();},50);
-    } else { deRefs.current[idx+1]?.ledgerRef?.current?.focus(); }
+  const handleDEAmountEnter = (idx: number) => {
+    if (idx === form.directExpenses.length - 1) {
+      setForm(f => ({
+        ...f,
+        directExpenses: [...f.directExpenses, emptyDirectExpense()]
+      }));
+      ensureDERefs(idx + 3);
+      setTimeout(() => {
+        deRefs.current[idx + 1]?.ledgerRef?.current?.focus();
+        setActiveSideField({ type: 'expenseLedger', idx: idx + 1 });
+        setSideFilter('');
+        setSideSelectedIndex(0);
+      }, 50);
+    } else {
+      deRefs.current[idx + 1]?.ledgerRef?.current?.focus();
+      setActiveSideField({ type: 'expenseLedger', idx: idx + 1 });
+      setSideFilter(form.directExpenses[idx + 1]?.ledgerName || '');
+      setSideSelectedIndex(0);
+    }
   };
+
+  const removeDERow = (idx: number) => {
+    setForm(f => {
+      const updated = f.directExpenses.filter((_, i) => i !== idx);
+      return {
+        ...f,
+        directExpenses: updated.length > 0 ? updated : [emptyDirectExpense()]
+      };
+    });
+    if (activeSideField?.type === 'expenseLedger' && activeSideField.idx === idx) {
+      setActiveSideField(null);
+    }
+  };
+
+  const toggleWastageType = (t: string) => {
+    setSelectedWastageTypes(prev => {
+      const exists = prev.includes(t);
+      const next = exists ? prev.filter(x => x !== t) : [...prev, t];
+
+      setWastageItems(curItems => {
+        const updated = { ...curItems };
+        if (exists) {
+          delete updated[t];
+          if (next.length > 0) {
+            const splitQty = (Math.max(0, wastageQtyAuto) / next.length).toFixed(3);
+            for (const remType of next) {
+              if (!updated[remType]?.qty || parseFloat(updated[remType].qty) === 0) {
+                const r = updated[remType]?.rate || "0";
+                updated[remType] = {
+                  qty: splitQty,
+                  unit: updated[remType]?.unit || form.outputUnit || "Nos",
+                  rate: r,
+                  value: (parseFloat(splitQty) || 0) * (parseFloat(r) || 0)
+                };
+              }
+            }
+          }
+        } else {
+          const splitQty = next.length > 0 ? (Math.max(0, wastageQtyAuto) / next.length).toFixed(3) : "0";
+          updated[t] = {
+            qty: splitQty,
+            unit: form.outputUnit || "Nos",
+            rate: "0",
+            value: 0
+          };
+          if (next.length > 1) {
+            for (const ot of next) {
+              if (parseFloat(updated[ot]?.qty || "0") === Math.max(0, wastageQtyAuto)) {
+                const r = updated[ot]?.rate || "0";
+                updated[ot] = {
+                  ...updated[ot],
+                  qty: splitQty,
+                  value: (parseFloat(splitQty) || 0) * (parseFloat(r) || 0)
+                };
+              }
+            }
+          }
+        }
+        return updated;
+      });
+      return next;
+    });
+  };
+
+  const selectNoneWastage = () => {
+    setSelectedWastageTypes([]);
+    setWastageItems({});
+  };
+
+  const autoSplitWastage = () => {
+    if (selectedWastageTypes.length === 0) return;
+    const splitQty = (Math.max(0, wastageQtyAuto) / selectedWastageTypes.length).toFixed(3);
+    setWastageItems(prev => {
+      const next: Record<string, { qty: string; unit: string; rate: string; value: number }> = {};
+      for (const t of selectedWastageTypes) {
+        const r = prev[t]?.rate || "0";
+        next[t] = {
+          qty: splitQty,
+          unit: prev[t]?.unit || form.outputUnit || "Nos",
+          rate: r,
+          value: (parseFloat(splitQty) || 0) * (parseFloat(r) || 0)
+        };
+      }
+      return next;
+    });
+  };
+
+  const updateWastageItemField = (t: string, field: 'qty' | 'rate' | 'unit', val: string) => {
+    setWastageItems(prev => {
+      const cur = prev[t] || { qty: "0", unit: form.outputUnit || "Nos", rate: "0", value: 0 };
+      const q = field === 'qty' ? val : cur.qty;
+      const r = field === 'rate' ? val : cur.rate;
+      const u = field === 'unit' ? val : cur.unit;
+      const numQ = parseFloat(q) || 0;
+      const numR = parseFloat(r) || 0;
+      return {
+        ...prev,
+        [t]: {
+          qty: q,
+          rate: r,
+          unit: u,
+          value: numQ * numR
+        }
+      };
+    });
+  };
+
+  const totalWastageSelectedQty = selectedWastageTypes.reduce((s, t) => s + (parseFloat(wastageItems[t]?.qty || "0") || 0), 0);
+  const totalWastageSelectedVal = selectedWastageTypes.reduce((s, t) => s + (wastageItems[t]?.value || 0), 0);
 
   const handleSave = async () => {
     if(!form.finishedItemName.trim()){setError("Finished Item is required");return;}
@@ -1283,10 +1461,30 @@ function ManufacturingJournalForm({
     setSaving(true); setError("");
     try {
       const token=authClient.getToken();
-      const payload:ManufacturingJournal={
-        ...form, totalRawCost, totalDirectExpenses:totalDirectExp, totalCost, costPerUnit,
-        rawMaterials:form.rawMaterials.filter(r=>r.itemName.trim()),
-        directExpenses:form.directExpenses.filter(d=>d.ledgerName.trim()),
+      const wastageDetailsArray: WastageDetailItem[] = selectedWastageTypes.map(t => {
+        const it = wastageItems[t] || { qty: "0", unit: form.outputUnit || "Nos", rate: "0", value: 0 };
+        return {
+          type: t,
+          qty: parseFloat(it.qty) || 0,
+          unit: it.unit || form.outputUnit || "Nos",
+          rate: parseFloat(it.rate) || 0,
+          value: it.value || 0
+        };
+      });
+
+      const payload = {
+        ...form,
+        totalRawCost,
+        totalDirectExpenses: totalDirectExp,
+        totalCost,
+        costPerUnit,
+        wastageType: selectedWastageTypes.length > 0 ? selectedWastageTypes.join(", ") : "None",
+        wastageQty: totalWastageSelectedQty,
+        wastageUnit: form.outputUnit,
+        wastageValue: totalWastageSelectedVal,
+        wastageDetails: wastageDetailsArray,
+        rawMaterials: form.rawMaterials.filter(r=>r.itemName.trim()),
+        directExpenses: form.directExpenses.filter(d=>d.ledgerName.trim()),
       };
       const res=await fetch("/api/bom",{
         method:"POST",
@@ -1496,20 +1694,20 @@ function ManufacturingJournalForm({
                   <tr style={{background:"#fffbeb"}}>
                     <th style={{padding:"6px 5px",textAlign:"left",borderBottom:"1px solid #fde68a"}}>Expense Ledger</th>
                     <th style={{padding:"6px 5px",textAlign:"center",borderBottom:"1px solid #fde68a",width:80}}>Method</th>
-                    <th style={{padding:"6px 5px",textAlign:"right",borderBottom:"1px solid #fde68a",width:80}}>Amount (₹)</th>
+                    <th style={{padding:"6px 5px",textAlign:"right",borderBottom:"1px solid #fde68a",width:85}}>Amount (₹)</th>
                     <th style={{width:26,borderBottom:"1px solid #fde68a"}}/>
                   </tr>
                 </thead>
                 <tbody>
                   {form.directExpenses.map((de,idx)=>{
-                    ensureDERefs(idx+1);
+                    ensureDERefs(idx+2);
                     const refs=deRefs.current[idx];
                     const isLedgerActive = activeSideField?.type === 'expenseLedger' && activeSideField.idx === idx;
                     return (
                       <tr key={idx} style={{borderBottom:"1px solid #fef9c3"}}>
                         <td style={{padding:"3px 5px"}}>
                           <input
-                            ref={refs.ledgerRef}
+                            ref={refs?.ledgerRef}
                             value={de.ledgerName}
                             onChange={e => {
                               updateDE(idx, "ledgerName", e.target.value);
@@ -1527,7 +1725,7 @@ function ManufacturingJournalForm({
                               setSideSelectedIndex(0);
                             }}
                             onKeyDown={e => handleMJExpenseKeyDown(e, idx)}
-                            placeholder="Wages, Electricity..."
+                            placeholder="Expense Ledger (Enter on blank to finish)..."
                             style={{
                               width: "100%",
                               padding: "5px 6px",
@@ -1540,7 +1738,20 @@ function ManufacturingJournalForm({
                           />
                         </td>
                         <td style={{padding:"3px 4px"}}>
-                          <select value={de.method} onChange={e=>updateDE(idx,"method",e.target.value as "Amount"|"Percentage")}
+                          <select
+                            ref={refs?.methodRef}
+                            value={de.method}
+                            onChange={e=>updateDE(idx,"method",e.target.value as "Amount"|"Percentage")}
+                            onKeyDown={e => {
+                              if (e.key === "Enter" || e.key === "Tab") {
+                                e.preventDefault();
+                                if (de.method === "Percentage") {
+                                  refs?.pctRef?.current?.focus();
+                                } else {
+                                  refs?.amtRef?.current?.focus();
+                                }
+                              }
+                            }}
                             style={{width:"100%",padding:"4px",border:"1px solid #e2e8f0",borderRadius:3,fontSize:11}}>
                             <option value="Amount">₹ Amt</option>
                             <option value="Percentage">% Pct</option>
@@ -1549,21 +1760,27 @@ function ManufacturingJournalForm({
                         <td style={{padding:"3px 4px"}}>
                           {de.method==="Percentage"?(
                             <div style={{display:"flex",gap:3,alignItems:"center"}}>
-                              <input type="number" min={0} step="any" value={de.percentage}
+                              <input
+                                ref={refs?.pctRef}
+                                type="number" min={0} step="any" value={de.percentage}
                                 onChange={e=>updateDE(idx,"percentage",e.target.value)}
+                                onKeyDown={e=>{if(e.key==="Enter"||e.key==="Tab"){e.preventDefault();handleDEAmountEnter(idx);}}}
                                 style={{width:50,padding:"4px",border:"1px solid #cbd5e1",borderRadius:3,textAlign:"right",fontSize:11}}/>
                               <span style={{fontSize:10,color:"#64748b"}}>% = ₹{fmt2(Number(de.amount))}</span>
                             </div>
                           ):(
-                            <input ref={refs.amtRef} type="number" min={0} step="any" value={de.amount}
+                            <input
+                              ref={refs?.amtRef}
+                              type="number" min={0} step="any" value={de.amount}
                               onChange={e=>updateDE(idx,"amount",e.target.value)}
-                              onKeyDown={e=>{if(e.key==="Tab"){e.preventDefault();handleDEAmtTab(idx);}}}
+                              onKeyDown={e=>{if(e.key==="Enter"||e.key==="Tab"){e.preventDefault();handleDEAmountEnter(idx);}}}
+                              placeholder="0.00"
                               style={{width:"100%",padding:"4px",border:"1px solid #cbd5e1",borderRadius:3,textAlign:"right",fontSize:11}}/>
                           )}
                         </td>
                         <td style={{padding:"3px 4px",textAlign:"center"}}>
                           {form.directExpenses.length>1&&(
-                            <button onClick={()=>setForm(f=>({...f,directExpenses:f.directExpenses.filter((_,i)=>i!==idx)}))}
+                            <button onClick={()=>removeDERow(idx)}
                               style={{background:"none",border:"none",color:"#dc2626",cursor:"pointer",fontSize:12}}>✕</button>
                           )}
                         </td>
@@ -1571,39 +1788,177 @@ function ManufacturingJournalForm({
                     );
                   })}
                 </tbody>
+                <tfoot>
+                  <tr style={{background:"#fef3c7",borderTop:"1px solid #fde68a"}}>
+                    <td colSpan={2} style={{padding:"5px 8px",fontWeight:"bold",fontSize:11,color:"#92400e"}}>
+                      Total Direct Expenses ({form.directExpenses.filter(d=>d.ledgerName.trim()).length} ledgers)
+                    </td>
+                    <td style={{padding:"5px 8px",textAlign:"right",fontWeight:"bold",fontSize:11,color:"#b45309"}}>
+                      ₹{fmt2(totalDirectExp)}
+                    </td>
+                    <td/>
+                  </tr>
+                </tfoot>
               </table>
             </div>
 
+            {/* WASTAGE / LOSS DETAILS WITH MULTI-SELECT CHECKBOXES & AUTO-CALCULATION */}
             <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-              <div style={{background:"#dc2626",color:"white",padding:"8px 14px",fontWeight:"bold",fontSize:12}}>♻️ Wastage / Loss Details</div>
+              <div style={{background:"#dc2626",color:"white",padding:"8px 14px",fontWeight:"bold",fontSize:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span>♻️ Wastage / Loss Details</span>
+                {selectedWastageTypes.length > 0 && (
+                  <span style={{background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:10,fontSize:10}}>
+                    {totalWastageSelectedQty.toFixed(3)} {form.outputUnit} | ₹{fmt2(totalWastageSelectedVal)}
+                  </span>
+                )}
+              </div>
               <div style={{padding:12}}>
-                <div style={{marginBottom:8}}>
-                  <label style={{fontSize:10,color:"#64748b",fontWeight:"bold"}}>WASTAGE TYPE</label>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
-                    {WASTAGE_TYPES.map(t=>(
-                      <button key={t} onClick={()=>setForm(f=>({...f,wastageType:t}))}
-                        style={{padding:"4px 10px",fontSize:11,borderRadius:3,cursor:"pointer",fontWeight:"bold",
-                          background:form.wastageType===t?"#dc2626":"#f1f5f9",
-                          color:form.wastageType===t?"white":"#475569",
-                          border:form.wastageType===t?"none":"1px solid #e2e8f0"}}>
-                        {WASTAGE_ICONS[t]} {t}
+                <div style={{marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <label style={{fontSize:10,color:"#64748b",fontWeight:"bold",letterSpacing:0.5}}>SELECT WASTAGE TYPES (Check all that apply)</label>
+                    {selectedWastageTypes.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={autoSplitWastage}
+                        title="Distribute auto wastage difference equally across all selected types"
+                        style={{background:"#fee2e2",border:"1px solid #fca5a5",color:"#b91c1c",borderRadius:3,padding:"2px 8px",fontSize:10,cursor:"pointer",fontWeight:"bold"}}>
+                        ⚡ Auto-Split Evenly
                       </button>
+                    )}
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                    <button
+                      type="button"
+                      onClick={selectNoneWastage}
+                      style={{
+                        padding:"5px 10px",fontSize:11,borderRadius:4,cursor:"pointer",fontWeight:"bold",
+                        background:selectedWastageTypes.length===0?"#dc2626":"#f1f5f9",
+                        color:selectedWastageTypes.length===0?"white":"#475569",
+                        border:selectedWastageTypes.length===0?"none":"1px solid #e2e8f0"
+                      }}>
+                      ✓ None
+                    </button>
+                    {AVAILABLE_WASTAGE_TYPES.map(t=>(
+                      <label
+                        key={t.type}
+                        style={{
+                          display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",
+                          fontSize:11,borderRadius:4,cursor:"pointer",fontWeight:"bold",
+                          background:selectedWastageTypes.includes(t.type)?"#fee2e2":"#f8fafc",
+                          color:selectedWastageTypes.includes(t.type)?"#b91c1c":"#334155",
+                          border:selectedWastageTypes.includes(t.type)?"1.5px solid #dc2626":"1px solid #cbd5e1",
+                          userSelect:"none"
+                        }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedWastageTypes.includes(t.type)}
+                          onChange={()=>toggleWastageType(t.type)}
+                          style={{cursor:"pointer",accentColor:"#dc2626"}}
+                        />
+                        <span>{t.icon} {t.label}</span>
+                      </label>
                     ))}
                   </div>
                 </div>
-                {form.wastageType!=="None"&&(
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8,background:"#fff5f5",padding:8,borderRadius:4}}>
-                    <div>
-                      <label style={{fontSize:10,color:"#64748b"}}>Auto Wastage Qty</label>
-                      <div style={{fontWeight:"bold",fontSize:14,color:"#dc2626"}}>{Math.max(0,wastageQtyAuto).toFixed(3)} {form.outputUnit}</div>
-                      <div style={{fontSize:9,color:"#94a3b8"}}>Raw: {totalRawQty.toFixed(3)} − Out: {outputQtyN.toFixed(3)}</div>
-                    </div>
-                    <div>
-                      <label style={{fontSize:10,color:"#64748b",display:"block"}}>Override Qty</label>
-                      <input type="number" min={0} step="any" value={form.wastageQty}
-                        onChange={e=>setForm(f=>({...f,wastageQty:e.target.value}))}
-                        placeholder={String(Math.max(0,wastageQtyAuto).toFixed(3))}
-                        style={{width:"100%",padding:"5px",border:"1px solid #fca5a5",borderRadius:3,fontSize:11,boxSizing:"border-box"}}/>
+
+                {/* Auto Difference Banner */}
+                <div style={{background:"#fff5f5",border:"1px solid #fecaca",padding:"6px 10px",borderRadius:4,marginBottom:10,fontSize:11,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div>
+                    <span style={{color:"#64748b"}}>Auto Wastage Difference: </span>
+                    <b style={{color:"#dc2626",fontSize:12}}>{Math.max(0,wastageQtyAuto).toFixed(3)} {form.outputUnit}</b>
+                  </div>
+                  <div style={{fontSize:10,color:"#94a3b8"}}>
+                    Raw Consumed: {totalRawQty.toFixed(3)} − Output: {outputQtyN.toFixed(3)}
+                  </div>
+                </div>
+
+                {/* Multi-type Breakdown Table */}
+                {selectedWastageTypes.length > 0 && (
+                  <div style={{background:"#fff",border:"1px solid #fecaca",borderRadius:4,overflow:"hidden"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                      <thead>
+                        <tr style={{background:"#fef2f2",color:"#991b1b"}}>
+                          <th style={{padding:"5px 8px",textAlign:"left",borderBottom:"1px solid #fee2e2"}}>Wastage Type</th>
+                          <th style={{padding:"5px 6px",textAlign:"right",borderBottom:"1px solid #fee2e2",width:80}}>Qty</th>
+                          <th style={{padding:"5px 4px",textAlign:"center",borderBottom:"1px solid #fee2e2",width:45}}>Unit</th>
+                          <th style={{padding:"5px 6px",textAlign:"right",borderBottom:"1px solid #fee2e2",width:70}}>Rate (₹)</th>
+                          <th style={{padding:"5px 8px",textAlign:"right",borderBottom:"1px solid #fee2e2",width:85}}>Scrap Val (₹)</th>
+                          <th style={{width:24,borderBottom:"1px solid #fee2e2"}}/>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedWastageTypes.map(t=>{
+                          const it = wastageItems[t] || { qty: "0", unit: form.outputUnit || "Nos", rate: "0", value: 0 };
+                          const icon = AVAILABLE_WASTAGE_TYPES.find(x => x.type === t)?.icon || "♻️";
+                          return (
+                            <tr key={t} style={{borderBottom:"1px solid #fef2f2"}}>
+                              <td style={{padding:"4px 8px",fontWeight:"bold",color:"#991b1b"}}>
+                                {icon} {t}
+                              </td>
+                              <td style={{padding:"3px 6px"}}>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="any"
+                                  value={it.qty}
+                                  onChange={e=>updateWastageItemField(t, 'qty', e.target.value)}
+                                  placeholder="0.00"
+                                  style={{width:"100%",padding:"3px 5px",border:"1px solid #fca5a5",borderRadius:3,fontSize:11,textAlign:"right",fontWeight:"bold"}}
+                                />
+                              </td>
+                              <td style={{padding:"3px 4px"}}>
+                                <input
+                                  value={it.unit || form.outputUnit}
+                                  onChange={e=>updateWastageItemField(t, 'unit', e.target.value)}
+                                  style={{width:"100%",padding:"3px 2px",border:"1px solid #cbd5e1",borderRadius:3,fontSize:11,textAlign:"center"}}
+                                />
+                              </td>
+                              <td style={{padding:"3px 6px"}}>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="any"
+                                  value={it.rate}
+                                  onChange={e=>updateWastageItemField(t, 'rate', e.target.value)}
+                                  placeholder="0.00"
+                                  style={{width:"100%",padding:"3px 5px",border:"1px solid #cbd5e1",borderRadius:3,fontSize:11,textAlign:"right"}}
+                                />
+                              </td>
+                              <td style={{padding:"4px 8px",textAlign:"right",fontWeight:"bold",color:"#0f766e"}}>
+                                ₹{fmt2(it.value)}
+                              </td>
+                              <td style={{padding:"3px 4px",textAlign:"center"}}>
+                                <button
+                                  type="button"
+                                  onClick={()=>toggleWastageType(t)}
+                                  title={`Remove ${t}`}
+                                  style={{background:"none",border:"none",color:"#dc2626",cursor:"pointer",fontSize:12}}>
+                                  ✕
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{background:"#fef2f2",borderTop:"1px solid #fca5a5",fontWeight:"bold"}}>
+                          <td style={{padding:"5px 8px",color:"#991b1b"}}>TOTAL WASTAGE</td>
+                          <td style={{padding:"5px 6px",textAlign:"right",color:"#b91c1c"}}>
+                            {totalWastageSelectedQty.toFixed(3)}
+                          </td>
+                          <td style={{padding:"5px 4px",textAlign:"center",fontSize:10,color:"#64748b"}}>
+                            {form.outputUnit}
+                          </td>
+                          <td/>
+                          <td style={{padding:"5px 8px",textAlign:"right",color:"#0f766e"}}>
+                            ₹{fmt2(totalWastageSelectedVal)}
+                          </td>
+                          <td/>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    <div style={{padding:"6px 10px",background:"#f8fafc",borderTop:"1px solid #f1f5f9",fontSize:10,color:"#64748b"}}>
+                      📦 Each selected wastage item will be auto-recorded in Opening Stock under <b>&apos;Wastage &amp; Scrap&apos;</b> upon posting.
                     </div>
                   </div>
                 )}
@@ -1740,7 +2095,7 @@ function ManufacturingJournalForm({
 // ============================================================
 // MAIN BOM MODULE
 // ============================================================
-export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="journal", onAltC }: BOMModuleProps) {
+export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="journal", onAltC, onStockUpdated }: BOMModuleProps) {
   const [tab, setTab] = useState<"bom"|"journal"|"register">(initialTab);
   const [boms, setBOMs] = useState<any[]>([]);
   const [journals, setJournals] = useState<SavedJournal[]>([]);
@@ -1820,6 +2175,7 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
     await fetch("/api/bom",{method:"DELETE",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({id,type:"journal"})});
     await loadJournals();
     showToast("Journal deleted");
+    if (onStockUpdated) onStockUpdated();
   };
 
   if(showBOMForm) {
@@ -1835,7 +2191,12 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
     return (
       <ManufacturingJournalForm company={company} stockItems={stockItems} ledgers={ledgers} boms={boms}
         onAltC={onAltC}
-        onSave={async()=>{ await loadJournals(); setShowJournalForm(false); showToast("Manufacturing Journal posted! Stock updated ✓"); }}
+        onSave={async()=>{
+          await loadJournals();
+          setShowJournalForm(false);
+          showToast("Manufacturing Journal posted! Stock updated ✓");
+          if (onStockUpdated) onStockUpdated();
+        }}
         onCancel={()=>setShowJournalForm(false)}/>
     );
   }

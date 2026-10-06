@@ -94,7 +94,7 @@ interface VoucherEntry {
   narration?: string; 
 }
 
-interface InventoryEntry { id: number; itemId: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; discountPerc?: number; discountAmt?: number; taxableAmount?: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; desc1?: string; desc2?: string; desc3?: string; }
+interface InventoryEntry { id: number; itemId: number; stockItemId?: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; discountPerc?: number; discountAmt?: number; taxableAmount?: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; desc1?: string; desc2?: string; desc3?: string; }
 
 interface VoucherRow {
   itemId: number;
@@ -1393,110 +1393,111 @@ export default function App() {
   }, [isMounted, isAuthenticated, currentUser?.id]);
 
   // Cloud Sync for all data when Company is opened
-  useEffect(() => {
+  const syncData = useCallback(async () => {
     if (!isAuthenticated || !activeCompany || !activeCompany.id) return;
 
-    const syncData = async () => {
-      try {
-        const token = authClient.getToken();
-        const cid = activeCompany.id;
+    try {
+      const token = authClient.getToken();
+      const cid = activeCompany.id;
 
-        // 1. Fetch Ledgers
-        const lRes = await fetch(`/api/ledgers?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const lData = await lRes.json();
-        if (lRes.ok && lData.ledgers) {
-          setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...lData.ledgers]);
-        }
-
-        // 2. Fetch Vouchers
-        const vRes = await fetch(`/api/vouchers?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const vData = await vRes.json();
-        if (vRes.ok && vData.vouchers) {
-          setAllVouchers(prev => {
-            const others = prev.filter(v => Number(v.companyId) !== Number(cid));
-            const localOnly = prev.filter(v => Number(v.companyId) === Number(cid) && String(v.id).length >= 12);
-            const mapped = vData.vouchers.map((v: any) => {
-              let partyEntry: any = null;
-              if (v.type === 'Payment') {
-                // In Payment, Account is the Cr entry (Bank/Cash)
-                partyEntry = v.entries?.find((e: any) => e.entryType === 'Cr');
-              } else if (v.type === 'Receipt' || v.type === 'Contra') {
-                // In Receipt and Contra, Account is the Dr entry (Bank/Cash)
-                partyEntry = v.entries?.find((e: any) => e.entryType === 'Dr');
-              } else {
-                const pSide = ['Sales', 'Debit Note', 'Sales Quotation'].includes(v.type) ? 'Dr' : 'Cr';
-                partyEntry = v.entries?.find((e: any) => e.entryType === pSide);
-              }
-              const partySide = (v.type === 'Payment' || v.type === 'Purchase' || v.type === 'Credit Note') ? 'Cr' : 'Dr';
-              // Compute total: party entry amount is the invoice total (includes tax + all charges)
-              const computedTotal = partyEntry?.amount || (v.entries || []).reduce((max: number, e: any) => Math.max(max, e.amount || 0), 0) || 0;
-              // Parse number from voucherNo (e.g. "SAL/001" -> 1, "1" -> 1)
-              const vNoStr = String(v.voucherNo || '');
-              const numMatch = vNoStr.match(/(\d+)\s*$/);
-              const computedNumber = numMatch ? parseInt(numMatch[1]) : (v.id || 0);
-
-              let resolvedPartyName = v.partyName;
-              if (v.type === 'Payment') {
-                const crEnt = v.entries?.find((e: any) => e.entryType === 'Cr');
-                resolvedPartyName = crEnt?.ledger?.name || crEnt?.ledgerName || v.partyName || 'Bank';
-              } else if (v.type === 'Receipt' || v.type === 'Contra') {
-                const drEnt = v.entries?.find((e: any) => e.entryType === 'Dr');
-                resolvedPartyName = drEnt?.ledger?.name || drEnt?.ledgerName || v.partyName || 'Bank';
-              } else if (!resolvedPartyName || isGenericAc(resolvedPartyName)) {
-                resolvedPartyName = partyEntry?.ledger?.name || partyEntry?.ledgerName || (v.partyDetails?.buyerName && !isGenericAc(v.partyDetails.buyerName) ? v.partyDetails.buyerName : (v.partyName || 'Cash'));
-              }
-
-              return {
-                ...v,
-                entries: (v.entries || []).map((e: any) => ({
-                  ...e,
-                  ledgerName: e.ledgerName || e.ledger?.name || '',
-                })),
-                inventoryEntries: (v.inventoryEntries || []).map((ie: any) => ({
-                  ...ie,
-                  itemId: ie.stockItemId || ie.itemId,
-                  itemName: ie.itemName || ie.stockItem?.name || '',
-                  showInclTax: ie.stockItem?.showInclTax ?? false,
-                  showAmtInclTax: ie.stockItem?.showAmtInclTax ?? false,
-                })),
-                partyName: resolvedPartyName,
-                partyId: v.partyId || partyEntry?.ledgerId || partyEntry?.ledger?.id || 0,
-                number: v.number || computedNumber,
-                total: v.total || computedTotal,
-                date: formatDateToTally(v.date) || v.date
-              };
-            });
-            return [...others, ...localOnly, ...mapped];
-          });
-        }
-
-        // 3. Fetch Stock Items
-        const siRes = await fetch(`/api/stock-items?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const siData = await siRes.json();
-        if (siRes.ok && siData.items) {
-          setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...siData.items]);
-        }
-
-        // 4. Fetch Units
-        const uRes = await fetch(`/api/units?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const uData = await uRes.json();
-        if (uRes.ok && uData.units) {
-          setAllUnits(prev => [...prev.filter(u => Number(u.companyId) !== Number(cid)), ...uData.units]);
-        }
-
-        // 5. Fetch Stock Groups
-        const sgRes = await fetch(`/api/stock-groups?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const sgData = await sgRes.json();
-        if (sgRes.ok && sgData.groups) {
-          setAllStockGroups(prev => [...prev.filter(sg => Number(sg.companyId) !== Number(cid)), ...sgData.groups]);
-        }
-
-      } catch (err) {
-        console.error("Cloud Sync Error:", err);
+      // 1. Fetch Ledgers
+      const lRes = await fetch(`/api/ledgers?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const lData = await lRes.json();
+      if (lRes.ok && lData.ledgers) {
+        setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...lData.ledgers]);
       }
-    };
+
+      // 2. Fetch Vouchers
+      const vRes = await fetch(`/api/vouchers?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const vData = await vRes.json();
+      if (vRes.ok && vData.vouchers) {
+        setAllVouchers(prev => {
+          const others = prev.filter(v => Number(v.companyId) !== Number(cid));
+          const localOnly = prev.filter(v => Number(v.companyId) === Number(cid) && String(v.id).length >= 12);
+          const mapped = vData.vouchers.map((v: any) => {
+            let partyEntry: any = null;
+            if (v.type === 'Payment') {
+              // In Payment, Account is the Cr entry (Bank/Cash)
+              partyEntry = v.entries?.find((e: any) => e.entryType === 'Cr');
+            } else if (v.type === 'Receipt' || v.type === 'Contra') {
+              // In Receipt and Contra, Account is the Dr entry (Bank/Cash)
+              partyEntry = v.entries?.find((e: any) => e.entryType === 'Dr');
+            } else {
+              const pSide = ['Sales', 'Debit Note', 'Sales Quotation'].includes(v.type) ? 'Dr' : 'Cr';
+              partyEntry = v.entries?.find((e: any) => e.entryType === pSide);
+            }
+            const partySide = (v.type === 'Payment' || v.type === 'Purchase' || v.type === 'Credit Note') ? 'Cr' : 'Dr';
+            // Compute total: party entry amount is the invoice total (includes tax + all charges)
+            const computedTotal = partyEntry?.amount || (v.entries || []).reduce((max: number, e: any) => Math.max(max, e.amount || 0), 0) || 0;
+            // Parse number from voucherNo (e.g. "SAL/001" -> 1, "1" -> 1)
+            const vNoStr = String(v.voucherNo || '');
+            const numMatch = vNoStr.match(/(\d+)\s*$/);
+            const computedNumber = numMatch ? parseInt(numMatch[1]) : (v.id || 0);
+
+            let resolvedPartyName = v.partyName;
+            if (v.type === 'Payment') {
+              const crEnt = v.entries?.find((e: any) => e.entryType === 'Cr');
+              resolvedPartyName = crEnt?.ledger?.name || crEnt?.ledgerName || v.partyName || 'Bank';
+            } else if (v.type === 'Receipt' || v.type === 'Contra') {
+              const drEnt = v.entries?.find((e: any) => e.entryType === 'Dr');
+              resolvedPartyName = drEnt?.ledger?.name || drEnt?.ledgerName || v.partyName || 'Bank';
+            } else if (!resolvedPartyName || isGenericAc(resolvedPartyName)) {
+              resolvedPartyName = partyEntry?.ledger?.name || partyEntry?.ledgerName || (v.partyDetails?.buyerName && !isGenericAc(v.partyDetails.buyerName) ? v.partyDetails.buyerName : (v.partyName || 'Cash'));
+            }
+
+            return {
+              ...v,
+              entries: (v.entries || []).map((e: any) => ({
+                ...e,
+                ledgerName: e.ledgerName || e.ledger?.name || '',
+              })),
+              inventoryEntries: (v.inventoryEntries || []).map((ie: any) => ({
+                ...ie,
+                itemId: ie.stockItemId || ie.itemId,
+                itemName: ie.itemName || ie.stockItem?.name || '',
+                showInclTax: ie.stockItem?.showInclTax ?? false,
+                showAmtInclTax: ie.stockItem?.showAmtInclTax ?? false,
+              })),
+              partyName: resolvedPartyName,
+              partyId: v.partyId || partyEntry?.ledgerId || partyEntry?.ledger?.id || 0,
+              number: v.number || computedNumber,
+              total: v.total || computedTotal,
+              date: formatDateToTally(v.date) || v.date
+            };
+          });
+          return [...others, ...localOnly, ...mapped];
+        });
+      }
+
+      // 3. Fetch Stock Items
+      const siRes = await fetch(`/api/stock-items?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const siData = await siRes.json();
+      if (siRes.ok && siData.items) {
+        setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...siData.items]);
+      }
+
+      // 4. Fetch Units
+      const uRes = await fetch(`/api/units?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const uData = await uRes.json();
+      if (uRes.ok && uData.units) {
+        setAllUnits(prev => [...prev.filter(u => Number(u.companyId) !== Number(cid)), ...uData.units]);
+      }
+
+      // 5. Fetch Stock Groups
+      const sgRes = await fetch(`/api/stock-groups?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const sgData = await sgRes.json();
+      if (sgRes.ok && sgData.groups) {
+        setAllStockGroups(prev => [...prev.filter(sg => Number(sg.companyId) !== Number(cid)), ...sgData.groups]);
+      }
+
+    } catch (err) {
+      console.error("Cloud Sync Error:", err);
+    }
+  }, [isAuthenticated, activeCompany?.id]);
+
+  useEffect(() => {
     syncData();
-  }, [activeCompany?.id, isAuthenticated]);
+  }, [syncData]);
 
   // User-Specific Auto Save Effect
   useEffect(() => {
@@ -3084,7 +3085,7 @@ export default function App() {
             {screen==='QUOTATION_REGISTER'   && <UniversalRegisterView voucherType='Sales Quotation' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PURCHASE_ORDER_ENTRY'    && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="form" onBack={goBack}/>}
             {screen==='PURCHASE_ORDER_REGISTER' && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="register" onBack={goBack}/>}
-            {screen==='BOM_MODULE'              && <BOMModule company={activeCompany} stockItems={stockItems} ledgers={ledgers} initialTab="journal" onBack={goBack} onAltC={handleOpenAltC}/>}
+            {screen==='BOM_MODULE'              && <BOMModule company={activeCompany} stockItems={stockItems} ledgers={ledgers} initialTab="journal" onBack={goBack} onAltC={handleOpenAltC} onStockUpdated={syncData}/>}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='CONTRA_REGISTER'      && <UniversalRegisterView voucherType='Contra'      vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PAYMENT_REGISTER'     && <UniversalRegisterView voucherType='Payment'     vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
@@ -3094,7 +3095,7 @@ export default function App() {
             {screen==='CREDIT_NOTE_REGISTER' && <UniversalRegisterView voucherType='Credit Note' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='LEDGER_REPORT'        && <LedgerReportView ledgers={ledgers} vouchers={filteredVouchers} preselectedId={reportLedgerId} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='GROUP_SUMMARY'        && <GroupSummaryView ledgers={ledgers} vouchers={filteredVouchers} groupName={reportGroupName} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
-            {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} stockGroups={stockGroups} vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={(id: number)=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownVoucher={(v: Voucher)=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} onSaveOpeningStock={async (itemId: number, qty: number, rate: number) => { const token = authClient.getToken(); const res = await fetch('/api/stock-items', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:itemId,openingQty:qty,openingRate:rate})}); const d = await res.json(); if(d.success){setAllStockItems(p=>p.map(x=>x.id===itemId?{...x,openingQty:qty,openingRate:rate}:x));} }} />}
+            {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} stockGroups={stockGroups} vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={(id: number)=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownVoucher={(v: Voucher)=>{ if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') { nav('BOM_MODULE'); return; } nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} onSaveOpeningStock={async (itemId: number, qty: number, rate: number) => { const token = authClient.getToken(); const res = await fetch('/api/stock-items', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:itemId,openingQty:qty,openingRate:rate})}); const d = await res.json(); if(d.success){setAllStockItems(p=>p.map(x=>x.id===itemId?{...x,openingQty:qty,openingRate:rate}:x));} }} />}
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={vouchers} company={activeCompany} companies={companies} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} onBack={goBack} />}
@@ -11094,9 +11095,10 @@ function ProfitLossView({
         let qty=it.openingQty||0,totalCost=(it.openingQty||0)*(it.openingRate||0),totalInQty=it.openingQty||0;
         for (const v of vouchers) {
           for (const ie of (v.inventoryEntries||[])) {
-            if (ie.itemId===it.id) {
+            const matchItem = ie.itemId === it.id || (ie.stockItemId && ie.stockItemId === it.id) || (ie.itemName && ie.itemName.trim().toLowerCase() === it.name.trim().toLowerCase());
+            if (matchItem) {
               if (v.type==='Purchase'||v.type==='Credit Note'){qty+=ie.qty||0;totalCost+=(ie.qty||0)*(ie.rate||0);totalInQty+=ie.qty||0;}
-              else if (v.type==='Sales'||v.type==='Debit Note'){qty-=ie.qty||0;}
+              else if (v.type==='Sales'||v.type==='Debit Note'||v.type==='Manufacturing Journal'||v.type==='Manufacturing'){qty-=ie.qty||0;}
             }
           }
         }
@@ -13016,14 +13018,15 @@ function StockSummaryView({
       for (const v of vouchers) {
         if (!v || !v.inventoryEntries) continue;
         for (const ie of v.inventoryEntries) {
-          if (ie.itemId === it.id || (ie.itemName && ie.itemName.trim().toLowerCase() === it.name.trim().toLowerCase())) {
+          const matchItem = ie.itemId === it.id || (ie.stockItemId && ie.stockItemId === it.id) || (ie.itemName && ie.itemName.trim().toLowerCase() === it.name.trim().toLowerCase());
+          if (matchItem) {
             txns.push({ voucher: v, entry: ie });
             const q = ie.qty || 0;
             const amt = ie.amount || (q * (ie.rate || 0)) || 0;
             if (v.type === 'Purchase' || v.type === 'Credit Note') {
               inQty += q;
               inVal += amt;
-            } else if (v.type === 'Sales' || v.type === 'Debit Note') {
+            } else if (v.type === 'Sales' || v.type === 'Debit Note' || v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') {
               outQty += q;
               outVal += amt;
             }
@@ -13455,7 +13458,7 @@ function StockSummaryView({
                           onMouseEnter={e=>e.currentTarget.style.background='#fdfbee'}
                           onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
                           <td style={{padding:'5px 10px'}}>{v.date}</td>
-                          <td style={{padding:'5px 10px',fontWeight:'bold',color:'#1c5282'}}>{v.partyName || 'Party A/c'}</td>
+                          <td style={{padding:'5px 10px',fontWeight:'bold',color:'#1c5282'}}>{v.partyName || (v.type === 'Manufacturing Journal' ? (v.narration || 'Manufacturing Consumption') : 'Party A/c')}</td>
                           <td style={{textAlign:'center',padding:'5px 8px'}}>
                             <span style={{padding:'2px 6px',background:'#e8edf5',color:'#1c5282',borderRadius:2,fontSize:10,fontWeight:'bold'}}>{v.type}</span>
                           </td>

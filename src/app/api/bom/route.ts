@@ -100,6 +100,13 @@ async function ensureBOMTables() {
       )
     `);
 
+    // Ensure wastageDetails column exists in ManufacturingJournal
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ManufacturingJournal" ADD COLUMN "wastageDetails" TEXT`);
+    } catch (_) {
+      // Column already exists or table freshly created
+    }
+
   } catch (e) {
     // Tables may already exist - that's fine
     console.log('BOM table init:', e);
@@ -223,7 +230,7 @@ export async function POST(req: Request) {
         companyId, journalNo, date, bomId, bomName,
         finishedItemId, finishedItemName, outputQty, outputUnit, outputRate,
         totalRawCost, totalDirectExpenses, totalCost, costPerUnit,
-        wastageType, wastageQty, wastageUnit, wastageValue,
+        wastageType, wastageQty, wastageUnit, wastageValue, wastageDetails,
         narration, rawMaterials, directExpenses
       } = body;
 
@@ -238,21 +245,25 @@ export async function POST(req: Request) {
         jNo = `MFG-${String(lastNum + 1).padStart(4, '0')}`;
       }
 
+      const wDetailsStr = typeof wastageDetails === 'string'
+        ? wastageDetails
+        : JSON.stringify(wastageDetails || []);
+
       await prisma.$executeRawUnsafe(
         `INSERT INTO "ManufacturingJournal"
           ("companyId","journalNo","date","bomId","bomName","finishedItemId","finishedItemName",
            "outputQty","outputUnit","outputRate","totalRawCost","totalDirectExpenses","totalCost","costPerUnit",
-           "wastageType","wastageQty","wastageUnit","wastageValue","narration","status")
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Posted')`,
+           "wastageType","wastageQty","wastageUnit","wastageValue","wastageDetails","narration","status")
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Posted')`,
         parseInt(companyId), jNo,
         new Date(date).toISOString(),
         bomId ? parseInt(bomId) : null, bomName || null,
-        parseInt(finishedItemId), finishedItemName,
+        parseInt(finishedItemId || 0), finishedItemName,
         parseFloat(outputQty), outputUnit, parseFloat(outputRate || 0),
         parseFloat(totalRawCost || 0), parseFloat(totalDirectExpenses || 0),
         parseFloat(totalCost || 0), parseFloat(costPerUnit || 0),
         wastageType || 'None', parseFloat(wastageQty || 0), wastageUnit || 'Nos', parseFloat(wastageValue || 0),
-        narration || null
+        wDetailsStr, narration || null
       );
 
       const newJ = await prisma.$queryRawUnsafe<any[]>(
@@ -262,15 +273,26 @@ export async function POST(req: Request) {
       const journalId = newJ[0]?.id;
 
       if (journalId) {
-        // Insert raw materials
+        // Insert raw materials & resolve missing stockItemId
+        const validRMs = [];
         if (rawMaterials) {
           for (let i = 0; i < rawMaterials.length; i++) {
             const rm = rawMaterials[i];
             if (!rm.itemName?.trim()) continue;
+            let sId = parseInt(rm.stockItemId || 0);
+            if (!sId || isNaN(sId) || sId <= 0) {
+              const found = await prisma.stockItem.findFirst({
+                where: { companyId: parseInt(companyId), name: { equals: rm.itemName.trim() } }
+              });
+              if (found) sId = found.id;
+            }
+            rm.stockItemId = sId;
+            validRMs.push(rm);
+
             await prisma.$executeRawUnsafe(
               `INSERT INTO "MJRawMaterial" ("journalId","stockItemId","itemName","requiredQty","actualQty","unit","rate","amount","seq")
                VALUES (?,?,?,?,?,?,?,?,?)`,
-              journalId, parseInt(rm.stockItemId || 0), rm.itemName,
+              journalId, sId, rm.itemName,
               parseFloat(rm.requiredQty || rm.qty || 0),
               parseFloat(rm.actualQty || rm.qty || 0),
               rm.unit || 'Nos',
@@ -294,16 +316,60 @@ export async function POST(req: Request) {
           }
         }
 
-        // Deduct raw material stock (actualQty consumed)
-        if (rawMaterials) {
-          for (const rm of rawMaterials) {
-            if (!rm.itemName?.trim() || !rm.stockItemId) continue;
-            await deductRawMaterialStock(parseInt(companyId), parseInt(rm.stockItemId), parseFloat(rm.actualQty || rm.qty || 0));
+        // Record Raw Materials Outward Movement via Voucher of type 'Manufacturing Journal'
+        // This ensures Stock Summary accurately shows Raw Materials in the OUTWARDS column!
+        try {
+          const existingVch = await prisma.voucher.findFirst({
+            where: { companyId: parseInt(companyId), voucherNo: jNo, type: 'Manufacturing Journal' }
+          });
+          if (existingVch) {
+            await prisma.inventoryEntry.deleteMany({ where: { voucherId: existingVch.id } });
+            await prisma.voucherEntry.deleteMany({ where: { voucherId: existingVch.id } });
+            await prisma.voucher.delete({ where: { id: existingVch.id } });
           }
+
+          if (validRMs.length > 0) {
+            await prisma.voucher.create({
+              data: {
+                companyId: parseInt(companyId),
+                type: 'Manufacturing Journal',
+                date: new Date(date),
+                voucherNo: jNo,
+                narration: narration || `Manufactured ${outputQty} ${outputUnit} of ${finishedItemName}`,
+                inventoryEntries: {
+                  create: validRMs.filter(r => r.stockItemId > 0).map((rm: any) => ({
+                    stockItemId: parseInt(rm.stockItemId),
+                    qty: parseFloat(rm.actualQty || rm.qty || 0),
+                    rate: parseFloat(rm.rate || 0),
+                    amount: parseFloat(rm.amount || ((rm.actualQty || rm.qty || 0) * (rm.rate || 0)) || 0),
+                    unit: rm.unit || 'Nos',
+                    desc1: `Consumed in ${finishedItemName}`
+                  }))
+                }
+              }
+            });
+          }
+        } catch (vchErr) {
+          console.error("Voucher creation error for Manufacturing Journal:", vchErr);
         }
 
-        // Update stock: add finished goods to stock (weighted average cost)
-        await updateStockAfterManufacture(parseInt(companyId), parseInt(finishedItemId), parseFloat(outputQty), parseFloat(costPerUnit || 0));
+        // Update stock: add finished goods to stock (weighted average cost / creates item if new)
+        await updateStockAfterManufacture(
+          parseInt(companyId),
+          parseInt(finishedItemId || 0),
+          finishedItemName,
+          parseFloat(outputQty),
+          outputUnit,
+          parseFloat(costPerUnit || 0)
+        );
+
+        // Update stock: add Wastage items to opening stock in 'Wastage & Scrap' group
+        await updateWastageStock(
+          parseInt(companyId),
+          finishedItemName,
+          wastageDetails,
+          outputUnit
+        );
       }
 
       return NextResponse.json({ success: true, journalId, journalNo: jNo });
@@ -367,13 +433,28 @@ export async function PUT(req: Request) {
 }
 
 // ============================================================
-// DELETE: Delete BOM
+// DELETE: Delete BOM or Manufacturing Journal
 // ============================================================
 export async function DELETE(req: Request) {
   await ensureBOMTables();
   const { id, type } = await req.json();
   try {
     if (type === 'journal') {
+      const mj = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "ManufacturingJournal" WHERE "id"=?`, parseInt(id));
+      if (mj && mj[0]) {
+        try {
+          const vch = await prisma.voucher.findFirst({
+            where: { companyId: mj[0].companyId, voucherNo: mj[0].journalNo, type: 'Manufacturing Journal' }
+          });
+          if (vch) {
+            await prisma.inventoryEntry.deleteMany({ where: { voucherId: vch.id } });
+            await prisma.voucherEntry.deleteMany({ where: { voucherId: vch.id } });
+            await prisma.voucher.delete({ where: { id: vch.id } });
+          }
+        } catch (vErr) {
+          console.error("Voucher delete error:", vErr);
+        }
+      }
       await prisma.$executeRawUnsafe(`DELETE FROM "MJRawMaterial" WHERE "journalId"=?`, parseInt(id));
       await prisma.$executeRawUnsafe(`DELETE FROM "MJDirectExpense" WHERE "journalId"=?`, parseInt(id));
       await prisma.$executeRawUnsafe(`DELETE FROM "ManufacturingJournal" WHERE "id"=?`, parseInt(id));
@@ -388,46 +469,106 @@ export async function DELETE(req: Request) {
 }
 
 // ============================================================
-// Helper: Deduct raw material stock when manufacturing journal is posted
+// Helper: Update stock quantity after manufacturing (add finished goods)
 // ============================================================
-async function deductRawMaterialStock(companyId: number, itemId: number, deductQty: number) {
+async function updateStockAfterManufacture(
+  companyId: number,
+  itemId: number,
+  itemName: string,
+  addQty: number,
+  unit: string,
+  newRate: number
+) {
   try {
-    if (!itemId || deductQty <= 0) return;
-    const item = await prisma.stockItem.findFirst({ where: { id: itemId, companyId } });
-    if (!item) return;
-    const currentQty = item.openingQty || 0;
-    const newQty = currentQty - deductQty;
-    // Closing stock can go negative (user's responsibility), but we track it
-    await prisma.stockItem.update({
-      where: { id: itemId },
-      data: {
-        openingQty: newQty,
-        openingVal: newQty * (item.openingRate || 0)
-      }
-    });
+    if (addQty <= 0) return;
+    let item = itemId > 0 ? await prisma.stockItem.findFirst({ where: { id: itemId, companyId } }) : null;
+    if (!item && itemName?.trim()) {
+      item = await prisma.stockItem.findFirst({ where: { companyId, name: { equals: itemName.trim() } } });
+    }
+
+    if (item) {
+      const currentQty = item.openingQty || 0;
+      const currentRate = item.openingRate || 0;
+      // Weighted average cost
+      const totalVal = currentQty * currentRate + addQty * newRate;
+      const totalQty = currentQty + addQty;
+      const avgRate = totalQty > 0 ? totalVal / totalQty : newRate;
+      await prisma.stockItem.update({
+        where: { id: item.id },
+        data: { openingQty: totalQty, openingRate: avgRate, openingVal: totalVal }
+      });
+    } else if (itemName?.trim()) {
+      // Auto-create finished product stock item
+      await prisma.stockItem.create({
+        data: {
+          companyId,
+          name: itemName.trim(),
+          openingQty: addQty,
+          openingRate: newRate,
+          openingVal: addQty * newRate,
+          unitName: unit || 'Nos',
+          groupName: 'Finished Goods'
+        }
+      });
+    }
   } catch (e) {
-    console.error('Raw material deduction error:', e);
+    console.error('Stock update error:', e);
   }
 }
 
 // ============================================================
-// Helper: Update stock quantity after manufacturing (add finished goods)
+// Helper: Update Wastage / Scrap Stock items
 // ============================================================
-async function updateStockAfterManufacture(companyId: number, itemId: number, addQty: number, newRate: number) {
+async function updateWastageStock(
+  companyId: number,
+  finishedItemName: string,
+  wastageDetails: any,
+  outputUnit: string
+) {
   try {
-    const item = await prisma.stockItem.findFirst({ where: { id: itemId, companyId } });
-    if (!item) return;
-    const currentQty = item.openingQty || 0;
-    const currentRate = item.openingRate || 0;
-    // Weighted average cost
-    const totalVal = currentQty * currentRate + addQty * newRate;
-    const totalQty = currentQty + addQty;
-    const avgRate = totalQty > 0 ? totalVal / totalQty : newRate;
-    await prisma.stockItem.update({
-      where: { id: itemId },
-      data: { openingQty: totalQty, openingRate: avgRate, openingVal: totalVal }
-    });
+    let list: any[] = [];
+    if (Array.isArray(wastageDetails)) list = wastageDetails;
+    else if (typeof wastageDetails === 'string') {
+      try { list = JSON.parse(wastageDetails); } catch (e) { list = []; }
+    }
+    for (const w of list) {
+      const q = parseFloat(w.qty || 0);
+      if (q <= 0) continue;
+      const type = (w.type || 'Scrap').trim();
+      const name = `${type} - ${finishedItemName}`;
+      const r = parseFloat(w.rate || 0);
+      const v = parseFloat(w.value || (q * r) || 0);
+      const u = w.unit || outputUnit || 'Nos';
+
+      const existing = await prisma.stockItem.findFirst({
+        where: { companyId, name: { equals: name } }
+      });
+
+      if (existing) {
+        const curQ = existing.openingQty || 0;
+        const curVal = existing.openingVal || 0;
+        const totQ = curQ + q;
+        const totVal = curVal + v;
+        const avgR = totQ > 0 ? totVal / totQ : r;
+        await prisma.stockItem.update({
+          where: { id: existing.id },
+          data: { openingQty: totQ, openingRate: avgR, openingVal: totVal }
+        });
+      } else {
+        await prisma.stockItem.create({
+          data: {
+            companyId,
+            name,
+            openingQty: q,
+            openingRate: r,
+            openingVal: v,
+            unitName: u,
+            groupName: 'Wastage & Scrap'
+          }
+        });
+      }
+    }
   } catch (e) {
-    console.error('Stock update error:', e);
+    console.error('Wastage stock update error:', e);
   }
 }
