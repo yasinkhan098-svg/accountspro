@@ -99,9 +99,31 @@ export async function POST(req: Request) {
       }
     }
 
+    // Generate signed offline token for desktop use
+    const validUntilStr = user.subscriptionExpiry
+      ? new Date(user.subscriptionExpiry).toISOString()
+      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+    let offlineToken: string | null = null;
+    try {
+      const { createSignedLicenseToken } = await import('@/lib/licenseEngine');
+      offlineToken = createSignedLicenseToken({
+        userId: user.id,
+        email: user.email,
+        licenseKey: userLicenseKey,
+        machineId: 'DESKTOP-APP',
+        deviceName: 'Windows Desktop',
+        plan: user.plan || 'PRO',
+        validUntil: validUntilStr,
+        features: ['ALL_MODULES', 'MFG_JOURNAL', 'PRINT_ENGINE', 'OFFLINE_MODE'],
+        issuedAt: new Date().toISOString(),
+      });
+    } catch (e) {}
+
     return NextResponse.json({
       message: "Login successful",
       token: sessionToken,
+      offlineToken,
       user: {
         id: user.id,
         name: user.name,

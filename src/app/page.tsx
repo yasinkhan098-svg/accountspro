@@ -14,6 +14,9 @@ import BankStatementEntryView from '@/components/bank-statement/BankStatementEnt
 import BankStatementMenu from '@/components/bank-statement/BankStatementMenu';
 import AuditTrailView from '@/components/AuditTrailView';
 import { getBankStatementState } from '@/components/bank-statement/bankStatementStorage';
+import { offlineSyncService, OfflineGuardResult } from '@/lib/offlineSyncService';
+import OfflineLicenseGuard from '@/components/OfflineLicenseGuard';
+import SyncStatusBadge from '@/components/SyncStatusBadge';
 import {
   computeBaseFinancials,
 
@@ -668,6 +671,8 @@ export default function App() {
     partners: [] as PartnerItem[],
   });
 
+  const [offlineGuardBlocked, setOfflineGuardBlocked] = useState<OfflineGuardResult | null>(null);
+
   useEffect(() => {
     setIsMounted(true);
     const authStatus = authClient.isAuthenticated();
@@ -681,6 +686,26 @@ export default function App() {
         }
       }
     }
+
+    // Verify Desktop Offline License Guard
+    const checkOfflineGuard = async () => {
+      const guardResult = await offlineSyncService.verifyOfflineGuard();
+      if (!navigator.onLine && !guardResult.allowed) {
+        setOfflineGuardBlocked(guardResult);
+      }
+    };
+    checkOfflineGuard();
+
+    const handleOfflineEvent = async () => {
+      const guardResult = await offlineSyncService.verifyOfflineGuard();
+      if (!guardResult.allowed) {
+        setOfflineGuardBlocked(guardResult);
+      }
+    };
+    window.addEventListener('offline', handleOfflineEvent);
+    return () => {
+      window.removeEventListener('offline', handleOfflineEvent);
+    };
   }, []);
 
   const handleLoginSuccess = () => {
@@ -1497,6 +1522,26 @@ export default function App() {
     }
   }, [isAuthenticated, activeCompany?.id]);
 
+  const handleSyncMergedData = useCallback((pull: any) => {
+    if (!pull || !activeCompany?.id) return;
+    const cid = activeCompany.id;
+    if (Array.isArray(pull.ledgers) && pull.ledgers.length > 0) {
+      setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...pull.ledgers]);
+    }
+    if (Array.isArray(pull.stockItems) && pull.stockItems.length > 0) {
+      setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...pull.stockItems]);
+    }
+    if (Array.isArray(pull.units) && pull.units.length > 0) {
+      setAllUnits(prev => [...prev.filter(u => Number(u.companyId) !== Number(cid)), ...pull.units]);
+    }
+    if (Array.isArray(pull.stockGroups) && pull.stockGroups.length > 0) {
+      setAllStockGroups(prev => [...prev.filter(sg => Number(sg.companyId) !== Number(cid)), ...pull.stockGroups]);
+    }
+    if (Array.isArray(pull.vouchers) && pull.vouchers.length > 0) {
+      setAllVouchers(prev => [...prev.filter(v => Number(v.companyId) !== Number(cid)), ...pull.vouchers]);
+    }
+  }, [activeCompany?.id]);
+
   useEffect(() => {
     syncData();
   }, [syncData]);
@@ -1867,133 +1912,145 @@ export default function App() {
     } else {
       const id = Date.now();
       if (type === 'ledger') {
-        try {
-          const res = await fetch('/api/ledgers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ companyId: cid, ...data })
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            setAllLedgers(p => [...p, resData.ledger]);
-            return resData.ledger;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            const errMsg = errData.error || `Failed to save ledger on server`;
-            alert(errMsg);
-            return null;
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/ledgers', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ companyId: cid, ...data })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              setAllLedgers(p => [...p, resData.ledger]);
+              return resData.ledger;
+            }
+          } catch (e: any) {
+            console.warn("Online ledger save failed, saving offline locally:", e);
           }
-        } catch (e: any) {
-          console.error("Ledger save failed", e);
-          alert("Error connecting to server to save ledger: " + e.message);
-          return null;
         }
+        // Local offline save & queue
+        const localLedger = { id, companyId: cid, ...data };
+        setAllLedgers(p => [...p, localLedger]);
+        offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
+        setSaveToast("Ledger saved locally (Offline Mode • Will auto-sync)");
+        return localLedger;
       }
       else if (type === 'stockItem') {
-        try {
-          const res = await fetch('/api/stock-items', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ companyId: cid, ...data })
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            setAllStockItems(p => [...p, resData.item]);
-            return resData.item;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            const errMsg = errData.error || `Failed to save stock item on server`;
-            alert(errMsg);
-            return null;
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/stock-items', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ companyId: cid, ...data })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              setAllStockItems(p => [...p, resData.item]);
+              return resData.item;
+            }
+          } catch (e: any) {
+            console.warn("Online stock item save failed, saving offline locally:", e);
           }
-        } catch (e: any) {
-          console.error("Stock Item save failed", e);
-          alert("Error connecting to server to save stock item: " + e.message);
-          return null;
         }
+        const localItem = { id, companyId: cid, ...data };
+        setAllStockItems(p => [...p, localItem]);
+        offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
+        setSaveToast("Stock item saved locally (Offline Mode • Will auto-sync)");
+        return localItem;
       }
       else if (type === 'unit') {
-        try {
-          const res = await fetch('/api/units', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ companyId: cid, ...data })
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            setAllUnits(p => [...p, resData.unit]);
-            return resData.unit;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            const errMsg = errData.error || `Failed to save unit on server`;
-            alert(errMsg);
-            return null;
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/units', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ companyId: cid, ...data })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              setAllUnits(p => [...p, resData.unit]);
+              return resData.unit;
+            }
+          } catch (e: any) {
+            console.warn("Online unit save failed, saving offline locally:", e);
           }
-        } catch (e: any) {
-          console.error("Unit save failed", e);
-          alert("Error connecting to server to save unit: " + e.message);
-          return null;
         }
+        const localUnit = { id, companyId: cid, ...data };
+        setAllUnits(p => [...p, localUnit]);
+        offlineSyncService.enqueue({ type: 'UNIT', action: 'CREATE', data: localUnit, companyId: cid });
+        setSaveToast("Unit saved locally (Offline Mode • Will auto-sync)");
+        return localUnit;
       }
       else if (type === 'stockGroup') {
-        try {
-          const res = await fetch('/api/stock-groups', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ companyId: cid, ...data })
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            setAllStockGroups(p => [...p, resData.group]);
-            return resData.group;
-          } else {
-            const errText = await res.text();
-            alert("Failed to save stock group on server: " + errText);
-            return null;
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/stock-groups', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ companyId: cid, ...data })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              setAllStockGroups(p => [...p, resData.group]);
+              return resData.group;
+            }
+          } catch (e: any) {
+            console.warn("Online stock group save failed, saving offline locally:", e);
           }
-        } catch (e: any) {
-          console.error("Stock Group save failed", e);
-          alert("Error connecting to server to save stock group: " + e.message);
-          return null;
         }
+        const localSG = { id, companyId: cid, ...data };
+        setAllStockGroups(p => [...p, localSG]);
+        offlineSyncService.enqueue({ type: 'STOCK_GROUP', action: 'CREATE', data: localSG, companyId: cid });
+        setSaveToast("Stock group saved locally (Offline Mode • Will auto-sync)");
+        return localSG;
       }
       else if (type === 'company') {
-        // Double-submit guard: pehli company POST complete hone se pehle doosri nahi jayegi
         if ((saveMaster as any)._savingCompany) {
           console.warn('Company save already in progress, ignoring duplicate call.');
           return false;
         }
         (saveMaster as any)._savingCompany = true;
         try {
-          const res = await fetch('/api/companies', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(data)
-          });
-          const resData = await res.json();
-          if (res.ok && resData.company) {
-            const newCo = resData.company;
-            setCompanies(p => [...p, newCo]);
-            setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' }))]);
-            setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
-            setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
-            setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
-            setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id }))]);
-            setActiveCompany(newCo);
-            return newCo;
-          } else {
-            alert("Failed to create company: " + (resData.error || "Unknown error"));
-            return false;
+          if (navigator.onLine) {
+            const res = await fetch('/api/companies', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify(data)
+            });
+            const resData = await res.json();
+            if (res.ok && resData.company) {
+              const newCo = resData.company;
+              setCompanies(p => [...p, newCo]);
+              setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' }))]);
+              setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
+              setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
+              setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
+              setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id }))]);
+              setActiveCompany(newCo);
+              return newCo;
+            }
           }
         } catch (e: any) {
-          alert("Error creating company: " + e.message);
-          return false;
+          console.warn("Online company create failed, saving offline locally:", e);
         } finally {
           (saveMaster as any)._savingCompany = false;
         }
+
+        // Local offline company creation
+        const localCo = { id: Date.now(), ...data };
+        setCompanies(p => [...p, localCo]);
+        setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: localCo.id, name: g, under: 'Primary' }))]);
+        setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: localCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
+        setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: localCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
+        setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: localCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
+        setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: localCo.id }))]);
+        setActiveCompany(localCo);
+        offlineSyncService.enqueue({ type: 'COMPANY', action: 'CREATE', data: localCo, companyId: localCo.id });
+        setSaveToast("Company created locally (Offline Mode)");
+        return localCo;
       }
       else if (type === 'group') setAllGroups(p => [...p, { id, companyId: cid, ...data }]);
       else if (type === 'stockCategory') setAllStockCategories(p => [...p, { id, companyId: cid, ...data }]);
@@ -2081,6 +2138,40 @@ export default function App() {
     goBack();
   };
 
+  const deleteVoucher = async (id: number) => {
+    const companyId = activeCompany?.id || 0;
+    try {
+      if (navigator.onLine) {
+        await fetch('/api/vouchers', {
+          method: 'DELETE',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authClient.getToken()}`
+          },
+          body: JSON.stringify({ id })
+        });
+      } else {
+        offlineSyncService.enqueue({
+          type: 'VOUCHER',
+          action: 'DELETE',
+          data: { id },
+          companyId,
+        });
+      }
+    } catch (e) {
+      console.warn("Online voucher delete failed, queued for offline delete:", e);
+      offlineSyncService.enqueue({
+        type: 'VOUCHER',
+        action: 'DELETE',
+        data: { id },
+        companyId,
+      });
+    }
+
+    setAllVouchers(p => p.filter(x => x.id !== id));
+    goBack();
+  };
+
   const saveVoucher = async (v: any): Promise<Voucher> => {
     const token = authClient.getToken();
     const companyId = activeCompany?.id || 0;
@@ -2088,108 +2179,128 @@ export default function App() {
     // A voucher is an Edit if it has a numeric ID that's not a temporary timestamp
     const isEdit = v.id && !isNaN(Number(v.id)) && Number(v.id) < 1000000000000; 
 
-    try {
-      const res = await fetch('/api/vouchers', {
-        method: isEdit ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ...v, companyId })
-      });
-      if (res.ok) {
-        const resData = await res.json();
-        const vRaw = resData.voucher || resData;
-        
-        // Dynamic Party Name Mapping
-        let partyEntry: any = null;
-        if (vRaw.type === 'Payment') {
-          partyEntry = vRaw.entries?.find((e: any) => e.entryType === 'Cr');
-        } else if (vRaw.type === 'Receipt' || vRaw.type === 'Contra') {
-          partyEntry = vRaw.entries?.find((e: any) => e.entryType === 'Dr');
-        } else {
-          const pSide = ['Sales', 'Debit Note', 'Sales Quotation'].includes(vRaw.type) ? 'Dr' : 'Cr';
-          partyEntry = vRaw.entries?.find((e: any) => e.entryType === pSide);
-        }
-        const partySide = (vRaw.type === 'Payment' || vRaw.type === 'Purchase' || vRaw.type === 'Credit Note') ? 'Cr' : 'Dr';
-        const pName = vRaw.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party';
-
-        // Build entries: start with DB-returned entries (mapped with ledgerName)
-        const dbEntries = (vRaw.entries || []).map((e: any, idx: number) => {
-          const localEntry = v.entries?.find((le: any) => le.ledgerId === e.ledgerId && Math.abs(le.amount - e.amount) < 0.01) || v.entries?.[idx];
-          return {
-            ...e,
-            ledgerName: e.ledgerName || e.ledger?.name || localEntry?.ledgerName || '',
-          };
+    if (navigator.onLine) {
+      try {
+        const res = await fetch('/api/vouchers', {
+          method: isEdit ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ ...v, companyId })
         });
-        // Re-attach local entries that API filtered out (ledgerId=0 means ledger not in DB yet)
-        // This ensures additional ledgers like Freight, Packing etc. appear in print preview
-        const dbLedgerIds = new Set(dbEntries.map((e: any) => Number(e.ledgerId)));
-        const missingLocalEntries = (v.entries || []).filter((le: any) => {
-          const lid = Number(le.ledgerId);
-          if (lid > 0 && dbLedgerIds.has(lid)) return false;
-          return !!(le.ledgerName);
-        }).map((le: any) => ({ ...le, ledger: null }));
-
-        const computedTotal = Number(v.total) || 
-          v.entries?.reduce((s: number, e: any) => s + (e.entryType === partySide ? e.amount : 0), 0) || 
-          v.entries?.[0]?.amount || 0;
-
-        let finalSavedPartyName = (v.partyName && !isGenericAc(v.partyName)) ? v.partyName : (pName || v.partyName || 'Cash');
-        if (vRaw.type === 'Payment') {
-          const crEnt = vRaw.entries?.find((e: any) => e.entryType === 'Cr');
-          if (crEnt && (crEnt.ledger?.name || crEnt.ledgerName)) {
-            finalSavedPartyName = crEnt.ledger?.name || crEnt.ledgerName;
+        if (res.ok) {
+          const resData = await res.json();
+          const vRaw = resData.voucher || resData;
+          
+          // Dynamic Party Name Mapping
+          let partyEntry: any = null;
+          if (vRaw.type === 'Payment') {
+            partyEntry = vRaw.entries?.find((e: any) => e.entryType === 'Cr');
+          } else if (vRaw.type === 'Receipt' || vRaw.type === 'Contra') {
+            partyEntry = vRaw.entries?.find((e: any) => e.entryType === 'Dr');
+          } else {
+            const pSide = ['Sales', 'Debit Note', 'Sales Quotation'].includes(vRaw.type) ? 'Dr' : 'Cr';
+            partyEntry = vRaw.entries?.find((e: any) => e.entryType === pSide);
           }
-        } else if (vRaw.type === 'Receipt' || vRaw.type === 'Contra') {
-          const drEnt = vRaw.entries?.find((e: any) => e.entryType === 'Dr');
-          if (drEnt && (drEnt.ledger?.name || drEnt.ledgerName)) {
-            finalSavedPartyName = drEnt.ledger?.name || drEnt.ledgerName;
-          }
-        }
+          const partySide = (vRaw.type === 'Payment' || vRaw.type === 'Purchase' || vRaw.type === 'Credit Note') ? 'Cr' : 'Dr';
+          const pName = vRaw.partyName || partyEntry?.ledger?.name || partyEntry?.ledgerName || 'Unknown Party';
 
-        const savedV = {
-          ...v,
-          ...vRaw,
-          total: computedTotal,
-          entries: [...dbEntries, ...missingLocalEntries],
-          inventoryEntries: (vRaw.inventoryEntries || []).map((ie: any, idx: number) => {
-            const localItem = v.inventoryEntries?.find((li: any) => (li.itemId || li.stockItemId) === ie.stockItemId) || v.inventoryEntries?.[idx];
+          // Build entries: start with DB-returned entries (mapped with ledgerName)
+          const dbEntries = (vRaw.entries || []).map((e: any, idx: number) => {
+            const localEntry = v.entries?.find((le: any) => le.ledgerId === e.ledgerId && Math.abs(le.amount - e.amount) < 0.01) || v.entries?.[idx];
             return {
-              ...ie,
-              itemId: ie.stockItemId || ie.itemId,
-              itemName: ie.itemName || ie.stockItem?.name || localItem?.itemName || '',
-              showInclTax: ie.stockItem?.showInclTax ?? localItem?.showInclTax ?? false,
-              showAmtInclTax: ie.stockItem?.showAmtInclTax ?? localItem?.showAmtInclTax ?? false,
+              ...e,
+              ledgerName: e.ledgerName || e.ledger?.name || localEntry?.ledgerName || '',
             };
-          }),
-          partyDetails: typeof vRaw.partyDetails === 'string' ? JSON.parse(vRaw.partyDetails) : (vRaw.partyDetails || v.partyDetails),
-          dispatchDetails: typeof vRaw.dispatchDetails === 'string' ? JSON.parse(vRaw.dispatchDetails) : (vRaw.dispatchDetails || v.dispatchDetails),
-          partyName: finalSavedPartyName,
-          date: formatDateToTally(vRaw.date || v.date) || v.date
-        };
-        if (isEdit) {
-          setAllVouchers(p => p.map(x => x.id === v.id ? savedV : x));
-        } else {
-          setAllVouchers(p => [...p, savedV]);
+          });
+
+          const dbLedgerIds = new Set(dbEntries.map((e: any) => Number(e.ledgerId)));
+          const missingLocalEntries = (v.entries || []).filter((le: any) => {
+            const lid = Number(le.ledgerId);
+            if (lid > 0 && dbLedgerIds.has(lid)) return false;
+            return !!(le.ledgerName);
+          }).map((le: any) => ({ ...le, ledger: null }));
+
+          const computedTotal = Number(v.total) || 
+            v.entries?.reduce((s: number, e: any) => s + (e.entryType === partySide ? e.amount : 0), 0) || 
+            v.entries?.[0]?.amount || 0;
+
+          let finalSavedPartyName = (v.partyName && !isGenericAc(v.partyName)) ? v.partyName : (pName || v.partyName || 'Cash');
+          if (vRaw.type === 'Payment') {
+            const crEnt = vRaw.entries?.find((e: any) => e.entryType === 'Cr');
+            if (crEnt && (crEnt.ledger?.name || crEnt.ledgerName)) {
+              finalSavedPartyName = crEnt.ledger?.name || crEnt.ledgerName;
+            }
+          } else if (vRaw.type === 'Receipt' || vRaw.type === 'Contra') {
+            const drEnt = vRaw.entries?.find((e: any) => e.entryType === 'Dr');
+            if (drEnt && (drEnt.ledger?.name || drEnt.ledgerName)) {
+              finalSavedPartyName = drEnt.ledger?.name || drEnt.ledgerName;
+            }
+          }
+
+          const savedV = {
+            ...v,
+            ...vRaw,
+            total: computedTotal,
+            entries: [...dbEntries, ...missingLocalEntries],
+            inventoryEntries: (vRaw.inventoryEntries || []).map((ie: any, idx: number) => {
+              const localItem = v.inventoryEntries?.find((li: any) => (li.itemId || li.stockItemId) === ie.stockItemId) || v.inventoryEntries?.[idx];
+              return {
+                ...ie,
+                itemId: ie.stockItemId || ie.itemId,
+                itemName: ie.itemName || ie.stockItem?.name || localItem?.itemName || '',
+                showInclTax: ie.stockItem?.showInclTax ?? localItem?.showInclTax ?? false,
+                showAmtInclTax: ie.stockItem?.showAmtInclTax ?? localItem?.showAmtInclTax ?? false,
+              };
+            }),
+            partyDetails: typeof vRaw.partyDetails === 'string' ? JSON.parse(vRaw.partyDetails) : (vRaw.partyDetails || v.partyDetails),
+            dispatchDetails: typeof vRaw.dispatchDetails === 'string' ? JSON.parse(vRaw.dispatchDetails) : (vRaw.dispatchDetails || v.dispatchDetails),
+            partyName: finalSavedPartyName,
+            date: formatDateToTally(vRaw.date || v.date) || v.date
+          };
+          if (isEdit) {
+            setAllVouchers(p => p.map(x => x.id === v.id ? savedV : x));
+          } else {
+            setAllVouchers(p => [...p, savedV]);
+          }
+          setPrintVoucher(savedV);
+          return savedV;
         }
-        setPrintVoucher(savedV);
-        return savedV;
-      } else {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Server failed to save voucher");
+      } catch (cloudErr) {
+        console.warn("Cloud save failed, seamlessly saving locally on PC:", cloudErr);
       }
-    } catch (e: any) { 
-      console.error("Voucher Cloud Save Failed", e);
-      throw e; // Important: throw to handleSave
     }
 
-    // Fallback to local if cloud fails
+    // ==================== OFFLINE PERSISTENCE & QUEUE ====================
     const id = v.id || Date.now();
-    const newV = { ...v, id, companyId };
+    const partySide = (v.type === 'Payment' || v.type === 'Purchase' || v.type === 'Credit Note') ? 'Cr' : 'Dr';
+    const computedTotal = Number(v.total) || 
+      v.entries?.reduce((s: number, e: any) => s + (e.entryType === partySide ? e.amount : 0), 0) || 
+      v.entries?.[0]?.amount || 0;
+
+    const newV = {
+      ...v,
+      id,
+      companyId,
+      total: computedTotal,
+      partyName: v.partyName || 'Cash',
+      date: formatDateToTally(v.date) || v.date || currentDate,
+    };
+
+    // 1. Add to sync queue for auto-sync when online
+    offlineSyncService.enqueue({
+      type: 'VOUCHER',
+      action: isEdit ? 'UPDATE' : 'CREATE',
+      data: newV,
+      companyId,
+    });
+
+    // 2. Save locally in state & local storage
     if (v.id) {
       setAllVouchers(p => p.map(x => x.id === v.id ? newV : x));
     } else {
       setAllVouchers(p => [...p, newV]);
     }
     setPrintVoucher(newV);
+    setSaveToast("Saved locally on PC (Offline Mode • Will auto-sync online)");
     return newV;
   };
 
@@ -2219,22 +2330,6 @@ export default function App() {
       }
     }
     alert(`${createdCount} Standard Ledgers initialized! (Round Off, Discount, GST, etc.)`);
-  };
-
-  const deleteVoucher = async (id: number) => {
-    try {
-      await fetch('/api/vouchers', {
-        method: 'DELETE',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authClient.getToken()}`
-        },
-        body: JSON.stringify({ id })
-      });
-    } catch (e) { console.error("Voucher Delete Error:", e); }
-
-    setAllVouchers(p => p.filter(x => x.id !== id));
-    goBack();
   };
 
   // MENUS
@@ -2668,6 +2763,11 @@ export default function App() {
 
   if (!isMounted) return <div style={{background:'#1e2d3d', height:'100vh'}} />;
 
+  // OFFLINE LICENSE GUARD (Enforce License Activation for Offline Desktop Use)
+  if (offlineGuardBlocked) {
+    return <OfflineLicenseGuard guardResult={offlineGuardBlocked} onActivated={() => { setOfflineGuardBlocked(null); window.location.reload(); }} />;
+  }
+
   if (!isAuthenticated) {
     return <AuthUI onLoginSuccess={handleLoginSuccess} />;
   }
@@ -2763,6 +2863,7 @@ export default function App() {
            </button>
         </div>
         <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:15, marginRight:10}}>
+           <SyncStatusBadge companyId={activeCompany?.id} authToken={authClient.getToken() || ''} onDataMerged={handleSyncMergedData} />
            <div style={{textAlign:'right'}}>
              <div style={{fontSize:11, fontWeight:'bold', color:'#f1c40f'}}>{currentUser?.name}</div>
              <div style={{fontSize:9, color:'#fff', opacity:0.8}}>{currentUser?.organizationName}</div>

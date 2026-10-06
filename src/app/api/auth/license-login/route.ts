@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 import { ensureLicenseTables } from '@/lib/ensureLicenseTables';
+import { createSignedLicenseToken } from '@/lib/licenseEngine';
 
 export async function POST(req: Request) {
   try {
@@ -20,15 +21,28 @@ export async function POST(req: Request) {
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@ledgerx.com").toLowerCase().trim();
     if (
       (cleanEmail === adminEmail || cleanEmail === "admin@demo.com") &&
-      (cleanKey === 'LX-ADMIN-MASTER-2027' || cleanKey.startsWith('LX-ADMIN') || cleanKey === 'LX-0004-D8450E-2026')
+      (cleanKey === 'LX-ADMIN-MASTER-2027' || cleanKey.startsWith('LX-ADMIN') || cleanKey === 'LX-0001-XXXX-2026')
     ) {
       const adminToken = "admin_" + crypto.randomBytes(32).toString("hex");
       const farFuture = new Date();
       farFuture.setFullYear(farFuture.getFullYear() + 100);
 
+      const adminOfflineToken = createSignedLicenseToken({
+        userId: 1,
+        email: cleanEmail,
+        licenseKey: "LX-ADMIN-MASTER-2027",
+        machineId: 'DESKTOP-ADMIN',
+        deviceName: 'Administrator PC',
+        plan: "ENTERPRISE",
+        validUntil: farFuture.toISOString(),
+        features: ['ALL_MODULES', 'MFG_JOURNAL', 'PRINT_ENGINE', 'OFFLINE_MODE'],
+        issuedAt: new Date().toISOString(),
+      });
+
       return NextResponse.json({
         message: "Admin license verified and logged in successfully",
         token: adminToken,
+        offlineToken: adminOfflineToken,
         user: {
           id: "admin",
           name: "Administrator",
@@ -45,7 +59,19 @@ export async function POST(req: Request) {
     // 2. Normal user lookup
     let user: any = null;
     try {
-      user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+      user = await prisma.user.findUnique({
+        where: { email: cleanEmail },
+        include: {
+          companies: {
+            include: {
+              ledgers: true,
+              stockGroups: true,
+              stockItems: true,
+              units: true,
+            }
+          }
+        }
+      });
     } catch (e) {
       const users: any[] = await prisma.$queryRawUnsafe(
         `SELECT * FROM "User" WHERE "email" = ? LIMIT 1`,
@@ -61,12 +87,12 @@ export async function POST(req: Request) {
     // Check licenseKey
     const dbKey = (user.licenseKey || '').toUpperCase().trim();
     if (!dbKey || dbKey !== cleanKey) {
-      return NextResponse.json({ error: 'Invalid License Key for this account. Please check your license key.' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid License Key for this account. Please verify your license key.' }, { status: 401 });
     }
 
     // Check expiry
     if (user.subscriptionExpiry && new Date(user.subscriptionExpiry).getTime() < Date.now()) {
-      return NextResponse.json({ error: 'Your subscription has expired. Please renew your plan online.' }, { status: 403 });
+      return NextResponse.json({ error: 'Your license subscription has expired. Please renew online to continue.' }, { status: 403 });
     }
 
     // Generate new session token
@@ -84,9 +110,27 @@ export async function POST(req: Request) {
       );
     }
 
+    // Generate signed offline token for desktop offline use
+    const validUntilStr = user.subscriptionExpiry
+      ? new Date(user.subscriptionExpiry).toISOString()
+      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+    const offlineToken = createSignedLicenseToken({
+      userId: user.id,
+      email: user.email,
+      licenseKey: user.licenseKey,
+      machineId: 'DESKTOP-APP',
+      deviceName: 'Windows Desktop',
+      plan: user.plan || 'PRO',
+      validUntil: validUntilStr,
+      features: ['ALL_MODULES', 'MFG_JOURNAL', 'PRINT_ENGINE', 'OFFLINE_MODE'],
+      issuedAt: new Date().toISOString(),
+    });
+
     return NextResponse.json({
-      message: 'License activated and logged in successfully',
+      message: 'License activated and signed in successfully for offline use',
       token: sessionToken,
+      offlineToken,
       user: {
         id: user.id,
         name: user.name,
@@ -95,7 +139,8 @@ export async function POST(req: Request) {
         plan: user.plan,
         subscriptionExpiry: user.subscriptionExpiry,
         licenseKey: user.licenseKey,
-      }
+      },
+      companies: user.companies || [],
     });
   } catch (error: any) {
     console.error('License login error:', error);

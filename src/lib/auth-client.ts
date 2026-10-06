@@ -4,11 +4,17 @@ const TOKEN_KEY = "tally_auth_token";
 const USER_KEY = "tally_auth_user";
 
 export const authClient = {
-  setSession: (token: string, user: any) => {
+  setSession: (token: string, user: any, offlineToken?: string | null) => {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(TOKEN_KEY, token);
         localStorage.setItem(USER_KEY, JSON.stringify(user));
+        if (offlineToken) {
+          localStorage.setItem('ledgerx_offline_license_token', offlineToken);
+          if ((window as any).desktopBridge?.saveOfflineToken) {
+            (window as any).desktopBridge.saveOfflineToken(offlineToken);
+          }
+        }
       } catch {}
       try {
         sessionStorage.setItem(TOKEN_KEY, token);

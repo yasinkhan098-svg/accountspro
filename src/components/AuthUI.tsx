@@ -331,7 +331,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
       });
       const data = await res.json();
       if (res.ok) {
-        authClient.setSession(data.token, data.user);
+        authClient.setSession(data.token, data.user, data.offlineToken);
         onLoginSuccess();
       } else {
         setError(data.error || 'Invalid credentials. Please try again.');
@@ -355,7 +355,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
       });
       const data = await res.json();
       if (res.ok) {
-        authClient.setSession(data.token, data.user);
+        authClient.setSession(data.token, data.user, data.offlineToken);
         onLoginSuccess();
       } else {
         setError(data.error || 'Invalid License Key or Email.');

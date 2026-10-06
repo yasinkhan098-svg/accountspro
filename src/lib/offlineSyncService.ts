@@ -1,0 +1,403 @@
+import { LicensePayload } from './licenseEngine';
+
+const SIGNING_SECRET = process.env.NEXT_PUBLIC_LICENSE_SIGNING_SECRET || 'accounts_pro_offline_master_secret_2027';
+const OFFLINE_TOKEN_KEY = 'ledgerx_offline_license_token';
+const MACHINE_ID_KEY = 'ledgerx_machine_id';
+const SYNC_QUEUE_KEY = 'ledgerx_sync_queue';
+const LAST_SYNC_TIME_KEY = 'ledgerx_last_sync_time';
+const TIME_GUARD_KEY = 'ledgerx_time_guard';
+
+export interface SyncQueueItem {
+  id: string; // unique local ID e.g. "sq_1712345678"
+  type: 'VOUCHER' | 'LEDGER' | 'STOCK_ITEM' | 'UNIT' | 'STOCK_GROUP' | 'COMPANY';
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  data: any;
+  companyId: number;
+  timestamp: string;
+}
+
+export interface OfflineGuardResult {
+  allowed: boolean;
+  reason?: 'NO_LICENSE' | 'EXPIRED' | 'CLOCK_ROLLBACK' | 'INVALID_TOKEN';
+  message?: string;
+  payload?: LicensePayload;
+  expiryDate?: Date;
+  daysRemaining?: number;
+}
+
+export type SyncStatusType = 'online-synced' | 'offline-pending' | 'syncing' | 'offline-locked' | 'error';
+
+class OfflineSyncService {
+  private syncInProgress = false;
+  private statusListeners: ((status: SyncStatusType, meta?: any) => void)[] = [];
+  private currentStatus: SyncStatusType = 'online-synced';
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      this.initNetworkListeners();
+      this.updateTimeGuard();
+      // Record time guard tick every 5 minutes
+      setInterval(() => this.updateTimeGuard(), 5 * 60 * 1000);
+      // Auto-sync heartbeat check every 20 seconds
+      setInterval(() => {
+        if (this.isOnline() && this.getPendingCount() > 0) {
+          this.triggerAutoSync();
+        }
+      }, 20 * 1000);
+    }
+  }
+
+  // ==================== 1. NETWORK & TIME GUARD ====================
+
+  public isOnline(): boolean {
+    if (typeof window === 'undefined') return true;
+    return navigator.onLine;
+  }
+
+  private initNetworkListeners() {
+    window.addEventListener('online', () => {
+      console.log('[OfflineSync] Internet reconnected! Triggering auto-sync...');
+      this.triggerAutoSync();
+    });
+
+    window.addEventListener('offline', () => {
+      console.log('[OfflineSync] Internet lost. Switched to offline mode.');
+      this.notifyStatus(this.getPendingCount() > 0 ? 'offline-pending' : 'online-synced');
+    });
+  }
+
+  private updateTimeGuard(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const now = Date.now();
+      const last = parseInt(localStorage.getItem(TIME_GUARD_KEY) || '0', 10);
+      if (last > 0 && now < last - (15 * 60 * 1000)) {
+        console.warn('[OfflineSync] System clock rollback detected!');
+      } else {
+        localStorage.setItem(TIME_GUARD_KEY, String(now));
+      }
+    } catch (e) {}
+  }
+
+  public isClockRolledBack(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      const now = Date.now();
+      const last = parseInt(localStorage.getItem(TIME_GUARD_KEY) || '0', 10);
+      return last > 0 && now < last - (15 * 60 * 1000);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ==================== 2. MACHINE ID ====================
+
+  public async getMachineId(): Promise<string> {
+    if (typeof window === 'undefined') return 'DESKTOP-SERVER';
+
+    // 1. Electron bridge if running in desktop app
+    if ((window as any).desktopBridge?.getMachineId) {
+      try {
+        const hwid = await (window as any).desktopBridge.getMachineId();
+        if (hwid) return hwid;
+      } catch (e) {}
+    }
+
+    // 2. Persistent Machine ID fallback
+    let storedHwid = localStorage.getItem(MACHINE_ID_KEY);
+    if (!storedHwid) {
+      const rand = Math.random().toString(36).substring(2, 10).toUpperCase();
+      storedHwid = `LX-DEV-${rand}-${Date.now().toString(36).toUpperCase()}`;
+      localStorage.setItem(MACHINE_ID_KEY, storedHwid);
+    }
+    return storedHwid;
+  }
+
+  // ==================== 3. OFFLINE LICENSE MANAGEMENT ====================
+
+  public getOfflineToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(OFFLINE_TOKEN_KEY);
+  }
+
+  public async saveOfflineToken(token: string): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+    try {
+      localStorage.setItem(OFFLINE_TOKEN_KEY, token);
+      if ((window as any).desktopBridge?.saveOfflineToken) {
+        await (window as any).desktopBridge.saveOfflineToken(token);
+      }
+      return true;
+    } catch (e) {
+      console.error('Failed to save offline token:', e);
+      return false;
+    }
+  }
+
+  public removeOfflineToken(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(OFFLINE_TOKEN_KEY);
+  }
+
+  public decodeToken(token: string): { payload: LicensePayload | null; signature: string } {
+    try {
+      const raw = atob(token);
+      const tokenObj = JSON.parse(raw);
+      if (!tokenObj.p || !tokenObj.s) return { payload: null, signature: '' };
+      const jsonStr = atob(tokenObj.p);
+      const payload: LicensePayload = JSON.parse(jsonStr);
+      return { payload, signature: tokenObj.s };
+    } catch (e) {
+      return { payload: null, signature: '' };
+    }
+  }
+
+  /**
+   * Evaluates if the current app is allowed to run offline.
+   * STRICT ENFORCEMENT:
+   * If offline and NO active license key was activated, ALL ACCESS IS BLOCKED.
+   * If license expired, ALL ACCESS IS BLOCKED.
+   */
+  public async verifyOfflineGuard(): Promise<OfflineGuardResult> {
+    if (typeof window === 'undefined') {
+      return { allowed: true };
+    }
+
+    const token = this.getOfflineToken();
+
+    // 1. No license activated at all
+    if (!token) {
+      return {
+        allowed: false,
+        reason: 'NO_LICENSE',
+        message: 'Desktop App offline use requires an activated License Key. Please connect to internet and activate your License Key.',
+      };
+    }
+
+    // 2. Decode token
+    const { payload } = this.decodeToken(token);
+    if (!payload || !payload.licenseKey) {
+      return {
+        allowed: false,
+        reason: 'INVALID_TOKEN',
+        message: 'Invalid or corrupted desktop license key. Please reactivate your device.',
+      };
+    }
+
+    // 3. Clock rollback protection
+    if (this.isClockRolledBack()) {
+      return {
+        allowed: false,
+        reason: 'CLOCK_ROLLBACK',
+        message: 'System date rollback detected! Please correct your computer system clock to continue using offline mode.',
+        payload,
+      };
+    }
+
+    // 4. Expiry Check
+    if (payload.validUntil) {
+      const expiry = new Date(payload.validUntil).getTime();
+      const now = Date.now();
+      if (now > expiry) {
+        return {
+          allowed: false,
+          reason: 'EXPIRED',
+          message: `Your License Subscription expired on ${new Date(payload.validUntil).toLocaleDateString('en-GB')}. Please reconnect to the internet and renew your subscription.`,
+          payload,
+          expiryDate: new Date(payload.validUntil),
+          daysRemaining: 0,
+        };
+      }
+
+      const diffDays = Math.max(0, Math.ceil((expiry - now) / (1000 * 60 * 60 * 24)));
+      return {
+        allowed: true,
+        payload,
+        expiryDate: new Date(payload.validUntil),
+        daysRemaining: diffDays,
+      };
+    }
+
+    return { allowed: true, payload };
+  }
+
+  // ==================== 4. OUTBOX SYNC QUEUE ====================
+
+  public getQueue(): SyncQueueItem[] {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(SYNC_QUEUE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  public getPendingCount(): number {
+    return this.getQueue().length;
+  }
+
+  public enqueue(item: Omit<SyncQueueItem, 'id' | 'timestamp'>): SyncQueueItem {
+    const queue = this.getQueue();
+    const newItem: SyncQueueItem = {
+      ...item,
+      id: `sq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: new Date().toISOString(),
+    };
+
+    // If item is a duplicate update/create of same type and ID, overwrite it
+    const existingIdx = queue.findIndex(
+      q => q.type === newItem.type && q.data?.id === newItem.data?.id && q.action === newItem.action
+    );
+    if (existingIdx >= 0) {
+      queue[existingIdx] = newItem;
+    } else {
+      queue.push(newItem);
+    }
+
+    try {
+      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+    } catch (e) {}
+
+    this.notifyStatus(this.isOnline() ? 'online-synced' : 'offline-pending', { pendingCount: queue.length });
+    return newItem;
+  }
+
+  public dequeue(ids: string[]): void {
+    const queue = this.getQueue();
+    const idSet = new Set(ids);
+    const updated = queue.filter(item => !idSet.has(item.id));
+    try {
+      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    this.notifyStatus(this.isOnline() ? 'online-synced' : 'offline-pending', { pendingCount: updated.length });
+  }
+
+  public clearQueue(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(SYNC_QUEUE_KEY);
+    this.notifyStatus('online-synced', { pendingCount: 0 });
+  }
+
+  // ==================== 5. 2-WAY SYNC EXECUTION ====================
+
+  public async syncWithCloud(
+    companyId: number,
+    authToken: string,
+    onMergeData?: (pulled: any) => void
+  ): Promise<{ success: boolean; pushedCount: number; error?: string }> {
+    if (this.syncInProgress) {
+      return { success: false, pushedCount: 0, error: 'Sync already in progress' };
+    }
+
+    if (!this.isOnline()) {
+      return { success: false, pushedCount: 0, error: 'Offline - cannot sync until internet is connected' };
+    }
+
+    const token = this.getOfflineToken() || authToken;
+    if (!token || !companyId) {
+      return { success: false, pushedCount: 0, error: 'Token or Company ID missing' };
+    }
+
+    this.syncInProgress = true;
+    this.notifyStatus('syncing');
+
+    try {
+      const machineId = await this.getMachineId();
+      const queue = this.getQueue().filter(q => q.companyId === companyId || !q.companyId);
+
+      // Separate pushed items by category
+      const pushedVouchers = queue.filter(q => q.type === 'VOUCHER' && q.action !== 'DELETE').map(q => q.data);
+      const deletedVoucherIds = queue.filter(q => q.type === 'VOUCHER' && q.action === 'DELETE').map(q => q.data?.id);
+      const pushedLedgers = queue.filter(q => q.type === 'LEDGER' && q.action !== 'DELETE').map(q => q.data);
+      const pushedStockItems = queue.filter(q => q.type === 'STOCK_ITEM' && q.action !== 'DELETE').map(q => q.data);
+      const pushedUnits = queue.filter(q => q.type === 'UNIT' && q.action !== 'DELETE').map(q => q.data);
+      const pushedStockGroups = queue.filter(q => q.type === 'STOCK_GROUP' && q.action !== 'DELETE').map(q => q.data);
+
+      const lastSyncedAt = localStorage.getItem(LAST_SYNC_TIME_KEY);
+
+      const res = await fetch('/api/sync/v1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          machineId,
+          companyId,
+          lastSyncedAt,
+          push: {
+            vouchers: pushedVouchers,
+            deletedVoucherIds,
+            ledgers: pushedLedgers,
+            stockItems: pushedStockItems,
+            units: pushedUnits,
+            stockGroups: pushedStockGroups,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server responded with ${res.status}`);
+      }
+
+      const syncResult = await res.json();
+
+      // Dequeue successfully pushed items
+      const processedIds = queue.map(q => q.id);
+      this.dequeue(processedIds);
+
+      // Update sync timestamp
+      if (syncResult.syncedAt) {
+        localStorage.setItem(LAST_SYNC_TIME_KEY, syncResult.syncedAt);
+      }
+
+      // If callback provided to merge pulled records into UI state:
+      if (onMergeData && syncResult.pull) {
+        onMergeData(syncResult.pull);
+      }
+
+      this.notifyStatus('online-synced', {
+        pushedCount: queue.length,
+        syncedAt: syncResult.syncedAt,
+      });
+
+      return { success: true, pushedCount: queue.length };
+    } catch (err: any) {
+      console.error('[OfflineSync] Sync failed:', err);
+      this.notifyStatus('error', { error: err.message });
+      return { success: false, pushedCount: 0, error: err.message };
+    } finally {
+      this.syncInProgress = false;
+    }
+  }
+
+  public async triggerAutoSync(): Promise<void> {
+    if (!this.isOnline() || this.syncInProgress) return;
+    // Dispatch an event so the active view can provide companyId and token
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ledgerx:trigger-auto-sync'));
+    }
+  }
+
+  // ==================== 6. OBSERVABLE LISTENERS ====================
+
+  public subscribe(listener: (status: SyncStatusType, meta?: any) => void): () => void {
+    this.statusListeners.push(listener);
+    listener(this.currentStatus, { pendingCount: this.getPendingCount() });
+    return () => {
+      this.statusListeners = this.statusListeners.filter(l => l !== listener);
+    };
+  }
+
+  private notifyStatus(status: SyncStatusType, meta?: any) {
+    this.currentStatus = status;
+    this.statusListeners.forEach(listener => {
+      try {
+        listener(status, meta);
+      } catch (e) {}
+    });
+  }
+}
+
+export const offlineSyncService = new OfflineSyncService();
