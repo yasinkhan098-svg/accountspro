@@ -2815,7 +2815,6 @@ export default function App() {
             }
             nav('PRINT_PREVIEW');
           }}><u>P</u>: Print</div>
-          <div onClick={()=>openFinalBSModal()} style={{background:'linear-gradient(135deg,#27ae60,#1e8449)',color:'#fff',padding:'2px 8px',borderRadius:3,cursor:'pointer',fontWeight:'bold'}}>📊 Final BS</div>
           <div onClick={()=>setShowFeatures(true)}>F11: Features</div>
         </div>
       </div>
