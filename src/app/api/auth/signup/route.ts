@@ -40,21 +40,40 @@ export async function POST(req: Request) {
       paymentStatus = 'SUCCESS';
     }
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        organizationName,
-        mobile,
-        address,
-        profession,
-        email,
-        password: hashedPassword,
-        plan,
-        paymentStatus,
-        subscriptionExpiry,
-        licenseKey: generateLicenseKey(Date.now().toString().slice(-4)),
-      },
-    });
+    let user: any = null;
+    const lKey = generateLicenseKey(Date.now().toString().slice(-4));
+    try {
+      user = await prisma.user.create({
+        data: {
+          name,
+          organizationName,
+          mobile,
+          address,
+          profession,
+          email,
+          password: hashedPassword,
+          plan,
+          paymentStatus,
+          subscriptionExpiry,
+          licenseKey: lKey,
+        },
+      });
+    } catch (createErr) {
+      user = await prisma.user.create({
+        data: {
+          name,
+          organizationName,
+          mobile,
+          address,
+          profession,
+          email,
+          password: hashedPassword,
+          plan,
+          paymentStatus,
+          subscriptionExpiry,
+        },
+      });
+    }
 
     return NextResponse.json({ message: "User registered successfully", userId: user.id }, { status: 201 });
   } catch (error) {

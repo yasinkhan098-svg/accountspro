@@ -51,9 +51,22 @@ export async function getAuthenticatedUser(req: Request) {
   }
 
   // Normal user - database se check karo
-  const user = await prisma.user.findFirst({
-    where: { sessionToken: token },
-  });
-
-  return user; // returns user object or null if token is invalid
+  try {
+    const user = await prisma.user.findFirst({
+      where: { sessionToken: token },
+    });
+    return user;
+  } catch (err) {
+    console.warn("Prisma user.findFirst error, trying raw query fallback:", err);
+    try {
+      const users: any[] = await prisma.$queryRawUnsafe(
+        `SELECT * FROM "User" WHERE "sessionToken" = ? LIMIT 1`,
+        token
+      );
+      if (users && users.length > 0) return users[0];
+    } catch (rawErr) {
+      console.error("Auth fallback error:", rawErr);
+    }
+    return null;
+  }
 }

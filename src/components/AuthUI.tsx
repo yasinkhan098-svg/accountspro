@@ -298,6 +298,11 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
     email: '',
     password: ''
   });
+  const [loginMethod, setLoginMethod] = useState<'password' | 'license'>('password');
+  const [licenseInput, setLicenseInput] = useState({
+    email: '',
+    licenseKey: ''
+  });
 
   // CSS sirf ek baar inject hoga - har re-render pe nahi
   useEffect(() => {
@@ -333,6 +338,30 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
       }
     } catch (err) {
       setError('Connection error. Please check your server.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLicenseLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/license-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(licenseInput)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        authClient.setSession(data.token, data.user);
+        onLoginSuccess();
+      } else {
+        setError(data.error || 'Invalid License Key or Email.');
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -501,44 +530,127 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
 
           {/* LOGIN FORM */}
           {isLogin ? (
-            <form onSubmit={handleLogin} className="premium-form">
-              <div className="input-field">
-                <label>USER ID / EMAIL <span className="req">*</span></label>
-                <div className="input-wrapper">
-                  <input
-                    type="email"
-                    required
-                    autoFocus
-                    placeholder="name@company.com"
-                    onKeyDown={handleKeyDown}
-                    value={loginData.email}
-                    onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                  />
-                </div>
+            <div>
+              {/* Method Switcher Tabs */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 18, background: '#f1f5f9', padding: 4, borderRadius: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => { setLoginMethod('password'); setError(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    background: loginMethod === 'password' ? '#ffffff' : 'transparent',
+                    color: loginMethod === 'password' ? '#0f172a' : '#64748b',
+                    boxShadow: loginMethod === 'password' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  🔒 Password Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLoginMethod('license'); setError(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    background: loginMethod === 'license' ? '#ffffff' : 'transparent',
+                    color: loginMethod === 'license' ? '#0284c7' : '#64748b',
+                    boxShadow: loginMethod === 'license' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  🔑 License Key Activation
+                </button>
               </div>
-              <div className="input-field">
-                <label>PASSWORD <span className="req">*</span></label>
-                <div className="input-wrapper">
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    onKeyDown={handleKeyDown}
-                    value={loginData.password}
-                    onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                  />
-                </div>
-              </div>
-              <button type="submit" disabled={loading} className="btn-primary">
-                {loading ? <span className="auth-loader"></span> : 'SIGN IN'}
-              </button>
+
+              {loginMethod === 'password' ? (
+                <form onSubmit={handleLogin} className="premium-form">
+                  <div className="input-field">
+                    <label>USER ID / EMAIL <span className="req">*</span></label>
+                    <div className="input-wrapper">
+                      <input
+                        type="email"
+                        required
+                        autoFocus
+                        placeholder="name@company.com"
+                        onKeyDown={handleKeyDown}
+                        value={loginData.email}
+                        onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="input-field">
+                    <label>PASSWORD <span className="req">*</span></label>
+                    <div className="input-wrapper">
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        onKeyDown={handleKeyDown}
+                        value={loginData.password}
+                        onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" disabled={loading} className="btn-primary">
+                    {loading ? <span className="auth-loader"></span> : 'SIGN IN'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleLicenseLogin} className="premium-form">
+                  <div className="input-field">
+                    <label>REGISTERED EMAIL <span className="req">*</span></label>
+                    <div className="input-wrapper">
+                      <input
+                        type="email"
+                        required
+                        autoFocus
+                        placeholder="name@company.com"
+                        onKeyDown={handleKeyDown}
+                        value={licenseInput.email}
+                        onChange={(e) => setLicenseInput({ ...licenseInput, email: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="input-field">
+                    <label>ACTIVATION LICENSE KEY <span className="req">*</span></label>
+                    <div className="input-wrapper">
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. LX-0001-A9F2-2026"
+                        style={{ fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 1 }}
+                        onKeyDown={handleKeyDown}
+                        value={licenseInput.licenseKey}
+                        onChange={(e) => setLicenseInput({ ...licenseInput, licenseKey: e.target.value.toUpperCase() })}
+                      />
+                    </div>
+                    <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
+                      Enter your software license key to activate this device offline.
+                    </span>
+                  </div>
+                  <button type="submit" disabled={loading} className="btn-primary" style={{ background: '#0284c7' }}>
+                    {loading ? <span className="auth-loader"></span> : 'ACTIVATE & SIGN IN'}
+                  </button>
+                </form>
+              )}
               <div className="form-footer">
                 Don&apos;t have an account?{' '}
                 <button type="button" onClick={() => { setIsLogin(false); setError(''); }}>
                   Register Organization
                 </button>
               </div>
-            </form>
+            </div>
 
           ) : step === 1 ? (
             /* SIGNUP FORM STEP 1 */
