@@ -20,7 +20,8 @@ export async function GET(req: Request) {
         plan: 'ADMIN_LIFETIME',
         subscriptionExpiry: user.subscriptionExpiry,
         devices: [],
-        downloadUrl: 'https://github.com/yasinkhan098-svg/accountspro/releases/latest/download/LedgerX-Setup.exe',
+        downloadUrl: '/api/download/desktop-setup',
+        gitHubReleaseUrl: 'https://github.com/yasinkhan098-svg/accountspro/releases',
       });
     }
 
@@ -60,7 +61,8 @@ export async function GET(req: Request) {
       subscriptionExpiry: dbUser.subscriptionExpiry,
       paymentStatus: dbUser.paymentStatus,
       devices,
-      downloadUrl: 'https://github.com/yasinkhan098-svg/accountspro/releases/latest/download/LedgerX-Setup.exe',
+      downloadUrl: '/api/download/desktop-setup',
+      gitHubReleaseUrl: 'https://github.com/yasinkhan098-svg/accountspro/releases',
     });
   } catch (error: any) {
     console.error('Error fetching license key:', error);

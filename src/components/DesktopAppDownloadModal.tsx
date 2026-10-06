@@ -255,9 +255,8 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
                 </div>
 
                 <a
-                  href={licenseData?.downloadUrl || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={licenseData?.downloadUrl || '/api/download/desktop-setup'}
+                  download="LedgerX-Setup.exe"
                   style={{
                     background: '#16a34a',
                     color: '#ffffff',
@@ -270,6 +269,7 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
                     alignItems: 'center',
                     gap: 8,
                     boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)',
+                    cursor: 'pointer',
                   }}
                 >
                   <Download size={18} />
