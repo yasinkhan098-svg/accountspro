@@ -7,7 +7,20 @@ interface StockItem {
   openingQty: number; openingRate: number; gstRate: number; hsnCode?: string; under?: string;
 }
 interface Ledger { id: number; name: string; groupName: string; openingBalance?: number; balanceType?: string; }
-interface Company { id: number; name: string; }
+interface Company {
+  id: number;
+  name: string;
+  mailingName?: string;
+  address?: string;
+  state?: string;
+  country?: string;
+  gstin?: string;
+  telephone?: string;
+  mobile?: string;
+  email?: string;
+  website?: string;
+  pinCode?: string;
+}
 interface BOMItem {
   id?: number; stockItemId: number; itemName: string; qty: number | string;
   unit: string; rate: number | string; amount: number;
@@ -878,6 +891,12 @@ function ManufacturingJournalForm({
   const mjNarrationRef = useRef<HTMLTextAreaElement>(null);
   const mjOutputQtyRef = useRef<HTMLInputElement>(null);
 
+  // Save confirmation & print preview state
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
+  const [savedMJData, setSavedMJData] = useState<MJPrintData | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [savePromptChoice, setSavePromptChoice] = useState<'yes' | 'no'>('yes');
+
   const rmRefs = useRef<Array<{
     itemRef:React.RefObject<HTMLInputElement>; reqRef:React.RefObject<HTMLInputElement>;
     actRef:React.RefObject<HTMLInputElement>; unitRef:React.RefObject<HTMLInputElement>;
@@ -955,6 +974,36 @@ function ManufacturingJournalForm({
   const costPerUnit = outputQtyN>0?totalCost/outputQtyN:0;
   const totalRawQty = form.rawMaterials.reduce((s,r)=>s+(parseFloat(String(r.actualQty))||0),0);
   const wastageQtyAuto = totalRawQty - outputQtyN;
+
+  // Keyboard navigation for save confirmation prompt (Yes / No)
+  useEffect(() => {
+    if (!showSavePrompt) return;
+    const onPromptKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        setShowSavePrompt(false);
+        setShowPrintModal(true);
+      } else if (e.key.toLowerCase() === "n" || e.key === "Escape") {
+        e.preventDefault();
+        setShowSavePrompt(false);
+        onSave();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (savePromptChoice === "yes") {
+          setShowSavePrompt(false);
+          setShowPrintModal(true);
+        } else {
+          setShowSavePrompt(false);
+          onSave();
+        }
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setSavePromptChoice(prev => prev === "yes" ? "no" : "yes");
+      }
+    };
+    window.addEventListener("keydown", onPromptKey);
+    return () => window.removeEventListener("keydown", onPromptKey);
+  }, [showSavePrompt, savePromptChoice, onSave]);
 
   const ensureRMRefs = (len:number) => {
     while(rmRefs.current.length<len) {
@@ -1550,7 +1599,22 @@ function ManufacturingJournalForm({
         body:JSON.stringify({...payload,saveType:"journal"})
       });
       const d=await res.json();
-      if(d.success) onSave(); else setError(d.error||"Save failed");
+      if(d.success) {
+        const fullSaved: MJPrintData = {
+          company,
+          journal: {
+            ...payload,
+            journalNo: d.journalNo || form.journalNo || `MJ-${Date.now().toString().slice(-4)}`,
+            id: d.journalId
+          },
+          rawMaterials: payload.rawMaterials,
+          directExpenses: payload.directExpenses
+        };
+        setSavedMJData(fullSaved);
+        setShowSavePrompt(true);
+      } else {
+        setError(d.error||"Save failed");
+      }
     } catch(e:any){setError(e.message);}
     setSaving(false);
   };
@@ -2148,6 +2212,827 @@ function ManufacturingJournalForm({
           emptyText={activeSideField.type === 'expenseLedger' ? "No matching expense ledgers found" : "No matching stock items found"}
         />
       )}
+
+      {/* Save Confirmation Modal with Yes / No */}
+      {showSavePrompt && savedMJData && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(15, 23, 42, 0.72)",
+          zIndex: 99999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backdropFilter: "blur(3px)"
+        }}>
+          <div style={{
+            background: "#ffffff",
+            borderRadius: 8,
+            overflow: "hidden",
+            width: "90%",
+            maxWidth: 440,
+            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.45)",
+            border: "1.5px solid #1c3a5f"
+          }}>
+            <div style={{
+              background: "#1c3a5f",
+              color: "white",
+              padding: "11px 16px",
+              fontWeight: "bold",
+              fontSize: 13,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <span>Manufacturing Journal Accepted</span>
+              <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 3 }}>
+                Y: Yes | N: No
+              </span>
+            </div>
+
+            <div style={{ padding: "26px 20px", textAlign: "center" }}>
+              <div style={{
+                width: 48,
+                height: 48,
+                background: "#dcfce7",
+                color: "#16a34a",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 26,
+                fontWeight: "bold",
+                margin: "0 auto 12px"
+              }}>
+                ✓
+              </div>
+              <div style={{ color: "#16a34a", fontWeight: "bold", fontSize: 15, marginBottom: 6 }}>
+                Manufacturing Journal #{savedMJData.journal.journalNo} Posted!
+              </div>
+              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 18, lineHeight: 1.4 }}>
+                Finished goods have been added to opening stock and raw materials recorded in outwards.
+              </div>
+              <div style={{
+                fontSize: 15,
+                fontWeight: "bold",
+                color: "#1c3a5f",
+                padding: "10px",
+                background: "#f1f5f9",
+                borderRadius: 6,
+                border: "1px dashed #cbd5e1"
+              }}>
+                Print? Yes or No
+              </div>
+            </div>
+
+            <div style={{
+              background: "#dde4f0",
+              padding: "14px 20px",
+              display: "flex",
+              justifyContent: "center",
+              gap: 22,
+              borderTop: "1px solid #cbd5e1"
+            }}>
+              <button
+                autoFocus
+                onClick={() => {
+                  setShowSavePrompt(false);
+                  setShowPrintModal(true);
+                }}
+                style={{
+                  background: savePromptChoice === "yes" ? "#1c3a5f" : "#ffffff",
+                  color: savePromptChoice === "yes" ? "#ffffff" : "#1c3a5f",
+                  border: savePromptChoice === "yes" ? "2px solid #1c3a5f" : "1px solid #cbd5e1",
+                  borderRadius: 4,
+                  padding: "8px 26px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: 13,
+                  outline: "none",
+                  boxShadow: savePromptChoice === "yes" ? "0 2px 6px rgba(28,58,95,0.4)" : "none"
+                }}
+              >
+                Yes (Y)
+              </button>
+              <button
+                onClick={() => {
+                  setShowSavePrompt(false);
+                  onSave();
+                }}
+                style={{
+                  background: savePromptChoice === "no" ? "#1c3a5f" : "#ffffff",
+                  color: savePromptChoice === "no" ? "#ffffff" : "#1c3a5f",
+                  border: savePromptChoice === "no" ? "2px solid #1c3a5f" : "1px solid #cbd5e1",
+                  borderRadius: 4,
+                  padding: "8px 26px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: 13,
+                  outline: "none"
+                }}
+              >
+                No (N)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print Preview Modal on Save */}
+      {showPrintModal && savedMJData && (
+        <ManufacturingJournalPrintModal
+          data={savedMJData}
+          onClose={() => {
+            setShowPrintModal(false);
+            onSave();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// NUMBER TO WORDS (INDIAN NUMBERING FORMAT: LAKHS / CRORES)
+// ============================================================
+function numberToWords(num: number): string {
+  if (num === 0) return 'Zero';
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+    'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const convert = (n: number): string => {
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n/10)] + (n%10?' '+ones[n%10]:'');
+    if (n < 1000) return ones[Math.floor(n/100)]+' Hundred'+(n%100?' '+convert(n%100):'');
+    if (n < 100000) return convert(Math.floor(n/1000))+' Thousand'+(n%1000?' '+convert(n%1000):'');
+    if (n < 10000000) return convert(Math.floor(n/100000))+' Lakh'+(n%100000?' '+convert(n%100000):'');
+    return convert(Math.floor(n/10000000))+' Crore'+(n%10000000?' '+convert(n%10000000):'');
+  };
+  const intPart = Math.floor(Math.abs(num));
+  const decPart = Math.round((Math.abs(num) - intPart) * 100);
+  let result = 'INR ' + convert(intPart);
+  if (decPart > 0) result += ' and ' + convert(decPart) + ' Paise';
+  result += ' Only';
+  return result;
+}
+
+// ============================================================
+// MANUFACTURING JOURNAL PRINT PREVIEW MODAL
+// ============================================================
+export interface MJPrintData {
+  company: Company | null;
+  journal: {
+    id?: number;
+    journalNo: string;
+    date: string;
+    bomName?: string;
+    finishedItemName: string;
+    outputQty: number | string;
+    outputUnit: string;
+    outputRate?: number;
+    totalRawCost: number;
+    totalDirectExpenses: number;
+    totalCost: number;
+    costPerUnit: number;
+    wastageType?: string;
+    wastageQty?: number | string;
+    wastageUnit?: string;
+    wastageValue?: number;
+    wastageDetails?: WastageDetailItem[];
+    narration?: string;
+  };
+  rawMaterials: RawMaterial[];
+  directExpenses: DirectExpense[];
+}
+
+export function ManufacturingJournalPrintModal({
+  data,
+  onClose
+}: {
+  data: MJPrintData;
+  onClose: () => void;
+}) {
+  const { company, journal, rawMaterials, directExpenses } = data;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        window.print();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const outputQtyNum = parseFloat(String(journal.outputQty)) || 1;
+  const totalRawQty = rawMaterials.reduce((s, r) => s + (parseFloat(String(r.actualQty || r.requiredQty || 0)) || 0), 0);
+  const totalRawCost = rawMaterials.reduce((s, r) => s + (parseFloat(String(r.amount || 0)) || ((parseFloat(String(r.actualQty || 0)) || 0) * (parseFloat(String(r.rate || 0)) || 0))), 0) || journal.totalRawCost || 0;
+  const totalDirectExp = directExpenses.reduce((s, d) => s + (parseFloat(String(d.amount || 0)) || 0), 0) || journal.totalDirectExpenses || 0;
+  const grossCost = totalRawCost + totalDirectExp;
+
+  // Process wastage list
+  let wastageList: WastageDetailItem[] = [];
+  if (journal.wastageDetails && Array.isArray(journal.wastageDetails) && journal.wastageDetails.length > 0) {
+    wastageList = journal.wastageDetails;
+  } else if (journal.wastageType && journal.wastageType !== 'None') {
+    wastageList = [{
+      type: journal.wastageType,
+      qty: journal.wastageQty || 0,
+      unit: journal.wastageUnit || journal.outputUnit || 'Nos',
+      rate: 0,
+      value: journal.wastageValue || 0
+    }];
+  }
+
+  const totalScrapVal = wastageList.reduce((s, w) => s + (parseFloat(String(w.value || 0)) || 0), 0) || journal.wastageValue || 0;
+  const totalWastageQty = wastageList.reduce((s, w) => s + (parseFloat(String(w.qty || 0)) || 0), 0) || (parseFloat(String(journal.wastageQty || 0)) || 0);
+  const netCost = grossCost - totalScrapVal;
+  const costPerUnit = outputQtyNum > 0 ? (netCost / outputQtyNum) : (journal.costPerUnit || 0);
+
+  const formattedDate = journal.date
+    ? new Date(journal.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    : new Date().toLocaleDateString('en-IN');
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 99999,
+      background: "rgba(15, 23, 42, 0.75)",
+      backdropFilter: "blur(4px)",
+      display: "flex",
+      flexDirection: "column",
+      fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    }}>
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #mj-printable-voucher, #mj-printable-voucher * {
+            visibility: visible !important;
+          }
+          #mj-printable-voucher {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 8mm !important;
+            border: 1.5px solid #0f172a !important;
+            box-shadow: none !important;
+            background: #ffffff !important;
+          }
+          .mj-no-print {
+            display: none !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
+        }
+      `}</style>
+
+      {/* Top Action Bar (hidden on print) */}
+      <div className="mj-no-print" style={{
+        background: "#0f172a",
+        color: "#ffffff",
+        padding: "10px 24px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        borderBottom: "1px solid #334155",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.3)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 20 }}>🏭</span>
+          <div>
+            <div style={{ fontWeight: "bold", fontSize: 14 }}>
+              Manufacturing Journal Print Preview
+            </div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>
+              Voucher No: <b style={{ color: "#38bdf8" }}>{journal.journalNo}</b> | {company?.name || "AccountsPro"}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 11, color: "#94a3b8" }}>
+            Press <b>Ctrl+P</b> or click
+          </span>
+          <button
+            onClick={() => window.print()}
+            style={{
+              background: "linear-gradient(135deg, #16a34a, #15803d)",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: 5,
+              padding: "7px 18px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow: "0 2px 6px rgba(22, 163, 74, 0.4)"
+            }}
+          >
+            🖨️ Print Voucher
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              background: "#334155",
+              color: "#ffffff",
+              border: "1px solid #475569",
+              borderRadius: 5,
+              padding: "7px 16px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 500
+            }}
+          >
+            ✕ Close (Esc)
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable Preview Workspace */}
+      <div style={{
+        flex: 1,
+        overflowY: "auto",
+        background: "#475569",
+        padding: "24px 16px",
+        display: "flex",
+        justifyContent: "center"
+      }}>
+        {/* Printable Paper Voucher */}
+        <div id="mj-printable-voucher" style={{
+          background: "#ffffff",
+          color: "#0f172a",
+          width: "100%",
+          maxWidth: "840px",
+          minHeight: "270mm",
+          padding: "24px 28px",
+          border: "2px solid #0f172a",
+          borderRadius: 2,
+          boxShadow: "0 15px 35px rgba(0,0,0,0.35)",
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column"
+        }}>
+
+          {/* Header Block */}
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            borderBottom: "2px solid #0f172a",
+            paddingBottom: 14,
+            marginBottom: 12
+          }}>
+            {/* Company Info */}
+            <div style={{ flex: 1.4, paddingRight: 16 }}>
+              <div style={{
+                fontSize: 20,
+                fontWeight: 900,
+                color: "#0f172a",
+                letterSpacing: 0.5,
+                textTransform: "uppercase"
+              }}>
+                {company?.name || "COMPANY NAME"}
+              </div>
+              {company?.address && (
+                <div style={{ fontSize: 11, color: "#334155", marginTop: 3 }}>
+                  {company.address}
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: "#334155", marginTop: 2 }}>
+                {company?.state && <span>{company.state}</span>}
+                {company?.pinCode && <span> - {company.pinCode}</span>}
+                {company?.country && <span>, {company.country}</span>}
+              </div>
+              <div style={{ fontSize: 11, color: "#334155", marginTop: 3, display: "flex", gap: 14, flexWrap: "wrap" }}>
+                {company?.gstin && <span><b>GSTIN:</b> {company.gstin}</span>}
+                {company?.mobile && <span><b>Ph:</b> {company.mobile}</span>}
+                {company?.email && <span><b>Email:</b> {company.email}</span>}
+              </div>
+            </div>
+
+            {/* Voucher Title & Meta */}
+            <div style={{
+              flex: 1,
+              border: "1.5px solid #0f172a",
+              borderRadius: 3,
+              overflow: "hidden",
+              textAlign: "center"
+            }}>
+              <div style={{
+                background: "#0f172a",
+                color: "#ffffff",
+                padding: "6px 10px",
+                fontWeight: "bold",
+                fontSize: 13,
+                letterSpacing: 0.8
+              }}>
+                MANUFACTURING JOURNAL
+              </div>
+              <div style={{
+                fontSize: 10,
+                color: "#475569",
+                background: "#f1f5f9",
+                padding: "2px 0",
+                borderBottom: "1px solid #cbd5e1",
+                fontWeight: 600
+              }}>
+                PRODUCTION &amp; ASSEMBLY VOUCHER
+              </div>
+              <div style={{ padding: "8px 10px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, textAlign: "left", fontSize: 11 }}>
+                <div>
+                  <span style={{ color: "#64748b", fontSize: 10 }}>JOURNAL NO:</span>
+                  <div style={{ fontWeight: "bold", color: "#0f172a" }}>{journal.journalNo}</div>
+                </div>
+                <div>
+                  <span style={{ color: "#64748b", fontSize: 10 }}>DATE:</span>
+                  <div style={{ fontWeight: "bold", color: "#0f172a" }}>{formattedDate}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Finished Goods Highlight Bar */}
+          <div style={{
+            background: "#f8fafc",
+            border: "1.5px solid #cbd5e1",
+            borderRadius: 4,
+            padding: "10px 14px",
+            marginBottom: 14,
+            display: "grid",
+            gridTemplateColumns: "1.5fr 1fr 1.2fr 1.2fr",
+            gap: 10,
+            alignItems: "center"
+          }}>
+            <div>
+              <span style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>FINISHED PRODUCT</span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>
+                {journal.finishedItemName}
+              </div>
+            </div>
+            <div>
+              <span style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>OUTPUT QUANTITY</span>
+              <div style={{ fontSize: 14, fontWeight: 900, color: "#0f766e" }}>
+                {outputQtyNum.toFixed(3)} {journal.outputUnit}
+              </div>
+            </div>
+            <div>
+              <span style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>BOM TEMPLATE</span>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#334155" }}>
+                {journal.bomName || "Direct / Custom"}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span style={{ fontSize: 10, color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>NET COST / {journal.outputUnit}</span>
+              <div style={{ fontSize: 14, fontWeight: 900, color: "#b45309" }}>
+                ₹{fmt2(costPerUnit)}
+              </div>
+            </div>
+          </div>
+
+          {/* Main 2-Column Section: Left (Raw Materials), Right (Expenses & Wastage) */}
+          <div style={{
+            display: "flex",
+            gap: 12,
+            marginBottom: 14,
+            alignItems: "stretch"
+          }}>
+            {/* Left Side: Raw Materials Consumed (58% width) */}
+            <div style={{
+              flex: 1.35,
+              border: "1.5px solid #0f172a",
+              borderRadius: 3,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden"
+            }}>
+              <div style={{
+                background: "#0f172a",
+                color: "#ffffff",
+                padding: "6px 10px",
+                fontWeight: "bold",
+                fontSize: 11,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}>
+                <span>📦 RAW MATERIALS CONSUMED</span>
+                <span style={{ fontSize: 10, opacity: 0.85 }}>{rawMaterials.length} Items</span>
+              </div>
+
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}>
+                <thead>
+                  <tr style={{ background: "#f1f5f9", borderBottom: "1.5px solid #cbd5e1" }}>
+                    <th style={{ padding: "5px 4px", textAlign: "center", width: 22 }}>#</th>
+                    <th style={{ padding: "5px 6px", textAlign: "left" }}>Item Description</th>
+                    <th style={{ padding: "5px 4px", textAlign: "right", width: 44 }}>Actual Qty</th>
+                    <th style={{ padding: "5px 4px", textAlign: "center", width: 34 }}>Unit</th>
+                    <th style={{ padding: "5px 6px", textAlign: "right", width: 52 }}>Rate (₹)</th>
+                    <th style={{ padding: "5px 6px", textAlign: "right", width: 62 }}>Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rawMaterials.map((rm, idx) => {
+                    const q = parseFloat(String(rm.actualQty || rm.requiredQty || 0)) || 0;
+                    const r = parseFloat(String(rm.rate || 0)) || 0;
+                    const amt = parseFloat(String(rm.amount || 0)) || (q * r);
+                    return (
+                      <tr key={idx} style={{ borderBottom: "1px solid #e2e8f0", background: idx % 2 === 0 ? "#ffffff" : "#fcfcfc" }}>
+                        <td style={{ padding: "4px", textAlign: "center", color: "#64748b" }}>{idx + 1}</td>
+                        <td style={{ padding: "4px 6px", fontWeight: 600, color: "#1e293b" }}>{rm.itemName}</td>
+                        <td style={{ padding: "4px", textAlign: "right", fontWeight: 700 }}>{q.toFixed(2)}</td>
+                        <td style={{ padding: "4px", textAlign: "center", color: "#64748b" }}>{rm.unit || "Nos"}</td>
+                        <td style={{ padding: "4px 6px", textAlign: "right" }}>{fmt2(r)}</td>
+                        <td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 700 }}>{fmt2(amt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: "#f8fafc", borderTop: "1.5px solid #0f172a", fontWeight: "bold" }}>
+                    <td colSpan={2} style={{ padding: "6px 8px", fontSize: 10.5 }}>TOTAL RAW CONSUMPTION</td>
+                    <td style={{ padding: "6px 4px", textAlign: "right" }}>{totalRawQty.toFixed(2)}</td>
+                    <td/>
+                    <td/>
+                    <td style={{ padding: "6px 6px", textAlign: "right", color: "#0f172a", fontSize: 11 }}>
+                      ₹{fmt2(totalRawCost)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Right Side: Expenses & Wastage (42% width) */}
+            <div style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10
+            }}>
+              {/* Direct Expenses */}
+              <div style={{
+                border: "1.5px solid #b45309",
+                borderRadius: 3,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column"
+              }}>
+                <div style={{
+                  background: "#b45309",
+                  color: "#ffffff",
+                  padding: "5px 10px",
+                  fontWeight: "bold",
+                  fontSize: 11,
+                  display: "flex",
+                  justifyContent: "space-between"
+                }}>
+                  <span>💰 DIRECT EXPENSES</span>
+                  <span>₹{fmt2(totalDirectExp)}</span>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}>
+                  <thead>
+                    <tr style={{ background: "#fffbeb", borderBottom: "1px solid #fde68a" }}>
+                      <th style={{ padding: "4px 4px", textAlign: "center", width: 20 }}>#</th>
+                      <th style={{ padding: "4px 6px", textAlign: "left" }}>Expense Ledger</th>
+                      <th style={{ padding: "4px 4px", textAlign: "center", width: 50 }}>Method</th>
+                      <th style={{ padding: "4px 6px", textAlign: "right", width: 62 }}>Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {directExpenses.filter(d => d.ledgerName?.trim()).length === 0 ? (
+                      <tr>
+                        <td colSpan={4} style={{ padding: "10px", textAlign: "center", color: "#94a3b8", fontStyle: "italic" }}>
+                          Nil / No Direct Expenses
+                        </td>
+                      </tr>
+                    ) : (
+                      directExpenses.filter(d => d.ledgerName?.trim()).map((de, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #fef3c7" }}>
+                          <td style={{ padding: "4px", textAlign: "center", color: "#64748b" }}>{idx + 1}</td>
+                          <td style={{ padding: "4px 6px", fontWeight: 600 }}>{de.ledgerName}</td>
+                          <td style={{ padding: "4px", textAlign: "center", color: "#64748b", fontSize: 9.5 }}>
+                            {de.method === "Percentage" ? `${de.percentage}%` : "Fixed"}
+                          </td>
+                          <td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 700 }}>
+                            {fmt2(Number(de.amount))}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "#fef3c7", borderTop: "1.5px solid #b45309", fontWeight: "bold" }}>
+                      <td colSpan={3} style={{ padding: "5px 8px" }}>Total Expenses</td>
+                      <td style={{ padding: "5px 6px", textAlign: "right" }}>₹{fmt2(totalDirectExp)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Wastage / Scrap */}
+              <div style={{
+                border: "1.5px solid #dc2626",
+                borderRadius: 3,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                flex: 1
+              }}>
+                <div style={{
+                  background: "#dc2626",
+                  color: "#ffffff",
+                  padding: "5px 10px",
+                  fontWeight: "bold",
+                  fontSize: 11,
+                  display: "flex",
+                  justifyContent: "space-between"
+                }}>
+                  <span>♻️ WASTAGE &amp; SCRAP RECOVERY</span>
+                  <span>{totalWastageQty.toFixed(2)} {journal.outputUnit}</span>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}>
+                  <thead>
+                    <tr style={{ background: "#fef2f2", borderBottom: "1px solid #fca5a5" }}>
+                      <th style={{ padding: "4px 4px", textAlign: "center", width: 20 }}>#</th>
+                      <th style={{ padding: "4px 6px", textAlign: "left" }}>Wastage Type</th>
+                      <th style={{ padding: "4px 4px", textAlign: "right", width: 50 }}>Qty</th>
+                      <th style={{ padding: "4px 4px", textAlign: "right", width: 44 }}>Rate</th>
+                      <th style={{ padding: "4px 6px", textAlign: "right", width: 55 }}>Scrap (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wastageList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: "10px", textAlign: "center", color: "#94a3b8", fontStyle: "italic" }}>
+                          Nil / No Wastage Recorded
+                        </td>
+                      </tr>
+                    ) : (
+                      wastageList.map((w, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #fee2e2" }}>
+                          <td style={{ padding: "4px", textAlign: "center", color: "#64748b" }}>{idx + 1}</td>
+                          <td style={{ padding: "4px 6px", fontWeight: 600 }}>{w.type}</td>
+                          <td style={{ padding: "4px", textAlign: "right" }}>{Number(w.qty || 0).toFixed(2)}</td>
+                          <td style={{ padding: "4px", textAlign: "right" }}>{fmt2(Number(w.rate || 0))}</td>
+                          <td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 700, color: "#0f766e" }}>
+                            {fmt2(Number(w.value || 0))}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "#fef2f2", borderTop: "1px solid #dc2626", fontWeight: "bold" }}>
+                      <td colSpan={2} style={{ padding: "5px 8px" }}>Total Recovery</td>
+                      <td style={{ padding: "5px 4px", textAlign: "right" }}>{totalWastageQty.toFixed(2)}</td>
+                      <td/>
+                      <td style={{ padding: "5px 6px", textAlign: "right", color: "#0f766e" }}>₹{fmt2(totalScrapVal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Full-Width Cost Summary Reconciliation */}
+          <div style={{
+            border: "1.5px solid #0f766e",
+            borderRadius: 3,
+            overflow: "hidden",
+            marginBottom: 12
+          }}>
+            <div style={{
+              background: "#0f766e",
+              color: "#ffffff",
+              padding: "6px 12px",
+              fontWeight: "bold",
+              fontSize: 11.5,
+              display: "flex",
+              justifyContent: "space-between"
+            }}>
+              <span>📊 PRODUCTION COST RECONCILIATION &amp; UNIT ECONOMICS</span>
+              <span>OUTPUT: {outputQtyNum.toFixed(3)} {journal.outputUnit}</span>
+            </div>
+
+            <div style={{
+              padding: "10px 14px",
+              background: "#f0fdf4",
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 12,
+              borderBottom: "1px solid #bbf7d0"
+            }}>
+              <div style={{ padding: "6px 10px", background: "#ffffff", border: "1px solid #bbf7d0", borderRadius: 4 }}>
+                <span style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>(A) RAW MATERIAL COST</span>
+                <div style={{ fontSize: 13, fontWeight: "bold", color: "#1e3a8a", marginTop: 2 }}>₹{fmt2(totalRawCost)}</div>
+              </div>
+              <div style={{ padding: "6px 10px", background: "#ffffff", border: "1px solid #bbf7d0", borderRadius: 4 }}>
+                <span style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>(B) DIRECT EXPENSES</span>
+                <div style={{ fontSize: 13, fontWeight: "bold", color: "#b45309", marginTop: 2 }}>+ ₹{fmt2(totalDirectExp)}</div>
+              </div>
+              <div style={{ padding: "6px 10px", background: "#ffffff", border: "1px solid #bbf7d0", borderRadius: 4 }}>
+                <span style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>(C) SCRAP RECOVERY</span>
+                <div style={{ fontSize: 13, fontWeight: "bold", color: "#dc2626", marginTop: 2 }}>- ₹{fmt2(totalScrapVal)}</div>
+              </div>
+              <div style={{ padding: "6px 10px", background: "#ecfdf5", border: "1.5px solid #16a34a", borderRadius: 4 }}>
+                <span style={{ fontSize: 10, color: "#166534", fontWeight: 800 }}>NET PRODUCTION COST</span>
+                <div style={{ fontSize: 15, fontWeight: 900, color: "#15803d", marginTop: 2 }}>₹{fmt2(netCost)}</div>
+              </div>
+            </div>
+
+            <div style={{
+              padding: "8px 14px",
+              background: "#ffffff",
+              fontSize: 11,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <div>
+                <span style={{ color: "#64748b" }}>Amount in Words: </span>
+                <b style={{ color: "#0f172a" }}>{numberToWords(netCost)}</b>
+              </div>
+              <div style={{
+                background: "#f8fafc",
+                padding: "4px 10px",
+                border: "1px solid #cbd5e1",
+                borderRadius: 4,
+                fontWeight: "bold",
+                color: "#1e293b"
+              }}>
+                Effective Cost: <span style={{ color: "#0f766e", fontSize: 12 }}>₹{fmt2(costPerUnit)}</span> / {journal.outputUnit}
+              </div>
+            </div>
+          </div>
+
+          {/* Narration Block */}
+          {journal.narration && (
+            <div style={{
+              border: "1px solid #cbd5e1",
+              borderRadius: 3,
+              padding: "7px 12px",
+              fontSize: 11,
+              background: "#fafafa",
+              marginBottom: 16
+            }}>
+              <span style={{ color: "#64748b", fontWeight: 600 }}>Narration / Remarks: </span>
+              <span style={{ color: "#1e293b" }}>{journal.narration}</span>
+            </div>
+          )}
+
+          {/* Signatures & Authorization (Pushed to bottom) */}
+          <div style={{
+            marginTop: "auto",
+            paddingTop: 28,
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1.3fr",
+            gap: 20,
+            textAlign: "center",
+            fontSize: 11
+          }}>
+            <div>
+              <div style={{ borderTop: "1.5px solid #0f172a", paddingTop: 5, fontWeight: "bold" }}>
+                Prepared By
+              </div>
+              <div style={{ fontSize: 9.5, color: "#64748b" }}>(Store / Production Operator)</div>
+            </div>
+
+            <div>
+              <div style={{ borderTop: "1.5px solid #0f172a", paddingTop: 5, fontWeight: "bold" }}>
+                Verified By
+              </div>
+              <div style={{ fontSize: 9.5, color: "#64748b" }}>(Production Manager / Accounts)</div>
+            </div>
+
+            <div>
+              <div style={{ borderTop: "1.5px solid #0f172a", paddingTop: 5, fontWeight: "bold" }}>
+                For {company?.name || "Company"}
+              </div>
+              <div style={{ fontSize: 9.5, color: "#64748b" }}>Authorized Signatory</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
   );
 }
@@ -2162,6 +3047,59 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
   const [showBOMForm, setShowBOMForm] = useState(false);
   const [showJournalForm, setShowJournalForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [printJournalData, setPrintJournalData] = useState<MJPrintData | null>(null);
+  const [loadingPrintId, setLoadingPrintId] = useState<number | null>(null);
+
+  const handlePrintJournal = async (id: number) => {
+    setLoadingPrintId(id);
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/bom?id=${id}&type=journal`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await res.json();
+      if (d.success && d.journal) {
+        let wastageDetailsParsed: WastageDetailItem[] = [];
+        try {
+          if (d.journal.wastageDetails) {
+            wastageDetailsParsed = typeof d.journal.wastageDetails === "string"
+              ? JSON.parse(d.journal.wastageDetails)
+              : d.journal.wastageDetails;
+          }
+        } catch (e) {}
+
+        setPrintJournalData({
+          company,
+          journal: {
+            ...d.journal,
+            wastageDetails: wastageDetailsParsed
+          },
+          rawMaterials: (d.rawMaterials || []).map((rm: any) => ({
+            stockItemId: rm.stockItemId,
+            itemName: rm.itemName,
+            requiredQty: rm.requiredQty,
+            actualQty: rm.actualQty,
+            unit: rm.unit,
+            rate: rm.rate,
+            amount: rm.amount
+          })),
+          directExpenses: (d.directExpenses || []).map((de: any) => ({
+            ledgerId: de.ledgerId,
+            ledgerName: de.ledgerName,
+            method: de.method,
+            percentage: de.percentage,
+            amount: de.amount
+          }))
+        });
+      } else {
+        showToast(d.error || "Failed to load journal for printing");
+      }
+    } catch (err: any) {
+      showToast("Error loading journal details");
+    }
+    setLoadingPrintId(null);
+  };
+
   const [toast, setToast] = useState("");
   const companyId = company?.id;
 
@@ -2413,7 +3351,27 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
                         <td style={{padding:"9px 12px",textAlign:"center"}}>
                           <span style={{background:"#dcfce7",color:"#16a34a",padding:"2px 10px",borderRadius:10,fontSize:10,fontWeight:"bold"}}>{j.status||"Posted"}</span>
                         </td>
-                        <td style={{padding:"9px 12px",textAlign:"center"}}>
+                        <td style={{padding:"9px 12px",textAlign:"center",whiteSpace:"nowrap"}}>
+                          <button
+                            onClick={()=>handlePrintJournal(j.id)}
+                            disabled={loadingPrintId===j.id}
+                            title="Print Manufacturing Journal"
+                            style={{
+                              background:"#e0f2fe",
+                              color:"#0369a1",
+                              border:"1px solid #bae6fd",
+                              borderRadius:3,
+                              padding:"4px 9px",
+                              cursor:"pointer",
+                              fontSize:11,
+                              fontWeight:"bold",
+                              marginRight:6,
+                              display:"inline-flex",
+                              alignItems:"center",
+                              gap:4
+                            }}>
+                            {loadingPrintId===j.id ? "⏳" : "🖨️ Print"}
+                          </button>
                           <button onClick={()=>deleteJournal(j.id)}
                             style={{background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:3,padding:"4px 10px",cursor:"pointer",fontSize:11}}>🗑️</button>
                         </td>
@@ -2435,6 +3393,14 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
           </div>
         )}
       </div>
+
+      {/* Print Preview Modal from Register */}
+      {printJournalData && (
+        <ManufacturingJournalPrintModal
+          data={printJournalData}
+          onClose={() => setPrintJournalData(null)}
+        />
+      )}
     </div>
   );
 }
