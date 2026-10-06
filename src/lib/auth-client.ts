@@ -6,21 +6,27 @@ const USER_KEY = "tally_auth_user";
 export const authClient = {
   setSession: (token: string, user: any) => {
     if (typeof window !== "undefined") {
-      sessionStorage.setItem(TOKEN_KEY, token);
-      sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+      try {
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+      } catch {}
+      try {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+      } catch {}
     }
   },
 
   getToken: () => {
     if (typeof window !== "undefined") {
-      return sessionStorage.getItem(TOKEN_KEY);
+      return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
     }
     return null;
   },
 
   getUser: () => {
     if (typeof window !== "undefined") {
-      const user = sessionStorage.getItem(USER_KEY);
+      const user = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
       return user ? JSON.parse(user) : null;
     }
     return null;
@@ -28,14 +34,20 @@ export const authClient = {
 
   logout: () => {
     if (typeof window !== "undefined") {
-      sessionStorage.removeItem(TOKEN_KEY);
-      sessionStorage.removeItem(USER_KEY);
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+      } catch {}
+      try {
+        sessionStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(USER_KEY);
+      } catch {}
     }
   },
 
   isAuthenticated: () => {
     if (typeof window !== "undefined") {
-      return !!sessionStorage.getItem(TOKEN_KEY);
+      return !!(localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY));
     }
     return false;
   }
