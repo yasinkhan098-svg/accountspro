@@ -106,6 +106,79 @@ ipcMain.handle('load-data-file', async () => {
   return null;
 });
 
+// Modular Company Data Folders (Tally-Style e.g. data/10001, data/10002)
+ipcMain.handle('open-data-folder', async () => {
+  const { shell } = require('electron');
+  shell.openPath(dataDir);
+  return true;
+});
+
+ipcMain.handle('scan-company-folders', async () => {
+  try {
+    const entries = fs.readdirSync(dataDir, { withFileTypes: true });
+    const companies = [];
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const cPath = path.join(dataDir, entry.name, 'company.json');
+        if (fs.existsSync(cPath)) {
+          try {
+            const raw = fs.readFileSync(cPath, 'utf8');
+            companies.push({ companyCode: entry.name.toUpperCase(), company: JSON.parse(raw) });
+          } catch (err) {}
+        }
+      }
+    }
+    return companies;
+  } catch (e) {
+    return [];
+  }
+});
+
+ipcMain.handle('load-company-folder', async (event, companyCode) => {
+  try {
+    const cDir = path.join(dataDir, String(companyCode).toUpperCase());
+    if (!fs.existsSync(cDir)) return null;
+    const read = (f, def = []) => {
+      const fp = path.join(cDir, f);
+      return fs.existsSync(fp) ? JSON.parse(fs.readFileSync(fp, 'utf8')) : def;
+    };
+    return {
+      companyCode: String(companyCode).toUpperCase(),
+      company: read('company.json', null),
+      ledgers: read('ledgers.json', []),
+      vouchers: read('vouchers.json', []),
+      stockItems: read('stock_items.json', []),
+      stockGroups: read('stock_groups.json', []),
+      units: read('units.json', []),
+      groups: read('groups.json', []),
+      voucherTypes: read('voucher_types.json', []),
+    };
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('save-company-folder', async (event, data) => {
+  try {
+    const code = String(data.companyCode || data.company?.companyCode || '10001').toUpperCase();
+    const cDir = path.join(dataDir, code);
+    if (!fs.existsSync(cDir)) fs.mkdirSync(cDir, { recursive: true });
+    const write = (f, val) => fs.writeFileSync(path.join(cDir, f), JSON.stringify(val ?? [], null, 2), 'utf8');
+    write('company.json', { ...data.company, companyCode: code, updatedAt: new Date().toISOString() });
+    if (data.ledgers !== undefined) write('ledgers.json', data.ledgers);
+    if (data.vouchers !== undefined) write('vouchers.json', data.vouchers);
+    if (data.stockItems !== undefined) write('stock_items.json', data.stockItems);
+    if (data.stockGroups !== undefined) write('stock_groups.json', data.stockGroups);
+    if (data.units !== undefined) write('units.json', data.units);
+    if (data.groups !== undefined) write('groups.json', data.groups);
+    if (data.voucherTypes !== undefined) write('voucher_types.json', data.voucherTypes);
+    return true;
+  } catch (e) {
+    console.error('Error saving company folder:', e);
+    return false;
+  }
+});
+
 app.whenReady().then(() => {
   createWindow();
 

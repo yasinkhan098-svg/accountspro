@@ -9,6 +9,10 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   recordTimeGuard: () => ipcRenderer.invoke('record-time-guard'),
   saveDataFile: (data) => ipcRenderer.invoke('save-data-file', data),
   loadDataFile: () => ipcRenderer.invoke('load-data-file'),
+  openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
+  scanCompanyFolders: () => ipcRenderer.invoke('scan-company-folders'),
+  loadCompanyFolder: (code) => ipcRenderer.invoke('load-company-folder', code),
+  saveCompanyFolder: (data) => ipcRenderer.invoke('save-company-folder', data),
   syncStatus: (status) => ipcRenderer.send('sync-status-update', status),
   onSyncTrigger: (callback) => ipcRenderer.on('trigger-sync', () => callback()),
 });

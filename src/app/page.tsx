@@ -15,6 +15,7 @@ import BankStatementMenu from '@/components/bank-statement/BankStatementMenu';
 import AuditTrailView from '@/components/AuditTrailView';
 import { getBankStatementState } from '@/components/bank-statement/bankStatementStorage';
 import { offlineSyncService, OfflineGuardResult } from '@/lib/offlineSyncService';
+import { companyDataFolderService } from '@/lib/companyDataFolderService';
 import OfflineLicenseGuard from '@/components/OfflineLicenseGuard';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 import {
@@ -85,6 +86,7 @@ interface Company {
   showMobile?: boolean; showEmail?: boolean; showWebsite?: boolean;
   logo?: string; showLogo?: boolean; pinCode?: string;
   showDiscount?: boolean;
+  companyCode?: string;
 }
 type UserRole = 'Admin' | 'Accountant' | 'Data Entry' | 'Viewer';
 interface AppUser { id: number; username: string; role: UserRole; email?: string; }
@@ -1408,24 +1410,51 @@ export default function App() {
     if (allStockItems.length === 0) setAllStockItems(getUStored('allStockItems', []));
     if (allGroups.length === 0) setAllGroups(getUStored('allGroups', TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: -1, name: g, under: 'Primary' }))));
 
-    // Fetch from backend to sync
+    // Fetch from backend and scan local data folder
     const fetchCompanies = async () => {
+      let currentCos: any[] = [];
       try {
-        const res = await fetch('/api/companies', {
-          headers: { 'Authorization': `Bearer ${authClient.getToken()}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.companies) {
-            setCompanies(data.companies);
-            // If we have an active company ID, re-sync it
-            if (activeCompany) {
-              const match = data.companies.find((c: any) => Number(c.id) === Number(activeCompany.id));
-              if (match) setActiveCompany(match);
-            }
+        if (navigator.onLine) {
+          const res = await fetch('/api/companies', {
+            headers: { 'Authorization': `Bearer ${authClient.getToken()}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.companies) currentCos = data.companies;
           }
         }
       } catch (err) { console.error('Failed to sync companies:', err); }
+
+      // Scan local "data" directory for Tally-style numbered folders (e.g. 10001, 10002, LX0001)
+      try {
+        const localFolders = await companyDataFolderService.scanCompanyFolders();
+        if (localFolders && localFolders.length > 0) {
+          for (const item of localFolders) {
+            const code = item.companyCode.toUpperCase();
+            const exists = currentCos.some(
+              c => String(c.companyCode || '').toUpperCase() === code ||
+                   c.name?.toLowerCase().trim() === item.company.name?.toLowerCase().trim()
+            );
+            if (!exists) {
+              currentCos.push({
+                ...item.company,
+                id: item.company.id || Date.now() + Math.floor(Math.random() * 1000),
+                companyCode: code,
+              });
+            }
+          }
+        }
+      } catch (fErr) {
+        console.warn('Error scanning local company folders:', fErr);
+      }
+
+      if (currentCos.length > 0) {
+        setCompanies(currentCos);
+        if (activeCompany) {
+          const match = currentCos.find((c: any) => Number(c.id) === Number(activeCompany.id) || (c.companyCode && activeCompany.companyCode && String(c.companyCode) === String(activeCompany.companyCode)));
+          if (match) setActiveCompany(match);
+        }
+      }
     };
     fetchCompanies();
   }, [isMounted, isAuthenticated, currentUser?.id]);
@@ -1593,6 +1622,28 @@ export default function App() {
       allVouchers,
       activeCompany,
     });
+
+    // Save individual company to its numbered folder e.g. data/10001/ (Tally-Style)
+    if (activeCompany && activeCompany.id) {
+      const code = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
+      const cLedgers = allLedgers.filter(l => Number(l.companyId) === Number(activeCompany.id));
+      const cVouchers = allVouchers.filter(v => Number(v.companyId) === Number(activeCompany.id));
+      const cItems = allStockItems.filter(si => Number(si.companyId) === Number(activeCompany.id));
+      const cGroups = allStockGroups.filter(sg => Number(sg.companyId) === Number(activeCompany.id));
+      const cUnits = allUnits.filter(u => Number(u.companyId) === Number(activeCompany.id) || Number(u.companyId) === -1);
+
+      companyDataFolderService.saveCompanyFolder({
+        companyCode: code,
+        company: { ...activeCompany, companyCode: code },
+        ledgers: cLedgers,
+        vouchers: cVouchers,
+        stockItems: cItems,
+        stockGroups: cGroups,
+        units: cUnits,
+        groups: allGroups,
+        voucherTypes: allVoucherTypes,
+      });
+    }
   }, [companies, allLedgers, allGroups, allStockGroups, allStockCategories, allStockItems, allUnits, allGodowns, allVoucherTypes, allCurrencies, allVouchers, activeCompany, currentPeriod, isMounted, isAuthenticated, currentUser?.id]);
 
   // Periodically Check Session (Single Session Enforcement - Online Only)
@@ -3343,22 +3394,47 @@ export default function App() {
 
       {showCompanySelect && (
         <div className="modal-overlay" onClick={()=>setShowCompanySelect(false)}>
-          <div className="modal-box" style={{width:480}} onClick={e=>e.stopPropagation()}>
+          <div className="modal-box" style={{width:520}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">Company (F3)</div>
-            <div style={{padding:'6px 12px',background:'#eef',fontSize:12,borderBottom:'1px solid #ccc'}}><b>List of Companies</b></div>
+            <div style={{padding:'8px 14px',background:'#eef2f6',fontSize:12,borderBottom:'1px solid #cbd5e1',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <b>List of Companies ({companies.length})</b>
+              <button 
+                type="button"
+                onClick={(e)=>{ e.stopPropagation(); companyDataFolderService.openDataFolder(); }}
+                style={{ background: '#1c5282', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}
+                title="Opens %LocalAppData%\LedgerX\data\ where companies are stored as 10001, 10002 etc."
+              >
+                📂 Open Data Folder (data/)
+              </button>
+            </div>
             <div className="modal-list">
               {[
-                {label:'Create Company',action:()=>{setShowCompanySelect(false);nav('COMPANY_CREATION');}},
-                {label:'Alter Company', action:()=>{setShowCompanySelect(false);nav('ALTER_LIST',undefined,'Company');}},
-                {label:'Delete Company', action:()=>{setShowCompanySelect(false);nav('ALTER_LIST',undefined,'Company'); alert('Select a company to alter, then press Alt+D or click Delete button to remove it.');}},
+                {label:'➕ Create Company', action:()=>{setShowCompanySelect(false);nav('COMPANY_CREATION');}},
+                {label:'✏️ Alter Company', action:()=>{setShowCompanySelect(false);nav('ALTER_LIST',undefined,'Company');}},
+                {label:'🗑️ Delete Company', action:()=>{setShowCompanySelect(false);nav('ALTER_LIST',undefined,'Company'); alert('Select a company to alter, then press Alt+D or click Delete button to remove it.');}},
+                {label:'📂 Open Local Data Folder (data/)', action:()=>{ companyDataFolderService.openDataFolder(); }},
                 {label:'---', category:'header'},
-                ...companies.map(c=>({ label: c.name, action: ()=>{ 
-                  if (c.securityControl && c.password) {
-                    setPwdPrompt({ company: c, action: 'open' });
-                  } else {
-                    setActiveCompany(c);
-                  }
-                } }))
+                ...companies.map(c=>{
+                  const code = companyDataFolderService.getCompanyFolderCode(c, companies);
+                  return {
+                    label: `${c.name} [${code}]`,
+                    action: async ()=>{
+                      setShowCompanySelect(false);
+                      // Load from local numbered folder (e.g. data/10001/) if available
+                      const folderData = await companyDataFolderService.loadCompanyFolder(code);
+                      if (folderData) {
+                        if (folderData.ledgers?.length) setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...folderData.ledgers]);
+                        if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers]);
+                        if (folderData.stockItems?.length) setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(c.id)), ...folderData.stockItems]);
+                      }
+                      if (c.securityControl && c.password) {
+                        setPwdPrompt({ company: c, action: 'open' });
+                      } else {
+                        setActiveCompany(c);
+                      }
+                    }
+                  };
+                })
               ].map((m,i)=>{
                 if (m.label === '---' && m.category === 'header') {
                   return <div key={i} style={{ borderBottom: '2px solid #1c5282', margin: '4px 0' }} />;
