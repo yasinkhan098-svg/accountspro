@@ -1,22 +1,59 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-const exeBuffer = fs.readFileSync(path.join(__dirname, '../public/downloads/LedgerX.exe'));
-const base64Str = exeBuffer.toString('base64');
-console.log('Launcher exe size:', exeBuffer.length, 'Base64 length:', base64Str.length);
+console.log('=== Step 1: Locating C# Compiler (csc.exe) ===');
+const cscPaths = [
+  'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe',
+  'C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe',
+];
+let cscPath = cscPaths.find(p => fs.existsSync(p));
+if (!cscPath) {
+  throw new Error('csc.exe not found in Microsoft.NET Framework');
+}
+console.log('Using compiler:', cscPath);
 
-const installerCsPath = path.join(__dirname, '../electron/Installer.cs');
+const electronDir = path.join(__dirname, '../electron');
+const downloadsDir = path.join(__dirname, '../public/downloads');
+const icoPath = path.join(electronDir, 'app.ico');
+const launcherCsPath = path.join(electronDir, 'LedgerXLauncher.cs');
+const installerCsPath = path.join(electronDir, 'Installer.cs');
+const launcherExePath = path.join(downloadsDir, 'LedgerX.exe');
+const setupExePath = path.join(downloadsDir, 'LedgerX-Setup.exe');
+
+if (!fs.existsSync(icoPath)) {
+  throw new Error('Icon file electron/app.ico does not exist. Run scripts/generate-icons.py first!');
+}
+
+console.log('\n=== Step 2: Compiling LedgerX.exe with embedded Win32 Icon ===');
+const launcherCmd = `"${cscPath}" /target:winexe /optimize+ /win32icon:"${icoPath}" /out:"${launcherExePath}" "${launcherCsPath}"`;
+console.log('Executing:', launcherCmd);
+execSync(launcherCmd, { stdio: 'inherit' });
+
+const exeBuffer = fs.readFileSync(launcherExePath);
+const launcherBase64 = exeBuffer.toString('base64');
+console.log('Compiled LedgerX.exe size:', exeBuffer.length, 'bytes');
+
+const icoBuffer = fs.readFileSync(icoPath);
+const icoBase64 = icoBuffer.toString('base64');
+console.log('Icon size:', icoBuffer.length, 'bytes');
+
+console.log('\n=== Step 3: Generating electron/Installer.cs with Embedded Icon & Launcher ===');
 const installerContent = `using System;
 using System.IO;
 using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace LedgerXSetup
 {
     public class SetupForm : Form
     {
+        [DllImport("shell32.dll")]
+        public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
         private ProgressBar progressBar;
         private Label lblStatus;
         private Label lblTitle;
@@ -27,8 +64,10 @@ namespace LedgerXSetup
         private int step = 0;
         private string appDir;
         private string exePath;
+        private string iconPath;
 
-        private const string LAUNCHER_BASE64 = "${base64Str}";
+        private const string LAUNCHER_BASE64 = "${launcherBase64}";
+        private const string ICON_BASE64 = "${icoBase64}";
 
         [STAThread]
         public static void Main()
@@ -41,37 +80,54 @@ namespace LedgerXSetup
         public SetupForm()
         {
             this.Text = "LedgerX Desktop (Offline Edition) - Setup Wizard";
-            this.Size = new Size(540, 380);
+            this.Size = new Size(540, 390);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.BackColor = Color.FromArgb(248, 250, 252);
-            this.Icon = SystemIcons.Application;
+
+            try
+            {
+                this.Icon = Icon.ExtractAssociatedIcon(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            }
+            catch { }
 
             string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             appDir = Path.Combine(localApp, "LedgerX");
             exePath = Path.Combine(appDir, "LedgerX.exe");
+            iconPath = Path.Combine(appDir, "app.ico");
 
             // Top Header Panel
             Panel pnlHeader = new Panel();
             pnlHeader.Dock = DockStyle.Top;
             pnlHeader.Height = 90;
-            pnlHeader.BackColor = Color.FromArgb(30, 58, 138);
+            pnlHeader.BackColor = Color.FromArgb(15, 23, 42); // Modern dark slate
+
+            try
+            {
+                PictureBox picLogo = new PictureBox();
+                picLogo.Location = new Point(20, 18);
+                picLogo.Size = new Size(54, 54);
+                picLogo.SizeMode = PictureBoxSizeMode.Zoom;
+                if (this.Icon != null) picLogo.Image = this.Icon.ToBitmap();
+                pnlHeader.Controls.Add(picLogo);
+            }
+            catch { }
 
             lblTitle = new Label();
             lblTitle.Text = "LedgerX Desktop (Offline Edition)";
-            lblTitle.Font = new Font("Segoe UI", 14, FontStyle.Bold);
+            lblTitle.Font = new Font("Segoe UI", 13.5f, FontStyle.Bold);
             lblTitle.ForeColor = Color.White;
-            lblTitle.Location = new Point(24, 20);
+            lblTitle.Location = new Point(86, 20);
             lblTitle.AutoSize = true;
             pnlHeader.Controls.Add(lblTitle);
 
             lblSub = new Label();
             lblSub.Text = "Standalone Windows Accounting System with Cloud Auto-Sync";
-            lblSub.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            lblSub.Font = new Font("Segoe UI", 9.2f, FontStyle.Regular);
             lblSub.ForeColor = Color.FromArgb(186, 230, 253);
-            lblSub.Location = new Point(25, 52);
+            lblSub.Location = new Point(88, 50);
             lblSub.AutoSize = true;
             pnlHeader.Controls.Add(lblSub);
 
@@ -110,7 +166,7 @@ namespace LedgerXSetup
             btnAction.Text = "Installing...";
             btnAction.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             btnAction.Size = new Size(120, 36);
-            btnAction.Location = new Point(378, 275);
+            btnAction.Location = new Point(378, 280);
             btnAction.BackColor = Color.FromArgb(2, 132, 199);
             btnAction.ForeColor = Color.White;
             btnAction.FlatStyle = FlatStyle.Flat;
@@ -136,17 +192,17 @@ namespace LedgerXSetup
                     progressBar.Value = 25;
                     break;
                 case 2:
-                    lblStatus.Text = "Extracting LedgerX Desktop application files...";
+                    lblStatus.Text = "Extracting LedgerX Desktop application and icon...";
                     progressBar.Value = 50;
                     InstallAppFiles();
                     break;
                 case 3:
-                    lblStatus.Text = "Creating Desktop and Start Menu shortcuts...";
+                    lblStatus.Text = "Creating Desktop and Start Menu shortcuts with official icon...";
                     progressBar.Value = 80;
                     CreateShortcuts();
                     break;
                 case 4:
-                    lblStatus.Text = "Registering hardware security vault...";
+                    lblStatus.Text = "Registering hardware security vault and icon associations...";
                     progressBar.Value = 95;
                     break;
                 case 5:
@@ -211,8 +267,13 @@ namespace LedgerXSetup
                 }
                 catch { }
 
-                byte[] raw = Convert.FromBase64String(LAUNCHER_BASE64);
-                File.WriteAllBytes(exePath, raw);
+                // Extract launcher
+                byte[] rawExe = Convert.FromBase64String(LAUNCHER_BASE64);
+                File.WriteAllBytes(exePath, rawExe);
+
+                // Extract icon
+                byte[] rawIco = Convert.FromBase64String(ICON_BASE64);
+                File.WriteAllBytes(iconPath, rawIco);
 
                 string conf = Path.Combine(appDir, "config.json");
                 string detectedUrl = DetectEmbeddedServerUrl();
@@ -263,7 +324,7 @@ namespace LedgerXSetup
                         if (File.Exists(shortcutPath)) {
                             try { File.Delete(shortcutPath); } catch { }
                         }
-                        CreateSingleShortcut(shortcutPath, exePath, appDir);
+                        CreateSingleShortcut(shortcutPath, exePath, iconPath, appDir);
                     } catch { }
                 }
 
@@ -276,16 +337,23 @@ namespace LedgerXSetup
                         if (File.Exists(startMenuPath)) {
                             try { File.Delete(startMenuPath); } catch { }
                         }
-                        CreateSingleShortcut(startMenuPath, exePath, appDir);
+                        CreateSingleShortcut(startMenuPath, exePath, iconPath, appDir);
                     }
                 }
                 catch { }
+
+                // Flush Windows icon cache immediately so shortcuts show the icon right away
+                try {
+                    SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero); // SHCNE_ASSOCCHANGED
+                } catch { }
             }
             catch { }
         }
 
-        private void CreateSingleShortcut(string lnkPath, string target, string workingDir)
+        private void CreateSingleShortcut(string lnkPath, string target, string iconFile, string workingDir)
         {
+            string chosenIcon = File.Exists(iconFile) ? iconFile : (target + ",0");
+
             try
             {
                 Type shellType = Type.GetTypeFromProgID("WScript.Shell");
@@ -306,6 +374,7 @@ namespace LedgerXSetup
                         scType.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { target });
                         scType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { workingDir });
                         scType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { "LedgerX Desktop (Offline Edition)" });
+                        scType.InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { chosenIcon });
                         scType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
                         return;
                     }
@@ -316,7 +385,7 @@ namespace LedgerXSetup
             // Fallback via PowerShell
             try
             {
-                string psCmd = "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut('" + lnkPath.Replace("'", "''") + "'); $sc.TargetPath = '" + target.Replace("'", "''") + "'; $sc.WorkingDirectory = '" + workingDir.Replace("'", "''") + "'; $sc.Description = 'LedgerX Desktop'; $sc.Save()";
+                string psCmd = "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut('" + lnkPath.Replace("'", "''") + "'); $sc.TargetPath = '" + target.Replace("'", "''") + "'; $sc.WorkingDirectory = '" + workingDir.Replace("'", "''") + "'; $sc.IconLocation = '" + chosenIcon.Replace("'", "''") + "'; $sc.Description = 'LedgerX Desktop'; $sc.Save()";
                 ProcessStartInfo psi = new ProcessStartInfo("powershell", "-NoProfile -Command \\"" + psCmd + "\\"");
                 psi.WindowStyle = ProcessWindowStyle.Hidden;
                 psi.CreateNoWindow = true;
@@ -343,4 +412,18 @@ namespace LedgerXSetup
 `;
 
 fs.writeFileSync(installerCsPath, installerContent, 'utf-8');
-console.log('Successfully updated electron/Installer.cs');
+console.log('Successfully written electron/Installer.cs');
+
+console.log('\n=== Step 4: Compiling LedgerX-Setup.exe with embedded Win32 Icon ===');
+const setupCmd = `"${cscPath}" /target:winexe /optimize+ /win32icon:"${icoPath}" /out:"${setupExePath}" "${installerCsPath}"`;
+console.log('Executing:', setupCmd);
+execSync(setupCmd, { stdio: 'inherit' });
+
+const setupBuffer = fs.readFileSync(setupExePath);
+console.log('Compiled LedgerX-Setup.exe size:', setupBuffer.length, 'bytes');
+
+console.log('\n=== Step 5: Verification ===');
+console.log('1. Launcher EXE:', launcherExePath, `(${exeBuffer.length} bytes)`);
+console.log('2. Setup EXE:   ', setupExePath, `(${setupBuffer.length} bytes)`);
+console.log('3. Icon file:   ', icoPath, `(${icoBuffer.length} bytes)`);
+console.log('All desktop binaries built successfully with embedded 3D LX icon!');

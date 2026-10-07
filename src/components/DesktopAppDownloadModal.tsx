@@ -126,16 +126,20 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
           justifyContent: 'space-between',
           alignItems: 'flex-start',
         }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Monitor size={28} color="#38bdf8" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <img 
+              src="/icon.png" 
+              alt="LedgerX Logo" 
+              style={{ width: 44, height: 44, borderRadius: 10, boxShadow: '0 4px 14px rgba(0,0,0,0.35)', objectFit: 'cover', flexShrink: 0 }} 
+            />
+            <div>
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>
                 LedgerX Desktop (Offline Edition)
               </h2>
+              <p style={{ margin: '4px 0 0', fontSize: 13, color: '#bae6fd' }}>
+                Work completely offline on Windows PC. Lightning fast (0.1ms) with automatic cloud sync.
+              </p>
             </div>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#bae6fd' }}>
-              Work completely offline on Windows PC. Lightning fast (0.1ms) with automatic cloud sync.
-            </p>
           </div>
           <button
             onClick={onClose}
@@ -274,6 +278,7 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
                       cursor: 'pointer',
                     }}
                   >
+                    <img src="/icon-32.png" alt="LX" style={{ width: 22, height: 22, borderRadius: 4 }} />
                     <Download size={18} />
                     <span>Download for <b>Windows (.exe)</b></span>
                   </a>

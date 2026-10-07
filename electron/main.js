@@ -20,7 +20,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 600,
     title: 'AccountsPro (LedgerX) - Enterprise Accounting',
-    icon: path.join(__dirname, '../public/favicon.ico'),
+    icon: fs.existsSync(path.join(__dirname, 'app.ico')) ? path.join(__dirname, 'app.ico') : path.join(__dirname, '../public/favicon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
