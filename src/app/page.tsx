@@ -637,6 +637,7 @@ export default function App() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showDesktopDownloadModal, setShowDesktopDownloadModal] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
 
   // Final Balance Sheet & P&L Export Modal
   const [showRealtimeDashboard, setShowRealtimeDashboard] = useState(false);
@@ -679,6 +680,7 @@ export default function App() {
     setIsMounted(true);
 
     const isDesktop = offlineSyncService.isDesktopEnvironment();
+    setIsDesktopApp(isDesktop);
     const offlineToken = offlineSyncService.getOfflineToken();
     let authStatus = authClient.isAuthenticated();
 
@@ -3014,6 +3016,8 @@ export default function App() {
                ⬆ UPGRADE
              </button>
            )}
+            {!isDesktopApp && (
+              <>
            <button
              onClick={() => setShowDesktopDownloadModal(true)}
              title="Download Desktop App for 100% Offline Work with Auto-Sync"
@@ -3042,6 +3046,8 @@ export default function App() {
            >
              LOGOUT
            </button>
+              </>
+            )}
         </div>
         <div className="nav-links">
           <div><u>O</u>: Import</div>
@@ -3174,11 +3180,15 @@ export default function App() {
           </div>
           {/* Footer */}
           <div className="mobile-nav-footer">
-            <button className="mobile-nav-upgrade-btn" style={{ background: '#0284c7', borderColor: '#0284c7', marginBottom: 6 }} onClick={() => { setMobileDrawerOpen(false); setShowDesktopDownloadModal(true); }}>💻 Desktop App</button>
+            {!isDesktopApp && (
+              <button className="mobile-nav-upgrade-btn" style={{ background: '#0284c7', borderColor: '#0284c7', marginBottom: 6 }} onClick={() => { setMobileDrawerOpen(false); setShowDesktopDownloadModal(true); }}>💻 Desktop App</button>
+            )}
             {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && (
               <button className="mobile-nav-upgrade-btn" onClick={() => { setMobileDrawerOpen(false); setShowUpgradeModal(true); }}>⬆ Upgrade</button>
             )}
-            <button className="mobile-nav-logout-btn" onClick={() => { setMobileDrawerOpen(false); handleLogout(); }}>Logout</button>
+            {!isDesktopApp && (
+              <button className="mobile-nav-logout-btn" onClick={() => { setMobileDrawerOpen(false); handleLogout(); }}>Logout</button>
+            )}
           </div>
         </div>
       </div>
