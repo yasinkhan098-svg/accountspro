@@ -677,7 +677,31 @@ export default function App() {
 
   useEffect(() => {
     setIsMounted(true);
-    const authStatus = authClient.isAuthenticated();
+
+    const isDesktop = offlineSyncService.isDesktopEnvironment();
+    const offlineToken = offlineSyncService.getOfflineToken();
+    let authStatus = authClient.isAuthenticated();
+
+    // In desktop mode with active offline token: auto-authenticate seamlessly without asking for password!
+    if (isDesktop && offlineToken) {
+      const decoded = offlineSyncService.decodeToken(offlineToken);
+      if (decoded.payload && decoded.payload.licenseKey) {
+        const user = authClient.getUser() || {
+          id: decoded.payload.userId || 1,
+          name: decoded.payload.email ? decoded.payload.email.split('@')[0] : 'Licensed User',
+          email: decoded.payload.email,
+          plan: decoded.payload.plan || 'PRO',
+          subscriptionExpiry: decoded.payload.validUntil,
+          licenseKey: decoded.payload.licenseKey,
+        };
+        if (!authStatus) {
+          authClient.setSession('offline_license_session', user, offlineToken);
+          authStatus = true;
+        }
+        setCurrentUser(user);
+      }
+    }
+
     setIsAuthenticated(authStatus);
     if (authStatus) {
       const user = authClient.getUser();
@@ -696,6 +720,22 @@ export default function App() {
         setOfflineGuardBlocked(guardResult);
       } else {
         setOfflineGuardBlocked(null);
+        // If allowed and payload exists, ensure desktop session is active!
+        if (guardResult.payload) {
+          const user = authClient.getUser() || {
+            id: guardResult.payload.userId || 1,
+            name: guardResult.payload.email ? guardResult.payload.email.split('@')[0] : 'Licensed User',
+            email: guardResult.payload.email,
+            plan: guardResult.payload.plan || 'PRO',
+            subscriptionExpiry: guardResult.payload.validUntil,
+            licenseKey: guardResult.payload.licenseKey,
+          };
+          if (!authClient.getToken()) {
+            authClient.setSession('offline_license_session', user, offlineSyncService.getOfflineToken());
+          }
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+        }
       }
     };
     checkOfflineGuard();
@@ -1658,8 +1698,10 @@ export default function App() {
           headers: { 'Authorization': `Bearer ${authClient.getToken()}` }
         });
         if (res.status === 401) {
-          alert("Your session has expired or you have logged in from another device.");
-          handleLogout();
+          if (!offlineSyncService.isDesktopEnvironment()) {
+            alert("Your session has expired or you have logged in from another device.");
+            handleLogout();
+          }
         }
       } catch (err) {
         console.error("Session check failed", err);
@@ -1683,8 +1725,10 @@ export default function App() {
           });
           
           if (res.status === 401) {
-            handleLogout();
-            return;
+            if (!offlineSyncService.isDesktopEnvironment()) {
+              handleLogout();
+              return;
+            }
           }
 
           const data = await res.json();

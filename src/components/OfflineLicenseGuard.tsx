@@ -67,15 +67,16 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
         throw new Error(data.error || 'Activation failed');
       }
 
-      if (data.token) {
-        await offlineSyncService.saveOfflineToken(data.token);
+      if (data.token || data.offlineToken) {
+        const offToken = data.offlineToken || data.token;
+        await offlineSyncService.saveOfflineToken(offToken);
         if (data.user) {
-          authClient.setSession(data.token, data.user, data.token);
+          authClient.setSession(data.token, data.user, offToken);
         }
         setSuccess('License activated successfully! Offline mode permanently unlocked.');
         setTimeout(() => {
           onActivated();
-        }, 800);
+        }, 500);
       } else {
         throw new Error('Server did not return a valid offline license token.');
       }

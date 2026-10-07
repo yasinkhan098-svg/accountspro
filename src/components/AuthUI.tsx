@@ -320,6 +320,34 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
     };
   }, []);
 
+  const tryOfflineSession = () => {
+    const offlineToken = offlineSyncService.getOfflineToken();
+    if (offlineToken) {
+      const decoded = offlineSyncService.decodeToken(offlineToken);
+      if (decoded.payload && decoded.payload.licenseKey) {
+        const user = authClient.getUser() || {
+          id: decoded.payload.userId || 1,
+          name: decoded.payload.email ? decoded.payload.email.split('@')[0] : 'Licensed User',
+          email: decoded.payload.email,
+          plan: decoded.payload.plan || 'PRO',
+          subscriptionExpiry: decoded.payload.validUntil,
+          licenseKey: decoded.payload.licenseKey,
+        };
+        authClient.setSession(authClient.getToken() || 'offline_license_session', user, offlineToken);
+        onLoginSuccess();
+        return true;
+      }
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    // If running in desktop mode or offline with active license, open directly!
+    if (!navigator.onLine || offlineSyncService.isDesktopEnvironment()) {
+      tryOfflineSession();
+    }
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -339,7 +367,10 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
         setError(data.error || 'Invalid credentials. Please try again.');
       }
     } catch (err) {
-      setError('Connection error. Please check your server.');
+      if ((!navigator.onLine || offlineSyncService.isDesktopEnvironment()) && tryOfflineSession()) {
+        return;
+      }
+      setError('Connection error. Please check your internet connection or server.');
     } finally {
       setLoading(false);
     }
@@ -364,7 +395,10 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
         setError(data.error || 'Invalid License Key or Email.');
       }
     } catch (err) {
-      setError('Connection error. Please try again.');
+      if ((!navigator.onLine || offlineSyncService.isDesktopEnvironment()) && tryOfflineSession()) {
+        return;
+      }
+      setError('Connection error. Please check your internet connection or server.');
     } finally {
       setLoading(false);
     }
@@ -652,6 +686,18 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                     {loading ? <span className="auth-loader"></span> : 'ACTIVATE & SIGN IN'}
                   </button>
                 </form>
+              )}
+              {offlineSyncService.getOfflineToken() && (
+                <div style={{ marginTop: 14 }}>
+                  <button
+                    type="button"
+                    onClick={tryOfflineSession}
+                    className="btn-primary"
+                    style={{ background: 'linear-gradient(135deg, #059669, #10b981)', width: '100%' }}
+                  >
+                    ⚡ Open Directly (Active License Mode)
+                  </button>
+                </div>
               )}
               <div className="form-footer">
                 Don&apos;t have an account?{' '}

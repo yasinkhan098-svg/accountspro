@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { ensureLicenseTables } from '@/lib/ensureLicenseTables';
 import { createSignedLicenseToken } from '@/lib/licenseEngine';
 
@@ -183,10 +184,32 @@ export async function POST(req: Request) {
       issuedAt: new Date().toISOString(),
     });
 
+    // 6. Generate Active Web Session Token for Seamless Instant Login
+    let sessionToken = "session_" + crypto.randomBytes(32).toString("hex");
+    if (!isMasterAdmin && user.id) {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { sessionToken },
+        });
+      } catch (sessErr) {
+        try {
+          await prisma.$executeRawUnsafe(
+            `UPDATE "User" SET "sessionToken" = ? WHERE "id" = ?`,
+            sessionToken,
+            user.id
+          );
+        } catch {}
+      }
+    } else if (isMasterAdmin) {
+      sessionToken = "admin_" + crypto.randomBytes(32).toString("hex");
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Desktop application activated successfully! Offline mode unlocked until subscription expiry.',
-      token: offlineToken,
+      token: sessionToken,
+      offlineToken: offlineToken,
       user: {
         id: user.id,
         name: user.name,
