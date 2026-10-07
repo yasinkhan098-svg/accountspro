@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ledgerx-offline-v1';
+const CACHE_NAME = 'ledgerx-offline-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -27,6 +27,17 @@ self.addEventListener('activate', (event) => {
     })
   );
   self.clients.claim();
+});
+
+// Message listener for manual or triggered cache purge
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    caches.keys().then((keys) => {
+      return Promise.all(keys.map((k) => caches.delete(k)));
+    }).then(() => {
+      self.skipWaiting();
+    });
+  }
 });
 
 // Fetch: Network first, fallback to cache for offline resilience

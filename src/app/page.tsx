@@ -18,6 +18,7 @@ import { offlineSyncService, OfflineGuardResult } from '@/lib/offlineSyncService
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
 import OfflineLicenseGuard from '@/components/OfflineLicenseGuard';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
+import AutoUpdateManager from '@/components/AutoUpdateManager';
 import {
   computeBaseFinancials,
 
@@ -3050,6 +3051,7 @@ export default function App() {
         </div>
         <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:15, marginRight:10}}>
            <SyncStatusBadge companyId={activeCompany?.id} authToken={authClient.getToken() || ''} onDataMerged={handleSyncMergedData} />
+           <AutoUpdateManager isDesktop={isDesktopApp} onToast={(msg) => setSaveToast(msg)} />
            <div style={{textAlign:'right'}}>
              <div style={{fontSize:11, fontWeight:'bold', color:'#f1c40f'}}>{currentUser?.name}</div>
              <div style={{fontSize:9, color:'#fff', opacity:0.8}}>{currentUser?.organizationName}</div>
@@ -3075,6 +3077,21 @@ export default function App() {
                ⬆ UPGRADE
              </button>
            )}
+            {isDesktopApp && (
+              <button
+                onClick={() => (window as any).checkForAppUpdates?.()}
+                title="Check for Online Cloud Updates & Sync Latest Code"
+                style={{
+                  background: 'linear-gradient(135deg, #059669, #10b981)',
+                  color: 'white', border: 'none',
+                  padding: '4px 10px', fontSize: '10px',
+                  fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                  display: 'inline-flex', alignItems: 'center', gap: '4px'
+                }}
+              >
+                🔄 CHECK UPDATE
+              </button>
+            )}
             {!isDesktopApp && (
               <>
            <button
