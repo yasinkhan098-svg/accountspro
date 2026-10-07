@@ -6,6 +6,7 @@ const MACHINE_ID_KEY = 'ledgerx_machine_id';
 const SYNC_QUEUE_KEY = 'ledgerx_sync_queue';
 const LAST_SYNC_TIME_KEY = 'ledgerx_last_sync_time';
 const TIME_GUARD_KEY = 'ledgerx_time_guard';
+const OFFLINE_BACKUP_KEY = 'ledgerx_offline_data_backup';
 
 export interface SyncQueueItem {
   id: string; // unique local ID e.g. "sq_1712345678"
@@ -54,6 +55,18 @@ class OfflineSyncService {
     return navigator.onLine;
   }
 
+  public isDesktopEnvironment(): boolean {
+    if (typeof window === 'undefined') return false;
+    if ((window as any).desktopBridge?.isDesktopApp) return true;
+    if (window.location.search.includes('desktop=1')) {
+      localStorage.setItem('ledgerx_is_desktop', '1');
+      return true;
+    }
+    if (localStorage.getItem('ledgerx_is_desktop') === '1') return true;
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+    return false;
+  }
+
   private initNetworkListeners() {
     window.addEventListener('online', () => {
       console.log('[OfflineSync] Internet reconnected! Triggering auto-sync...');
@@ -90,7 +103,7 @@ class OfflineSyncService {
     }
   }
 
-  // ==================== 2. MACHINE ID ====================
+  // ==================== 2. MACHINE ID (HARDWARE FINGERPRINT) ====================
 
   public async getMachineId(): Promise<string> {
     if (typeof window === 'undefined') return 'DESKTOP-SERVER';
@@ -99,31 +112,60 @@ class OfflineSyncService {
     if ((window as any).desktopBridge?.getMachineId) {
       try {
         const hwid = await (window as any).desktopBridge.getMachineId();
-        if (hwid) return hwid;
+        if (hwid) {
+          localStorage.setItem(MACHINE_ID_KEY, hwid);
+          return hwid;
+        }
       } catch (e) {}
     }
 
-    // 2. Persistent Machine ID fallback
+    // 2. C# Launcher URL parameter ?hwid=...
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlHwid = urlParams.get('hwid');
+      if (urlHwid) {
+        localStorage.setItem(MACHINE_ID_KEY, urlHwid);
+        return urlHwid;
+      }
+    } catch (e) {}
+
+    // 3. Persistent Machine ID fallback in storage
     let storedHwid = localStorage.getItem(MACHINE_ID_KEY);
-    if (!storedHwid) {
-      const rand = Math.random().toString(36).substring(2, 10).toUpperCase();
-      storedHwid = `LX-DEV-${rand}-${Date.now().toString(36).toUpperCase()}`;
+    if (storedHwid) return storedHwid;
+
+    // 4. Stable hardware fingerprint from system attributes
+    try {
+      const screenInfo = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
+      const navInfo = `${navigator.userAgent}_${navigator.language}_${navigator.hardwareConcurrency || 4}`;
+      let hash = 0;
+      const str = screenInfo + '_' + navInfo;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      const hex = Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
+      storedHwid = `LX-HWID-${hex}-${Date.now().toString(36).toUpperCase()}`;
       localStorage.setItem(MACHINE_ID_KEY, storedHwid);
+      return storedHwid;
+    } catch (e) {
+      storedHwid = `LX-HWID-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+      localStorage.setItem(MACHINE_ID_KEY, storedHwid);
+      return storedHwid;
     }
-    return storedHwid;
   }
 
   // ==================== 3. OFFLINE LICENSE MANAGEMENT ====================
 
   public getOfflineToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(OFFLINE_TOKEN_KEY);
+    return localStorage.getItem(OFFLINE_TOKEN_KEY) || localStorage.getItem('ledgerx_license_vault');
   }
 
   public async saveOfflineToken(token: string): Promise<boolean> {
     if (typeof window === 'undefined') return false;
     try {
       localStorage.setItem(OFFLINE_TOKEN_KEY, token);
+      localStorage.setItem('ledgerx_license_vault', token);
       if ((window as any).desktopBridge?.saveOfflineToken) {
         await (window as any).desktopBridge.saveOfflineToken(token);
       }
@@ -137,6 +179,7 @@ class OfflineSyncService {
   public removeOfflineToken(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(OFFLINE_TOKEN_KEY);
+    localStorage.removeItem('ledgerx_license_vault');
   }
 
   public decodeToken(token: string): { payload: LicensePayload | null; signature: string } {
@@ -154,12 +197,21 @@ class OfflineSyncService {
 
   /**
    * Evaluates if the current app is allowed to run offline.
-   * STRICT ENFORCEMENT:
-   * If offline and NO active license key was activated, ALL ACCESS IS BLOCKED.
-   * If license expired, ALL ACCESS IS BLOCKED.
+   * STRICT ENFORCEMENT & SEAMLESS PERSISTENCE:
+   * 1. Browser online users are never blocked.
+   * 2. Once activated on Desktop PC, app remains 100% unlocked offline until subscription expiry!
+   * 3. Hardware fingerprint lock ensures token cannot be stolen to run on another PC.
    */
   public async verifyOfflineGuard(): Promise<OfflineGuardResult> {
     if (typeof window === 'undefined') {
+      return { allowed: true };
+    }
+
+    const isDesktop = this.isDesktopEnvironment();
+    const isOnline = navigator.onLine;
+
+    // Normal browser session while online -> allow access without desktop lock
+    if (!isDesktop && isOnline) {
       return { allowed: true };
     }
 
@@ -170,7 +222,7 @@ class OfflineSyncService {
       return {
         allowed: false,
         reason: 'NO_LICENSE',
-        message: 'Desktop App offline use requires an activated License Key. Please connect to internet and activate your License Key.',
+        message: 'Desktop App requires one-time activation. Please connect to the internet and enter your license key once.',
       };
     }
 
@@ -184,17 +236,38 @@ class OfflineSyncService {
       };
     }
 
-    // 3. Clock rollback protection
+    // 3. Hardware / Machine ID Lock check
+    const currentHwid = await this.getMachineId();
+    if (
+      payload.machineId &&
+      payload.machineId !== 'DESKTOP-APP' &&
+      payload.machineId !== 'DESKTOP-ADMIN' &&
+      currentHwid &&
+      currentHwid !== 'DESKTOP-APP'
+    ) {
+      if (payload.machineId.startsWith('LX-HWID-') && currentHwid.startsWith('LX-HWID-')) {
+        if (payload.machineId !== currentHwid) {
+          return {
+            allowed: false,
+            reason: 'INVALID_TOKEN',
+            message: `Hardware Security Lock: This desktop license is locked to another computer (${payload.machineId.substring(0, 16)}...). It cannot be run on this PC.`,
+            payload,
+          };
+        }
+      }
+    }
+
+    // 4. Clock rollback protection
     if (this.isClockRolledBack()) {
       return {
         allowed: false,
         reason: 'CLOCK_ROLLBACK',
-        message: 'System date rollback detected! Please correct your computer system clock to continue using offline mode.',
+        message: 'System date rollback detected! Please correct your computer system clock to continue.',
         payload,
       };
     }
 
-    // 4. Expiry Check
+    // 5. Expiry Check
     if (payload.validUntil) {
       const expiry = new Date(payload.validUntil).getTime();
       const now = Date.now();
@@ -280,7 +353,37 @@ class OfflineSyncService {
     this.notifyStatus('online-synced', { pendingCount: 0 });
   }
 
-  // ==================== 5. 2-WAY SYNC EXECUTION ====================
+  // ==================== 5. LOCAL DISK DATA VAULT (data folder) ====================
+
+  public async saveLocalDataVault(data: any): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+    try {
+      localStorage.setItem(OFFLINE_BACKUP_KEY, JSON.stringify(data));
+      if ((window as any).desktopBridge?.saveDataFile) {
+        await (window as any).desktopBridge.saveDataFile(data);
+      }
+      return true;
+    } catch (e) {
+      console.warn('Failed to save to local data vault:', e);
+      return false;
+    }
+  }
+
+  public async getLocalDataVault(): Promise<any | null> {
+    if (typeof window === 'undefined') return null;
+    try {
+      if ((window as any).desktopBridge?.loadDataFile) {
+        const fileData = await (window as any).desktopBridge.loadDataFile();
+        if (fileData) return fileData;
+      }
+      const raw = localStorage.getItem(OFFLINE_BACKUP_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ==================== 6. 2-WAY SYNC EXECUTION ====================
 
   public async syncWithCloud(
     companyId: number,
@@ -380,7 +483,7 @@ class OfflineSyncService {
     }
   }
 
-  // ==================== 6. OBSERVABLE LISTENERS ====================
+  // ==================== 7. OBSERVABLE LISTENERS ====================
 
   public subscribe(listener: (status: SyncStatusType, meta?: any) => void): () => void {
     this.statusListeners.push(listener);

@@ -690,8 +690,10 @@ export default function App() {
     // Verify Desktop Offline License Guard
     const checkOfflineGuard = async () => {
       const guardResult = await offlineSyncService.verifyOfflineGuard();
-      if (!navigator.onLine && !guardResult.allowed) {
+      if (!guardResult.allowed) {
         setOfflineGuardBlocked(guardResult);
+      } else {
+        setOfflineGuardBlocked(null);
       }
     };
     checkOfflineGuard();
@@ -700,11 +702,20 @@ export default function App() {
       const guardResult = await offlineSyncService.verifyOfflineGuard();
       if (!guardResult.allowed) {
         setOfflineGuardBlocked(guardResult);
+      } else {
+        setOfflineGuardBlocked(null);
       }
     };
+
+    const handleOnlineEvent = async () => {
+      checkOfflineGuard();
+    };
+
     window.addEventListener('offline', handleOfflineEvent);
+    window.addEventListener('online', handleOnlineEvent);
     return () => {
       window.removeEventListener('offline', handleOfflineEvent);
+      window.removeEventListener('online', handleOnlineEvent);
     };
   }, []);
 
@@ -1566,13 +1577,31 @@ export default function App() {
     save('allVouchers', allVouchers);
     save('activeCompany', activeCompany);
     save('currentPeriod', currentPeriod);
+
+    // Save snapshot to local data vault (disk storage in data/ folder)
+    offlineSyncService.saveLocalDataVault({
+      companies,
+      allLedgers,
+      allGroups,
+      allStockGroups,
+      allStockCategories,
+      allStockItems,
+      allUnits,
+      allGodowns,
+      allVoucherTypes,
+      allCurrencies,
+      allVouchers,
+      activeCompany,
+    });
   }, [companies, allLedgers, allGroups, allStockGroups, allStockCategories, allStockItems, allUnits, allGodowns, allVoucherTypes, allCurrencies, allVouchers, activeCompany, currentPeriod, isMounted, isAuthenticated, currentUser?.id]);
 
-  // Periodically Check Session (Single Session Enforcement)
+  // Periodically Check Session (Single Session Enforcement - Online Only)
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const checkSession = async () => {
+      // While offline, never attempt network session check to prevent false logouts
+      if (!navigator.onLine) return;
       try {
         const res = await fetch('/api/auth/check', {
           headers: { 'Authorization': `Bearer ${authClient.getToken()}` }
@@ -1594,6 +1623,7 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated) {
       const fetchCompanies = async () => {
+        if (!navigator.onLine) return; // In offline mode, use cached local companies
         try {
           const res = await fetch('/api/companies', {
             headers: {

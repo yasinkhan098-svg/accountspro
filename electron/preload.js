@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   getOfflineToken: () => ipcRenderer.invoke('get-offline-token'),
   saveOfflineToken: (token) => ipcRenderer.invoke('save-offline-token', token),
   recordTimeGuard: () => ipcRenderer.invoke('record-time-guard'),
+  saveDataFile: (data) => ipcRenderer.invoke('save-data-file', data),
+  loadDataFile: () => ipcRenderer.invoke('load-data-file'),
   syncStatus: (status) => ipcRenderer.send('sync-status-update', status),
   onSyncTrigger: (callback) => ipcRenderer.on('trigger-sync', () => callback()),
 });

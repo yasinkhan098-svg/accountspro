@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { offlineSyncService } from '@/lib/offlineSyncService';
 
 interface AuthUIProps {
   onLoginSuccess: () => void;
@@ -324,10 +325,11 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
     setLoading(true);
     setError('');
     try {
+      const machineId = await offlineSyncService.getMachineId();
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
+        body: JSON.stringify({ ...loginData, machineId })
       });
       const data = await res.json();
       if (res.ok) {
@@ -348,10 +350,11 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
     setLoading(true);
     setError('');
     try {
+      const machineId = await offlineSyncService.getMachineId();
       const res = await fetch('/api/auth/license-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(licenseInput)
+        body: JSON.stringify({ ...licenseInput, machineId })
       });
       const data = await res.json();
       if (res.ok) {

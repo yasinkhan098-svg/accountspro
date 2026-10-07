@@ -80,6 +80,32 @@ ipcMain.handle('save-offline-token', async (event, token) => {
   }
 });
 
+const dataDir = path.join(userDataPath, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+const dataFilePath = path.join(dataDir, 'accounts_offline_data.json');
+
+ipcMain.handle('save-data-file', async (event, data) => {
+  try {
+    fs.writeFileSync(dataFilePath, typeof data === 'string' ? data : JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Failed to save data file:', e);
+    return false;
+  }
+});
+
+ipcMain.handle('load-data-file', async () => {
+  try {
+    if (fs.existsSync(dataFilePath)) {
+      const raw = fs.readFileSync(dataFilePath, 'utf8');
+      return JSON.parse(raw);
+    }
+  } catch (e) {}
+  return null;
+});
+
 app.whenReady().then(() => {
   createWindow();
 

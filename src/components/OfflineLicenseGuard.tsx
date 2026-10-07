@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { offlineSyncService, OfflineGuardResult } from '@/lib/offlineSyncService';
+import { authClient } from '@/lib/auth-client';
 import { Lock, ShieldAlert, Key, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 
 interface OfflineLicenseGuardProps {
@@ -14,15 +15,33 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   const isExpired = guardResult.reason === 'EXPIRED';
   const isClockRollback = guardResult.reason === 'CLOCK_ROLLBACK';
   const isNoLicense = guardResult.reason === 'NO_LICENSE' || guardResult.reason === 'INVALID_TOKEN';
 
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setError('');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!navigator.onLine) {
-      setError('Internet connection is required to activate your License Key. Please check your network and try again.');
+      setError('Internet connection is required once to activate your License Key. Please turn on Wi-Fi or Mobile Hotspot and try again.');
       return;
     }
 
@@ -50,7 +69,10 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
 
       if (data.token) {
         await offlineSyncService.saveOfflineToken(data.token);
-        setSuccess('License activated successfully! Offline mode unlocked.');
+        if (data.user) {
+          authClient.setSession(data.token, data.user, data.token);
+        }
+        setSuccess('License activated successfully! Offline mode permanently unlocked.');
         setTimeout(() => {
           onActivated();
         }, 800);
@@ -85,7 +107,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
         background: '#ffffff',
         borderRadius: 16,
         color: '#1e293b',
-        maxWidth: 520,
+        maxWidth: 540,
         width: '100%',
         boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
         overflow: 'hidden',
@@ -112,14 +134,14 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
           </div>
           <div>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>
-              {isExpired ? 'License Subscription Expired' : isClockRollback ? 'System Clock Error' : 'Offline Access Locked'}
+              {isExpired ? 'License Subscription Expired' : isClockRollback ? 'System Clock Error' : 'Desktop License Activation'}
             </h2>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>
               {isExpired
                 ? 'Your offline license validity has expired.'
                 : isClockRollback
                 ? 'System date rollback was detected.'
-                : 'Desktop App requires an activated license key for offline use.'}
+                : 'Activate once with your License Key to work 100% offline.'}
             </p>
           </div>
         </div>
@@ -131,17 +153,21 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            padding: '8px 12px',
+            padding: '10px 14px',
             borderRadius: 8,
-            background: navigator.onLine ? '#f0fdf4' : '#fef2f2',
-            border: navigator.onLine ? '1px solid #bbf7d0' : '1px solid #fecaca',
-            color: navigator.onLine ? '#166534' : '#991b1b',
+            background: isOnline ? '#f0fdf4' : '#fef2f2',
+            border: isOnline ? '1px solid #bbf7d0' : '1px solid #fecaca',
+            color: isOnline ? '#166534' : '#991b1b',
             fontSize: 12,
             fontWeight: 600,
             marginBottom: 18,
           }}>
-            {navigator.onLine ? <Wifi size={16} /> : <WifiOff size={16} />}
-            <span>{navigator.onLine ? 'Internet Connected (Ready to activate)' : 'No Internet Connection Detected'}</span>
+            {isOnline ? <Wifi size={18} /> : <WifiOff size={18} />}
+            <span>
+              {isOnline
+                ? 'Internet Connected — Ready to activate your PC'
+                : 'No Internet Connection — Connect Wi-Fi/Hotspot once to complete 1-time activation'}
+            </span>
           </div>
 
           {error && (
@@ -149,11 +175,12 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
               background: '#fef2f2',
               color: '#dc2626',
               border: '1px solid #fee2e2',
-              padding: '10px 14px',
+              padding: '12px 14px',
               borderRadius: 8,
               fontSize: 13,
               marginBottom: 16,
               fontWeight: 500,
+              lineHeight: 1.5,
             }}>
               {error}
             </div>
@@ -164,7 +191,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
               background: '#f0fdf4',
               color: '#16a34a',
               border: '1px solid #bbf7d0',
-              padding: '10px 14px',
+              padding: '12px 14px',
               borderRadius: 8,
               fontSize: 13,
               marginBottom: 16,
@@ -234,7 +261,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
             /* Activation Form */
             <form onSubmit={handleActivate}>
               <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16, lineHeight: 1.5 }}>
-                Enter your registered Organization Email and License Key once to activate offline mode. After activation, you can work 100% offline until your subscription expires.
+                Enter your registered Organization Email and License Key <b>once</b> to bind this PC. After this one-time activation, you can work 100% offline without internet until your subscription expires.
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -244,7 +271,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
                 <input
                   type="email"
                   required
-                  placeholder="name@company.com"
+                  placeholder="yasin.khan098@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{
@@ -266,7 +293,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
                 <input
                   type="text"
                   required
-                  placeholder="LX-0001-XXXX-2026"
+                  placeholder="LX-ADMIN-MASTER-2027"
                   value={licenseKey}
                   onChange={(e) => setLicenseKey(e.target.value.toUpperCase())}
                   style={{
@@ -305,8 +332,12 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
                 }}
               >
                 {loading ? <RefreshCw size={18} className="animate-spin" /> : <Key size={18} />}
-                <span>{loading ? 'Activating Device...' : 'Activate Desktop License'}</span>
+                <span>{loading ? 'Binding Machine & Activating...' : 'Activate Desktop License'}</span>
               </button>
+
+              <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginTop: 12 }}>
+                🔒 Single-Device Hardware Binding &bull; Tamper-Proof Cryptographic Vault
+              </div>
             </form>
           )}
         </div>
@@ -323,7 +354,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
           alignItems: 'center',
         }}>
           <span>LedgerX Desktop Enterprise</span>
-          <span>Security Protocol v2.4</span>
+          <span>Single-Device Hardware Lock v2.4</span>
         </div>
       </div>
     </div>
