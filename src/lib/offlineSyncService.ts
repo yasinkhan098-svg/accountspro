@@ -58,12 +58,12 @@ class OfflineSyncService {
   public isDesktopEnvironment(): boolean {
     if (typeof window === 'undefined') return false;
     if ((window as any).desktopBridge?.isDesktopApp) return true;
+    if (typeof navigator !== 'undefined' && navigator.userAgent && /electron/i.test(navigator.userAgent)) return true;
     if (window.location.search.includes('desktop=1')) {
       localStorage.setItem('ledgerx_is_desktop', '1');
       return true;
     }
     if (localStorage.getItem('ledgerx_is_desktop') === '1') return true;
-    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
     return false;
   }
 

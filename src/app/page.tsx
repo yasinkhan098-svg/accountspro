@@ -1860,6 +1860,40 @@ export default function App() {
   const [saveToast, setSaveToast] = useState<string|null>(null);
   const [printVoucher, setPrintVoucher] = useState<Voucher|null>(null);
 
+  // Auto-dismiss saveToast after 3.5 seconds
+  useEffect(() => {
+    if (!saveToast) return;
+    if (saveToast === 'Saving...') return;
+    const timer = setTimeout(() => {
+      setSaveToast(null);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [saveToast]);
+
+  // Capture Esc key anywhere to dismiss toast immediately
+  useEffect(() => {
+    if (!saveToast) return;
+    const handleEscToast = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setSaveToast(null);
+      }
+    };
+    window.addEventListener('keydown', handleEscToast, true);
+    return () => window.removeEventListener('keydown', handleEscToast, true);
+  }, [saveToast]);
+
+  // When offline sync finishes, auto-dismiss any pending auto-sync toast
+  useEffect(() => {
+    const unsub = offlineSyncService.subscribe((status) => {
+      if (status === 'online-synced') {
+        setSaveToast(prev => (prev && prev.includes('auto-sync') ? null : prev));
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const resetForm = (savedName: string) => {
     setSaveToast(savedName + ' saved!');
     setTimeout(() => setSaveToast(null), 2500);
@@ -2059,7 +2093,9 @@ export default function App() {
         const localLedger = { id, companyId: cid, ...data };
         setAllLedgers(p => [...p, localLedger]);
         offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
-        setSaveToast("Ledger saved locally (Offline Mode • Will auto-sync)");
+        if (!isInitializingRef.current) {
+          setSaveToast("Ledger saved locally (Offline Mode • Will auto-sync)");
+        }
         return localLedger;
       }
       else if (type === 'stockItem') {
@@ -2082,7 +2118,9 @@ export default function App() {
         const localItem = { id, companyId: cid, ...data };
         setAllStockItems(p => [...p, localItem]);
         offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
-        setSaveToast("Stock item saved locally (Offline Mode • Will auto-sync)");
+        if (!isInitializingRef.current) {
+          setSaveToast("Stock item saved locally (Offline Mode • Will auto-sync)");
+        }
         return localItem;
       }
       else if (type === 'unit') {
@@ -2105,7 +2143,9 @@ export default function App() {
         const localUnit = { id, companyId: cid, ...data };
         setAllUnits(p => [...p, localUnit]);
         offlineSyncService.enqueue({ type: 'UNIT', action: 'CREATE', data: localUnit, companyId: cid });
-        setSaveToast("Unit saved locally (Offline Mode • Will auto-sync)");
+        if (!isInitializingRef.current) {
+          setSaveToast("Unit saved locally (Offline Mode • Will auto-sync)");
+        }
         return localUnit;
       }
       else if (type === 'stockGroup') {
@@ -2128,7 +2168,9 @@ export default function App() {
         const localSG = { id, companyId: cid, ...data };
         setAllStockGroups(p => [...p, localSG]);
         offlineSyncService.enqueue({ type: 'STOCK_GROUP', action: 'CREATE', data: localSG, companyId: cid });
-        setSaveToast("Stock group saved locally (Offline Mode • Will auto-sync)");
+        if (!isInitializingRef.current) {
+          setSaveToast("Stock group saved locally (Offline Mode • Will auto-sync)");
+        }
         return localSG;
       }
       else if (type === 'company') {
@@ -2673,6 +2715,7 @@ export default function App() {
       };
 
       if (e.key === 'Escape') {
+        if (saveToast) { setSaveToast(null); return; }
         if (pwdPrompt) { setPwdPrompt(null); return; }
         if (altCCtx) { 
           setAltCCtx(null); 
@@ -2909,15 +2952,31 @@ export default function App() {
       {saveToast && (
         <div style={{
           position:'fixed', bottom:50, left:'50%', transform:'translateX(-50%)',
-          background:'#1a7a4a', color:'#fff', padding:'10px 28px',
-          borderRadius:3, fontSize:13, fontWeight:'bold', zIndex:9999,
+          background:'#1a7a4a', color:'#fff', padding:'10px 24px',
+          borderRadius:6, fontSize:13, fontWeight:'bold', zIndex:99999,
           boxShadow:'0 4px 16px rgba(0,0,0,0.35)',
-          display:'flex', alignItems:'center', gap:10,
+          display:'flex', alignItems:'center', gap:12,
           animation:'fadeIn 0.2s ease',
           border:'1px solid #0f5c36',
           letterSpacing:0.3,
         }}>
-          <span style={{fontSize:16}}>✓</span> {saveToast} <span style={{opacity:0.7,fontSize:11,marginLeft:8}}>Press Esc to exit</span>
+          <span style={{fontSize:16}}>✓</span>
+          <span>{saveToast}</span>
+          <span style={{opacity:0.8, fontSize:11, marginLeft:6, background:'rgba(0,0,0,0.25)', padding:'3px 8px', borderRadius:4, fontWeight:500}}>
+            Press Esc to exit
+          </span>
+          <button
+            onClick={() => setSaveToast(null)}
+            style={{
+              background: 'none', border: 'none', color: '#fff',
+              fontSize: 16, cursor: 'pointer', padding: '0 4px',
+              marginLeft: 6, opacity: 0.85, lineHeight: 1
+            }}
+            title="Dismiss notification"
+            aria-label="Dismiss notification"
+          >
+            ✕
+          </button>
         </div>
       )}
       {/* TOP NAV */}

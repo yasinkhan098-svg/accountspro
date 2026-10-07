@@ -300,10 +300,25 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
     password: ''
   });
   const [loginMethod, setLoginMethod] = useState<'password' | 'license'>('password');
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
   const [licenseInput, setLicenseInput] = useState({
     email: '',
     licenseKey: ''
   });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isDesk = Boolean(
+        (window as any).desktopBridge?.isDesktopApp ||
+        (navigator.userAgent && /electron/i.test(navigator.userAgent)) ||
+        window.location.search.includes('desktop=1')
+      );
+      setIsDesktopApp(isDesk);
+      if (!isDesk) {
+        setLoginMethod('password');
+      }
+    }
+  }, []);
 
   // CSS sirf ek baar inject hoga - har re-render pe nahi
   useEffect(() => {
@@ -342,9 +357,14 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
   };
 
   useEffect(() => {
-    // If running in desktop mode or offline with active license, open directly!
-    if (!navigator.onLine || offlineSyncService.isDesktopEnvironment()) {
-      tryOfflineSession();
+    // Only in desktop app or offline with active license, open directly!
+    const isDesk = typeof window !== 'undefined' && Boolean(
+      (window as any).desktopBridge?.isDesktopApp ||
+      (navigator.userAgent && /electron/i.test(navigator.userAgent)) ||
+      window.location.search.includes('desktop=1')
+    );
+    if ((!navigator.onLine || isDesk) && tryOfflineSession()) {
+      // offline session restored
     }
   }, []);
 
@@ -568,55 +588,59 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
           {/* LOGIN FORM */}
           {isLogin ? (
             <div>
-              {/* Method Switcher Tabs */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 18, background: '#f1f5f9', padding: 4, borderRadius: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => { setLoginMethod('password'); setError(''); }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    background: loginMethod === 'password' ? '#ffffff' : 'transparent',
-                    color: loginMethod === 'password' ? '#0f172a' : '#64748b',
-                    boxShadow: loginMethod === 'password' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  🔒 Password Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setLoginMethod('license'); setError(''); }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    background: loginMethod === 'license' ? '#ffffff' : 'transparent',
-                    color: loginMethod === 'license' ? '#0284c7' : '#64748b',
-                    boxShadow: loginMethod === 'license' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  🔑 License Key Activation
-                </button>
-              </div>
+              {/* Method Switcher Tabs - ONLY in Desktop App */}
+              {isDesktopApp && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 18, background: '#f1f5f9', padding: 4, borderRadius: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMethod('password'); setError(''); }}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      background: loginMethod === 'password' ? '#ffffff' : 'transparent',
+                      color: loginMethod === 'password' ? '#0f172a' : '#64748b',
+                      boxShadow: loginMethod === 'password' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    🔒 Password Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMethod('license'); setError(''); }}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      background: loginMethod === 'license' ? '#ffffff' : 'transparent',
+                      color: loginMethod === 'license' ? '#0284c7' : '#64748b',
+                      boxShadow: loginMethod === 'license' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    🔑 License Key Activation
+                  </button>
+                </div>
+              )}
 
-              {/* Connected Server Indicator */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 16, fontSize: 11, color: '#64748b' }}>
-                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }}></span>
-                <span>Connected Server: <strong style={{ color: '#0f172a' }}>{typeof window !== 'undefined' ? window.location.origin : 'Cloud'}</strong></span>
-              </div>
+              {/* Connected Server Indicator - ONLY in Desktop App */}
+              {isDesktopApp && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 16, fontSize: 11, color: '#64748b' }}>
+                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }}></span>
+                  <span>Connected Server: <strong style={{ color: '#0f172a' }}>{typeof window !== 'undefined' ? window.location.origin : 'Cloud'}</strong></span>
+                </div>
+              )}
 
-              {loginMethod === 'password' ? (
+              {(!isDesktopApp || loginMethod === 'password') ? (
                 <form onSubmit={handleLogin} className="premium-form">
                   <div className="input-field">
                     <label>USER ID / EMAIL <span className="req">*</span></label>
@@ -687,7 +711,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                   </button>
                 </form>
               )}
-              {offlineSyncService.getOfflineToken() && (
+              {isDesktopApp && offlineSyncService.getOfflineToken() && (
                 <div style={{ marginTop: 14 }}>
                   <button
                     type="button"
