@@ -698,7 +698,7 @@ export default function App() {
           licenseKey: decoded.payload.licenseKey,
         };
         if (!authStatus) {
-          authClient.setSession('offline_license_session', user, offlineToken);
+          authClient.setSession(offlineToken, user, offlineToken);
           authStatus = true;
         }
         setCurrentUser(user);
@@ -733,8 +733,9 @@ export default function App() {
             subscriptionExpiry: guardResult.payload.validUntil,
             licenseKey: guardResult.payload.licenseKey,
           };
-          if (!authClient.getToken()) {
-            authClient.setSession('offline_license_session', user, offlineSyncService.getOfflineToken());
+          const off = offlineSyncService.getOfflineToken();
+          if (!authClient.getToken() || authClient.getToken() === 'offline_license_session') {
+            authClient.setSession(off || 'offline_license_session', user, off);
           }
           setCurrentUser(user);
           setIsAuthenticated(true);
@@ -1479,11 +1480,26 @@ export default function App() {
                    c.name?.toLowerCase().trim() === item.company.name?.toLowerCase().trim()
             );
             if (!exists) {
-              currentCos.push({
+              const localCreatedCo = {
                 ...item.company,
                 id: item.company.id || Date.now() + Math.floor(Math.random() * 1000),
                 companyCode: code,
-              });
+              };
+              currentCos.push(localCreatedCo);
+
+              // 2-Way Sync: push offline-created company to cloud
+              if (navigator.onLine) {
+                try {
+                  fetch('/api/companies', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${authClient.getToken()}`
+                    },
+                    body: JSON.stringify(localCreatedCo)
+                  }).catch(() => {});
+                } catch (e) {}
+              }
             }
           }
         }
@@ -1496,6 +1512,8 @@ export default function App() {
         if (activeCompany) {
           const match = currentCos.find((c: any) => Number(c.id) === Number(activeCompany.id) || (c.companyCode && activeCompany.companyCode && String(c.companyCode) === String(activeCompany.companyCode)));
           if (match) setActiveCompany(match);
+        } else {
+          setActiveCompany(currentCos[0]);
         }
       }
     };
@@ -1606,22 +1624,45 @@ export default function App() {
   }, [isAuthenticated, activeCompany?.id]);
 
   const handleSyncMergedData = useCallback((pull: any) => {
-    if (!pull || !activeCompany?.id) return;
-    const cid = activeCompany.id;
-    if (Array.isArray(pull.ledgers) && pull.ledgers.length > 0) {
-      setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...pull.ledgers]);
+    if (!pull) return;
+
+    // 1. Merge pulled companies from cloud
+    if (Array.isArray(pull.companies) && pull.companies.length > 0) {
+      setCompanies(prev => {
+        const merged = [...prev];
+        for (const cloudCo of pull.companies) {
+          const idx = merged.findIndex(c => Number(c.id) === Number(cloudCo.id) || c.name?.toLowerCase().trim() === cloudCo.name?.toLowerCase().trim());
+          if (idx >= 0) {
+            merged[idx] = { ...merged[idx], ...cloudCo };
+          } else {
+            merged.push(cloudCo);
+          }
+        }
+        return merged;
+      });
+      if (!activeCompany && pull.companies.length > 0) {
+        setActiveCompany(pull.companies[0]);
+      }
     }
-    if (Array.isArray(pull.stockItems) && pull.stockItems.length > 0) {
-      setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...pull.stockItems]);
-    }
-    if (Array.isArray(pull.units) && pull.units.length > 0) {
-      setAllUnits(prev => [...prev.filter(u => Number(u.companyId) !== Number(cid)), ...pull.units]);
-    }
-    if (Array.isArray(pull.stockGroups) && pull.stockGroups.length > 0) {
-      setAllStockGroups(prev => [...prev.filter(sg => Number(sg.companyId) !== Number(cid)), ...pull.stockGroups]);
-    }
-    if (Array.isArray(pull.vouchers) && pull.vouchers.length > 0) {
-      setAllVouchers(prev => [...prev.filter(v => Number(v.companyId) !== Number(cid)), ...pull.vouchers]);
+
+    // 2. Merge pulled masters & vouchers for active company
+    const cid = activeCompany?.id;
+    if (cid) {
+      if (Array.isArray(pull.ledgers) && pull.ledgers.length > 0) {
+        setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...pull.ledgers]);
+      }
+      if (Array.isArray(pull.stockItems) && pull.stockItems.length > 0) {
+        setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...pull.stockItems]);
+      }
+      if (Array.isArray(pull.units) && pull.units.length > 0) {
+        setAllUnits(prev => [...prev.filter(u => Number(u.companyId) !== Number(cid)), ...pull.units]);
+      }
+      if (Array.isArray(pull.stockGroups) && pull.stockGroups.length > 0) {
+        setAllStockGroups(prev => [...prev.filter(sg => Number(sg.companyId) !== Number(cid)), ...pull.stockGroups]);
+      }
+      if (Array.isArray(pull.vouchers) && pull.vouchers.length > 0) {
+        setAllVouchers(prev => [...prev.filter(v => Number(v.companyId) !== Number(cid)), ...pull.vouchers]);
+      }
     }
   }, [activeCompany?.id]);
 
@@ -1737,6 +1778,9 @@ export default function App() {
           const data = await res.json();
           if (res.ok && data.companies) {
             setCompanies(data.companies);
+            if (!activeCompany && data.companies.length > 0) {
+              setActiveCompany(data.companies[0]);
+            }
           }
         } catch (err) {
           console.error('Failed to fetch companies:', err);

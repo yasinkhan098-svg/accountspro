@@ -447,6 +447,7 @@ class OfflineSyncService {
       const queue = this.getQueue().filter(q => q.companyId === companyId || !q.companyId);
 
       // Separate pushed items by category
+      const pushedCompanies = queue.filter(q => q.type === 'COMPANY' && q.action !== 'DELETE').map(q => q.data);
       const pushedVouchers = queue.filter(q => q.type === 'VOUCHER' && q.action !== 'DELETE').map(q => q.data);
       const deletedVoucherIds = queue.filter(q => q.type === 'VOUCHER' && q.action === 'DELETE').map(q => q.data?.id);
       const pushedLedgers = queue.filter(q => q.type === 'LEDGER' && q.action !== 'DELETE').map(q => q.data);
@@ -465,6 +466,7 @@ class OfflineSyncService {
           companyId,
           lastSyncedAt,
           push: {
+            companies: pushedCompanies,
             vouchers: pushedVouchers,
             deletedVoucherIds,
             ledgers: pushedLedgers,

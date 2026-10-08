@@ -104,6 +104,43 @@ export async function POST(req: Request) {
 
     // ==================== 2. INGEST PUSHED MASTERS ====================
 
+    // 0. Companies
+    if (push && Array.isArray(push.companies) && push.companies.length > 0 && userId) {
+      for (const co of push.companies) {
+        try {
+          const coName = String(co.name || '').trim();
+          if (!coName) continue;
+          const existingCo = await prisma.company.findFirst({
+            where: { userId, name: coName },
+          });
+          if (!existingCo) {
+            await prisma.company.create({
+              data: {
+                userId,
+                name: coName,
+                mailingName: co.mailingName || coName,
+                address: co.address || '',
+                state: co.state || '',
+                pinCode: co.pinCode || '',
+                telephone: co.telephone || '',
+                mobile: co.mobile || '',
+                email: co.email || '',
+                website: co.website || '',
+                currencySymbol: co.currencySymbol || '₹',
+                currencyName: co.currencyName || 'INR',
+                gstin: co.gstin || '',
+                pan: co.pan || '',
+                financialYearStart: new Date(co.financialYearStart || '2026-04-01'),
+                booksBeginFrom: new Date(co.booksBeginFrom || '2026-04-01'),
+              },
+            });
+          }
+        } catch (coErr) {
+          console.error('Error syncing company from push:', coErr);
+        }
+      }
+    }
+
     // A. Ledgers
     if (push && Array.isArray(push.ledgers) && push.ledgers.length > 0) {
       for (const l of push.ledgers) {
@@ -378,6 +415,10 @@ export async function POST(req: Request) {
       orderBy: { name: 'asc' },
     });
 
+    const cloudCompanies = userId
+      ? await prisma.company.findMany({ where: { userId }, orderBy: { name: 'asc' } })
+      : [company];
+
     return NextResponse.json({
       success: true,
       syncedAt: new Date().toISOString(),
@@ -387,6 +428,7 @@ export async function POST(req: Request) {
         pushedStockItems: pushedStockItemsCount,
       },
       pull: {
+        companies: cloudCompanies,
         vouchers: cloudVouchers,
         ledgers: cloudLedgers,
         stockItems: cloudStockItems,

@@ -33,8 +33,8 @@ export default function SyncStatusBadge({ companyId, authToken, onDataMerged }: 
       }
     };
 
-    // 1. Initial check: if there are pending items and we are online, sync silently
-    if (offlineSyncService.getPendingCount() > 0 && navigator.onLine) {
+    // 1. Initial check: if online, sync silently immediately (pulls cloud data & pushes local data)
+    if (navigator.onLine) {
       performSilentSync();
     }
 
@@ -50,12 +50,12 @@ export default function SyncStatusBadge({ companyId, authToken, onDataMerged }: 
     };
     window.addEventListener('online', handleOnline);
 
-    // 4. Periodic silent heartbeat sync every 20 seconds
+    // 4. Periodic silent heartbeat sync every 15 seconds (2-way sync)
     const intervalId = setInterval(() => {
-      if (offlineSyncService.getPendingCount() > 0 && navigator.onLine) {
+      if (navigator.onLine) {
         performSilentSync();
       }
-    }, 20000);
+    }, 15000);
 
     return () => {
       window.removeEventListener('ledgerx:trigger-auto-sync', handleTrigger);

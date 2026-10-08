@@ -50,23 +50,48 @@ export async function getAuthenticatedUser(req: Request) {
     return adminUser;
   }
 
-  // Normal user - database se check karo
+  // Normal user - check sessionToken
   try {
     const user = await prisma.user.findFirst({
       where: { sessionToken: token },
     });
-    return user;
+    if (user) return user;
   } catch (err) {
-    console.warn("Prisma user.findFirst error, trying raw query fallback:", err);
     try {
       const users: any[] = await prisma.$queryRawUnsafe(
         `SELECT * FROM "User" WHERE "sessionToken" = ? LIMIT 1`,
         token
       );
       if (users && users.length > 0) return users[0];
-    } catch (rawErr) {
-      console.error("Auth fallback error:", rawErr);
-    }
-    return null;
+    } catch (rawErr) {}
   }
+
+  // Cryptographic License Token check (For Desktop App API requests)
+  try {
+    const { verifyLicenseToken } = await import("./licenseEngine");
+    const check = verifyLicenseToken(token);
+    if (check.valid && check.payload && check.payload.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: check.payload.userId },
+      });
+      if (user) return user;
+    }
+  } catch (licErr) {}
+
+  // Header x-license-token check fallback
+  const xLic = req.headers.get("x-license-token");
+  if (xLic) {
+    try {
+      const { verifyLicenseToken } = await import("./licenseEngine");
+      const check = verifyLicenseToken(xLic);
+      if (check.valid && check.payload && check.payload.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: check.payload.userId },
+        });
+        if (user) return user;
+      }
+    } catch (e) {}
+  }
+
+  return null;
 }

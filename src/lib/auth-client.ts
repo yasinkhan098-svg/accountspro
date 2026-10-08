@@ -25,7 +25,11 @@ export const authClient = {
 
   getToken: () => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+      const t = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+      if (t && t !== 'offline_license_session') return t;
+      const off = localStorage.getItem('ledgerx_offline_license_token') || localStorage.getItem('ledgerx_license_vault');
+      if (off) return off;
+      return t;
     }
     return null;
   },

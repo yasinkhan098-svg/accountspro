@@ -73,6 +73,13 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
         if (data.user) {
           authClient.setSession(data.token, data.user, offToken);
         }
+        if (data.companies && Array.isArray(data.companies) && data.companies.length > 0) {
+          try {
+            const uId = data.user?.id || 1;
+            localStorage.setItem(`tally_u${uId}_companies`, JSON.stringify(data.companies));
+            localStorage.setItem('tally_u1_companies', JSON.stringify(data.companies));
+          } catch (e) {}
+        }
         setSuccess('License activated successfully! Offline mode permanently unlocked.');
         setTimeout(() => {
           onActivated();
