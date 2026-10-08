@@ -8,6 +8,20 @@ using Microsoft.Win32;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Reflection;
+using System.Runtime.InteropServices;
+
+[assembly: AssemblyTitle("LedgerX Desktop")]
+[assembly: AssemblyDescription("LedgerX Desktop Offline Accounting Client")]
+[assembly: AssemblyConfiguration("")]
+[assembly: AssemblyCompany("AccountsPro Software")]
+[assembly: AssemblyProduct("LedgerX Desktop")]
+[assembly: AssemblyCopyright("Copyright © 2026 AccountsPro")]
+[assembly: AssemblyTrademark("LedgerX")]
+[assembly: AssemblyCulture("")]
+[assembly: AssemblyVersion("2.4.0.0")]
+[assembly: AssemblyFileVersion("2.4.0.0")]
+[assembly: ComVisible(false)]
 
 namespace LedgerXLauncher
 {
