@@ -562,7 +562,7 @@ export default function RealtimeDashboardModal({
 
   return (
     <div 
-      className="dashboard-modal-overlay"
+      className="dashboard-modal-overlay modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,

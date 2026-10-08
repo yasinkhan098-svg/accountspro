@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   VirtualFormData,
   VirtualFinancialItem,
@@ -33,6 +33,7 @@ export default function VirtualFinalBSModal({
   const [activeSectionTab, setActiveSectionTab] = useState<'bs' | 'pl' | 'annexA' | 'annexB'>('bs');
   const [isExporting, setIsExporting] = useState(false);
   const [showSignatoryCard, setShowSignatoryCard] = useState(true);
+  const modalBoxRef = useRef<HTMLDivElement | null>(null);
 
   // ─── Real-time Calculation ────────────────────────────────────────────────
   const actualFin = useMemo(() => computeVirtualActualFinancials(form), [form]);
@@ -46,8 +47,6 @@ export default function VirtualFinalBSModal({
     projResults.length > 0 ? projResults[projResults.length - 1] : null;
 
   const activeData = form.mode === 'provisional' && currentProj ? currentProj : actualFin;
-
-  if (!isOpen) return null;
 
   // ─── Partners Handlers (Annexure A & Capital Account Sync) ─────────────────
   const addNewPartner = () => {
@@ -460,8 +459,96 @@ export default function VirtualFinalBSModal({
   const displayBSSections = isProv && currentProj?.projBSSections ? currentProj.projBSSections : form.bsSections;
   const displayPLData = isProv && currentProj?.projPLData ? currentProj.projPLData : form.plData;
 
+  // Dedicated Keyboard Navigation for Standalone Virtual CA Modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const timer = setTimeout(() => {
+      if (!modalBoxRef.current) return;
+      const first = modalBoxRef.current.querySelector<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled])'
+      );
+      first?.focus();
+    }, 50);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!modalBoxRef.current) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+
+      const focusable = Array.from(
+        modalBoxRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+
+      if (focusable.length === 0) return;
+
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInside = Boolean(activeEl && modalBoxRef.current.contains(activeEl));
+      const currIdx = isInside ? focusable.indexOf(activeEl!) : -1;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        const nextIdx = currIdx === -1 ? 0 : (currIdx + 1) % focusable.length;
+        const target = focusable[nextIdx];
+        target.focus();
+        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        e.stopPropagation();
+        const prevIdx = currIdx === -1 ? focusable.length - 1 : (currIdx - 1 + focusable.length) % focusable.length;
+        const target = focusable[prevIdx];
+        target.focus();
+        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (e.key === 'Enter') {
+        if (activeEl && ['INPUT', 'SELECT', 'TEXTAREA'].includes(activeEl.tagName)) {
+          e.preventDefault();
+          e.stopPropagation();
+          const inputs = focusable.filter(el => ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName));
+          const inpIdx = inputs.indexOf(activeEl);
+          if (inpIdx !== -1 && inpIdx < inputs.length - 1) {
+            inputs[inpIdx + 1].focus();
+            inputs[inpIdx + 1].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          } else {
+            handleExport();
+          }
+        }
+      } else if (e.key === 'Tab') {
+        if (e.shiftKey) {
+          if (currIdx <= 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            focusable[focusable.length - 1].focus();
+          }
+        } else {
+          if (currIdx === focusable.length - 1) {
+            e.preventDefault();
+            e.stopPropagation();
+            focusable[0].focus();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [isOpen, form, onClose]);
+
+  if (!isOpen) return null;
+
   return (
     <div
+      className="modal-overlay virtual-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -478,6 +565,8 @@ export default function VirtualFinalBSModal({
       }}
     >
       <div
+        ref={modalBoxRef}
+        tabIndex={-1}
         style={{
           background: '#ffffff',
           borderRadius: '12px',

@@ -645,6 +645,7 @@ export default function App() {
   const [showBankUploadModal, setShowBankUploadModal] = useState(false);
   const [showVirtualBSModal, setShowVirtualBSModal] = useState(false);
   const [showFinalBSModal, setShowFinalBSModal] = useState(false);
+  const finalBSModalRef = useRef<HTMLDivElement | null>(null);
   const [finalBSExporting, setFinalBSExporting] = useState(false);
   const [finalBSMode, setFinalBSMode] = useState<'actual' | 'provisional'>('actual');
   const [projectionYears, setProjectionYears] = useState(1);
@@ -2785,6 +2786,33 @@ export default function App() {
         // All other screens: step-by-step back through history
         goBack();
       }
+      // If any modal overlay is active, do not fire background shortcuts
+      const isAnyModalActive = Boolean(
+        showFinalBSModal ||
+        showVirtualBSModal ||
+        showRealtimeDashboard ||
+        showBankUploadModal ||
+        showExportModal ||
+        showEmailModal ||
+        showFeatures ||
+        showDate ||
+        showPeriod ||
+        showGST ||
+        showUpgradeModal ||
+        showDesktopDownloadModal ||
+        pwdPrompt ||
+        altCCtx ||
+        pendingDelete ||
+        isExporting ||
+        finalBSExporting ||
+        (typeof document !== 'undefined' && document.querySelector('.modal-overlay'))
+      );
+      if (isAnyModalActive && !showCompanySelect) {
+        if (!['INPUT','SELECT','TEXTAREA'].includes((document.activeElement?.tagName || ''))) {
+          return;
+        }
+      }
+
       if (e.key === 'F11') { e.preventDefault(); setShowFeatures(true); }
       if (e.key === 'F3')  { e.preventDefault(); setShowCompanySelect(true); }
       if (e.key === 'F2' && !e.altKey)  { e.preventDefault(); setShowDate(true); }
@@ -2838,13 +2866,18 @@ export default function App() {
       }
       // Tally Prime: Enter = next field, Backspace on empty = previous field
       if (['INPUT','SELECT','TEXTAREA'].includes((document.activeElement?.tagName || ''))) {
+        const activeModal = (document.activeElement as HTMLElement)?.closest('.modal-box');
+        const inputSelector = activeModal 
+          ? 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+          : '.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled]),.altc-panel input,.altc-panel select';
+        const inputs = Array.from(
+          (activeModal || document).querySelectorAll(inputSelector)
+        ) as HTMLElement[];
+
         if (e.key === 'Backspace') {
           const el = document.activeElement as HTMLInputElement;
           if (el && el.tagName !== 'TEXTAREA' && (!el.value || el.value.length === 0)) {
             e.preventDefault();
-            const inputs = Array.from(document.querySelectorAll(
-              '.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled]),.altc-panel input,.altc-panel select, .modal-box input, .modal-box select'
-            )) as HTMLElement[];
             const idx = inputs.indexOf(el);
             if (idx > 0) (inputs[idx-1]).focus();
           }
@@ -2870,9 +2903,6 @@ export default function App() {
           const dropdowns = ['l-under','g-under','c-state','c-country','l-state','l-country','item-under','item-units','item-cat','sg-under','sc-under','vt-parent','gd-under'];
           if (dropdowns.includes(activeId)) return;
           e.preventDefault();
-          const inputs = Array.from(document.querySelectorAll(
-            '.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled]),.altc-panel input,.altc-panel select, .modal-box input, .modal-box select'
-          )) as HTMLElement[];
           const idx = inputs.indexOf(document.activeElement as HTMLElement);
           if (e.shiftKey && idx > 0) (inputs[idx-1]).focus();
           else if (!e.shiftKey && idx < inputs.length-1) (inputs[idx+1]).focus();
@@ -2885,7 +2915,9 @@ export default function App() {
             } else if (showEmailModal) {
                setShowEmailModal(false);
                alert("E-mail sent successfully!");
-            } else {
+            } else if (showFinalBSModal) {
+               handleFinalBSExport();
+            } else if (!activeModal) {
                doFormSave(); 
             }
           }
@@ -2905,15 +2937,187 @@ export default function App() {
     };
     document.addEventListener('input', onInput);
     return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('input', onInput); };
-  }, [screen, history, altCCtx, showGST, showFeatures, showCompanySelect, showDate, activeVoucher, showExportModal, showEmailModal, allUnits, activeCompany, alterItem, allLedgers, allStockItems, companies, allGroups, allStockGroups, allStockCategories, allGodowns, allVoucherTypes, allCurrencies, ledgers, stockItems, godowns, voucherTypes, currencies, isAuthenticated]);
+  }, [screen, history, altCCtx, showGST, showFeatures, showCompanySelect, showDate, showPeriod, activeVoucher, showExportModal, showEmailModal, showFinalBSModal, showVirtualBSModal, showRealtimeDashboard, showBankUploadModal, showUpgradeModal, showDesktopDownloadModal, pwdPrompt, pendingDelete, isExporting, finalBSExporting, allUnits, activeCompany, alterItem, allLedgers, allStockItems, companies, allGroups, allStockGroups, allStockCategories, allGodowns, allVoucherTypes, allCurrencies, ledgers, stockItems, godowns, voucherTypes, currencies, isAuthenticated]);
 
-  // Menu keyboard navigation
+  // Dedicated Keyboard Navigation for "Final Balance Sheet & P&L (CA Excel Format)" Modal
+  useEffect(() => {
+    if (!showFinalBSModal) return;
+
+    // Auto-focus inside modal on open
+    const focusTimer = setTimeout(() => {
+      if (!finalBSModalRef.current) return;
+      const activeTab = finalBSModalRef.current.querySelector<HTMLElement>(
+        `button[data-role="mode-tab"][data-tab-mode="${finalBSMode}"]`
+      );
+      if (activeTab) {
+        activeTab.focus();
+      } else {
+        const firstFocusable = finalBSModalRef.current.querySelector<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+        );
+        firstFocusable?.focus();
+      }
+    }, 50);
+
+    const onFinalBSKey = (e: KeyboardEvent) => {
+      if (!finalBSModalRef.current) return;
+
+      // Escape: Close modal
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowFinalBSModal(false);
+        return;
+      }
+
+      // Collect all visible focusable elements inside the modal
+      const focusableElements = Array.from(
+        finalBSModalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter(el => {
+        return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+      });
+
+      if (focusableElements.length === 0) return;
+
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInside = Boolean(activeEl && finalBSModalRef.current.contains(activeEl));
+      const currIdx = isInside ? focusableElements.indexOf(activeEl!) : -1;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        const nextIdx = currIdx === -1 ? 0 : (currIdx + 1) % focusableElements.length;
+        const target = focusableElements[nextIdx];
+        target.focus();
+        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        e.stopPropagation();
+        const prevIdx = currIdx === -1 ? focusableElements.length - 1 : (currIdx - 1 + focusableElements.length) % focusableElements.length;
+        const target = focusableElements[prevIdx];
+        target.focus();
+        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // Tab switching if focused on mode tab buttons
+        if (activeEl?.getAttribute('data-role') === 'mode-tab') {
+          e.preventDefault();
+          e.stopPropagation();
+          const targetMode = finalBSMode === 'actual' ? 'provisional' : 'actual';
+          setFinalBSMode(targetMode);
+          setTimeout(() => {
+            const newTab = finalBSModalRef.current?.querySelector<HTMLElement>(
+              `button[data-role="mode-tab"][data-tab-mode="${targetMode}"]`
+            );
+            newTab?.focus();
+          }, 30);
+        } else if (activeEl?.getAttribute('data-role') === 'horizon-btn') {
+          // Horizon buttons switching with left/right arrow
+          e.preventDefault();
+          e.stopPropagation();
+          const horizons = [1, 2, 3];
+          const curIndex = horizons.indexOf(projectionYears);
+          const nextIndex = e.key === 'ArrowRight'
+            ? (curIndex + 1) % horizons.length
+            : (curIndex - 1 + horizons.length) % horizons.length;
+          setProjectionYears(horizons[nextIndex]);
+          setTimeout(() => {
+            const newBtn = finalBSModalRef.current?.querySelector<HTMLElement>(
+              `button[data-role="horizon-btn"][data-years="${horizons[nextIndex]}"]`
+            );
+            newBtn?.focus();
+          }, 30);
+        } else if (activeEl?.getAttribute('data-role') === 'signatory-btn') {
+          // Signatory title preset switching with left/right arrow
+          e.preventDefault();
+          e.stopPropagation();
+          const sigs = ['PARTNER', 'PROPRIETOR', 'DIRECTOR', 'AUTH. SIGNATORY'];
+          const curSig = finalBSForm.signatoryTitle.toUpperCase();
+          const curIndex = sigs.indexOf(curSig);
+          const nextIndex = e.key === 'ArrowRight'
+            ? (curIndex === -1 ? 0 : (curIndex + 1) % sigs.length)
+            : (curIndex === -1 ? sigs.length - 1 : (curIndex - 1 + sigs.length) % sigs.length);
+          setFinalBSForm(f => ({ ...f, signatoryTitle: sigs[nextIndex] }));
+          setTimeout(() => {
+            const newBtn = finalBSModalRef.current?.querySelector<HTMLElement>(
+              `button[data-role="signatory-btn"][data-val="${sigs[nextIndex]}"]`
+            );
+            newBtn?.focus();
+          }, 30);
+        }
+      } else if (e.key === 'Enter') {
+        // Tally-like behavior for inputs: Enter moves to next input field
+        if (activeEl && ['INPUT', 'SELECT', 'TEXTAREA'].includes(activeEl.tagName)) {
+          e.preventDefault();
+          e.stopPropagation();
+          const allInputs = focusableElements.filter(el => ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName));
+          const inpIdx = allInputs.indexOf(activeEl);
+          if (inpIdx !== -1 && inpIdx < allInputs.length - 1) {
+            allInputs[inpIdx + 1].focus();
+            allInputs[inpIdx + 1].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          } else {
+            handleFinalBSExport();
+          }
+        }
+      } else if (e.key === 'Tab') {
+        // Focus trap inside modal
+        if (e.shiftKey) {
+          if (currIdx <= 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            focusableElements[focusableElements.length - 1].focus();
+          }
+        } else {
+          if (currIdx === focusableElements.length - 1) {
+            e.preventDefault();
+            e.stopPropagation();
+            focusableElements[0].focus();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onFinalBSKey, true);
+    return () => {
+      clearTimeout(focusTimer);
+      window.removeEventListener('keydown', onFinalBSKey, true);
+    };
+  }, [showFinalBSModal, finalBSMode, projectionYears, finalBSForm, activeCompany, filteredVouchers, ledgers, stockItems]);
+
+  // Menu keyboard navigation (Gateway of LedgerX & Menu Screens)
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    // Check if any modal or overlay is open (except Company Select which has its own modal menu handler)
+    const isAnyModalOpen = Boolean(
+      showFinalBSModal ||
+      showVirtualBSModal ||
+      showRealtimeDashboard ||
+      showBankUploadModal ||
+      showExportModal ||
+      showEmailModal ||
+      showFeatures ||
+      showDate ||
+      showPeriod ||
+      showGST ||
+      showUpgradeModal ||
+      showDesktopDownloadModal ||
+      pwdPrompt ||
+      altCCtx ||
+      pendingDelete ||
+      isExporting ||
+      finalBSExporting
+    );
+    if (isAnyModalOpen) return;
+
     const isMenu = ['GATEWAY_MAIN','MASTER_MENU','ALTER_MENU','DISPLAY_REPORTS_MENU','ACCOUNT_BOOKS_MENU'].includes(screen);
     if (!isMenu && !showCompanySelect) return;
     const menu = getActiveMenu();
     const onKey = (e: KeyboardEvent) => {
+      // Safety check: if any modal overlay is present in the DOM, do not handle background menu navigation
+      if (typeof document !== 'undefined' && document.querySelector('.modal-overlay')) return;
+
       if (showCompanySelect) {
         const menuItems = [
           { label:'Create Company', action:()=>{setShowCompanySelect(false);nav('COMPANY_CREATION');}},
@@ -2964,7 +3168,13 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [screen, selectedIdx, showCompanySelect, companyModalIdx, companies]);
+  }, [
+    screen, selectedIdx, showCompanySelect, companyModalIdx, companies,
+    showFinalBSModal, showVirtualBSModal, showRealtimeDashboard, showBankUploadModal,
+    showExportModal, showEmailModal, showFeatures, showDate, showPeriod, showGST,
+    showUpgradeModal, showDesktopDownloadModal, pwdPrompt, altCCtx, pendingDelete,
+    isExporting, finalBSExporting
+  ]);
 
   useEffect(() => {
     if (screen==='GATEWAY_MAIN') setSelectedIdx(1);
@@ -4113,7 +4323,7 @@ export default function App() {
 
         return (
         <div className="modal-overlay" onClick={()=>setShowFinalBSModal(false)}>
-          <div className="modal-box" style={{width:840, maxWidth:'96vw', maxHeight:'94vh', overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+          <div ref={finalBSModalRef} tabIndex={-1} className="modal-box" style={{width:840, maxWidth:'96vw', maxHeight:'94vh', overflowY:'auto', outline:'none'}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header" style={{background:'linear-gradient(135deg, #1c5282, #2980b9)', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 16px', color:'#fff'}}>
               <span style={{fontWeight:'bold', fontSize:14}}>
                 {isProvisional ? '📈 PROV. / Projected Financial Statements (CA Excel — 4 Sheets)' : '📊 Final Balance Sheet & P&L (CA Excel Format — 4 Sheets)'}
@@ -4137,6 +4347,9 @@ export default function App() {
               <div style={{display:'flex', gap:8, marginBottom:16, background:'#f1f5f9', padding:4, borderRadius:8}}>
                 <button
                   type="button"
+                  data-role="mode-tab"
+                  data-tab-mode="actual"
+                  data-active={finalBSMode === 'actual'}
                   onClick={() => setFinalBSMode('actual')}
                   style={{
                     flex: 1,
@@ -4160,6 +4373,9 @@ export default function App() {
                 </button>
                 <button
                   type="button"
+                  data-role="mode-tab"
+                  data-tab-mode="provisional"
+                  data-active={finalBSMode === 'provisional'}
                   onClick={() => setFinalBSMode('provisional')}
                   style={{
                     flex: 1,
@@ -4207,6 +4423,8 @@ export default function App() {
                         <button
                           key={h.years}
                           type="button"
+                          data-role="horizon-btn"
+                          data-years={h.years}
                           onClick={() => setProjectionYears(h.years)}
                           style={{
                             padding:'4px 10px',
@@ -4636,6 +4854,8 @@ export default function App() {
                       <button
                         key={opt.val}
                         type="button"
+                        data-role="signatory-btn"
+                        data-val={opt.val}
                         onClick={() => setFinalBSForm(f => ({ ...f, signatoryTitle: opt.val }))}
                         style={{
                           fontSize: 11,

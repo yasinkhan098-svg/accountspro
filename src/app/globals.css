@@ -391,6 +391,18 @@ body {
   flex-direction: column;
 }
 
+.modal-box input:focus,
+.modal-box select:focus,
+.modal-box textarea:focus,
+.modal-box button:focus,
+.virtual-modal-overlay input:focus,
+.virtual-modal-overlay select:focus,
+.virtual-modal-overlay button:focus {
+  outline: 2px solid #1c5282 !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 3px rgba(28, 82, 130, 0.25) !important;
+}
+
 .modal-header {
   background: var(--tally-nav-blue);
   color: white;
