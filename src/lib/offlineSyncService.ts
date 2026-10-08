@@ -477,7 +477,16 @@ class OfflineSyncService {
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        if (errJson.error === 'DEVICE_DEACTIVATED' || res.status === 403) {
+        if (errJson.error === 'CLOUD_SYNC_EXPIRED') {
+          console.log('[OfflineSync] 1-Year Cloud Sync expired for Lifetime user. Offline storage remains permanently active.');
+          return {
+            success: false,
+            pushedCount: 0,
+            error: errJson.message || '1-Year Cloud Sync period ended. Offline mode remains permanently active.',
+          };
+        }
+
+        if (errJson.error === 'DEVICE_DEACTIVATED') {
           console.warn('[OfflineSync] Device was revoked by server! Locking desktop app.');
           this.removeOfflineToken();
           if (typeof window !== 'undefined') {

@@ -23,12 +23,16 @@ export async function POST(req: Request) {
     // Determine expiry based on plan
     const now = new Date();
     let expiry = new Date(now);
+    let syncExpiry = new Date(now);
     if (plan === 'MONTHLY') {
       expiry.setMonth(expiry.getMonth() + 1);
+      syncExpiry = new Date(expiry);
     } else if (plan === 'YEARLY') {
       expiry.setFullYear(expiry.getFullYear() + 1);
+      syncExpiry = new Date(expiry);
     } else if (plan === 'LIFETIME') {
-      expiry.setFullYear(expiry.getFullYear() + 100); // Effectively permanent
+      expiry.setFullYear(expiry.getFullYear() + 100); // Effectively permanent software access
+      syncExpiry.setFullYear(syncExpiry.getFullYear() + 1); // 1-Year Cloud Sync included
     }
 
     // Update user in DB
@@ -42,6 +46,14 @@ export async function POST(req: Request) {
         razorpayPaymentId: razorpay_payment_id,
       },
     });
+
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "User" SET "syncExpiry" = ? WHERE "id" = ?`,
+        syncExpiry.toISOString(),
+        userId
+      );
+    } catch (e) {}
 
     return NextResponse.json({ message: 'Payment verified successfully', user: updatedUser }, { status: 200 });
   } catch (error: any) {

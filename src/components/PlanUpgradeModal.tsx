@@ -225,7 +225,7 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
       label: 'Lifetime',
       price: '₹11,999',
       suffix: ' one-time',
-      desc: 'Pay once, use forever. No renewals.',
+      desc: 'Pay once, use forever. Lifetime offline storage.',
       badge: 'Lifetime',
       badgeCls: 'ubadge-life',
     },
@@ -279,9 +279,11 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
                 <p>{p.desc}</p>
                 {isSelected && isLifetime && (
                   <div className="upgrade-lf-features">
-                    <div>✓ Never pay again</div>
-                    <div>✓ All future updates free</div>
-                    <div>✓ Priority support forever</div>
+                    <div>✓ Lifetime Offline Access (Pay once, use forever)</div>
+                    <div>✓ 1-Year Free Cloud Auto-Sync included</div>
+                    <div>✓ After 1 year, continue offline forever with 0 renewal</div>
+                    <div>✓ All data stored safely on your computer</div>
+                    <div>✓ All future desktop updates free</div>
                   </div>
                 )}
               </div>

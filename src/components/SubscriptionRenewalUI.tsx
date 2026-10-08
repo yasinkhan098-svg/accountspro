@@ -184,7 +184,24 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
         <div className="lock-icon">🔒</div>
         <div className="renewal-header">
           <h2>Subscription Expired</h2>
-          <p>Your plan has ended. Please renew or upgrade to continue using LedgerX.</p>
+          <p>Your plan has ended. Choose a plan below to renew and continue using LedgerX.</p>
+          <div style={{
+            background: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            borderRadius: 8,
+            padding: '10px 16px',
+            margin: '12px auto 16px',
+            maxWidth: 640,
+            fontSize: 13,
+            color: '#065f46',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}>
+            🛡️ <span>Your Data is 100% Safe: All your companies, vouchers, ledgers &amp; account records are completely preserved. Once renewed, you will resume right where you left off!</span>
+          </div>
           <div className="current-plan-badge">Current Plan: {planLabel}</div>
         </div>
 
@@ -220,12 +237,14 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
             <div className="rbadge badge-lifetime">Lifetime</div>
             <h3>Lifetime</h3>
             <div className="rprice">₹11,999<span> one-time</span></div>
-            <p>Pay once, use forever. No renewals ever again.</p>
+            <p>Pay once, use offline forever. Lifetime local data storage.</p>
             {selectedPlan === 'LIFETIME' && (
               <div className="lifetime-features">
-                <div>✓ Never pay again</div>
-                <div>✓ All future updates included</div>
-                <div>✓ Priority support</div>
+                <div>✓ Lifetime Offline Access (Never pay again)</div>
+                <div>✓ 1-Year Free Cloud Auto-Sync included</div>
+                <div>✓ After 1 year, continue offline forever with 0 renewal</div>
+                <div>✓ All data stored safely on your computer</div>
+                <div>✓ All future desktop updates included</div>
               </div>
             )}
           </div>

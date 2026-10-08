@@ -29,12 +29,16 @@ export async function POST(req: Request) {
     // Nayi expiry calculate karo
     const now = new Date();
     let expiry = new Date(now);
+    let syncExpiry = new Date(now);
     if (plan === 'MONTHLY') {
       expiry.setMonth(expiry.getMonth() + 1);
+      syncExpiry = new Date(expiry);
     } else if (plan === 'YEARLY') {
       expiry.setFullYear(expiry.getFullYear() + 1);
+      syncExpiry = new Date(expiry);
     } else if (plan === 'LIFETIME') {
-      expiry.setFullYear(expiry.getFullYear() + 100);
+      expiry.setFullYear(expiry.getFullYear() + 100); // Lifetime software access
+      syncExpiry.setFullYear(syncExpiry.getFullYear() + 1); // 1-Year Cloud Sync included
     } else {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
     }
@@ -50,6 +54,14 @@ export async function POST(req: Request) {
         razorpayPaymentId: razorpay_payment_id,
       },
     });
+
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "User" SET "syncExpiry" = ? WHERE "id" = ?`,
+        syncExpiry.toISOString(),
+        user.id
+      );
+    } catch (e) {}
 
     return NextResponse.json({
       message: 'Plan upgraded successfully',

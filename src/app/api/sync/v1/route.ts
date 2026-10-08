@@ -52,6 +52,41 @@ export async function POST(req: Request) {
       }
     }
 
+    // Check Cloud Sync Validity (1-Year limit for Lifetime Plan, or subscription expiry for Monthly/Yearly)
+    if (userId) {
+      try {
+        const userRows: any[] = await prisma.$queryRawUnsafe(
+          `SELECT "plan", "subscriptionExpiry", "syncExpiry", "createdAt" FROM "User" WHERE "id" = ? LIMIT 1`,
+          userId
+        );
+        if (userRows && userRows.length > 0) {
+          const u = userRows[0];
+          if (u.plan === 'LIFETIME') {
+            const syncExpTime = u.syncExpiry
+              ? new Date(u.syncExpiry).getTime()
+              : (u.createdAt ? new Date(u.createdAt).getTime() + 365 * 24 * 60 * 60 * 1000 : null);
+
+            if (syncExpTime && Date.now() > syncExpTime) {
+              return NextResponse.json({
+                error: 'CLOUD_SYNC_EXPIRED',
+                message: 'Your 1-Year Free Cloud Sync period has ended. Your software continues to store all data offline locally forever. To resume automatic cloud sync and web dashboard backup, please renew Cloud Sync.',
+                offlineActive: true,
+              }, { status: 403 });
+            }
+          } else if (u.subscriptionExpiry) {
+            if (Date.now() > new Date(u.subscriptionExpiry).getTime()) {
+              return NextResponse.json({
+                error: 'SUBSCRIPTION_EXPIRED',
+                message: 'Your subscription has expired. Please renew your plan online to continue syncing.',
+              }, { status: 403 });
+            }
+          }
+        }
+      } catch (e) {
+        // Continue if query fails
+      }
+    }
+
     const cId = parseInt(String(companyId), 10);
 
     // Verify company exists

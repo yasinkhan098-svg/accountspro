@@ -13,6 +13,12 @@ export async function ensureLicenseTables() {
   }
 
   try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN "syncExpiry" DATETIME;`);
+  } catch (e) {
+    // Column already exists - ignore
+  }
+
+  try {
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "User_licenseKey_key" ON "User"("licenseKey");`);
   } catch (e) {
     // Index already exists - ignore

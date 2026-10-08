@@ -204,21 +204,56 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
 
           {isExpired ? (
             <div>
-              <div style={{ fontSize: 14, lineHeight: 1.6, color: '#475569', marginBottom: 20 }}>
-                {guardResult.message || 'Your desktop offline license has expired. To resume working offline, please reconnect your computer to the internet and renew your plan.'}
+              <div style={{
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                borderRadius: 8,
+                padding: '10px 14px',
+                fontSize: 12,
+                color: '#065f46',
+                fontWeight: 600,
+                lineHeight: 1.4,
+                marginBottom: 16,
+              }}>
+                🛡️ <strong>Your Data is 100% Safe:</strong> All your companies, ledgers, and transactions on this computer are completely preserved. Once renewed, you will resume right where you left off!
+              </div>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: '#475569', marginBottom: 16 }}>
+                {guardResult.message || 'Your desktop offline license has expired. Please renew your plan online to continue working.'}
               </div>
               <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 20, fontSize: 13 }}>
                 <div><strong>Registered Account:</strong> {guardResult.payload?.email || 'N/A'}</div>
                 <div style={{ marginTop: 4 }}><strong>License Key:</strong> <code style={{ color: '#0284c7' }}>{guardResult.payload?.licenseKey || 'N/A'}</code></div>
                 <div style={{ marginTop: 4, color: '#dc2626' }}><strong>Expired On:</strong> {guardResult.expiryDate ? guardResult.expiryDate.toLocaleDateString('en-GB') : 'Expired'}</div>
               </div>
+              <a
+                href="https://ledgerx-tawny.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #1c5282, #0284c7)',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  padding: '12px 16px',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 10,
+                  boxSizing: 'border-box',
+                }}
+              >
+                💳 Renew Subscription Online
+              </a>
               <button
                 onClick={() => window.location.reload()}
                 style={{
                   width: '100%',
-                  background: '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
+                  background: '#f1f5f9',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
                   padding: '12px 16px',
                   borderRadius: 8,
                   fontWeight: 700,
@@ -231,7 +266,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
                 }}
               >
                 <RefreshCw size={18} />
-                <span>Check for Online Renewal</span>
+                <span>I Have Renewed — Re-Check License</span>
               </button>
             </div>
           ) : isClockRollback ? (
