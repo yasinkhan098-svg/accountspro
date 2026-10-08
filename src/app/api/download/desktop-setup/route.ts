@@ -51,9 +51,11 @@ export async function GET(req: Request) {
     const explicitServerUrl = searchParams.get('serverUrl');
     const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
     const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
-    const resolvedServerUrl = explicitServerUrl || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : 'http://localhost:3000');
+    const resolvedServerUrl = explicitServerUrl || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : 'https://ledgerx-tawny.vercel.app');
 
-    const fileBuffer = fs.readFileSync(filePath);
+    const baseBuffer = fs.readFileSync(filePath);
+    const marker = Buffer.from(`\n---LX_CONFIG_BEGIN---\nSERVER_URL=${resolvedServerUrl}\n---LX_CONFIG_END---\n`, 'utf-8');
+    const fileBuffer = Buffer.concat([baseBuffer, marker]);
 
     return new NextResponse(fileBuffer, {
       status: 200,
@@ -61,7 +63,7 @@ export async function GET(req: Request) {
         'Content-Type': 'application/vnd.microsoft.portable-executable',
         'Content-Disposition': 'attachment; filename="LedgerX-Setup.exe"',
         'Content-Length': fileBuffer.length.toString(),
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
       },
     });
   } catch (error: any) {

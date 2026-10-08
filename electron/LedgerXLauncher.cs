@@ -52,7 +52,7 @@ namespace LedgerXLauncher
                 }
 
                 // Default target URL
-                string targetUrl = "http://localhost:3000";
+                string targetUrl = "https://ledgerx-tawny.vercel.app";
 
                 if (File.Exists(configFile))
                 {
@@ -65,6 +65,13 @@ namespace LedgerXLauncher
                         }
                     }
                     catch { }
+                }
+
+                // If target URL is localhost but local dev server is not running, fallback to live cloud server
+                if (targetUrl.Contains("localhost") && !IsServerAlive("localhost", 3000))
+                {
+                    targetUrl = "https://ledgerx-tawny.vercel.app";
+                    try { File.WriteAllText(configFile, targetUrl); } catch { }
                 }
 
                 // Generate unforgeable Hardware Fingerprint based on Windows MachineGuid
@@ -133,6 +140,25 @@ namespace LedgerXLauncher
                 catch { }
 
                 MessageBox.Show("Unable to launch LedgerX Desktop:\n\n" + ex.Message, "LedgerX Desktop Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static bool IsServerAlive(string host, int port)
+        {
+            try
+            {
+                using (var client = new TcpClient())
+                {
+                    var result = client.BeginConnect(host, port, null, null);
+                    bool success = result.AsyncWaitHandle.WaitOne(300); // 300ms quick check
+                    if (!success) return false;
+                    client.EndConnect(result);
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
             }
         }
 

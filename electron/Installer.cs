@@ -251,6 +251,40 @@ namespace LedgerXSetup
             }
         }
 
+        private string DetectEmbeddedServerUrl()
+        {
+            try
+            {
+                string myExe = Assembly.GetExecutingAssembly().Location;
+                if (File.Exists(myExe))
+                {
+                    using (var fs = new FileStream(myExe, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        long len = fs.Length;
+                        long readLen = Math.Min(8192, len);
+                        fs.Seek(len - readLen, SeekOrigin.Begin);
+                        byte[] buf = new byte[readLen];
+                        fs.Read(buf, 0, (int)readLen);
+                        string text = System.Text.Encoding.UTF8.GetString(buf);
+                        int idx = text.LastIndexOf("---LX_CONFIG_BEGIN---");
+                        if (idx >= 0)
+                        {
+                            string sub = text.Substring(idx);
+                            int sIdx = sub.IndexOf("SERVER_URL=");
+                            int eIdx = sub.IndexOf("---LX_CONFIG_END---");
+                            if (sIdx >= 0 && eIdx > sIdx)
+                            {
+                                string url = sub.Substring(sIdx + 11, eIdx - (sIdx + 11)).Trim();
+                                if (url.StartsWith("http")) return url;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
         private void InstallAppFiles()
         {
             try
@@ -276,7 +310,13 @@ namespace LedgerXSetup
 
                 // Configure server target URL
                 string conf = Path.Combine(appDir, "config.json");
-                if (!File.Exists(conf))
+                string detectedUrl = DetectEmbeddedServerUrl();
+
+                if (!string.IsNullOrEmpty(detectedUrl))
+                {
+                    File.WriteAllText(conf, detectedUrl);
+                }
+                else
                 {
                     string setupDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                     string localConfigFile = Path.Combine(setupDir, "config.json");
@@ -290,9 +330,9 @@ namespace LedgerXSetup
                     {
                         try { File.WriteAllText(conf, File.ReadAllText(localUrlFile).Trim()); } catch { }
                     }
-                    else
+                    else if (!File.Exists(conf))
                     {
-                        File.WriteAllText(conf, "http://localhost:3000");
+                        File.WriteAllText(conf, "https://ledgerx-tawny.vercel.app");
                     }
                 }
             }
