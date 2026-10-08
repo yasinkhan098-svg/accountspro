@@ -39,12 +39,48 @@ class OfflineSyncService {
       this.updateTimeGuard();
       // Record time guard tick every 5 minutes
       setInterval(() => this.updateTimeGuard(), 5 * 60 * 1000);
-      // Auto-sync heartbeat check every 20 seconds
+      // Auto-sync heartbeat check every 30 seconds
       setInterval(() => {
-        if (this.isOnline() && this.getPendingCount() > 0) {
-          this.triggerAutoSync();
+        if (this.isOnline()) {
+          if (this.getPendingCount() > 0) {
+            this.triggerAutoSync();
+          } else {
+            this.verifyOnlineLicenseHeartbeat();
+          }
         }
-      }, 20 * 1000);
+      }, 30 * 1000);
+    }
+  }
+
+  public async verifyOnlineLicenseHeartbeat(): Promise<void> {
+    if (typeof window === 'undefined' || !this.isOnline() || !this.isDesktopEnvironment()) return;
+    const token = this.getOfflineToken();
+    if (!token) return;
+
+    try {
+      const machineId = await this.getMachineId();
+      const res = await fetch('/api/license/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, machineId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.valid && data.token) {
+          await this.saveOfflineToken(data.token);
+        }
+      } else if (res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        if (data.deactivated) {
+          console.warn('[OfflineSync] Device deactivated by server.');
+          this.removeOfflineToken();
+          alert('Hardware Security Alert:\n\nThis computer was unlinked from your account portal because your license was transferred to another computer.\n\nDesktop access on this machine is now locked.');
+          window.location.reload();
+        }
+      }
+    } catch (e) {
+      // Offline or network error, continue normal operation
     }
   }
 
@@ -441,7 +477,15 @@ class OfflineSyncService {
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Server responded with ${res.status}`);
+        if (errJson.error === 'DEVICE_DEACTIVATED' || res.status === 403) {
+          console.warn('[OfflineSync] Device was revoked by server! Locking desktop app.');
+          this.removeOfflineToken();
+          if (typeof window !== 'undefined') {
+            alert('Hardware License Alert:\n\nThis computer was unlinked from your web account because your license was transferred to another computer.\n\nPlease enter a valid license key to continue.');
+            window.location.reload();
+          }
+        }
+        throw new Error(errJson.message || errJson.error || `Server responded with ${res.status}`);
       }
 
       const syncResult = await res.json();

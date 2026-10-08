@@ -30,10 +30,36 @@ export async function POST(req: Request) {
       });
     }
 
-    // Refresh token with latest expiry
-    const validUntilStr = user.subscriptionExpiry
-      ? new Date(user.subscriptionExpiry).toISOString()
-      : check.payload.validUntil;
+    // Check if this specific computer was deactivated / unlinked from account portal
+    try {
+      const devRows: any[] = await prisma.$queryRawUnsafe(
+        `SELECT "isActive" FROM "DeviceActivation" WHERE "userId" = ? AND "machineId" = ? ORDER BY "activatedAt" DESC LIMIT 1`,
+        user.id,
+        String(machineId).trim()
+      );
+      if (devRows && devRows.length > 0 && (devRows[0].isActive === 0 || devRows[0].isActive === false)) {
+        return NextResponse.json({
+          valid: false,
+          deactivated: true,
+          reason: 'DEVICE_DEACTIVATED: This device was unlinked from your web account portal. License has been transferred to another computer.',
+        }, { status: 403 });
+      }
+    } catch (e) {
+      // Ignore DB error
+    }
+
+    // Refresh token with latest 30-day rolling lease
+    const OFFLINE_LEASE_DAYS = 30;
+    const isMasterAdmin = (user.licenseKey || '').startsWith('LX-ADMIN-MASTER');
+    const userExpiryMs = user.subscriptionExpiry
+      ? new Date(user.subscriptionExpiry).getTime()
+      : Date.now() + 365 * 24 * 60 * 60 * 1000;
+
+    const leaseExpiryMs = isMasterAdmin
+      ? userExpiryMs
+      : Math.min(userExpiryMs, Date.now() + OFFLINE_LEASE_DAYS * 24 * 60 * 60 * 1000);
+
+    const validUntilStr = new Date(leaseExpiryMs).toISOString();
 
     const refreshedToken = createSignedLicenseToken({
       ...check.payload,

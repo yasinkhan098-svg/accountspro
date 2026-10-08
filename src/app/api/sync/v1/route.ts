@@ -33,6 +33,25 @@ export async function POST(req: Request) {
       }
     }
 
+    // Check if this machine was deactivated from user account portal
+    if (machineId && userId) {
+      try {
+        const devRows: any[] = await prisma.$queryRawUnsafe(
+          `SELECT "isActive" FROM "DeviceActivation" WHERE "userId" = ? AND "machineId" = ? ORDER BY "activatedAt" DESC LIMIT 1`,
+          userId,
+          String(machineId).trim()
+        );
+        if (devRows && devRows.length > 0 && (devRows[0].isActive === 0 || devRows[0].isActive === false)) {
+          return NextResponse.json({
+            error: 'DEVICE_DEACTIVATED',
+            message: 'This device was unlinked from your web account portal. License has been transferred to another computer.',
+          }, { status: 403 });
+        }
+      } catch (e) {
+        // Ignore DB error
+      }
+    }
+
     const cId = parseInt(String(companyId), 10);
 
     // Verify company exists

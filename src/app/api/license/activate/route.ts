@@ -168,9 +168,20 @@ export async function POST(req: Request) {
     }
 
     // 5. Generate Tamper-Proof Cryptographic Offline License Token
-    const validUntilStr = user.subscriptionExpiry
-      ? new Date(user.subscriptionExpiry).toISOString()
-      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    // Rolling 30-day offline lease: legitimate offline users get 30 days of seamless offline access.
+    // Online heartbeats and sync automatically extend the lease by 30 days every time the PC connects.
+    // If a user unlinks an old PC and tries to keep it offline permanently to pirate it,
+    // the old PC will expire in 30 days and require online verification (which instantly locks it).
+    const OFFLINE_LEASE_DAYS = 30;
+    const userExpiryMs = user.subscriptionExpiry
+      ? new Date(user.subscriptionExpiry).getTime()
+      : Date.now() + 365 * 24 * 60 * 60 * 1000;
+
+    const leaseExpiryMs = isMasterAdmin
+      ? userExpiryMs
+      : Math.min(userExpiryMs, Date.now() + OFFLINE_LEASE_DAYS * 24 * 60 * 60 * 1000);
+
+    const validUntilStr = new Date(leaseExpiryMs).toISOString();
 
     const offlineToken = createSignedLicenseToken({
       userId: user.id,

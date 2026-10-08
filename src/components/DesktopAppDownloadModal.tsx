@@ -17,12 +17,46 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
     subscriptionExpiry: currentUser.subscriptionExpiry
   } : null);
   const [copied, setCopied] = useState(false);
+  const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       fetchLicenseInfo();
     }
   }, [isOpen]);
+
+  const handleUnlink = async (device: any) => {
+    const confirmMsg = `Are you sure you want to unlink "${device.deviceName || 'Windows PC'}"?\n\n` +
+      `• This releases your license slot so you can activate LedgerX on your new computer.\n` +
+      `• If this old computer is ever connected to the internet again, its desktop software will be automatically locked.`;
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    try {
+      setUnlinkingId(device.id);
+      const token = authClient.getToken();
+      const res = await fetch('/api/license/deactivate-device', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({ deviceId: device.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'Computer unlinked successfully! You can now activate on your new computer.');
+        await fetchLicenseInfo();
+      } else {
+        alert(data.error || 'Failed to unlink device');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Network error while unlinking computer');
+    } finally {
+      setUnlinkingId(null);
+    }
+  };
 
   const fetchLicenseInfo = async () => {
     try {
@@ -372,28 +406,96 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
               {licenseData?.devices && licenseData.devices.length > 0 && (
                 <div style={{ marginTop: 20 }}>
                   <h5 style={{ margin: '0 0 8px', fontSize: 13, color: '#334155' }}>
-                    Registered Computers ({licenseData.devices.length}):
+                    Registered Computers ({licenseData.devices.filter((d: any) => d.isActive).length} active):
                   </h5>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {licenseData.devices.map((d: any) => (
-                      <div key={d.id} style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '8px 12px',
-                        background: '#ffffff',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 6,
-                        fontSize: 12,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Laptop size={14} color="#64748b" />
-                          <span style={{ fontWeight: 600, color: '#1e293b' }}>{d.deviceName || 'Windows PC'}</span>
-                          <span style={{ color: '#94a3b8', fontSize: 11 }}>({d.machineId.slice(0, 12)}...)</span>
+                    {licenseData.devices.map((d: any) => {
+                      const isActive = d.isActive === 1 || d.isActive === true;
+                      return (
+                        <div key={d.id} style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '10px 14px',
+                          background: isActive ? '#ffffff' : '#f8fafc',
+                          border: `1px solid ${isActive ? '#e2e8f0' : '#cbd5e1'}`,
+                          borderRadius: 8,
+                          fontSize: 12,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Laptop size={16} color={isActive ? '#2563eb' : '#94a3b8'} />
+                            <div>
+                              <div style={{ fontWeight: 600, color: isActive ? '#1e293b' : '#64748b' }}>
+                                {d.deviceName || 'Windows PC'}
+                              </div>
+                              <div style={{ color: '#94a3b8', fontSize: 11 }}>
+                                HWID: {d.machineId.slice(0, 16)}...
+                                {d.lastSyncAt ? ` • Last active: ${new Date(d.lastSyncAt).toLocaleDateString('en-IN')}` : ''}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {isActive ? (
+                              <>
+                                <span style={{
+                                  background: '#dcfce7',
+                                  color: '#15803d',
+                                  padding: '2px 8px',
+                                  borderRadius: 12,
+                                  fontWeight: 700,
+                                  fontSize: 11,
+                                }}>
+                                  ● Active
+                                </span>
+                                <button
+                                  onClick={() => handleUnlink(d)}
+                                  disabled={unlinkingId === d.id}
+                                  title="Unlink this computer so you can activate on a new computer"
+                                  style={{
+                                    background: '#fee2e2',
+                                    color: '#b91c1c',
+                                    border: '1px solid #fca5a5',
+                                    borderRadius: 6,
+                                    padding: '4px 10px',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: unlinkingId === d.id ? 'not-allowed' : 'pointer',
+                                    opacity: unlinkingId === d.id ? 0.6 : 1,
+                                  }}
+                                >
+                                  {unlinkingId === d.id ? 'Unlinking...' : 'Unlink / Transfer'}
+                                </button>
+                              </>
+                            ) : (
+                              <span style={{
+                                background: '#f1f5f9',
+                                color: '#94a3b8',
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                fontWeight: 600,
+                                fontSize: 11,
+                              }}>
+                                ○ Unlinked
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <span style={{ color: '#16a34a', fontWeight: 600, fontSize: 11 }}>● Active</span>
-                      </div>
-                    ))}
+                      );
+                    })}
+                  </div>
+
+                  <div style={{
+                    marginTop: 10,
+                    padding: '10px 14px',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: '#1e40af',
+                    lineHeight: 1.5,
+                  }}>
+                    🛡️ <strong>Hardware Replacement Guarantee:</strong> If your authorized computer is damaged, formatted, or replaced, click <strong>"Unlink / Transfer"</strong> above to release your key. Then install on your new PC and activate with the same key. The old PC will be locked automatically.
                   </div>
                 </div>
               )}
