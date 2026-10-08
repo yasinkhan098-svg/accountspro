@@ -119,14 +119,18 @@ namespace LedgerXLauncher
                 {
                     ProcessStartInfo psi = new ProcessStartInfo();
                     psi.FileName = browserPath;
-                    psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1366,768", launchUrl, profileDir);
+                    psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized", launchUrl, profileDir);
+                    psi.WindowStyle = ProcessWindowStyle.Maximized;
                     psi.UseShellExecute = true;
                     Process.Start(psi);
                 }
                 else
                 {
                     // Fallback to system default browser
-                    Process.Start(new ProcessStartInfo(launchUrl) { UseShellExecute = true });
+                    ProcessStartInfo psi = new ProcessStartInfo(launchUrl);
+                    psi.UseShellExecute = true;
+                    psi.WindowStyle = ProcessWindowStyle.Maximized;
+                    Process.Start(psi);
                 }
             }
             catch (Exception ex)

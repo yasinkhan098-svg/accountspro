@@ -33,6 +33,7 @@ function createWindow() {
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   const startUrl = process.env.ELECTRON_START_URL || (isDev ? 'http://localhost:3000' : 'http://localhost:3000');
 
+  mainWindow.maximize();
   mainWindow.loadURL(startUrl);
 
   // Record initial time guard tick
