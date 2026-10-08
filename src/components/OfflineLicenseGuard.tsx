@@ -272,7 +272,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
                 <input
                   type="email"
                   required
-                  placeholder="yasin.khan098@gmail.com"
+                  placeholder="name@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{
@@ -294,7 +294,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
                 <input
                   type="text"
                   required
-                  placeholder="LX-ADMIN-MASTER-2027"
+                  placeholder="e.g. LX-XXXX-XXXX-XXXX"
                   value={licenseKey}
                   onChange={(e) => setLicenseKey(e.target.value.toUpperCase())}
                   style={{
