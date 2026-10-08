@@ -14,12 +14,23 @@ export async function GET(req: Request) {
     }
 
     if (user.id === -1) {
-      // Admin account
+      // Admin account: fetch all registered devices
+      let devices: any[] = [];
+      try {
+        devices = await prisma.$queryRawUnsafe(
+          `SELECT "id", "machineId", "deviceName", "activatedAt", "lastSyncAt", "isActive" 
+           FROM "DeviceActivation" 
+           ORDER BY "activatedAt" DESC`
+        );
+      } catch (e) {
+        devices = [];
+      }
+
       return NextResponse.json({
         licenseKey: 'LX-ADMIN-MASTER-2027',
         plan: 'ADMIN_LIFETIME',
         subscriptionExpiry: user.subscriptionExpiry,
-        devices: [],
+        devices: devices || [],
         downloadUrl: '/api/download/desktop-setup',
         gitHubReleaseUrl: 'https://github.com/yasinkhan098-svg/accountspro/releases',
       });

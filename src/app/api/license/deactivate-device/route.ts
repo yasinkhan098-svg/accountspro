@@ -20,20 +20,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Device ID or Machine ID is required' }, { status: 400 });
     }
 
-    // Verify device belongs to this user
+    // Verify device belongs to this user (or allow admin to unlink)
     let targetDevice: any = null;
+    const isAdmin = user.id === -1;
+
     if (deviceId) {
       const rows: any[] = await prisma.$queryRawUnsafe(
-        `SELECT * FROM "DeviceActivation" WHERE "id" = ? AND "userId" = ? LIMIT 1`,
-        parseInt(String(deviceId), 10),
-        user.id
+        isAdmin
+          ? `SELECT * FROM "DeviceActivation" WHERE "id" = ? LIMIT 1`
+          : `SELECT * FROM "DeviceActivation" WHERE "id" = ? AND "userId" = ? LIMIT 1`,
+        ...(isAdmin ? [parseInt(String(deviceId), 10)] : [parseInt(String(deviceId), 10), user.id])
       );
       if (rows && rows.length > 0) targetDevice = rows[0];
     } else if (machineId) {
       const rows: any[] = await prisma.$queryRawUnsafe(
-        `SELECT * FROM "DeviceActivation" WHERE "machineId" = ? AND "userId" = ? LIMIT 1`,
-        String(machineId).trim(),
-        user.id
+        isAdmin
+          ? `SELECT * FROM "DeviceActivation" WHERE "machineId" = ? LIMIT 1`
+          : `SELECT * FROM "DeviceActivation" WHERE "machineId" = ? AND "userId" = ? LIMIT 1`,
+        ...(isAdmin ? [String(machineId).trim()] : [String(machineId).trim(), user.id])
       );
       if (rows && rows.length > 0) targetDevice = rows[0];
     }

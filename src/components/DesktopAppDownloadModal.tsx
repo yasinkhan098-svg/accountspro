@@ -402,12 +402,28 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
                 </div>
               </div>
 
-              {/* Registered Devices List (if any) */}
-              {licenseData?.devices && licenseData.devices.length > 0 && (
-                <div style={{ marginTop: 20 }}>
-                  <h5 style={{ margin: '0 0 8px', fontSize: 13, color: '#334155' }}>
-                    Registered Computers ({licenseData.devices.filter((d: any) => d.isActive).length} active):
-                  </h5>
+              {/* Authorized Computers & Hardware Security Section */}
+              <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Laptop size={18} color="#0284c7" />
+                    <h5 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                      Authorized Computers (Single-Device Security):
+                    </h5>
+                  </div>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: 12,
+                    background: (licenseData?.devices?.filter((d: any) => d.isActive).length || 0) > 0 ? '#dcfce7' : '#f1f5f9',
+                    color: (licenseData?.devices?.filter((d: any) => d.isActive).length || 0) > 0 ? '#15803d' : '#64748b',
+                  }}>
+                    {(licenseData?.devices?.filter((d: any) => d.isActive).length || 0)} / 1 Active PC
+                  </span>
+                </div>
+
+                {licenseData?.devices && licenseData.devices.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {licenseData.devices.map((d: any) => {
                       const isActive = d.isActive === 1 || d.isActive === true;
@@ -457,7 +473,7 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
                                     color: '#b91c1c',
                                     border: '1px solid #fca5a5',
                                     borderRadius: 6,
-                                    padding: '4px 10px',
+                                    padding: '5px 12px',
                                     fontSize: 11,
                                     fontWeight: 700,
                                     cursor: unlinkingId === d.id ? 'not-allowed' : 'pointer',
@@ -484,21 +500,43 @@ export default function DesktopAppDownloadModal({ isOpen, onClose, currentUser }
                       );
                     })}
                   </div>
-
+                ) : (
                   <div style={{
-                    marginTop: 10,
-                    padding: '10px 14px',
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
+                    padding: '12px 14px',
+                    background: '#f8fafc',
+                    border: '1px dashed #cbd5e1',
                     borderRadius: 8,
                     fontSize: 12,
-                    color: '#1e40af',
-                    lineHeight: 1.5,
+                    color: '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
                   }}>
-                    🛡️ <strong>Hardware Replacement Guarantee:</strong> If your authorized computer is damaged, formatted, or replaced, click <strong>"Unlink / Transfer"</strong> above to release your key. Then install on your new PC and activate with the same key. The old PC will be locked automatically.
+                    <Laptop size={22} color="#94a3b8" style={{ flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#334155', marginBottom: 2 }}>
+                        No computer registered yet (1 PC Slot Available)
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.4 }}>
+                        When you install LedgerX Desktop on your PC and enter your License Key, your computer will appear here automatically with the <b>"Unlink / Transfer"</b> button.
+                      </div>
+                    </div>
                   </div>
+                )}
+
+                <div style={{
+                  marginTop: 10,
+                  padding: '10px 14px',
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: '#1e40af',
+                  lineHeight: 1.5,
+                }}>
+                  🛡️ <strong>Hardware Replacement Guarantee:</strong> Each license is locked to 1 PC. If your PC is damaged, formatted, or replaced, click <strong>"Unlink / Transfer"</strong> above to release your key so you can install on your new computer.
                 </div>
-              )}
+              </div>
             </>
           )}
         </div>
