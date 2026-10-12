@@ -1916,18 +1916,16 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [saveToast]);
 
-  // Capture Esc key anywhere to dismiss toast immediately
+  // Dismiss toast on Esc key without swallowing navigation
   useEffect(() => {
     if (!saveToast) return;
     const handleEscToast = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
         setSaveToast(null);
       }
     };
-    window.addEventListener('keydown', handleEscToast, true);
-    return () => window.removeEventListener('keydown', handleEscToast, true);
+    window.addEventListener('keydown', handleEscToast);
+    return () => window.removeEventListener('keydown', handleEscToast);
   }, [saveToast]);
 
   // When offline sync finishes, auto-dismiss any pending auto-sync toast
@@ -2761,7 +2759,7 @@ export default function App() {
       };
 
       if (e.key === 'Escape') {
-        if (saveToast) { setSaveToast(null); return; }
+        if (saveToast) setSaveToast(null);
         if (pwdPrompt) { setPwdPrompt(null); return; }
         if (altCCtx) { 
           setAltCCtx(null); 
@@ -3112,47 +3110,12 @@ export default function App() {
     if (isAnyModalOpen) return;
 
     const isMenu = ['GATEWAY_MAIN','MASTER_MENU','ALTER_MENU','DISPLAY_REPORTS_MENU','ACCOUNT_BOOKS_MENU'].includes(screen);
-    if (!isMenu && !showCompanySelect) return;
+    if (!isMenu) return;
     const menu = getActiveMenu();
     const onKey = (e: KeyboardEvent) => {
       // Safety check: if any modal overlay is present in the DOM, do not handle background menu navigation
       if (typeof document !== 'undefined' && document.querySelector('.modal-overlay')) return;
 
-      if (showCompanySelect) {
-        const menuItems = [
-          { label:'Create Company', action:()=>{setShowCompanySelect(false);nav('COMPANY_CREATION');}},
-          { label:'Alter Company',  action:()=>{setShowCompanySelect(false);nav('ALTER_LIST',undefined,'Company');}},
-          { label:'Delete Company', action:()=>{setShowCompanySelect(false);nav('ALTER_LIST',undefined,'Company'); alert('Select a company to alter, then press Alt+D or click Delete button to remove it.');}},
-          { label:'---', category:'header' },
-          ...companies.map(c=>({ label: c.name, action: ()=>{ 
-            if (c.securityControl && c.password) {
-              setPwdPrompt({ company: c, action: 'open' });
-            } else {
-              setActiveCompany(c);
-            }
-          } }))
-        ];
-        const len = menuItems.length;
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          let n = (companyModalIdx + 1) % len;
-          while (menuItems[n]?.category === 'header') n = (n + 1) % len;
-          setCompanyModalIdx(n);
-        }
-        else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          let n = (companyModalIdx - 1 + len) % len;
-          while (menuItems[n]?.category === 'header') n = (n - 1 + len) % len;
-          setCompanyModalIdx(n);
-        }
-        else if (e.key === 'Enter') {
-          e.preventDefault(); e.stopPropagation();
-          if (menuItems[companyModalIdx] && menuItems[companyModalIdx].category !== 'header') {
-            menuItems[companyModalIdx].action?.();
-          }
-        }
-        return;
-      }
       if (e.key==='ArrowDown'){e.preventDefault();let n=(selectedIdx+1)%menu.length;while(menu[n]?.category==='header')n=(n+1)%menu.length;setSelectedIdx(n);}
       else if (e.key==='ArrowUp'){e.preventDefault();let n=(selectedIdx-1+menu.length)%menu.length;while(menu[n]?.category==='header')n=(n-1+menu.length)%menu.length;setSelectedIdx(n);}
       else if (e.key==='Enter'){
@@ -3169,12 +3132,89 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    screen, selectedIdx, showCompanySelect, companyModalIdx, companies,
+    screen, selectedIdx,
     showFinalBSModal, showVirtualBSModal, showRealtimeDashboard, showBankUploadModal,
     showExportModal, showEmailModal, showFeatures, showDate, showPeriod, showGST,
     showUpgradeModal, showDesktopDownloadModal, pwdPrompt, altCCtx, pendingDelete,
     isExporting, finalBSExporting
   ]);
+
+  // Dedicated Keyboard Navigation for "Company (F3)" Modal
+  useEffect(() => {
+    if (!showCompanySelect) return;
+
+    const menuItems = [
+      { label: '➕ Create Company', action: () => { setShowCompanySelect(false); nav('COMPANY_CREATION'); } },
+      { label: '✏️ Alter Company', action: () => { setShowCompanySelect(false); nav('ALTER_LIST', undefined, 'Company'); } },
+      { label: '🗑️ Delete Company', action: () => { setShowCompanySelect(false); nav('ALTER_LIST', undefined, 'Company'); alert('Select a company to alter, then press Alt+D or click Delete button to remove it.'); } },
+      { label: '📂 Open Local Data Folder (data/)', action: () => { companyDataFolderService.openDataFolder(); } },
+      { label: '---', category: 'header' },
+      ...companies.map(c => {
+        const code = companyDataFolderService.getCompanyFolderCode(c, companies);
+        return {
+          label: `${c.name} [${code}]`,
+          action: async () => {
+            setShowCompanySelect(false);
+            const folderData = await companyDataFolderService.loadCompanyFolder(code);
+            if (folderData) {
+              if (folderData.ledgers?.length) setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...folderData.ledgers]);
+              if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers]);
+              if (folderData.stockItems?.length) setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(c.id)), ...folderData.stockItems]);
+            }
+            if (c.securityControl && c.password) {
+              setPwdPrompt({ company: c, action: 'open' });
+            } else {
+              setActiveCompany(c);
+            }
+          }
+        };
+      })
+    ];
+    const len = menuItems.length;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowCompanySelect(false);
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        setCompanyModalIdx(prev => {
+          let n = (prev + 1) % len;
+          while (menuItems[n]?.category === 'header') n = (n + 1) % len;
+          return n;
+        });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        e.stopPropagation();
+        setCompanyModalIdx(prev => {
+          let n = (prev - 1 + len) % len;
+          while (menuItems[n]?.category === 'header') n = (n - 1 + len) % len;
+          return n;
+        });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (menuItems[companyModalIdx] && menuItems[companyModalIdx].category !== 'header') {
+          menuItems[companyModalIdx].action?.();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [showCompanySelect, companyModalIdx, companies]);
+
+  // Auto-scroll selected item in F3 Company Modal
+  useEffect(() => {
+    if (showCompanySelect) {
+      const el = document.querySelector(`.company-modal-item-${companyModalIdx}`) as HTMLElement;
+      if (el) el.scrollIntoView({ block: 'nearest' });
+    }
+  }, [companyModalIdx, showCompanySelect]);
 
   useEffect(() => {
     if (screen==='GATEWAY_MAIN') setSelectedIdx(1);
@@ -3637,16 +3677,16 @@ export default function App() {
         {/* FORM SCREENS */}
         {isFormScreen && (
           <div className="form-workspace">
-            {screen==='COMPANY_CREATION'    && <CompanyCreationForm    key={formKey} activeAlterItem={alterItem} companies={companies} onSave={async d=>{const ok=await saveMaster('company',d); if(ok){setScreen('GATEWAY_MAIN'); setHistory([]);}}} onDelete={deleteMaster} />}
-            {screen==='GROUP_CREATION'      && <GroupCreationForm      key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('group',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} ledgers={ledgers} groups={groups} />}
-            {screen==='LEDGER_CREATION'     && <LedgerCreationForm     key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('ledger',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} ledgers={ledgers} groups={groups} />}
-            {screen==='CURRENCY_CREATION'   && <CurrencyCreationForm   key={formKey} activeAlterItem={alterItem} currencies={currencies} onSave={async d=>{const ok=await saveMaster('currency',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
-            {screen==='VOUCHER_TYPE_CREATION'&& <VoucherTypeCreationForm key={formKey} activeAlterItem={alterItem} voucherTypes={voucherTypes} onSave={async d=>{const ok=await saveMaster('voucherType',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='STOCK_GROUP_CREATION' && <StockGroupCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} onSave={async d=>{const ok=await saveMaster('stockGroup',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} />}
-            {screen==='STOCK_CATEGORY_CREATION'&&<StockCategoryCreationForm key={formKey} activeAlterItem={alterItem} stockCategories={stockCategories} onSave={async d=>{const ok=await saveMaster('stockCategory',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
-            {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} activeCompany={activeCompany} setActiveCompany={setActiveCompany} setCompanies={setCompanies} />}
-            {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} />}
-            {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} />}
+            {screen==='COMPANY_CREATION'    && <CompanyCreationForm    key={formKey} activeAlterItem={alterItem} companies={companies} onSave={async d=>{const ok=await saveMaster('company',d); if(ok){setScreen('GATEWAY_MAIN'); setHistory([]);}}} onDelete={deleteMaster} onCancel={goBack} />}
+            {screen==='GROUP_CREATION'      && <GroupCreationForm      key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('group',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} ledgers={ledgers} groups={groups} onCancel={goBack} />}
+            {screen==='LEDGER_CREATION'     && <LedgerCreationForm     key={formKey} activeAlterItem={alterItem} onSave={async d=>{const ok=await saveMaster('ledger',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} ledgers={ledgers} groups={groups} onCancel={goBack} />}
+            {screen==='CURRENCY_CREATION'   && <CurrencyCreationForm   key={formKey} activeAlterItem={alterItem} currencies={currencies} onSave={async d=>{const ok=await saveMaster('currency',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} onCancel={goBack} />}
+            {screen==='VOUCHER_TYPE_CREATION'&& <VoucherTypeCreationForm key={formKey} activeAlterItem={alterItem} voucherTypes={voucherTypes} onSave={async d=>{const ok=await saveMaster('voucherType',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onCancel={goBack} />}
+            {screen==='STOCK_GROUP_CREATION' && <StockGroupCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} onSave={async d=>{const ok=await saveMaster('stockGroup',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} onCancel={goBack} />}
+            {screen==='STOCK_CATEGORY_CREATION'&&<StockCategoryCreationForm key={formKey} activeAlterItem={alterItem} stockCategories={stockCategories} onSave={async d=>{const ok=await saveMaster('stockCategory',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onCancel={goBack} />}
+            {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} activeCompany={activeCompany} setActiveCompany={setActiveCompany} setCompanies={setCompanies} onCancel={goBack} />}
+            {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} onCancel={goBack} />}
+            {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onCancel={goBack} />}
             {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} onSaveMaster={saveMaster} onOpenBankUpload={()=>setShowBankUploadModal(true)} />}
             {screen==='BANK_STATEMENT_ENTRY' && (
               <BankStatementEntryView
@@ -3824,7 +3864,7 @@ export default function App() {
                   return <div key={i} style={{ borderBottom: '2px solid #1c5282', margin: '4px 0' }} />;
                 }
                 return (
-                  <div key={i} className={`modal-list-item ${companyModalIdx===i?'selected':''}`} onClick={m.action}>
+                  <div key={i} className={`modal-list-item company-modal-item-${i} ${companyModalIdx===i?'selected':''}`} onClick={m.action}>
                     {m.label}
                   </div>
                 );
@@ -5248,7 +5288,7 @@ function ListPanel({ title, items, selectedName, onSelect, onAltC, fieldKey }: {
   );
 }
 
-function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: { activeAlterItem?: any; onSave: (d:any)=>void; onDelete: (type:string, id:number)=>void; companies: Company[]; }) {
+function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onCancel }: { activeAlterItem?: any; onSave: (d:any)=>void; onDelete: (type:string, id:number)=>void; companies: Company[]; onCancel?: () => void; }) {
   const ref = useRef<HTMLInputElement>(null);
   const [focusedField, setFocusFld] = useState<string|null>(null);
   const [secCtrl, setSecCtrl] = useState(activeAlterItem?.securityControl ? 'Yes' : 'No');
@@ -5262,6 +5302,23 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
   const [showLogo, setShowLogo] = useState(activeAlterItem?.showLogo ?? false);
 
   useEffect(()=>{ ref.current?.focus(); },[]);
+
+  // Dedicated Escape Key handler for step-by-step exit
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (focusedField !== null) {
+          setFocusFld(null);
+        } else if (onCancel) {
+          onCancel();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [focusedField, onCancel]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -5333,6 +5390,13 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (focusedField !== null) { setFocusFld(null); }
+      else if (onCancel) { onCancel(); }
+      return;
+    }
     if(!focusedField || list.length===0) {
        if(e.key === 'Enter') {
            e.preventDefault();
@@ -5457,17 +5521,29 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
         <div className="form-row"><label style={{width:220}}>Books beginning from</label><span className="colon">:</span><input id="c-books-start" type="text" className="form-input" style={{width:120}} defaultValue={activeAlterItem?.booksBeginFrom||"1-Apr-2026"}/></div>
         <div className="form-section-title">Statutory Information</div>
         <div className="form-row"><label style={{width:220}}>Registration Type</label><span className="colon">:</span><select id="c-reg-type" className="form-input" style={{width:160}} defaultValue={activeAlterItem?.registrationType||'Regular'}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
-        <div className="form-row"><label style={{width:220}}>GSTIN</label><span className="colon">:</span><input id="c-gstin" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.gstin||''} onInput={e => e.currentTarget.value = e.currentTarget.value.toUpperCase()} onKeyDown={e => {
+        <div className="form-row"><label style={{width:220}}>GSTIN</label><span className="colon">:</span><input id="c-gstin" type="text" className="form-input" style={{width:200, textTransform: 'uppercase'}} defaultValue={activeAlterItem?.gstin||''} onInput={e => {
+          e.currentTarget.value = e.currentTarget.value.toUpperCase();
+          const gst = e.currentTarget.value.trim();
+          if (gst.length >= 12) {
+            const panEl = document.getElementById('c-pan') as HTMLInputElement;
+            if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
+          }
+        }} onBlur={e => {
+          const gst = (e.currentTarget.value || '').trim().toUpperCase();
+          if (gst.length >= 12) {
+            const panEl = document.getElementById('c-pan') as HTMLInputElement;
+            if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
+          }
+        }} onKeyDown={e => {
           if (e.key === 'Enter') {
-            const gst = (e.currentTarget.value || '').trim();
+            const gst = (e.currentTarget.value || '').trim().toUpperCase();
             if (gst.length >= 12) {
-              const pan = gst.substring(2, 12); // chars 3 to 12 (0-indexed: 2 to 11)
               const panEl = document.getElementById('c-pan') as HTMLInputElement;
-              if (panEl && !panEl.value) panEl.value = pan.toUpperCase();
+              if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
             }
           }
         }}/></div>
-        <div className="form-row"><label style={{width:220}}>PAN No.</label><span className="colon">:</span><input id="c-pan" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.pan||''}/></div>
+        <div className="form-row"><label style={{width:220}}>PAN No.</label><span className="colon">:</span><input id="c-pan" type="text" className="form-input" style={{width:140, textTransform: 'uppercase'}} onInput={e => e.currentTarget.value = e.currentTarget.value.toUpperCase()} defaultValue={activeAlterItem?.pan||''}/></div>
         <div className="form-section-title">Banking Details</div>
         <div className="form-row"><label style={{width:220}}>Bank Name</label><span className="colon">:</span><input id="c-bank-name" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankName||''}/></div>
         <div className="form-row"><label style={{width:220}}>A/C Holder Name</label><span className="colon">:</span><input id="c-bank-holder" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankHolderName||''} onKeyDown={e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key)){(e.currentTarget as any).dataset.edited='1';}}}/></div>
@@ -5575,12 +5651,29 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies }: {
   );
 }
 
-function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers, groups }: { activeAlterItem?: any; onSave:(d:any)=>void; onAltC:(ctx:AltCContext)=>void; onDelete?:(type:string,id:number)=>void; ledgers:Ledger[]; groups: StockGroup[]; }) {
+function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers, groups, onCancel }: { activeAlterItem?: any; onSave:(d:any)=>void; onAltC:(ctx:AltCContext)=>void; onDelete?:(type:string,id:number)=>void; ledgers:Ledger[]; groups: StockGroup[]; onCancel?: () => void; }) {
   const ref = useRef<HTMLInputElement>(null);
   const [focus, setFocus] = useState(false);
   const [filter, setFilter] = useState('');
   const [selIdx, setSelIdx] = useState(0);
   useEffect(()=>{ ref.current?.focus(); },[]);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (focus) {
+          setFocus(false);
+        } else if (onCancel) {
+          onCancel();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [focus, onCancel]);
 
   useEffect(() => {
     if (focus) {
@@ -5615,6 +5708,12 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
         <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span>
           <input id="g-name" ref={ref} autoFocus type="text" className="form-input" style={{width:360,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
             onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault(); e.stopPropagation();
+                if (focus) setFocus(false);
+                else if (onCancel) onCancel();
+                return;
+              }
               if (e.key === 'Enter') {
                 const val = e.currentTarget.value.trim();
                 if (groups.some(g => g.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || g.id !== activeAlterItem.id))) {
@@ -5633,6 +5732,12 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
             onFocus={()=>{setFocus(true);setFilter('');setSelIdx(0);}}
             onInput={e=>{setFilter((e.target as HTMLInputElement).value);setSelIdx(0);}}
             onKeyDown={e=>{
+              if(e.key==='Escape'){
+                e.preventDefault(); e.stopPropagation();
+                if(focus) setFocus(false);
+                else if(onCancel) onCancel();
+                return;
+              }
               if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();onAltC({fieldType:'group',onCreated:n=>{const inp=document.getElementById('g-under') as HTMLInputElement;if(inp)inp.value=n;}});return;}
               if(e.key==='ArrowDown'){e.preventDefault();setSelIdx(p=>(p+1)%list.length);}
               else if(e.key==='ArrowUp'){e.preventDefault();setSelIdx(p=>(p-1+list.length)%list.length);}
@@ -5701,7 +5806,7 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
   );
 }
 
-function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers, groups }:{activeAlterItem?:any;onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;ledgers:Ledger[]; groups:StockGroup[];}) {
+function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers, groups, onCancel }:{activeAlterItem?:any;onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;ledgers:Ledger[]; groups:StockGroup[]; onCancel?:()=>void;}) {
   const ref = useRef<HTMLInputElement>(null);
   const [focus, setFocus] = useState<string|null>(null);
   const [filter, setFilter] = useState('');
@@ -5711,6 +5816,35 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const [odLimit, setOdLimit] = useState<string>(activeAlterItem?.odLimit != null ? String(activeAlterItem.odLimit) : '');
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(()=>{ ref.current?.focus(); },[]);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (focus !== null) {
+          setFocus(null);
+        } else if (onCancel) {
+          onCancel();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [focus, onCancel]);
+
+  // Sync GSTIN to PAN automatically in uppercase
+  const syncGstToPan = (gstVal: string) => {
+    const clean = gstVal.trim().toUpperCase();
+    if (clean.length >= 12) {
+      const panPart = clean.substring(2, 12);
+      const panInp = document.getElementById('l-pan') as HTMLInputElement;
+      if (panInp) {
+        panInp.value = panPart;
+      }
+    }
+  };
 
   // Group-based dynamic field detection
   const isBankOD = underValue.toLowerCase().includes('bank od') || underValue.toLowerCase().includes('bank occ') || underValue.toLowerCase() === 'bank od a/c' || underValue.toLowerCase() === 'bank occ account';
@@ -5781,6 +5915,12 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   };
 
   const handleFieldKey = (field:string) => (e:React.KeyboardEvent) => {
+    if(e.key === 'Escape'){
+      e.preventDefault(); e.stopPropagation();
+      if(focus !== null) setFocus(null);
+      else if(onCancel) onCancel();
+      return;
+    }
     if(field==='under'&&e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();onAltC({fieldType:'group',onCreated:n=>{const inp=document.getElementById('l-under') as HTMLInputElement;if(inp)inp.value=n;}});return;}
     if(e.key==='ArrowDown'){e.preventDefault();setSelIdx(p=>(p+1)%Math.max(1,list.length));}
     else if(e.key==='ArrowUp'){e.preventDefault();setSelIdx(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
@@ -5809,6 +5949,16 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   };
 
   const handleGlobalKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (focus !== null) {
+        setFocus(null);
+      } else if (onCancel) {
+        onCancel();
+      }
+      return;
+    }
     if (e.key === 'Enter') {
       const target = e.target as HTMLElement;
       if (target.id === 'l-name') {
@@ -5816,6 +5966,11 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
         if (ledgers.some(l => l.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || l.id !== activeAlterItem.id))) {
           alert(`Ledger "${val}" already exists!`); e.preventDefault(); return;
         }
+      }
+      if (target.id === 'l-gst') {
+        const gstVal = ((target as HTMLInputElement).value || '').toUpperCase();
+        (target as HTMLInputElement).value = gstVal;
+        syncGstToPan(gstVal);
       }
       if (target.id === 'btn-save-ledger') return; // Let button handle its own click
       if (['l-under', 'l-state', 'l-country'].includes(target.id) && list.length > 0) return;
@@ -5904,9 +6059,28 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
           {/* Tax Registration */}
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Tax Registration</b>
-          <div className="form-row"><label style={{width:180}}>PAN/IT No.</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.pan||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:180}}>PAN/IT No.</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180,textTransform:'uppercase'}} defaultValue={activeAlterItem?.pan||''} onFocus={()=>setFocus(null)} onInput={e=>(e.currentTarget.value=e.currentTarget.value.toUpperCase())} onKeyDown={handleGlobalKeyDown}/></div>
           <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select id="l-reg" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType||'Regular'} onKeyDown={handleGlobalKeyDown}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
-          <div className="form-row"><label style={{width:180}}>GSTIN/UIN</label><span className="colon">:</span><input id="l-gst" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.gstin||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:180}}>GSTIN/UIN</label><span className="colon">:</span><input id="l-gst" type="text" className="form-input" style={{width:200,textTransform:'uppercase'}} defaultValue={activeAlterItem?.gstin||''} onFocus={()=>setFocus(null)}
+            onInput={e=>{
+              const v=e.currentTarget.value.toUpperCase();
+              e.currentTarget.value=v;
+              syncGstToPan(v);
+            }}
+            onBlur={e=>{
+              const v=e.currentTarget.value.toUpperCase();
+              e.currentTarget.value=v;
+              syncGstToPan(v);
+            }}
+            onKeyDown={e=>{
+              if(e.key==='Enter'){
+                const v=(e.currentTarget.value||'').toUpperCase();
+                e.currentTarget.value=v;
+                syncGstToPan(v);
+              }
+              handleGlobalKeyDown(e);
+            }}
+          /></div>
           <div className="form-row"><label style={{width:180}}>Set/Alter GST Details</label><span className="colon">:</span><select id="l-gst-alter" className="form-input" defaultValue={activeAlterItem?.setAlterGstDetails||'No'} onKeyDown={handleGlobalKeyDown}><option>No</option><option>Yes</option></select></div>
           <b style={{display:'block',margin:'15px 0 10px',textDecoration:'underline',fontSize:13,borderTop:'1px solid #eee',paddingTop:12}}>Banking Details</b>
           <div className="form-row"><label style={{width:180}}>Bank Name</label><span className="colon">:</span><input id="l-bank" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.bankName||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
@@ -5976,7 +6150,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
             const data = { 
               name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors', 
               address: (document.getElementById('l-addr') as HTMLTextAreaElement)?.value || '', state: fv('l-state'), country: fv('l-country'), 
-              gstin: fv('l-gst'), pan: fv('l-pan'), registrationType: fsv('l-reg'), 
+              gstin: fv('l-gst').toUpperCase(), pan: fv('l-pan').toUpperCase(), registrationType: fsv('l-reg'), 
               setAlterGstDetails: fsv('l-gst-alter'),
               ifsc: fv('l-ifsc'), bankName: fv('l-bank'), accountNo: fv('l-acc'), bankHolderName: fv('l-bank-holder'),
               phone: fv('l-phone'), email: fv('l-email'), pinCode: fv('l-pin'), 
@@ -5992,12 +6166,30 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   );
 }
 
-function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDelete}:{activeAlterItem?:any;stockGroups:StockGroup[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void}) {
+function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDelete,onCancel}:{activeAlterItem?:any;stockGroups:StockGroup[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;onCancel?:()=>void;}) {
   const ref=useRef<HTMLInputElement>(null);
   const [focus,setFocus]=useState(false);
   const [filter,setFilter]=useState('');
   const [sel,setSel]=useState(0);
   useEffect(()=>{ref.current?.focus();},[]);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (focus) {
+          setFocus(false);
+        } else if (onCancel) {
+          onCancel();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [focus, onCancel]);
+
   const list=(stockGroups.map(g=>g.name)).filter(g=>!filter||g.toLowerCase().includes(filter.toLowerCase()));
   const pick=(v:string)=>{const inp=document.getElementById('sg-under') as HTMLInputElement;if(inp){inp.value=v;}setFocus(false);
     setTimeout(()=>{if(inp){const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];const idx=inputs.indexOf(inp);if(idx>=0&&idx<inputs.length-1)(inputs[idx+1]).focus();}},50);
@@ -6008,6 +6200,12 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDel
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Stock Group {activeAlterItem?'Alteration':'Creation'}</div>
         <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span><input id="sg-name" ref={ref} autoFocus type="text" className="form-input" style={{width:360,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
           onKeyDown={e => {
+            if (e.key === 'Escape') {
+              e.preventDefault(); e.stopPropagation();
+              if (focus) setFocus(false);
+              else if (onCancel) onCancel();
+              return;
+            }
             if (e.key === 'Enter') {
               const val = e.currentTarget.value.trim();
               if (stockGroups.some(g => g.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || g.id !== activeAlterItem.id))) {
@@ -6023,6 +6221,12 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDel
             onFocus={()=>{setFocus(true);setFilter('');setSel(0);}}
             onInput={e=>{setFilter((e.target as HTMLInputElement).value);setSel(0);}}
             onKeyDown={e=>{
+              if(e.key==='Escape'){
+                e.preventDefault(); e.stopPropagation();
+                if(focus) setFocus(false);
+                else if(onCancel) onCancel();
+                return;
+              }
               if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();onAltC({fieldType:'stockGroup',onCreated:n=>{const inp=document.getElementById('sg-under') as HTMLInputElement;if(inp)inp.value=n;}});return;}
               if(e.key==='ArrowDown'){e.preventDefault();setSel(p=>(p+1)%list.length);}
               else if(e.key==='ArrowUp'){e.preventDefault();setSel(p=>(p-1+list.length)%list.length);}
@@ -6065,15 +6269,34 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDel
   );
 }
 
-function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave,onDelete}:{activeAlterItem?:any;stockCategories:StockCategory[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
+function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave,onDelete,onCancel}:{activeAlterItem?:any;stockCategories:StockCategory[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void;onCancel?:()=>void;}) {
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onCancel) onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [onCancel]);
+
   return (
     <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
       <div style={{flex:1,padding:20}}>
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Stock Category {activeAlterItem?'Alteration':'Creation'}</div>
         <div className="form-row"><label style={{width:100}}>Name</label><span className="colon">:</span><input id="sc-name" ref={ref} autoFocus type="text" className="form-input" style={{width:360,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
           onKeyDown={e => {
+            if (e.key === 'Escape') {
+              e.preventDefault(); e.stopPropagation();
+              if (onCancel) onCancel();
+              return;
+            }
             if (e.key === 'Enter') {
               const val = e.currentTarget.value.trim();
               if (stockCategories.some(c => c.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || c.id !== activeAlterItem.id))) {
@@ -6115,7 +6338,7 @@ function StockCategoryCreationForm({activeAlterItem,stockCategories,onSave,onDel
   );
 }
 
-function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,units,stockItems,onSave,onAltC,onDelete,activeCompany,setActiveCompany,setCompanies}:{activeAlterItem?:any;stockGroups:StockGroup[];stockCategories:StockCategory[];units:UnitData[];stockItems:StockItem[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;activeCompany:Company|null;setActiveCompany:React.Dispatch<React.SetStateAction<Company|null>>;setCompanies:React.Dispatch<React.SetStateAction<Company[]>>;}) {
+function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,units,stockItems,onSave,onAltC,onDelete,activeCompany,setActiveCompany,setCompanies,onCancel}:{activeAlterItem?:any;stockGroups:StockGroup[];stockCategories:StockCategory[];units:UnitData[];stockItems:StockItem[];onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;activeCompany:Company|null;setActiveCompany:React.Dispatch<React.SetStateAction<Company|null>>;setCompanies:React.Dispatch<React.SetStateAction<Company[]>>;onCancel?:()=>void;}) {
   const ref=useRef<HTMLInputElement>(null);
   const [focus,setFocus]=useState<string|null>(null);
   const [filter,setFilter]=useState('');
@@ -6133,6 +6356,23 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   const [oRate, setORate] = useState<number>(activeAlterItem?.openingRate ?? 0);
   const listRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (focus !== null) {
+          setFocus(null);
+        } else if (onCancel) {
+          onCancel();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [focus, onCancel]);
 
   const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value?.trim() || '';
   const fsv = (id: string) => (document.getElementById(id) as HTMLSelectElement)?.value || '';
@@ -6277,6 +6517,16 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   };
 
   const handleGlobalKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (focus !== null) {
+        setFocus(null);
+      } else if (onCancel) {
+        onCancel();
+      }
+      return;
+    }
     if (e.key === 'Enter') {
       const target = e.target as HTMLElement;
       if (target.id === 'btn-save-item') return;
@@ -6288,6 +6538,12 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   };
 
   const handleKey=(field:string)=>(e:React.KeyboardEvent<HTMLInputElement>)=>{
+    if(e.key === 'Escape'){
+      e.preventDefault(); e.stopPropagation();
+      if(focus !== null) setFocus(null);
+      else if(onCancel) onCancel();
+      return;
+    }
     if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[field]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[field]) as HTMLInputElement;if(inp)inp.value=n;}});return;}
     if(e.key==='ArrowDown'){e.preventDefault();setSel(p=>(p+1)%Math.max(1,list.length));}
     else if(e.key==='ArrowUp'){e.preventDefault();setSel(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
@@ -6299,6 +6555,12 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   };
 
   const handleNameKeyDown=(e:React.KeyboardEvent<HTMLInputElement>)=>{
+    if(e.key === 'Escape'){
+      e.preventDefault(); e.stopPropagation();
+      if(focus !== null) setFocus(null);
+      else if(onCancel) onCancel();
+      return;
+    }
     if(e.key === 'ArrowDown'){e.preventDefault();e.stopPropagation();setNameSel(p=>Math.min(p+1,filteredStockItems.length-1));}
     else if(e.key === 'ArrowUp'){e.preventDefault();e.stopPropagation();setNameSel(p=>Math.max(p-1,0));}
     else if(e.key === 'Enter'){
@@ -6622,9 +6884,23 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   );
 }
 
-function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterItem?:any;units:UnitData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
+function UnitCreationForm({activeAlterItem,units,onSave,onDelete,onCancel}:{activeAlterItem?:any;units:UnitData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void;onCancel?:()=>void;}) {
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onCancel) onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [onCancel]);
+
   return (
     <div className="form-content" style={{display:'flex',flexDirection:'column',height:'100%',padding:0}}>
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
@@ -6639,6 +6915,11 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
               <label style={{width:200}}>{label}</label><span className="colon">:</span>
               <input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:i===0?'bold':'normal'}} defaultValue={val as string || ''} placeholder={ph as string}
                 onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault(); e.stopPropagation();
+                    if (onCancel) onCancel();
+                    return;
+                  }
                   if (e.key === 'Enter' && id === 'unit-sym') {
                     const val = e.currentTarget.value.trim();
                     if (units.some(u => u.symbol.toLowerCase() === val.toLowerCase() && (!activeAlterItem || u.id !== activeAlterItem.id))) {
@@ -6696,9 +6977,23 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete}:{activeAlterIt
   );
 }
 
-function GodownCreationForm({activeAlterItem,godowns,onSave,onDelete}:{activeAlterItem?:any;godowns:GodownData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
+function GodownCreationForm({activeAlterItem,godowns,onSave,onDelete,onCancel}:{activeAlterItem?:any;godowns:GodownData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void;onCancel?:()=>void;}) {
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onCancel) onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [onCancel]);
+
   return (
     <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
       <div style={{flex:1,padding:20}}>
@@ -6706,6 +7001,11 @@ function GodownCreationForm({activeAlterItem,godowns,onSave,onDelete}:{activeAlt
         {[['Name','gd-name',360,true],['(alias)','gd-alias',360,false]].map(([label,id,w,bold],i)=>(
           <div key={i} className="form-row"><label style={{width:120}}>{label}</label><span className="colon">:</span><input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input" style={{width:w as number,fontWeight:bold?'bold':'normal'}} defaultValue={activeAlterItem?.name||''}
             onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault(); e.stopPropagation();
+                if (onCancel) onCancel();
+                return;
+              }
               if (e.key === 'Enter' && id === 'gd-name') {
                 const val = e.currentTarget.value.trim();
                 if (godowns.some(g => g.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || g.id !== activeAlterItem.id))) {
@@ -6756,12 +7056,29 @@ function GodownCreationForm({activeAlterItem,godowns,onSave,onDelete}:{activeAlt
   );
 }
 
-function CurrencyCreationForm({activeAlterItem,currencies,onSave,onDelete}:{activeAlterItem?:any;currencies:CurrencyData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
+function CurrencyCreationForm({activeAlterItem,currencies,onSave,onDelete,onCancel}:{activeAlterItem?:any;currencies:CurrencyData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void;onCancel?:()=>void;}) {
   const ref=useRef<HTMLInputElement>(null);
   const [listSelIdx, setListSelIdx] = useState(0);
   const [showList, setShowList] = useState(false);
   const [filterText, setFilterText] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (showList) {
+          setShowList(false);
+        } else if (onCancel) {
+          onCancel();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [showList, onCancel]);
 
   // Build full currency list from COUNTRY_CURRENCY
   const allCurrencyList = useMemo(() => {
@@ -6842,6 +7159,12 @@ function CurrencyCreationForm({activeAlterItem,currencies,onSave,onDelete}:{acti
             onFocus={()=>setShowList(true)}
             onChange={(e)=>{setFilterText(e.target.value); setShowList(true);}}
             onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault(); e.stopPropagation();
+                if (showList) setShowList(false);
+                else if (onCancel) onCancel();
+                return;
+              }
               if (e.key === 'Enter') {
                 const val = e.currentTarget.value.trim();
                 if (currencies.some(c => c.symbol.toLowerCase() === val.toLowerCase() && (!activeAlterItem || c.id !== activeAlterItem.id))) {
@@ -6926,15 +7249,34 @@ function CurrencyCreationForm({activeAlterItem,currencies,onSave,onDelete}:{acti
   );
 }
 
-function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave,onDelete}:{activeAlterItem?:any;voucherTypes:VoucherTypeData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void}) {
+function VoucherTypeCreationForm({activeAlterItem,voucherTypes,onSave,onDelete,onCancel}:{activeAlterItem?:any;voucherTypes:VoucherTypeData[];onSave:(d:any)=>void;onDelete?:(type:string,id:number)=>void;onCancel?:()=>void;}) {
   const ref=useRef<HTMLInputElement>(null);
   useEffect(()=>{ref.current?.focus();},[]);
+
+  // Step-by-step Escape key support
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onCancel) onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [onCancel]);
+
   return (
     <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
       <div style={{flex:1,padding:20,overflowY:'auto'}}>
         <div className="form-section-title" style={{marginTop:0,color:'#1c5282'}}>Voucher Type {activeAlterItem?'Alteration':'Creation'}</div>
         <div className="form-row"><label style={{width:200}}>Name</label><span className="colon">:</span><input id="vt-name" ref={ref} autoFocus type="text" className="form-input" style={{width:260,fontWeight:'bold'}} defaultValue={activeAlterItem?.name||''}
           onKeyDown={e => {
+            if (e.key === 'Escape') {
+              e.preventDefault(); e.stopPropagation();
+              if (onCancel) onCancel();
+              return;
+            }
             if (e.key === 'Enter') {
               const val = e.currentTarget.value.trim();
               if (voucherTypes.some(v => v.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || v.id !== activeAlterItem.id))) {
@@ -15690,6 +16032,19 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
   const titles:Record<string,string>={ledger:'Ledger',group:'Group',stockItem:'Stock Item',stockGroup:'Stock Group',unit:'Unit',currency:'Currency',voucherType:'Voucher Type',godown:'Godown',stockCategory:'Stock Category'};
   const isLarge = ['ledger','stockItem','company'].includes(ctx.fieldType);
 
+  // Close AltCModal on Escape key if focus is anywhere in the modal
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
   return (
     <div className="modal-overlay" style={{zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={onClose}>
       <div className="modal-box" style={{
@@ -15716,6 +16071,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               ledgers={ledgers} 
               groups={groups} 
               onAltC={() => {}} 
+              onCancel={onClose}
             />
           )}
           {ctx.fieldType==='stockItem' && (
@@ -15731,6 +16087,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               activeCompany={activeCompany}
               setActiveCompany={setActiveCompany}
               setCompanies={setCompanies}
+              onCancel={onClose}
             />
           )}
           {ctx.fieldType==='group' && (
@@ -15741,6 +16098,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               ledgers={ledgers} 
               groups={groups} 
               onAltC={() => {}} 
+              onCancel={onClose}
             />
           )}
           {ctx.fieldType==='stockGroup' && (
@@ -15750,6 +16108,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               onSave={async d => { const ok = await onSaveMaster('stockGroup', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
               onDelete={onDeleteMaster} 
               onAltC={() => {}} 
+              onCancel={onClose}
             />
           )}
           {ctx.fieldType==='unit' && (
@@ -15758,6 +16117,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               units={units} 
               onSave={async d => { const ok = await onSaveMaster('unit', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
               onDelete={onDeleteMaster} 
+              onCancel={onClose}
             />
           )}
           {ctx.fieldType==='godown' && (
@@ -15766,6 +16126,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               godowns={godowns} 
               onSave={async d => { const ok = await onSaveMaster('godown', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
               onDelete={onDeleteMaster} 
+              onCancel={onClose}
             />
           )}
           {ctx.fieldType==='voucherType' && (
@@ -15774,6 +16135,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               voucherTypes={voucherTypes} 
               onSave={async d => { const ok = await onSaveMaster('voucherType', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
               onDelete={onDeleteMaster} 
+              onCancel={onClose}
             />
           )}
           {ctx.fieldType==='currency' && (
@@ -15782,6 +16144,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               currencies={currencies} 
               onSave={async d => { const ok = await onSaveMaster('currency', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
               onDelete={onDeleteMaster} 
+              onCancel={onClose}
             />
           )}
           {ctx.fieldType==='stockCategory' && (
@@ -15790,6 +16153,7 @@ function AltCModal({ctx,ledgers,stockGroups,units,voucherTypes,groups,stockItems
               stockCategories={stockCategories} 
               onSave={async d => { const ok = await onSaveMaster('stockCategory', d, ctx.activeAlterItem); if(ok) ctx.onCreated(ok); onClose(); }} 
               onDelete={onDeleteMaster} 
+              onCancel={onClose}
             />
           )}
         </div>

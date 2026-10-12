@@ -119,7 +119,7 @@ namespace LedgerXLauncher
                 {
                     ProcessStartInfo psi = new ProcessStartInfo();
                     psi.FileName = browserPath;
-                    psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized", launchUrl, profileDir);
+                    psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --allow-running-insecure-content --unsafely-treat-insecure-origin-as-secure=http://127.0.0.1:45454", launchUrl, profileDir);
                     psi.WindowStyle = ProcessWindowStyle.Maximized;
                     psi.UseShellExecute = true;
                     Process.Start(psi);
@@ -205,6 +205,7 @@ namespace LedgerXLauncher
                 res.Headers.Add("Access-Control-Allow-Origin", "*");
                 res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
                 res.Headers.Add("Access-Control-Allow-Headers", "*");
+                res.Headers.Add("Access-Control-Allow-Private-Network", "true");
 
                 if (req.HttpMethod == "OPTIONS")
                 {

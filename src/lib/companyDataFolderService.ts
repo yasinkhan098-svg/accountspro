@@ -91,21 +91,52 @@ class CompanyDataFolderService {
       } catch (e) {}
     }
 
-    // 2. C# Launcher HTTP bridge
-    if (await this.checkBridge()) {
+    // 2. C# Launcher HTTP bridge (test both 127.0.0.1 and localhost)
+    const bridgeUrls = [LOCAL_BRIDGE_URL, 'http://localhost:45454'];
+    for (const bUrl of bridgeUrls) {
       try {
-        const res = await fetch(`${LOCAL_BRIDGE_URL}/api/open-folder`);
-        return res.ok;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1200);
+        const res = await fetch(`${bUrl}/api/open-folder`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) return true;
       } catch (e) {}
     }
 
-    // 3. Local Next.js API
+    // 3. Local Next.js API (if running local Next server)
     try {
-      const res = await fetch('/api/local-data/open-folder');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const res = await fetch('/api/local-data/open-folder', { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) return true;
     } catch (e) {}
 
-    return false;
+    // 4. Browser File System Access API (Allow user to pick / open folder in Explorer dialog)
+    try {
+      if ('showDirectoryPicker' in window) {
+        await (window as any).showDirectoryPicker();
+        return true;
+      }
+    } catch (e) {
+      // User cancelled picker or denied permission
+    }
+
+    // 5. Fallback: Copy path to clipboard and show informative alert
+    const fallbackPath = '%LocalAppData%\\LedgerX\\data\\';
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(fallbackPath);
+      }
+    } catch (e) {}
+
+    alert(
+      `📂 Local Company Data Folder:\n\n${fallbackPath}\n\n(Folder path copied to clipboard!)\n\nTo open in Windows:\n1. Press Win + R on keyboard\n2. Press Ctrl + V (Paste) and press Enter.`
+    );
+    return true;
   }
 
   /**
