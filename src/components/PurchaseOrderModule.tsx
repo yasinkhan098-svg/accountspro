@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { companyDataFolderService } from "@/lib/companyDataFolderService";
 
 export interface POItem {
   id?: number;
@@ -2581,32 +2582,47 @@ export function PurchaseOrderRegister({
   const [statusFilter, setStatusFilter] = useState("All");
   const [deleting, setDeleting] = useState<number | null>(null);
 
-  const isDesktop = typeof window !== 'undefined' &&
-    ((window as any).desktopBridge?.isDesktopApp ||
-      /electron/i.test(navigator.userAgent) ||
-      localStorage.getItem('ledgerx_is_desktop') === '1');
-
+  // ---- Offline helpers (PurchaseOrderRegister) ----
   const getLocalPOs = async (): Promise<any[]> => {
-    if (!isDesktop || !company?.id) return [];
+    if (!company?.id) return [];
     try {
-      const companyCode = (company as any).companyCode || String(company.id).toUpperCase();
-      const folder = await (window as any).desktopBridge?.loadCompanyFolder?.(companyCode);
-      return folder?.purchaseOrders || [];
+      // Use companyDataFolderService for consistent code calculation
+      const code = companyDataFolderService.getCompanyFolderCode(company);
+      const folder = await companyDataFolderService.loadCompanyFolder(code);
+      return (folder as any)?.purchaseOrders || [];
     } catch { return []; }
   };
 
   const saveLocalPOs = async (pos: any[]) => {
-    if (!isDesktop || !company?.id) return;
+    if (!company?.id) return;
     try {
-      const companyCode = (company as any).companyCode || String(company.id).toUpperCase();
-      await (window as any).desktopBridge?.saveCompanyFolder?.({ companyCode, purchaseOrders: pos });
+      const code = companyDataFolderService.getCompanyFolderCode(company);
+      // Load existing folder data first to preserve other fields
+      const existing = await companyDataFolderService.loadCompanyFolder(code);
+      await companyDataFolderService.saveCompanyFolder({
+        companyCode: code,
+        company: existing?.company || { ...company, companyCode: code },
+        ledgers: existing?.ledgers || [],
+        vouchers: existing?.vouchers || [],
+        stockItems: existing?.stockItems || [],
+        stockGroups: existing?.stockGroups || [],
+        units: existing?.units || [],
+        groups: existing?.groups || [],
+        voucherTypes: existing?.voucherTypes || [],
+        purchaseOrders: pos,
+      });
     } catch (e) { console.error('Failed to save POs locally:', e); }
   };
+  // ---- End Offline helpers ----
 
   const fetchPOs = useCallback(async () => {
     if (!company?.id) return;
     setLoading(true);
     try {
+      const isDesktop = typeof window !== 'undefined' &&
+        ((window as any).desktopBridge?.isDesktopApp ||
+          /electron/i.test(navigator.userAgent) ||
+          localStorage.getItem('ledgerx_is_desktop') === '1');
       if (!navigator.onLine || isDesktop) {
         const localPOs = await getLocalPOs();
         setPOs(localPOs);
@@ -2618,7 +2634,7 @@ export function PurchaseOrderRegister({
     } finally {
       setLoading(false);
     }
-  }, [company?.id, isDesktop]);
+  }, [company?.id]);
 
   useEffect(() => {
     fetchPOs();
@@ -2627,6 +2643,10 @@ export function PurchaseOrderRegister({
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this Purchase Order?')) return;
     setDeleting(id);
+    const isDesktop = typeof window !== 'undefined' &&
+      ((window as any).desktopBridge?.isDesktopApp ||
+        /electron/i.test(navigator.userAgent) ||
+        localStorage.getItem('ledgerx_is_desktop') === '1');
     try {
       if (!navigator.onLine || isDesktop) {
         const localPOs = await getLocalPOs();
@@ -3459,34 +3479,44 @@ export function PurchaseOrderModule({
   const [printPO, setPrintPO] = useState<PurchaseOrderData | null>(null);
   const [existingPOs, setExistingPOs] = useState<PurchaseOrderData[]>([]);
 
-  const isDesktop = typeof window !== 'undefined' &&
-    ((window as any).desktopBridge?.isDesktopApp ||
-      /electron/i.test(navigator.userAgent) ||
-      localStorage.getItem('ledgerx_is_desktop') === '1');
-
-  // ---- Offline helpers ----
+  // ---- Offline helpers (PurchaseOrderModule/Manager) ----
   const getLocalPOs = async (): Promise<any[]> => {
-    if (!isDesktop || !company?.id) return [];
+    if (!company?.id) return [];
     try {
-      const companyCode = (company as any).companyCode || String(company.id).toUpperCase();
-      const folder = await (window as any).desktopBridge?.loadCompanyFolder?.(companyCode);
-      return folder?.purchaseOrders || [];
+      const code = companyDataFolderService.getCompanyFolderCode(company);
+      const folder = await companyDataFolderService.loadCompanyFolder(code);
+      return (folder as any)?.purchaseOrders || [];
     } catch { return []; }
   };
 
   const saveLocalPOs = async (pos: any[]) => {
-    if (!isDesktop || !company?.id) return;
+    if (!company?.id) return;
     try {
-      const companyCode = (company as any).companyCode || String(company.id).toUpperCase();
-      await (window as any).desktopBridge?.saveCompanyFolder?.({ companyCode, purchaseOrders: pos });
+      const code = companyDataFolderService.getCompanyFolderCode(company);
+      const existing = await companyDataFolderService.loadCompanyFolder(code);
+      await companyDataFolderService.saveCompanyFolder({
+        companyCode: code,
+        company: existing?.company || { ...company, companyCode: code },
+        ledgers: existing?.ledgers || [],
+        vouchers: existing?.vouchers || [],
+        stockItems: existing?.stockItems || [],
+        stockGroups: existing?.stockGroups || [],
+        units: existing?.units || [],
+        groups: existing?.groups || [],
+        voucherTypes: existing?.voucherTypes || [],
+        purchaseOrders: pos,
+      });
     } catch (e) { console.error('Failed to save POs locally:', e); }
   };
   // ---- End Offline helpers ----
 
   const fetchPOs = useCallback(async () => {
     if (!company?.id) return;
+    const isDesktop = typeof window !== 'undefined' &&
+      ((window as any).desktopBridge?.isDesktopApp ||
+        /electron/i.test(navigator.userAgent) ||
+        localStorage.getItem('ledgerx_is_desktop') === '1');
     if (!navigator.onLine || isDesktop) {
-      // Offline or Desktop mode: load from local file
       const localPOs = await getLocalPOs();
       setExistingPOs(localPOs);
       return;
@@ -3494,7 +3524,7 @@ export function PurchaseOrderModule({
     const res = await fetch(`/api/purchase-orders?companyId=${company.id}`);
     const data = await res.json();
     if (data.success) setExistingPOs(data.purchaseOrders || []);
-  }, [company?.id, isDesktop]);
+  }, [company?.id]);
 
   useEffect(() => {
     fetchPOs();
@@ -3502,6 +3532,10 @@ export function PurchaseOrderModule({
 
   const handleSavePO = async (poData: PurchaseOrderData) => {
     const now = new Date().toISOString();
+    const isDesktop = typeof window !== 'undefined' &&
+      ((window as any).desktopBridge?.isDesktopApp ||
+        /electron/i.test(navigator.userAgent) ||
+        localStorage.getItem('ledgerx_is_desktop') === '1');
     if (!navigator.onLine || isDesktop) {
       // OFFLINE: Save directly to local file
       const localPOs = await getLocalPOs();

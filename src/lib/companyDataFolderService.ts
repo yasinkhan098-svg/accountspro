@@ -24,6 +24,7 @@ export interface CompanyFolderData {
   units?: any[];
   groups?: any[];
   voucherTypes?: any[];
+  purchaseOrders?: any[];  // Purchase Orders offline storage
 }
 
 const LOCAL_BRIDGE_URL = 'http://127.0.0.1:45454';
@@ -36,14 +37,24 @@ class CompanyDataFolderService {
    * Generates a 5-digit Tally-style folder number: e.g. "10001", "10002", "10003"
    */
   public getCompanyFolderCode(company: any, allCompanies: any[] = []): string {
-    if (company?.companyCode && typeof company.companyCode === 'string') {
+    // 1. Use stored companyCode if valid
+    if (company?.companyCode && typeof company.companyCode === 'string' && company.companyCode.trim()) {
       return company.companyCode.trim().toUpperCase();
     }
-    // Check if company has an existing code in alias or custom fields
+    // 2. Alias-based code
     if (company?.alias && (company.alias.startsWith('10') || company.alias.startsWith('LX'))) {
       return company.alias.trim().toUpperCase();
     }
-    // Derive sequential code based on company ID or index: 10001, 10002...
+    // 3. Derive from numeric ID — pad to 5 digits starting at 10001
+    if (company?.id) {
+      const numId = Number(company.id);
+      if (!isNaN(numId) && numId > 0) {
+        // Use actual ID-based code so same company always gets same folder
+        const code = numId < 10000 ? String(10000 + numId) : String(numId);
+        return code;
+      }
+    }
+    // 4. Fallback: sequential index
     const idx = allCompanies.findIndex(c => c.id === company?.id);
     const seqNum = idx >= 0 ? 10001 + idx : 10001 + Math.max(0, allCompanies.length);
     return String(seqNum);
@@ -125,8 +136,9 @@ class CompanyDataFolderService {
       // User cancelled picker or denied permission
     }
 
-    // 5. Fallback: Copy path to clipboard and show informative alert
-    const fallbackPath = '%LocalAppData%\\LedgerX\\data\\';
+    // 5. Fallback: Show path with Windows %LocalAppData% shorthand + copy to clipboard
+    // Electron userData path: C:\Users\<user>\AppData\Local\LedgerX\AccountsProData\data\
+    const fallbackPath = '%LOCALAPPDATA%\\LedgerX\\AccountsProData\\data\\';
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(fallbackPath);
@@ -134,7 +146,7 @@ class CompanyDataFolderService {
     } catch (e) {}
 
     alert(
-      `📂 Local Company Data Folder:\n\n${fallbackPath}\n\n(Folder path copied to clipboard!)\n\nTo open in Windows:\n1. Press Win + R on keyboard\n2. Press Ctrl + V (Paste) and press Enter.`
+      `📂 Local Company Data Folder:\n\n${fallbackPath}\n\n(Path copied to clipboard!)\n\nWindows mein kholne ke liye:\n1. Win + R press karein\n2. Ctrl+V paste karein aur Enter dabayein\n\nYa Windows Explorer mein:\n%LOCALAPPDATA%\\LedgerX\\AccountsProData\\data\\`
     );
     return true;
   }

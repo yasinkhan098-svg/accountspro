@@ -1757,11 +1757,39 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  // Fetch Companies from Backend with Auth Guard
+  // Fetch Companies from Backend with Auth Guard + scan local folders offline
   useEffect(() => {
     if (isAuthenticated) {
       const fetchCompanies = async () => {
-        if (!navigator.onLine) return; // In offline mode, use cached local companies
+        // Offline: use cached local companies from scanned folders
+        if (!navigator.onLine) {
+          try {
+            const localFolders = await companyDataFolderService.scanCompanyFolders();
+            if (localFolders && localFolders.length > 0) {
+              const localCos = localFolders.map(item => ({
+                ...item.company,
+                id: item.company.id || Date.now(),
+                companyCode: item.companyCode,
+              }));
+              if (localCos.length > 0) {
+                setCompanies(prev => {
+                  // Merge: add local-only companies not in prev
+                  const merged = [...prev];
+                  for (const lc of localCos) {
+                    const exists = merged.some(c =>
+                      String(c.companyCode || '').toUpperCase() === String(lc.companyCode || '').toUpperCase() ||
+                      c.name?.toLowerCase().trim() === lc.name?.toLowerCase().trim()
+                    );
+                    if (!exists) merged.push(lc);
+                  }
+                  return merged;
+                });
+              }
+            }
+          } catch(e) { console.warn('Local company scan failed:', e); }
+          return;
+        }
+        // Online: fetch from server
         try {
           const res = await fetch('/api/companies', {
             headers: {
@@ -9420,31 +9448,40 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               /electron/i.test(navigator.userAgent) ||
               localStorage.getItem('ledgerx_is_desktop') === '1');
           if (!navigator.onLine || isDesktopEnv2) {
-            // Offline: update received qty in local purchase_orders.json
-            const companyCode2 = (activeCompany as any).companyCode || String(activeCompany.id).toUpperCase();
-            const folder2 = await (window as any).desktopBridge?.loadCompanyFolder?.(companyCode2);
-            if (folder2?.purchaseOrders) {
-              const localPOs2: any[] = folder2.purchaseOrders;
-              const poIdx = localPOs2.findIndex((p: any) => p.poNumber?.trim() === poRefNo.trim());
-              if (poIdx >= 0) {
-                const po2 = localPOs2[poIdx];
-                const receivedItems2 = rows.filter((r: any) => r.itemName).map((r: any) => ({ description: r.itemName, qty: r.qty }));
-                if (po2.items) {
-                  for (const recv of receivedItems2) {
-                    const poItem = po2.items.find((i: any) => i.description?.toLowerCase().trim() === recv.description?.toLowerCase().trim());
-                    if (poItem) {
-                      const newRcvd = Math.min((poItem.receivedQty || 0) + (recv.qty || 0), poItem.qty);
-                      poItem.receivedQty = newRcvd;
-                      poItem.balanceQty = Math.max(poItem.qty - newRcvd, 0);
-                    }
+            // Offline: update received qty via companyDataFolderService
+            const code2 = companyDataFolderService.getCompanyFolderCode(activeCompany);
+            const folder2 = await companyDataFolderService.loadCompanyFolder(code2);
+            const localPOs2: any[] = (folder2 as any)?.purchaseOrders || [];
+            const poIdx = localPOs2.findIndex((p: any) => p.poNumber?.trim() === poRefNo.trim());
+            if (poIdx >= 0) {
+              const po2 = localPOs2[poIdx];
+              const receivedItems2 = rows.filter((r: any) => r.itemName).map((r: any) => ({ description: r.itemName, qty: r.qty }));
+              if (po2.items) {
+                for (const recv of receivedItems2) {
+                  const poItem = po2.items.find((i: any) => i.description?.toLowerCase().trim() === recv.description?.toLowerCase().trim());
+                  if (poItem) {
+                    const newRcvd = Math.min((poItem.receivedQty || 0) + (recv.qty || 0), poItem.qty);
+                    poItem.receivedQty = newRcvd;
+                    poItem.balanceQty = Math.max(poItem.qty - newRcvd, 0);
                   }
-                  const allClosed = po2.items.every((i: any) => i.balanceQty <= 0);
-                  const anyReceived = po2.items.some((i: any) => i.receivedQty > 0);
-                  po2.status = allClosed ? 'Closed' : anyReceived ? 'PartiallyReceived' : 'Open';
                 }
-                localPOs2[poIdx] = po2;
-                await (window as any).desktopBridge?.saveCompanyFolder?.({ companyCode: companyCode2, purchaseOrders: localPOs2 });
+                const allClosed = po2.items.every((i: any) => i.balanceQty <= 0);
+                const anyReceived = po2.items.some((i: any) => i.receivedQty > 0);
+                po2.status = allClosed ? 'Closed' : anyReceived ? 'PartiallyReceived' : 'Open';
               }
+              localPOs2[poIdx] = po2;
+              await companyDataFolderService.saveCompanyFolder({
+                companyCode: code2,
+                company: folder2?.company || { ...activeCompany, companyCode: code2 },
+                ledgers: folder2?.ledgers || [],
+                vouchers: folder2?.vouchers || [],
+                stockItems: folder2?.stockItems || [],
+                stockGroups: folder2?.stockGroups || [],
+                units: folder2?.units || [],
+                groups: folder2?.groups || [],
+                voucherTypes: folder2?.voucherTypes || [],
+                purchaseOrders: localPOs2,
+              });
             }
           } else {
             const poRes = await fetch(`/api/purchase-orders?companyId=${activeCompany.id}&poNumber=${encodeURIComponent(poRefNo.trim())}`);
@@ -9923,11 +9960,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                             localStorage.getItem('ledgerx_is_desktop') === '1');
                         let po: any = null;
                         if (!navigator.onLine || isDesktopEnv) {
-                          // Offline: lookup PO from local file
+                          // Offline: lookup PO from local file via companyDataFolderService
                           try {
-                            const companyCode = (activeCompany as any).companyCode || String(activeCompany.id).toUpperCase();
-                            const folder = await (window as any).desktopBridge?.loadCompanyFolder?.(companyCode);
-                            const localPOs: any[] = folder?.purchaseOrders || [];
+                            const code = companyDataFolderService.getCompanyFolderCode(activeCompany);
+                            const folder = await companyDataFolderService.loadCompanyFolder(code);
+                            const localPOs: any[] = (folder as any)?.purchaseOrders || [];
                             po = localPOs.find((p: any) => p.poNumber?.trim() === poNo) || null;
                           } catch(e) { po = null; }
                         } else {
