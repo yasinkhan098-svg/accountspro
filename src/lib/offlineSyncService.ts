@@ -10,7 +10,7 @@ const OFFLINE_BACKUP_KEY = 'ledgerx_offline_data_backup';
 
 export interface SyncQueueItem {
   id: string; // unique local ID e.g. "sq_1712345678"
-  type: 'VOUCHER' | 'LEDGER' | 'STOCK_ITEM' | 'UNIT' | 'STOCK_GROUP' | 'COMPANY';
+  type: 'VOUCHER' | 'LEDGER' | 'STOCK_ITEM' | 'UNIT' | 'STOCK_GROUP' | 'COMPANY' | 'PURCHASE_ORDER';
   action: 'CREATE' | 'UPDATE' | 'DELETE';
   data: any;
   companyId: number;
@@ -454,6 +454,8 @@ class OfflineSyncService {
       const pushedStockItems = queue.filter(q => q.type === 'STOCK_ITEM' && q.action !== 'DELETE').map(q => q.data);
       const pushedUnits = queue.filter(q => q.type === 'UNIT' && q.action !== 'DELETE').map(q => q.data);
       const pushedStockGroups = queue.filter(q => q.type === 'STOCK_GROUP' && q.action !== 'DELETE').map(q => q.data);
+      const pushedPurchaseOrders = queue.filter(q => q.type === 'PURCHASE_ORDER' && q.action !== 'DELETE').map(q => q.data);
+      const deletedPOIds = queue.filter(q => q.type === 'PURCHASE_ORDER' && q.action === 'DELETE').map(q => q.data?.id);
 
       const lastSyncedAt = localStorage.getItem(LAST_SYNC_TIME_KEY);
 
@@ -473,6 +475,8 @@ class OfflineSyncService {
             stockItems: pushedStockItems,
             units: pushedUnits,
             stockGroups: pushedStockGroups,
+            purchaseOrders: pushedPurchaseOrders,
+            deletedPOIds,
           },
         }),
       });

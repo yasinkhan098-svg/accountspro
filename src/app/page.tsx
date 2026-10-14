@@ -8090,6 +8090,20 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   onOpenBankUpload?: () => void;
 }) {
   const [isScanningInvoice, setIsScanningInvoice] = useState(false);
+  // Real-time internet connectivity — auto-enables scan button when internet restores
+  const [isOnlineForScan, setIsOnlineForScan] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  useEffect(() => {
+    const goOnline  = () => setIsOnlineForScan(true);
+    const goOffline = () => setIsOnlineForScan(false);
+    window.addEventListener('online',  goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online',  goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
   const [bankMenuOpen, setBankMenuOpen] = useState(false);
   const pendingBankCount = useMemo(() => {
     if (!activeCompany?.id) return 0;
@@ -8101,6 +8115,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const handleInvoiceFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
+
+    // Offline guard — should not reach here normally, but safety net
+    if (!navigator.onLine) {
+      setSaveToast('⚡ No Internet — Auto Scan needs internet connection. Please reconnect and try again.');
+      setTimeout(() => setSaveToast(null), 4000);
+      if (e.target) e.target.value = '';
+      return;
+    }
+
     const files = Array.from(fileList);
 
     try {
@@ -9392,15 +9415,48 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       // If a PO number was linked, update PO received qty
       if (poRefNo.trim() && activeCompany?.id && (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note')) {
         try {
-          const poRes = await fetch(`/api/purchase-orders?companyId=${activeCompany.id}&poNumber=${encodeURIComponent(poRefNo.trim())}`);
-          const poData = await poRes.json();
-          if (poData.success && poData.po) {
-            const receivedItems = rows.filter(r => r.itemName).map(r => ({ description: r.itemName, qty: r.qty }));
-            await fetch('/api/purchase-orders', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ poId: poData.po.id, receivedItems })
-            });
+          const isDesktopEnv2 = typeof window !== 'undefined' &&
+            ((window as any).desktopBridge?.isDesktopApp ||
+              /electron/i.test(navigator.userAgent) ||
+              localStorage.getItem('ledgerx_is_desktop') === '1');
+          if (!navigator.onLine || isDesktopEnv2) {
+            // Offline: update received qty in local purchase_orders.json
+            const companyCode2 = (activeCompany as any).companyCode || String(activeCompany.id).toUpperCase();
+            const folder2 = await (window as any).desktopBridge?.loadCompanyFolder?.(companyCode2);
+            if (folder2?.purchaseOrders) {
+              const localPOs2: any[] = folder2.purchaseOrders;
+              const poIdx = localPOs2.findIndex((p: any) => p.poNumber?.trim() === poRefNo.trim());
+              if (poIdx >= 0) {
+                const po2 = localPOs2[poIdx];
+                const receivedItems2 = rows.filter((r: any) => r.itemName).map((r: any) => ({ description: r.itemName, qty: r.qty }));
+                if (po2.items) {
+                  for (const recv of receivedItems2) {
+                    const poItem = po2.items.find((i: any) => i.description?.toLowerCase().trim() === recv.description?.toLowerCase().trim());
+                    if (poItem) {
+                      const newRcvd = Math.min((poItem.receivedQty || 0) + (recv.qty || 0), poItem.qty);
+                      poItem.receivedQty = newRcvd;
+                      poItem.balanceQty = Math.max(poItem.qty - newRcvd, 0);
+                    }
+                  }
+                  const allClosed = po2.items.every((i: any) => i.balanceQty <= 0);
+                  const anyReceived = po2.items.some((i: any) => i.receivedQty > 0);
+                  po2.status = allClosed ? 'Closed' : anyReceived ? 'PartiallyReceived' : 'Open';
+                }
+                localPOs2[poIdx] = po2;
+                await (window as any).desktopBridge?.saveCompanyFolder?.({ companyCode: companyCode2, purchaseOrders: localPOs2 });
+              }
+            }
+          } else {
+            const poRes = await fetch(`/api/purchase-orders?companyId=${activeCompany.id}&poNumber=${encodeURIComponent(poRefNo.trim())}`);
+            const poData = await poRes.json();
+            if (poData.success && poData.po) {
+              const receivedItems = rows.filter((r: any) => r.itemName).map((r: any) => ({ description: r.itemName, qty: r.qty }));
+              await fetch('/api/purchase-orders', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ poId: poData.po.id, receivedItems })
+              });
+            }
           }
         } catch(e) { console.warn('PO receive update failed:', e); }
       }
@@ -9568,27 +9624,39 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             {activeVoucher === 'Purchase' && (
               <label
                 style={{
-                  background: isScanningInvoice ? '#ff9800' : '#1e7e34',
+                  background: !isOnlineForScan
+                    ? '#9e9e9e'
+                    : isScanningInvoice ? '#ff9800' : '#1e7e34',
                   color: 'white',
                   padding: '4px 12px',
                   fontWeight: 'bold',
                   fontSize: 12,
-                  cursor: isScanningInvoice ? 'wait' : 'pointer',
+                  cursor: !isOnlineForScan ? 'not-allowed' : isScanningInvoice ? 'wait' : 'pointer',
                   borderRadius: 3,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                  opacity: !isOnlineForScan ? 0.7 : 1,
+                  position: 'relative',
                 }}
-                title="Upload single or multiple invoice image pages/PDF to auto-scan & pre-fill items"
+                title={
+                  !isOnlineForScan
+                    ? '📶 No Internet — Auto Scan needs internet. Will auto-enable when connected.'
+                    : 'Upload single or multiple invoice image pages/PDF to auto-scan & pre-fill items'
+                }
               >
-                {isScanningInvoice ? '⏳ AI Scanning Bill Pages...' : '📷 Auto Scan Bill (Multi-Page / PDF)'}
+                {!isOnlineForScan
+                  ? '📶 Offline — Auto Scan unavailable'
+                  : isScanningInvoice
+                    ? '⏳ AI Scanning Bill Pages...'
+                    : '📷 Auto Scan Bill (Multi-Page / PDF)'}
                 <input
                   id="invoice-file-input"
                   type="file"
                   accept="image/jpeg,image/png,image/jpg,image/webp,image/bmp,application/pdf,.pdf,.jpg,.jpeg,.png,.webp"
                   multiple={true}
-                  disabled={isScanningInvoice}
+                  disabled={isScanningInvoice || !isOnlineForScan}
                   style={{ display: 'none' }}
                   onChange={handleInvoiceFileUpload}
                 />
@@ -9849,10 +9917,25 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       if (!poNo || !activeCompany?.id) return;
                       setPoLinking(true);
                       try {
-                        const res = await fetch(`/api/purchase-orders?companyId=${activeCompany.id}&poNumber=${encodeURIComponent(poNo)}`);
-                        const data = await res.json();
-                        if (data.success && data.po) {
-                          const po = data.po;
+                        const isDesktopEnv = typeof window !== 'undefined' &&
+                          ((window as any).desktopBridge?.isDesktopApp ||
+                            /electron/i.test(navigator.userAgent) ||
+                            localStorage.getItem('ledgerx_is_desktop') === '1');
+                        let po: any = null;
+                        if (!navigator.onLine || isDesktopEnv) {
+                          // Offline: lookup PO from local file
+                          try {
+                            const companyCode = (activeCompany as any).companyCode || String(activeCompany.id).toUpperCase();
+                            const folder = await (window as any).desktopBridge?.loadCompanyFolder?.(companyCode);
+                            const localPOs: any[] = folder?.purchaseOrders || [];
+                            po = localPOs.find((p: any) => p.poNumber?.trim() === poNo) || null;
+                          } catch(e) { po = null; }
+                        } else {
+                          const res = await fetch(`/api/purchase-orders?companyId=${activeCompany.id}&poNumber=${encodeURIComponent(poNo)}`);
+                          const data = await res.json();
+                          if (data.success && data.po) po = data.po;
+                        }
+                        if (po) {
                           setPartyName(po.vendorName || '');
                           if (po.items && po.items.length > 0) {
                             const newRows = po.items.map((item: any) => ({

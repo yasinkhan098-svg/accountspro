@@ -2581,29 +2581,71 @@ export function PurchaseOrderRegister({
   const [statusFilter, setStatusFilter] = useState("All");
   const [deleting, setDeleting] = useState<number | null>(null);
 
+  const isDesktop = typeof window !== 'undefined' &&
+    ((window as any).desktopBridge?.isDesktopApp ||
+      /electron/i.test(navigator.userAgent) ||
+      localStorage.getItem('ledgerx_is_desktop') === '1');
+
+  const getLocalPOs = async (): Promise<any[]> => {
+    if (!isDesktop || !company?.id) return [];
+    try {
+      const companyCode = (company as any).companyCode || String(company.id).toUpperCase();
+      const folder = await (window as any).desktopBridge?.loadCompanyFolder?.(companyCode);
+      return folder?.purchaseOrders || [];
+    } catch { return []; }
+  };
+
+  const saveLocalPOs = async (pos: any[]) => {
+    if (!isDesktop || !company?.id) return;
+    try {
+      const companyCode = (company as any).companyCode || String(company.id).toUpperCase();
+      await (window as any).desktopBridge?.saveCompanyFolder?.({ companyCode, purchaseOrders: pos });
+    } catch (e) { console.error('Failed to save POs locally:', e); }
+  };
+
   const fetchPOs = useCallback(async () => {
     if (!company?.id) return;
     setLoading(true);
     try {
+      if (!navigator.onLine || isDesktop) {
+        const localPOs = await getLocalPOs();
+        setPOs(localPOs);
+        return;
+      }
       const res = await fetch(`/api/purchase-orders?companyId=${company.id}`);
       const data = await res.json();
       if (data.success) setPOs(data.purchaseOrders || []);
     } finally {
       setLoading(false);
     }
-  }, [company?.id]);
+  }, [company?.id, isDesktop]);
 
   useEffect(() => {
     fetchPOs();
   }, [fetchPOs]);
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this Purchase Order?")) return;
+    if (!confirm('Delete this Purchase Order?')) return;
     setDeleting(id);
     try {
-      await fetch("/api/purchase-orders", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+      if (!navigator.onLine || isDesktop) {
+        const localPOs = await getLocalPOs();
+        const updated = localPOs.filter((p: any) => p.id !== id);
+        await saveLocalPOs(updated);
+        setPOs((p) => p.filter((po) => po.id !== id));
+        // Queue delete for later sync
+        const { offlineSyncService } = await import('@/lib/offlineSyncService');
+        offlineSyncService.enqueue({
+          type: 'PURCHASE_ORDER',
+          action: 'DELETE',
+          data: { id },
+          companyId: company?.id ?? 0,
+        });
+        return;
+      }
+      await fetch('/api/purchase-orders', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
       setPOs((p) => p.filter((po) => po.id !== id));
@@ -3417,34 +3459,92 @@ export function PurchaseOrderModule({
   const [printPO, setPrintPO] = useState<PurchaseOrderData | null>(null);
   const [existingPOs, setExistingPOs] = useState<PurchaseOrderData[]>([]);
 
+  const isDesktop = typeof window !== 'undefined' &&
+    ((window as any).desktopBridge?.isDesktopApp ||
+      /electron/i.test(navigator.userAgent) ||
+      localStorage.getItem('ledgerx_is_desktop') === '1');
+
+  // ---- Offline helpers ----
+  const getLocalPOs = async (): Promise<any[]> => {
+    if (!isDesktop || !company?.id) return [];
+    try {
+      const companyCode = (company as any).companyCode || String(company.id).toUpperCase();
+      const folder = await (window as any).desktopBridge?.loadCompanyFolder?.(companyCode);
+      return folder?.purchaseOrders || [];
+    } catch { return []; }
+  };
+
+  const saveLocalPOs = async (pos: any[]) => {
+    if (!isDesktop || !company?.id) return;
+    try {
+      const companyCode = (company as any).companyCode || String(company.id).toUpperCase();
+      await (window as any).desktopBridge?.saveCompanyFolder?.({ companyCode, purchaseOrders: pos });
+    } catch (e) { console.error('Failed to save POs locally:', e); }
+  };
+  // ---- End Offline helpers ----
+
   const fetchPOs = useCallback(async () => {
     if (!company?.id) return;
+    if (!navigator.onLine || isDesktop) {
+      // Offline or Desktop mode: load from local file
+      const localPOs = await getLocalPOs();
+      setExistingPOs(localPOs);
+      return;
+    }
     const res = await fetch(`/api/purchase-orders?companyId=${company.id}`);
     const data = await res.json();
     if (data.success) setExistingPOs(data.purchaseOrders || []);
-  }, [company?.id]);
+  }, [company?.id, isDesktop]);
 
   useEffect(() => {
     fetchPOs();
   }, [fetchPOs]);
 
   const handleSavePO = async (poData: PurchaseOrderData) => {
-    const method = poData.id ? "PUT" : "POST";
-    const res = await fetch("/api/purchase-orders", {
+    const now = new Date().toISOString();
+    if (!navigator.onLine || isDesktop) {
+      // OFFLINE: Save directly to local file
+      const localPOs = await getLocalPOs();
+      const tempId = poData.id || Date.now();
+      if (poData.id) {
+        const idx = localPOs.findIndex((p: any) => p.id === poData.id);
+        if (idx >= 0) localPOs[idx] = { ...poData, updatedAt: now };
+        else localPOs.push({ ...poData, id: tempId, updatedAt: now });
+      } else {
+        localPOs.push({ ...poData, id: tempId, createdAt: now, updatedAt: now });
+      }
+      await saveLocalPOs(localPOs);
+      // Also queue for cloud sync when online
+      const { offlineSyncService } = await import('@/lib/offlineSyncService');
+      offlineSyncService.enqueue({
+        type: 'PURCHASE_ORDER',
+        action: poData.id ? 'UPDATE' : 'CREATE',
+        data: { ...poData, id: tempId },
+        companyId: company?.id ?? 0,
+      });
+      alert(`Purchase Order ${poData.poNumber} ${poData.id ? 'updated' : 'created'} (saved offline)!`);
+      await fetchPOs();
+      setScreen('register');
+      setEditPO(null);
+      return;
+    }
+    // ONLINE: Save to server
+    const method = poData.id ? 'PUT' : 'POST';
+    const res = await fetch('/api/purchase-orders', {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(poData)
     });
     const data = await res.json();
     if (!data.success) {
-      alert("Save failed: " + data.error);
+      alert('Save failed: ' + data.error);
       return;
     }
     alert(
-      `Purchase Order ${poData.poNumber} ${poData.id ? "updated" : "created"} successfully!`
+      `Purchase Order ${poData.poNumber} ${poData.id ? 'updated' : 'created'} successfully!`
     );
     await fetchPOs();
-    setScreen("register");
+    setScreen('register');
     setEditPO(null);
   };
 
