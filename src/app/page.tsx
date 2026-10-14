@@ -2831,9 +2831,21 @@ export default function App() {
         pendingDelete ||
         isExporting ||
         finalBSExporting ||
-        (typeof document !== 'undefined' && document.querySelector('.modal-overlay'))
+        (typeof document !== 'undefined' && (
+          document.querySelector('.modal-overlay') ||
+          document.querySelector('.party-detail-modal') ||
+          document.querySelector('.dispatch-detail-modal') ||
+          document.querySelector('.modal-box')
+        ))
       );
       if (isAnyModalActive && !showCompanySelect) {
+        // If focus is currently inside any open modal or modal form, DO NOT let background global navigation run!
+        const activeModalEl = (document.activeElement as HTMLElement)?.closest(
+          '.modal-box, .party-detail-modal, .dispatch-detail-modal, .modal-overlay, .party-detail-modal-container, .dispatch-detail-modal-container'
+        );
+        if (activeModalEl) {
+          return;
+        }
         if (!['INPUT','SELECT','TEXTAREA'].includes((document.activeElement?.tagName || ''))) {
           return;
         }
@@ -2892,20 +2904,26 @@ export default function App() {
       }
       // Tally Prime: Enter = next field, Backspace on empty = previous field
       if (['INPUT','SELECT','TEXTAREA'].includes((document.activeElement?.tagName || ''))) {
-        const activeModal = (document.activeElement as HTMLElement)?.closest('.modal-box');
-        const inputSelector = activeModal 
-          ? 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
-          : '.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled]),.altc-panel input,.altc-panel select';
+        const activeModal = (document.activeElement as HTMLElement)?.closest(
+          '.modal-box, .party-detail-modal, .dispatch-detail-modal, .modal-overlay, .party-detail-modal-container, .dispatch-detail-modal-container'
+        );
+        if (activeModal) {
+          // Modal has its own dedicated keyboard navigation; never execute background voucher navigation!
+          return;
+        }
+        const inputSelector = '.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled]),.altc-panel input,.altc-panel select';
         const inputs = Array.from(
-          (activeModal || document).querySelectorAll(inputSelector)
+          document.querySelectorAll(inputSelector)
         ) as HTMLElement[];
 
         if (e.key === 'Backspace') {
           const el = document.activeElement as HTMLInputElement;
           if (el && el.tagName !== 'TEXTAREA' && (!el.value || el.value.length === 0)) {
-            e.preventDefault();
             const idx = inputs.indexOf(el);
-            if (idx > 0) (inputs[idx-1]).focus();
+            if (idx > 0) {
+              e.preventDefault();
+              (inputs[idx-1]).focus();
+            }
           }
         }
         if (e.key === 'Enter') {
@@ -2928,8 +2946,9 @@ export default function App() {
 
           const dropdowns = ['l-under','g-under','c-state','c-country','l-state','l-country','item-under','item-units','item-cat','sg-under','sc-under','vt-parent','gd-under'];
           if (dropdowns.includes(activeId)) return;
-          e.preventDefault();
           const idx = inputs.indexOf(document.activeElement as HTMLElement);
+          if (idx < 0) return; // CRITICAL: NEVER jump to inputs[0] if activeElement is not found in inputs!
+          e.preventDefault();
           if (e.shiftKey && idx > 0) (inputs[idx-1]).focus();
           else if (!e.shiftKey && idx < inputs.length-1) (inputs[idx+1]).focus();
           else if (idx === inputs.length-1) { 
@@ -5410,9 +5429,12 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
     setTimeout(() => {
       const inp = document.getElementById(inpStr);
       if (inp) {
-        const inputs = Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
-        const idx = inputs.indexOf(inp);
-        if (idx >= 0 && idx < inputs.length - 1) (inputs[idx + 1]).focus();
+        const container = inp.closest('.modal-box') || inp.closest('.form-content') || inp.closest('.form-workspace');
+        if (container) {
+          const inputs = Array.from(container.querySelectorAll('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')) as HTMLElement[];
+          const idx = inputs.indexOf(inp);
+          if (idx >= 0 && idx < inputs.length - 1) (inputs[idx + 1]).focus();
+        }
       }
     }, 50);
   };
@@ -5428,10 +5450,14 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
     if(!focusedField || list.length===0) {
        if(e.key === 'Enter') {
            e.preventDefault();
+           e.stopPropagation();
            setFocusFld(null);
-           const inputs = Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
-           const idx = inputs.indexOf(e.currentTarget);
-           if (idx >= 0 && idx < inputs.length - 1) (inputs[idx + 1]).focus();
+           const container = e.currentTarget.closest('.modal-box') || e.currentTarget.closest('.form-content') || e.currentTarget.closest('.form-workspace');
+           if (container) {
+             const inputs = Array.from(container.querySelectorAll('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')) as HTMLElement[];
+             const idx = inputs.indexOf(e.currentTarget);
+             if (idx >= 0 && idx < inputs.length - 1) (inputs[idx + 1]).focus();
+           }
        }
        return;
     }
@@ -5720,9 +5746,12 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
     setFocus(false);
     setTimeout(() => {
       if (inp) {
-        const inputs = Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
-        const idx = inputs.indexOf(inp);
-        if (idx >= 0 && idx < inputs.length - 1) (inputs[idx + 1]).focus();
+        const container = inp.closest('.modal-box') || inp.closest('.form-content') || inp.closest('.form-workspace');
+        if (container) {
+          const inputs = Array.from(container.querySelectorAll('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')) as HTMLElement[];
+          const idx = inputs.indexOf(inp);
+          if (idx >= 0 && idx < inputs.length - 1) (inputs[idx + 1]).focus();
+        }
       }
     }, 50);
   };
@@ -5933,11 +5962,18 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
         if (odEl) { odEl.focus(); return; }
       }
       if (inp) {
-        const inputs = Array.from(document.querySelectorAll(
-          '.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])'
-        )) as HTMLElement[];
-        const idx = inputs.indexOf(inp);
-        if (idx >= 0 && idx < inputs.length - 1) (inputs[idx + 1]).focus();
+        const container = inp.closest('.modal-box') || inp.closest('.form-content') || inp.closest('.form-workspace');
+        if (container) {
+          const inputs = Array.from(container.querySelectorAll(
+            'input:not([disabled]),select:not([disabled]),textarea:not([disabled])'
+          )) as HTMLElement[];
+          const idx = inputs.indexOf(inp);
+          if (idx >= 0 && idx < inputs.length - 1) {
+            (inputs[idx + 1]).focus();
+            return;
+          }
+        }
+        moveToNext(inp.id);
       }
     }, 80);
   };
@@ -5949,12 +5985,12 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
       else if(onCancel) onCancel();
       return;
     }
-    if(field==='under'&&e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();onAltC({fieldType:'group',onCreated:n=>{const inp=document.getElementById('l-under') as HTMLInputElement;if(inp)inp.value=n;}});return;}
-    if(e.key==='ArrowDown'){e.preventDefault();setSelIdx(p=>(p+1)%Math.max(1,list.length));}
-    else if(e.key==='ArrowUp'){e.preventDefault();setSelIdx(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
+    if(field==='under'&&e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault(); e.stopPropagation(); onAltC({fieldType:'group',onCreated:n=>{const inp=document.getElementById('l-under') as HTMLInputElement;if(inp)inp.value=n;}});return;}
+    if(e.key==='ArrowDown'){e.preventDefault(); e.stopPropagation(); setSelIdx(p=>(p+1)%Math.max(1,list.length));}
+    else if(e.key==='ArrowUp'){e.preventDefault(); e.stopPropagation(); setSelIdx(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
     else if(e.key==='Enter'&&list.length>0){e.preventDefault();e.stopPropagation();pick(list[selIdx]);}
     else if(e.key==='Enter'){
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       moveToNext(e.currentTarget.id);
     }
   };
@@ -5988,6 +6024,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
       return;
     }
     if (e.key === 'Enter') {
+      e.stopPropagation();
       const target = e.target as HTMLElement;
       if (target.id === 'l-name') {
         const val = (target as HTMLInputElement).value.trim();
@@ -6220,7 +6257,16 @@ function StockGroupCreationForm({activeAlterItem,stockGroups,onSave,onAltC,onDel
 
   const list=(stockGroups.map(g=>g.name)).filter(g=>!filter||g.toLowerCase().includes(filter.toLowerCase()));
   const pick=(v:string)=>{const inp=document.getElementById('sg-under') as HTMLInputElement;if(inp){inp.value=v;}setFocus(false);
-    setTimeout(()=>{if(inp){const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];const idx=inputs.indexOf(inp);if(idx>=0&&idx<inputs.length-1)(inputs[idx+1]).focus();}},50);
+    setTimeout(()=>{
+      if(inp){
+        const container = inp.closest('.modal-box') || inp.closest('.form-content') || inp.closest('.form-workspace');
+        if (container) {
+          const inputs=Array.from(container.querySelectorAll('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')) as HTMLElement[];
+          const idx=inputs.indexOf(inp);
+          if(idx>=0&&idx<inputs.length-1)(inputs[idx+1]).focus();
+        }
+      }
+    },50);
   };
   return (
     <div className="form-content" style={{display:'flex',height:'100%',padding:0}}>
@@ -6470,9 +6516,12 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     setFocus(null);
     setTimeout(()=>{
       if(inp){
-        const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
-        const idx=inputs.indexOf(inp);
-        if(idx>=0&&idx<inputs.length-1)(inputs[idx+1]).focus();
+        const container = inp.closest('.modal-box') || inp.closest('.form-content') || inp.closest('.form-workspace');
+        if (container) {
+          const inputs=Array.from(container.querySelectorAll('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')) as HTMLElement[];
+          const idx=inputs.indexOf(inp);
+          if(idx>=0&&idx<inputs.length-1)(inputs[idx+1]).focus();
+        }
       }
     },50);
   };
@@ -6519,9 +6568,14 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     setDescLine3(it.descLine3 ?? false);
     setFocus(null);
     setTimeout(()=>{
-      const inputs=Array.from(document.querySelectorAll('.form-workspace input:not([disabled]),.form-workspace select:not([disabled]),.form-workspace textarea:not([disabled])')) as HTMLElement[];
-      const nameIdx=inputs.indexOf(nameEl);
-      if(nameIdx>=0&&nameIdx<inputs.length-1)(inputs[nameIdx+1]).focus();
+      if (nameEl) {
+        const container = nameEl.closest('.modal-box') || nameEl.closest('.form-content') || nameEl.closest('.form-workspace');
+        if (container) {
+          const inputs=Array.from(container.querySelectorAll('input:not([disabled]),select:not([disabled]),textarea:not([disabled])')) as HTMLElement[];
+          const nameIdx=inputs.indexOf(nameEl);
+          if(nameIdx>=0&&nameIdx<inputs.length-1)(inputs[nameIdx+1]).focus();
+        }
+      }
     },50);
   };
 
@@ -8651,20 +8705,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
   // Keyboard handler for modal forms (Enter=next, Backspace on empty=prev, Esc=close)
   const modalKeyDown = useCallback((e: React.KeyboardEvent, containerClass: string, onEsc: ()=>void) => {
+    e.stopPropagation();
     if(e.key === 'Escape'){
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault();
       onEsc();
       return;
     }
     if(e.ctrlKey && e.key.toLowerCase() === 'a') {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault();
       const acceptBtn = document.querySelector(`.${containerClass}-accept-btn`) as HTMLButtonElement | null;
       if (acceptBtn) acceptBtn.click();
       return;
     }
     if(e.key === 'Enter' || (e.key === 'Backspace' && !(e.target as HTMLInputElement).value)){
       if (e.key === 'Enter' && (e.target as HTMLElement).tagName.toUpperCase() === 'BUTTON') return;
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault();
       const inputs = Array.from(document.querySelectorAll(`.${containerClass} input:not([disabled]),.${containerClass} textarea:not([disabled]), .${containerClass}-accept-btn`)) as HTMLElement[];
       const idx = inputs.indexOf(e.target as HTMLElement);
       if(e.key === 'Enter'){
@@ -8732,11 +8787,21 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   };
 
   useEffect(()=>{
-     ref.current?.focus();
      // Unique key for initialization: Type + ID (or 'new' for creation)
      const currentKey = activeAlterItem ? `${activeVoucher}-${activeAlterItem.id}` : `new-${activeVoucher}`;
      if(currentKey === lastAlterId.current) return;
      lastAlterId.current = currentKey;
+
+     // Only focus party input on genuine new voucher switch/initialization, and ONLY if no modal is active
+     const isModalOpen = typeof document !== 'undefined' && Boolean(
+       document.querySelector('.modal-overlay') ||
+       document.querySelector('.party-detail-modal') ||
+       document.querySelector('.dispatch-detail-modal') ||
+       document.querySelector('.modal-box')
+     );
+     if (!isModalOpen) {
+       ref.current?.focus();
+     }
 
      if(activeAlterItem) {
        let pName = activeAlterItem.partyName;
@@ -11047,8 +11112,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
       {/* ===== PARTY DETAILS MODAL ===== */}
       {showPartyDetails && partyDetails && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <div style={{background:'#f0f4f8',border:'2px solid #1c5282',width:740,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 30px rgba(0,0,0,0.35)'}}>
+        <div className="modal-overlay" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div className="modal-box party-detail-modal-container" style={{background:'#f0f4f8',border:'2px solid #1c5282',width:740,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 30px rgba(0,0,0,0.35)'}}>
             <div style={{background:'#1c5282',color:'white',padding:'8px 18px',fontWeight:'bold',fontSize:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span>{activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Supplier Details (Bill from)' : 'Party Details'}</span>
               <span style={{fontSize:11,opacity:0.8}}>Enter: Next Field | Backspace: Prev | Esc: Skip</span>
@@ -11146,8 +11211,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
       {/* ===== DISPATCH DETAILS MODAL ===== */}
       {showDispatch && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <div style={{background:'#f0f4f8',border:'2px solid #1c5282',width:760,boxShadow:'0 8px 30px rgba(0,0,0,0.35)'}}>
+        <div className="modal-overlay" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div className="modal-box dispatch-detail-modal-container" style={{background:'#f0f4f8',border:'2px solid #1c5282',width:760,boxShadow:'0 8px 30px rgba(0,0,0,0.35)'}}>
             <div style={{background:'#1c5282',color:'white',padding:'9px 18px',fontWeight:'bold',fontSize:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span>Dispatch Details</span>
               <span style={{fontSize:11,opacity:0.8}}>Enter: Next Field | Backspace: Prev | Esc: Skip</span>
