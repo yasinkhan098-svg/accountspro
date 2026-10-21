@@ -208,6 +208,21 @@ ipcMain.handle('save-company-folder', async (event, data) => {
   }
 });
 
+ipcMain.handle('print-document', async (event, options = {}) => {
+  return new Promise((resolve) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return resolve({ success: false, error: 'No window found' });
+    win.webContents.print({
+      silent: false,
+      printBackground: true,
+      duplexMode: 'simplex',
+      ...options,
+    }, (success, failureReason) => {
+      resolve({ success, failureReason });
+    });
+  });
+});
+
 app.whenReady().then(() => {
   createWindow();
 

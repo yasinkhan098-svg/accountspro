@@ -15,4 +15,5 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   saveCompanyFolder: (data) => ipcRenderer.invoke('save-company-folder', data),
   syncStatus: (status) => ipcRenderer.send('sync-status-update', status),
   onSyncTrigger: (callback) => ipcRenderer.on('trigger-sync', () => callback()),
+  printDocument: (options) => ipcRenderer.invoke('print-document', options),
 });

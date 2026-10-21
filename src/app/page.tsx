@@ -15235,8 +15235,21 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
   const handlePrint = () => {
     setShowOptions(false);
     setNumCopies(tempCopies);
-    setTimeout(() => {
-      window.print();
+    setTimeout(async () => {
+      if (typeof window !== 'undefined' && (window as any).desktopBridge?.printDocument) {
+        try {
+          await (window as any).desktopBridge.printDocument({
+            silent: false,
+            printBackground: true,
+            duplexMode: 'simplex',
+          });
+        } catch (e) {
+          console.warn("Desktop printDocument failed, falling back to window.print():", e);
+          window.print();
+        }
+      } else {
+        window.print();
+      }
     }, 250);
   };
 
@@ -16254,6 +16267,9 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                    1 Copy: Original<br/>
                    2 Copies: Original + Duplicate<br/>
                    3 Copies: Original + Duplicate + Triplicate
+                 </div>
+                 <div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:4,padding:'8px 10px',marginTop:12,fontSize:11,color:'#1e40af',lineHeight:1.4}}>
+                   ℹ️ <b>Continuous Print Tip:</b> Agar printer 2 print ke baad ruk kar paper palatne ka message dikhaye, to printer settings me <b>&quot;Two-sided&quot; / &quot;Duplex (Manual)&quot;</b> ko <u>uncheck</u> rakhein taaki teeno copies bina pause ke continuous niklein.
                  </div>
               </div>
               <div style={{background:'#f9f9f9',padding:'12px',display:'flex',justifyContent:'flex-end',gap:10,borderTop:'1px solid #eee'}}>
