@@ -474,6 +474,20 @@ function groupLedgersByParent(ledgers: Ledger[], vouchers: Voucher[]) {
   return groups;
 }
 
+const safeParseJSON = (val: any): any => {
+  if (!val) return null;
+  if (typeof val === 'object') return val;
+  if (typeof val === 'string') {
+    try {
+      const p = JSON.parse(val);
+      return typeof p === 'string' ? safeParseJSON(p) : p;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+};
+
 const isGenericAc = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales', 'purchase a/c', 'purchase a/c.', 'purchase ac', 'purchase', 'cash', 'cash-in-hand'].includes(s.trim().toLowerCase());
 
 function getVoucherPartyDisplayName(v: Voucher | null | undefined): string {
@@ -504,7 +518,7 @@ function getVoucherPartyDisplayName(v: Voucher | null | undefined): string {
     if (otherEnt) return otherEnt.ledgerName || (otherEnt as any).ledger?.name || '';
   }
 
-  const pd = v.partyDetails;
+  const pd = safeParseJSON(v.partyDetails);
 
   // 4. If v.partyName is a real party name (not Cash and not Sales/Purchase A/c), that is the party!
   if (v.partyName && !isGenericAc(v.partyName)) return v.partyName;
@@ -1440,7 +1454,13 @@ export default function App() {
     if (localLedgers.length > 0) setAllLedgers(localLedgers);
     
     const localVouchers = getUStored('allVouchers', []);
-    if (localVouchers.length > 0) setAllVouchers(localVouchers);
+    if (localVouchers.length > 0) {
+      setAllVouchers(localVouchers.map((lv: any) => ({
+        ...lv,
+        partyDetails: safeParseJSON(lv.partyDetails),
+        dispatchDetails: safeParseJSON(lv.dispatchDetails),
+      })));
+    }
 
     const localActive = getUStored('activeCompany', null);
     if (localActive) setActiveCompany(localActive);
@@ -1576,6 +1596,8 @@ export default function App() {
 
             return {
               ...v,
+              partyDetails: safeParseJSON(v.partyDetails),
+              dispatchDetails: safeParseJSON(v.dispatchDetails),
               entries: (v.entries || []).map((e: any) => ({
                 ...e,
                 ledgerName: e.ledgerName || e.ledger?.name || '',
@@ -1662,7 +1684,12 @@ export default function App() {
         setAllStockGroups(prev => [...prev.filter(sg => Number(sg.companyId) !== Number(cid)), ...pull.stockGroups]);
       }
       if (Array.isArray(pull.vouchers) && pull.vouchers.length > 0) {
-        setAllVouchers(prev => [...prev.filter(v => Number(v.companyId) !== Number(cid)), ...pull.vouchers]);
+        const parsedVouchers = pull.vouchers.map((pv: any) => ({
+          ...pv,
+          partyDetails: safeParseJSON(pv.partyDetails),
+          dispatchDetails: safeParseJSON(pv.dispatchDetails),
+        }));
+        setAllVouchers(prev => [...prev.filter(v => Number(v.companyId) !== Number(cid)), ...parsedVouchers]);
       }
     }
   }, [activeCompany?.id]);
@@ -2492,8 +2519,8 @@ export default function App() {
                 showAmtInclTax: ie.stockItem?.showAmtInclTax ?? localItem?.showAmtInclTax ?? false,
               };
             }),
-            partyDetails: typeof vRaw.partyDetails === 'string' ? JSON.parse(vRaw.partyDetails) : (vRaw.partyDetails || v.partyDetails),
-            dispatchDetails: typeof vRaw.dispatchDetails === 'string' ? JSON.parse(vRaw.dispatchDetails) : (vRaw.dispatchDetails || v.dispatchDetails),
+            partyDetails: safeParseJSON(vRaw.partyDetails) || safeParseJSON(v.partyDetails),
+            dispatchDetails: safeParseJSON(vRaw.dispatchDetails) || safeParseJSON(v.dispatchDetails),
             partyName: finalSavedPartyName,
             date: formatDateToTally(vRaw.date || v.date) || v.date
           };
@@ -2984,11 +3011,10 @@ export default function App() {
     return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('input', onInput); };
   }, [screen, history, altCCtx, showGST, showFeatures, showCompanySelect, showDate, showPeriod, activeVoucher, showExportModal, showEmailModal, showFinalBSModal, showVirtualBSModal, showRealtimeDashboard, showBankUploadModal, showUpgradeModal, showDesktopDownloadModal, pwdPrompt, pendingDelete, isExporting, finalBSExporting, allUnits, activeCompany, alterItem, allLedgers, allStockItems, companies, allGroups, allStockGroups, allStockCategories, allGodowns, allVoucherTypes, allCurrencies, ledgers, stockItems, godowns, voucherTypes, currencies, isAuthenticated]);
 
-  // Dedicated Keyboard Navigation for "Final Balance Sheet & P&L (CA Excel Format)" Modal
+  // Dedicated Auto-Focus on "Final Balance Sheet & P&L" Modal Open (runs only once when modal opens)
   useEffect(() => {
     if (!showFinalBSModal) return;
 
-    // Auto-focus inside modal on open
     const focusTimer = setTimeout(() => {
       if (!finalBSModalRef.current) return;
       const activeTab = finalBSModalRef.current.querySelector<HTMLElement>(
@@ -3002,7 +3028,14 @@ export default function App() {
         );
         firstFocusable?.focus();
       }
-    }, 50);
+    }, 80);
+
+    return () => clearTimeout(focusTimer);
+  }, [showFinalBSModal]);
+
+  // Dedicated Keyboard Navigation for "Final Balance Sheet & P&L (CA Excel Format)" Modal
+  useEffect(() => {
+    if (!showFinalBSModal) return;
 
     const onFinalBSKey = (e: KeyboardEvent) => {
       if (!finalBSModalRef.current) return;
@@ -3030,20 +3063,27 @@ export default function App() {
       const isInside = Boolean(activeEl && finalBSModalRef.current.contains(activeEl));
       const currIdx = isInside ? focusableElements.indexOf(activeEl!) : -1;
 
+      const isTextInput = Boolean(
+        activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName) &&
+        (!('type' in activeEl) || ['text', 'number', 'email', 'search', 'password'].includes((activeEl as HTMLInputElement).type))
+      );
+
       if (e.key === 'ArrowDown') {
+        if (isTextInput && !e.altKey) return;
         e.preventDefault();
         e.stopPropagation();
         const nextIdx = currIdx === -1 ? 0 : (currIdx + 1) % focusableElements.length;
         const target = focusableElements[nextIdx];
-        target.focus();
-        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        target?.focus();
+        target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } else if (e.key === 'ArrowUp') {
+        if (isTextInput && !e.altKey) return;
         e.preventDefault();
         e.stopPropagation();
         const prevIdx = currIdx === -1 ? focusableElements.length - 1 : (currIdx - 1 + focusableElements.length) % focusableElements.length;
         const target = focusableElements[prevIdx];
-        target.focus();
-        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        target?.focus();
+        target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         // Tab switching if focused on mode tab buttons
         if (activeEl?.getAttribute('data-role') === 'mode-tab') {
@@ -3125,10 +3165,32 @@ export default function App() {
 
     window.addEventListener('keydown', onFinalBSKey, true);
     return () => {
-      clearTimeout(focusTimer);
       window.removeEventListener('keydown', onFinalBSKey, true);
     };
-  }, [showFinalBSModal, finalBSMode, projectionYears, finalBSForm, activeCompany, filteredVouchers, ledgers, stockItems]);
+  }, [showFinalBSModal, finalBSMode, projectionYears]);
+
+  // Auto-focus window & Gateway menu immediately on open so keyboard works without clicking
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const isMenu = ['GATEWAY_MAIN','MASTER_MENU','ALTER_MENU','DISPLAY_REPORTS_MENU','ACCOUNT_BOOKS_MENU'].includes(screen);
+    if (!isMenu) return;
+
+    const focusMenu = () => {
+      if (typeof window !== 'undefined') {
+        window.focus();
+        const menuBox = document.querySelector('.tally-menu-box') as HTMLElement | null;
+        if (menuBox) {
+          menuBox.focus();
+        } else {
+          document.body?.focus();
+        }
+      }
+    };
+
+    focusMenu();
+    const t = setTimeout(focusMenu, 80);
+    return () => clearTimeout(t);
+  }, [screen, isAuthenticated]);
 
   // Menu keyboard navigation (Gateway of LedgerX & Menu Screens)
   useEffect(() => {
@@ -3205,7 +3267,7 @@ export default function App() {
             const folderData = await companyDataFolderService.loadCompanyFolder(code);
             if (folderData) {
               if (folderData.ledgers?.length) setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...folderData.ledgers]);
-              if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers]);
+              if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers.map((fv: any) => ({ ...fv, partyDetails: safeParseJSON(fv.partyDetails), dispatchDetails: safeParseJSON(fv.dispatchDetails) }))]);
               if (folderData.stockItems?.length) setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(c.id)), ...folderData.stockItems]);
             }
             if (c.securityControl && c.password) {
@@ -3685,7 +3747,7 @@ export default function App() {
             <div className="right-core">
               <div className="tally-menu-container">
                 {screen==='GATEWAY_MAIN' && (
-                  <div className="tally-menu-box">
+                  <div className="tally-menu-box" tabIndex={0} style={{outline:'none'}}>
                     <div className="tally-menu-title">Gateway of LedgerX</div>
                     <div className="menu-list-container">
                       {gatewayMenu.map((item,i)=>{
@@ -3698,7 +3760,7 @@ export default function App() {
                   </div>
                 )}
                 {['MASTER_MENU','ALTER_MENU','DISPLAY_REPORTS_MENU','ACCOUNT_BOOKS_MENU'].includes(screen) && (
-                  <div className="tally-menu-box">
+                  <div className="tally-menu-box" tabIndex={0} style={{outline:'none'}}>
                     <div className="tally-menu-title">
                       {screen==='MASTER_MENU'&&'List of Masters'}
                       {screen==='ALTER_MENU'&&'List of Masters (Alter)'}
@@ -3895,7 +3957,7 @@ export default function App() {
                       const folderData = await companyDataFolderService.loadCompanyFolder(code);
                       if (folderData) {
                         if (folderData.ledgers?.length) setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...folderData.ledgers]);
-                        if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers]);
+                        if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers.map((fv: any) => ({ ...fv, partyDetails: safeParseJSON(fv.partyDetails), dispatchDetails: safeParseJSON(fv.dispatchDetails) }))]);
                         if (folderData.stockItems?.length) setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(c.id)), ...folderData.stockItems]);
                       }
                       if (c.securityControl && c.password) {
@@ -7040,7 +7102,7 @@ function UnitCreationForm({activeAlterItem,units,onSave,onDelete,onCancel}:{acti
             Alt+D: Delete
           </button>
         )}
-        <button className="dispatch-detail-modal-accept-btn" style={{background:'#1c5282',color:'white',border:'none',padding:'7px 26px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
+        <button className="unit-creation-accept-btn" style={{background:'#1c5282',color:'white',border:'none',padding:'7px 26px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
           onClick={() => {
             const fv = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
             const sym = fv('unit-sym'); if (!sym) { alert('Unit Symbol is required!'); return; }
@@ -8594,6 +8656,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const [journalExampleSearch, setJournalExampleSearch] = useState('');
   const partyDetailFirstRef = useRef<HTMLInputElement>(null);
   const dispatchFirstRef = useRef<HTMLInputElement>(null);
+  const lastItemRowIdxRef = useRef<number>(0);
   
   const vt = voucherTypes.find(v => v.name === activeVoucher) || voucherTypes.find(v => v.type === activeVoucher);
   const numberingMethod = vt?.numberingMethod || 'Automatic';
@@ -8901,10 +8964,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setAdditionalLedgers([...addl, {ledgerId:0, ledgerName:'', amount:0, entryType: otherSide}]);
         
         setNarration(activeAlterItem.narration || '');
-        setPartyDetails(activeAlterItem.partyDetails||null);
-        setDispatchDetails(activeAlterItem.dispatchDetails||null);
-        setSupplierInvNo(activeAlterItem.partyDetails?.supplierInvNo || '');
-        setSupplierInvDate(activeAlterItem.partyDetails?.supplierInvDate || '');
+        const parsedPD = safeParseJSON(activeAlterItem.partyDetails);
+        const parsedDD = safeParseJSON(activeAlterItem.dispatchDetails);
+        setPartyDetails(parsedPD || null);
+        setDispatchDetails(parsedDD || null);
+        setSupplierInvNo(parsedPD?.supplierInvNo || '');
+        setSupplierInvDate(parsedPD?.supplierInvDate || '');
         const l = ledgers.find(lx=>lx.id===activeAlterItem.partyId);
         if(l) setPartyBalance(getLedgerClosingBalance(l,vouchers));
       } else {
@@ -9185,23 +9250,26 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   };
   const pickItem=(it:StockItem)=>{
     if(!it) return;
-    const idx = (focus?.field==='item' && focus.rowIdx!==undefined) ? focus.rowIdx : 0;
-    if(focus?.field==='item'&&focus.rowIdx!==undefined){
-      const nr=[...rows];
-      const gst = it.gstRate || 18;
-      nr[idx]={
-        ...nr[idx],
-        itemId:it.id || 0,
-        itemName:it.name || '',
-        unit: (typeof it.unit === 'string' ? it.unit : it.unit?.symbol || it.unit?.name) || 'Nos',
-        discountPerc: round2(it.defaultDiscount || 0),
-        gstRate: round2(gst),
-        hsnCode:it.hsnCode || '',
-        rateInclTax: round2((nr[idx].rate || 0) * (1 + gst / 100)),
-        amountInclTax: round2((nr[idx].amount || 0) * (1 + gst / 100))
-      };
-      setRows(nr);
+    const idx = (focus?.field==='item' && focus.rowIdx!==undefined) ? focus.rowIdx : lastItemRowIdxRef.current;
+    const nr=[...rows];
+    if (idx >= nr.length) {
+      while (nr.length <= idx) {
+        nr.push({itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''});
+      }
     }
+    const gst = it.gstRate || 18;
+    nr[idx]={
+      ...nr[idx],
+      itemId:it.id || 0,
+      itemName:it.name || '',
+      unit: (typeof it.unit === 'string' ? it.unit : (it.unit as any)?.symbol || (it.unit as any)?.name) || 'Nos',
+      discountPerc: round2(it.defaultDiscount || 0),
+      gstRate: round2(gst),
+      hsnCode:it.hsnCode || '',
+      rateInclTax: round2((nr[idx].rate || 0) * (1 + gst / 100)),
+      amountInclTax: round2((nr[idx].amount || 0) * (1 + gst / 100))
+    };
+    setRows(nr);
     setFocus(null);setFilter('');setListSel(99999);
     setTimeout(() => {
       if (it.enableDescription) {
@@ -9233,7 +9301,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
 
   // For item list / accledger list: End of List option support
   // End of List bottom: listSel >= currentList.length (for all three fields, since items now at 1..N with i+1 offset)
-  const isEndOfItem = (focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger') && listSel > currentList.length;
+  const isEndOfItem = (focus?.field==='item' || focus?.field==='addl-ledger' || focus?.field==='accledger') && (!filter || filter.trim() === '') && listSel > currentList.length;
 
 
   const goToAdditionalLedgers = () => {
@@ -9271,11 +9339,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     }
     else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();
       if(focus?.field==='item'){
-        if(isEndOfItem || listSel === 0) goToAdditionalLedgers();
-        else if(currentList.length > 0) {
+        if(isEndOfItem || (!filter && listSel === 0)) {
+          goToAdditionalLedgers();
+        } else if(currentList.length > 0) {
           // items render at listSel 1..N (i+1 offset when no filter), so realIndex = listSel-1
-          const realIndex = (!filter || filter.trim() === '') ? listSel - 1 : listSel;
-          if (realIndex >= 0 && realIndex < currentList.length) pickItem(currentList[realIndex] as StockItem);
+          const realIndex = (!filter || filter.trim() === '') ? listSel - 1 : (listSel >= 0 && listSel < currentList.length ? listSel : 0);
+          if (realIndex >= 0 && realIndex < currentList.length) {
+            pickItem(currentList[realIndex] as StockItem);
+          } else {
+            goToAdditionalLedgers();
+          }
+        } else {
+          goToAdditionalLedgers();
         }
       } else if(focus?.field==='addl-ledger'){
         if(isEndOfItem || listSel === 0 || currentList.length === 0) goToNarration();
@@ -9882,6 +9957,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           <div className="form-row" style={{marginBottom:0,alignItems:'center'}}>
             <label style={{width:130}}>{!isInventory ? 'Account' : 'Party A/c Name'}</label><span className="colon">:</span>
             <input ref={ref} type="text" className="form-input" style={{width:350,fontWeight:'bold'}}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               value={partyName}
               onChange={e => {
                 const val = e.target.value;
@@ -10201,9 +10280,13 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <div key={idx} style={{display:'flex',padding:'4px 10px',alignItems:'flex-start',borderBottom:'1px solid #f5f5f5',background:idx%2===0?'#fff':'#fafafa'}}>
                 <div style={{flex:4}}>
                   <input id={`item-name-${idx}`} type="text" className="form-input" style={{width:'97%',border:focus?.field==='item'&&focus.rowIdx===idx?'1px solid #ffc436':'1px solid transparent'}}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                     value={row.itemName}
-                    onFocus={()=>{setFocus({field:'item',rowIdx:idx});setFilter('');setListSel(99999);}}
-                    onChange={e=>{const nr=[...rows];nr[idx].itemName=e.target.value;setRows(nr);setFilter(e.target.value);}}
+                    onFocus={()=>{lastItemRowIdxRef.current=idx;setFocus({field:'item',rowIdx:idx});setFilter(row.itemName||'');setListSel(row.itemName?0:99999);}}
+                    onChange={e=>{const nr=[...rows];nr[idx].itemName=e.target.value;setRows(nr);setFilter(e.target.value);setListSel(0);}}
                     onKeyDown={e=>{
                       if ((e.ctrlKey && e.key === 'Enter') || (e.ctrlKey && e.key.toLowerCase() === 'c')) {
                         e.preventDefault(); e.stopPropagation();
@@ -10479,13 +10562,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <div key={alIdx} style={{display:'flex',padding:'4px 10px',alignItems:'center',borderBottom:'1px solid #f5f5f5',background:alIdx%2===0?'#fff':'#fafafa'}}>
                 <div style={{flex:4}}>
                   <input id={`addl-ledger-${alIdx}`} type="text" className="form-input" style={{width:'97%',border:focus?.field==='addl-ledger'&&focus.rowIdx===alIdx?'1px solid #ffc436':'1px solid transparent'}}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                     value={al.ledgerName}
-                    onFocus={()=>{setFocus({field:'addl-ledger',rowIdx:alIdx});setFilter('');setListSel(99999);}}
+                    onFocus={()=>{setFocus({field:'addl-ledger',rowIdx:alIdx});setFilter(al.ledgerName||'');setListSel(al.ledgerName?0:99999);}}
                     onChange={e=>{
                       const ne = [...additionalLedgers];
                       ne[alIdx].ledgerName = e.target.value;
                       setAdditionalLedgers(ne);
                       setFilter(e.target.value);
+                      setListSel(0);
                     }}
                     onKeyDown={e=>{
                       if(e.key==='Enter'){
@@ -10663,6 +10751,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       <input
                         id={`acc-ledger-${idx}`}
                         type="text"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         className="form-input"
                         style={{
                           width:'100%',
@@ -11057,7 +11149,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   key={i}
                   onMouseDown={e => {
                     e.preventDefault();
-                    if (focus.field==='item') pickItem(it as StockItem);
+                    if (focus?.field==='item' || (!focus && lastItemRowIdxRef.current !== undefined)) pickItem(it as StockItem);
                     else pickLedger(it as Ledger);
                   }}
                   style={{
@@ -11149,6 +11241,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       <input
                         ref={ki===0 ? partyDetailFirstRef : undefined}
                         type="text"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         style={{flex:1,border:'1px solid #ccc',padding:'2px 5px',fontSize:11,fontWeight:key==='buyerName'?'bold':'normal',background:'#fff',outline:'none'}}
                         value={partyDetails[key] as string}
                         onChange={e=>{
@@ -11177,6 +11273,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       <span style={{fontSize:11,marginRight:4}}>:</span>
                       <input
                         type="text"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         style={{flex:1,border:'1px solid #ccc',padding:'2px 5px',fontSize:11,fontWeight:key==='shipName'?'bold':'normal',background:'#fff',outline:'none'}}
                         value={partyDetails[key] as string}
                         onChange={e=>{const v=e.target.value;setPartyDetails(p=>p?{...p,[key]:v}:p);}}
@@ -11236,6 +11336,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       <input
                         ref={ri===0 ? dispatchFirstRef : undefined}
                         type="text"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         style={{flex:1,minWidth:0,border:'1px solid #bbb',padding:'4px 7px',fontSize:11,background:'#fff',outline:'none'}}
                         value={(dispatchDetails as any)?.[left[1]]||''}
                         onChange={e=>{const v=e.target.value;setDispatchDetails(p=>({...(p||{deliveryNoteNo:'',dispatchDocNo:'',dispatchedThrough:'',destination:'',carrierNameAgent:'',billOfLadingNo:'',billOfLadingDate:'',motorVehicleNo:''}),[left[1]]:v}));}}
@@ -11248,6 +11352,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       <span style={{fontSize:11,marginRight:5,color:'#666'}}>:</span>
                       <input
                         type="text"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         style={{flex:1,minWidth:0,border:'1px solid #bbb',padding:'4px 7px',fontSize:11,background:'#fff',outline:'none'}}
                         value={(dispatchDetails as any)?.[right[1]]||''}
                         onChange={e=>{const v=e.target.value;setDispatchDetails(p=>({...(p||{deliveryNoteNo:'',dispatchDocNo:'',dispatchedThrough:'',destination:'',carrierNameAgent:'',billOfLadingNo:'',billOfLadingDate:'',motorVehicleNo:''}),[right[1]]:v}));}}
@@ -15085,8 +15193,11 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
   const tdH:React.CSSProperties = {...tdB,fontWeight:'bold',background:'#f2f2f2',textAlign:'center'};
 
   const handlePrint = () => {
+    setShowOptions(false);
     setNumCopies(tempCopies);
-    setTimeout(() => { window.print(); setShowOptions(false); }, 100);
+    setTimeout(() => {
+      window.print();
+    }, 250);
   };
 
   // ===== ACCOUNTING VOUCHER PRINT (Payment, Receipt, Contra, Journal) =====
@@ -15203,8 +15314,8 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
   };
 
   const renderInvoice = (copyIdx: number) => {
-    const pd = v.partyDetails;
-    const dd = v.dispatchDetails;
+    const pd = safeParseJSON(v.partyDetails) || v.partyDetails;
+    const dd = safeParseJSON(v.dispatchDetails) || v.dispatchDetails;
     const copyLabels = ["ORIGINAL FOR RECIPIENT", "DUPLICATE FOR TRANSPORTER", "TRIPLICATE FOR SUPPLIER", "EXTRA COPY"];
 
     // Column visibility - strictly based on stock item showInclTax/showAmtInclTax/showDiscount flags
@@ -15577,8 +15688,8 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
   };
 
   const renderQuotationInvoice = (copyIdx: number) => {
-    const pd = v.partyDetails;
-    const dd = v.dispatchDetails;
+    const pd = safeParseJSON(v.partyDetails) || v.partyDetails;
+    const dd = safeParseJSON(v.dispatchDetails) || v.dispatchDetails;
     const isSalesAc = (s?: string) => !s || ['sales a/c', 'sales a/c.', 'sales ac', 'sales'].includes(s.trim().toLowerCase());
 
     const realPartyLedger = (pd?.buyerGstin ? ledgers.find(l => l.gstin === pd.buyerGstin) : null)

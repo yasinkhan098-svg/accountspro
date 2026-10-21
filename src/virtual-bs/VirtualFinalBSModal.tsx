@@ -459,7 +459,7 @@ export default function VirtualFinalBSModal({
   const displayBSSections = isProv && currentProj?.projBSSections ? currentProj.projBSSections : form.bsSections;
   const displayPLData = isProv && currentProj?.projPLData ? currentProj.projPLData : form.plData;
 
-  // Dedicated Keyboard Navigation for Standalone Virtual CA Modal
+  // Dedicated Auto-Focus on Modal Open (runs ONLY when modal is first opened)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -469,7 +469,14 @@ export default function VirtualFinalBSModal({
         'button:not([disabled]), input:not([disabled]), select:not([disabled])'
       );
       first?.focus();
-    }, 50);
+    }, 80);
+
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
+  // Dedicated Keyboard Navigation for Standalone Virtual CA Modal
+  useEffect(() => {
+    if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!modalBoxRef.current) return;
@@ -481,6 +488,15 @@ export default function VirtualFinalBSModal({
         return;
       }
 
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInside = Boolean(activeEl && modalBoxRef.current.contains(activeEl));
+      if (!isInside) return;
+
+      const isTextInput = Boolean(
+        activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName) &&
+        (!('type' in activeEl) || ['text', 'number', 'email', 'search', 'password'].includes((activeEl as HTMLInputElement).type))
+      );
+
       const focusable = Array.from(
         modalBoxRef.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -488,25 +504,24 @@ export default function VirtualFinalBSModal({
       ).filter(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
 
       if (focusable.length === 0) return;
-
-      const activeEl = document.activeElement as HTMLElement | null;
-      const isInside = Boolean(activeEl && modalBoxRef.current.contains(activeEl));
-      const currIdx = isInside ? focusable.indexOf(activeEl!) : -1;
+      const currIdx = focusable.indexOf(activeEl!);
 
       if (e.key === 'ArrowDown') {
+        if (isTextInput && !e.altKey) return;
         e.preventDefault();
         e.stopPropagation();
         const nextIdx = currIdx === -1 ? 0 : (currIdx + 1) % focusable.length;
         const target = focusable[nextIdx];
-        target.focus();
-        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        target?.focus();
+        target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } else if (e.key === 'ArrowUp') {
+        if (isTextInput && !e.altKey) return;
         e.preventDefault();
         e.stopPropagation();
         const prevIdx = currIdx === -1 ? focusable.length - 1 : (currIdx - 1 + focusable.length) % focusable.length;
         const target = focusable[prevIdx];
-        target.focus();
-        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        target?.focus();
+        target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } else if (e.key === 'Enter') {
         if (activeEl && ['INPUT', 'SELECT', 'TEXTAREA'].includes(activeEl.tagName)) {
           e.preventDefault();
@@ -539,10 +554,9 @@ export default function VirtualFinalBSModal({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => {
-      clearTimeout(timer);
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [isOpen, form, onClose]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

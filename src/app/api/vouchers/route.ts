@@ -2,6 +2,33 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logAuditAction } from '@/lib/auditTrail';
 
+const serializeJSON = (val: any) => {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    try {
+      JSON.parse(val);
+      return val;
+    } catch {
+      return JSON.stringify(val);
+    }
+  }
+  return JSON.stringify(val);
+};
+
+const safeParseJSON = (val: any): any => {
+  if (!val) return null;
+  if (typeof val === 'object') return val;
+  if (typeof val === 'string') {
+    try {
+      const p = JSON.parse(val);
+      return typeof p === 'string' ? safeParseJSON(p) : p;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
 const normalizeDate = (d: any): Date => {
   if (!d) return new Date();
   if (d instanceof Date) return d;
@@ -138,8 +165,8 @@ export async function POST(req: Request) {
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
-          partyDetails: partyDetails ? JSON.stringify(partyDetails) : null,
-          dispatchDetails: dispatchDetails ? JSON.stringify(dispatchDetails) : null,
+          partyDetails: serializeJSON(partyDetails),
+          dispatchDetails: serializeJSON(dispatchDetails),
           entries: {
             create: resolvedEntries
           },
@@ -170,8 +197,8 @@ export async function POST(req: Request) {
 
     const parsedVoucher = {
       ...result,
-      partyDetails: result.partyDetails ? JSON.parse(result.partyDetails) : null,
-      dispatchDetails: result.dispatchDetails ? JSON.parse(result.dispatchDetails) : null,
+      partyDetails: safeParseJSON(result.partyDetails),
+      dispatchDetails: safeParseJSON(result.dispatchDetails),
     };
 
     // Non-blocking Audit Trail Log (fail-safe)
@@ -240,8 +267,8 @@ export async function PUT(req: Request) {
           date: normalizeDate(date),
           voucherNo: String(voucherNo || "1"),
           narration: narration || "",
-          partyDetails: partyDetails ? JSON.stringify(partyDetails) : null,
-          dispatchDetails: dispatchDetails ? JSON.stringify(dispatchDetails) : null,
+          partyDetails: serializeJSON(partyDetails),
+          dispatchDetails: serializeJSON(dispatchDetails),
           entries: {
             create: resolvedEntries
           },
@@ -272,8 +299,8 @@ export async function PUT(req: Request) {
 
     const parsedVoucher = {
       ...result,
-      partyDetails: result.partyDetails ? JSON.parse(result.partyDetails) : null,
-      dispatchDetails: result.dispatchDetails ? JSON.parse(result.dispatchDetails) : null,
+      partyDetails: safeParseJSON(result.partyDetails),
+      dispatchDetails: safeParseJSON(result.dispatchDetails),
     };
 
     // Non-blocking Audit Trail Log on Update
@@ -339,8 +366,8 @@ export async function GET(req: Request) {
   });
   const parsedVouchers = vouchers.map(v => ({
     ...v,
-    partyDetails: v.partyDetails ? JSON.parse(v.partyDetails) : null,
-    dispatchDetails: v.dispatchDetails ? JSON.parse(v.dispatchDetails) : null,
+    partyDetails: safeParseJSON(v.partyDetails),
+    dispatchDetails: safeParseJSON(v.dispatchDetails),
   }));
   return NextResponse.json({ success: true, vouchers: parsedVouchers });
 }

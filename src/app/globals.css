@@ -636,28 +636,38 @@ body {
     background: white !important;
     width: 100% !important;
   }
-  .invoice-copy {
-    width: 190mm !important; /* A4 width (210mm) minus 10mm margins on each side */
-    min-height: 277mm !important; /* A4 height (297mm) minus 10mm margins on each side */
+  .invoice-copy,
+  .accounting-voucher-copy {
+    width: 100% !important;
+    max-width: 200mm !important;
+    height: 280mm !important;
+    max-height: 280mm !important;
+    min-height: unset !important;
     padding: 0 !important;
-    margin: 10mm auto !important; /* This creates the physical margin on the paper */
+    margin: 0 auto !important;
     background: white !important;
-    box-sizing: border-box;
-    page-break-after: always;
-    page-break-inside: avoid;
+    box-sizing: border-box !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     box-shadow: none !important;
-    border: 1px solid #555 !important;
+    border: 1.5px solid #000 !important;
     position: relative;
     font-weight: 600 !important;
     color: #000 !important;
+    overflow: hidden !important;
   }
-  .invoice-copy:last-child {
-    page-break-after: avoid;
+  .invoice-copy:last-child,
+  .accounting-voucher-copy:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 }
 
 /* Print Preview Global Bold Styling */
-.invoice-copy {
+.invoice-copy,
+.accounting-voucher-copy {
   font-weight: 600;
   color: #000;
 }

@@ -36,6 +36,20 @@ function createWindow() {
   mainWindow.maximize();
   mainWindow.loadURL(startUrl);
 
+  // Automatically focus webContents so keyboard navigation works immediately without clicking
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.focus();
+      mainWindow.webContents.focus();
+    }
+  });
+
+  mainWindow.on('focus', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.focus();
+    }
+  });
+
   // Record initial time guard tick
   timeGuard.recordTime();
 
