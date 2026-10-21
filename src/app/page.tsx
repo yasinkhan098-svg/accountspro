@@ -617,6 +617,10 @@ export default function App() {
   const [history, setHistory] = useState<ScreenType[]>([]);
   const [altCReturnContext, setAltCReturnContext] = useState<{screen: ScreenType, field: string, rowIdx?: number, newItem?: any} | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(1);
+  const selectedIdxRef = useRef(1);
+  useEffect(() => {
+    selectedIdxRef.current = selectedIdx;
+  }, [selectedIdx]);
   const [activeVoucher, setActiveVoucher] = useState<VoucherTypeKey>('Sales');
   const [alterItem, setAlterItem] = useState<any>(null);
   const [alterListType, setAlterListType] = useState('');
@@ -3181,15 +3185,24 @@ export default function App() {
         const menuBox = document.querySelector('.tally-menu-box') as HTMLElement | null;
         if (menuBox) {
           menuBox.focus();
-        } else {
-          document.body?.focus();
+        } else if (document.body) {
+          document.body.focus();
         }
       }
     };
 
     focusMenu();
-    const t = setTimeout(focusMenu, 80);
-    return () => clearTimeout(t);
+    const t1 = setTimeout(focusMenu, 50);
+    const t2 = setTimeout(focusMenu, 150);
+    const t3 = setTimeout(focusMenu, 350);
+
+    window.addEventListener('focus', focusMenu);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      window.removeEventListener('focus', focusMenu);
+    };
   }, [screen, isAuthenticated]);
 
   // Menu keyboard navigation (Gateway of LedgerX & Menu Screens)
@@ -3225,28 +3238,55 @@ export default function App() {
       // Safety check: if any modal overlay is present in the DOM, do not handle background menu navigation
       if (typeof document !== 'undefined' && document.querySelector('.modal-overlay')) return;
 
-      if (e.key==='ArrowDown'){e.preventDefault();let n=(selectedIdx+1)%menu.length;while(menu[n]?.category==='header')n=(n+1)%menu.length;setSelectedIdx(n);}
-      else if (e.key==='ArrowUp'){e.preventDefault();let n=(selectedIdx-1+menu.length)%menu.length;while(menu[n]?.category==='header')n=(n-1+menu.length)%menu.length;setSelectedIdx(n);}
-      else if (e.key==='Enter'){
+      // Do not navigate menu if user is typing inside an input, textarea, or select
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName)) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        let n = (selectedIdxRef.current + 1) % menu.length;
+        while(menu[n]?.category === 'header') n = (n + 1) % menu.length;
+        setSelectedIdx(n);
+      }
+      else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        let n = (selectedIdxRef.current - 1 + menu.length) % menu.length;
+        while(menu[n]?.category === 'header') n = (n - 1 + menu.length) % menu.length;
+        setSelectedIdx(n);
+      }
+      else if (e.key === 'Enter') {
         if (e.defaultPrevented) return;
         e.preventDefault();
-        if(menu[selectedIdx]?.category!=='header') menu[selectedIdx].action?.();
+        const cur = selectedIdxRef.current;
+        if(menu[cur]?.category !== 'header') menu[cur].action?.();
       }
-      else {
-        const ch=e.key.toLowerCase();
-        const fi=menu.findIndex(x=>x.highlight.toLowerCase()===ch&&x.category!=='header');
-        if(fi!==-1){e.preventDefault();setSelectedIdx(fi);menu[fi].action?.();}
+      else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const ch = e.key.toLowerCase();
+        const fi = menu.findIndex(x => x.highlight.toLowerCase() === ch && x.category !== 'header');
+        if(fi !== -1) {
+          e.preventDefault();
+          setSelectedIdx(fi);
+          menu[fi].action?.();
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    screen, selectedIdx,
+    isAuthenticated, screen,
     showFinalBSModal, showVirtualBSModal, showRealtimeDashboard, showBankUploadModal,
     showExportModal, showEmailModal, showFeatures, showDate, showPeriod, showGST,
     showUpgradeModal, showDesktopDownloadModal, pwdPrompt, altCCtx, pendingDelete,
     isExporting, finalBSExporting
   ]);
+
+  // Auto-scroll selected item in Gateway / Main Menu Screens
+  useEffect(() => {
+    if (['GATEWAY_MAIN','MASTER_MENU','ALTER_MENU','DISPLAY_REPORTS_MENU','ACCOUNT_BOOKS_MENU'].includes(screen)) {
+      const el = document.querySelector('.tally-menu-box .menu-item.selected') as HTMLElement | null;
+      if (el) el.scrollIntoView({ block: 'nearest' });
+    }
+  }, [selectedIdx, screen]);
 
   // Dedicated Keyboard Navigation for "Company (F3)" Modal
   useEffect(() => {
