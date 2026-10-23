@@ -26,7 +26,8 @@ export default function BankStatementEntryView({
   const [activeEntry, setActiveEntry] = useState<BankStatementEntry | null>(null);
   const [ledgerSearch, setLedgerSearch] = useState<string>('');
   const [dropdownOpenForId, setDropdownOpenForId] = useState<string | null>(null);
-  const [highlightedLedgerIdx, setHighlightedLedgerIdx] = useState<number>(0);
+  const [highlightedLedgerIdx, setHighlightedLedgerIdx] = useState<number>(-1);
+  const [userNavigatedDropdown, setUserNavigatedDropdown] = useState<boolean>(false);
 
   // Confirmation modal state
   const [pendingConfirm, setPendingConfirm] = useState<{
@@ -149,37 +150,86 @@ export default function BankStatementEntryView({
     }, 50);
   };
 
-  // Keyboard navigation between rows
+  // Keyboard navigation between rows & dropdown handling
   const handleInputKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
     entry: BankStatementEntry,
     list: BankStatementEntry[],
     index: number
   ) => {
-    // If dropdown is open, handle up/down/enter for selecting from dropdown
-    if (dropdownOpenForId === entry.id && filteredLedgers.length > 0) {
+    // If dropdown is open for this row
+    if (dropdownOpenForId === entry.id) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setHighlightedLedgerIdx(prev => (prev + 1) % filteredLedgers.length);
+        if (filteredLedgers.length > 0) {
+          setUserNavigatedDropdown(true);
+          setHighlightedLedgerIdx(prev => {
+            if (prev === -1) return 0;
+            return (prev + 1) % filteredLedgers.length;
+          });
+        }
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setHighlightedLedgerIdx(prev => (prev - 1 + filteredLedgers.length) % filteredLedgers.length);
+        if (filteredLedgers.length > 0) {
+          setUserNavigatedDropdown(true);
+          setHighlightedLedgerIdx(prev => {
+            if (prev <= 0) return filteredLedgers.length - 1;
+            return prev - 1;
+          });
+        }
         return;
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        const selected = filteredLedgers[highlightedLedgerIdx];
-        if (selected) {
-          handleSelectLedger(entry, selected);
+        const hasTyped = (ledgerSearch || '').trim().length > 0;
+
+        // If the user typed to search OR explicitly navigated the dropdown list with arrow keys:
+        if ((hasTyped || userNavigatedDropdown) && filteredLedgers.length > 0) {
+          const targetIdx = highlightedLedgerIdx >= 0 ? highlightedLedgerIdx : 0;
+          const selected = filteredLedgers[targetIdx];
+          if (selected) {
+            handleSelectLedger(entry, selected);
+            return;
+          }
+        }
+
+        // Blank cursor / no search typed and no arrow key selection -> Skip to next entry!
+        setDropdownOpenForId(null);
+        setLedgerSearch('');
+        setHighlightedLedgerIdx(-1);
+        setUserNavigatedDropdown(false);
+        if (index < list.length - 1) {
+          focusInput(list[index + 1].id);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setDropdownOpenForId(null);
+        setLedgerSearch('');
+        setHighlightedLedgerIdx(-1);
+        setUserNavigatedDropdown(false);
+        return;
+      }
+      if (e.key === 'Tab') {
+        setDropdownOpenForId(null);
+        setLedgerSearch('');
+        setHighlightedLedgerIdx(-1);
+        setUserNavigatedDropdown(false);
+        if (!e.shiftKey && index < list.length - 1) {
+          e.preventDefault();
+          focusInput(list[index + 1].id);
+        } else if (e.shiftKey && index > 0) {
+          e.preventDefault();
+          focusInput(list[index - 1].id);
         }
         return;
       }
     }
 
-    // If dropdown is NOT open, or input is empty:
-    // Enter on empty box -> move to next row
+    // If dropdown is NOT open:
     if (e.key === 'Enter') {
       e.preventDefault();
       if (index < list.length - 1) {
@@ -593,11 +643,14 @@ export default function BankStatementEntryView({
                         setActiveSide('payment');
                         setDropdownOpenForId(entry.id);
                         setLedgerSearch(entry.selectedLedgerName || '');
-                        setHighlightedLedgerIdx(0);
+                        setHighlightedLedgerIdx(entry.selectedLedgerName ? 0 : -1);
+                        setUserNavigatedDropdown(false);
                       }}
                       onChange={(e) => {
-                        setLedgerSearch(e.target.value);
-                        setHighlightedLedgerIdx(0);
+                        const val = e.target.value;
+                        setLedgerSearch(val);
+                        setHighlightedLedgerIdx(val.trim() ? 0 : -1);
+                        setUserNavigatedDropdown(false);
                       }}
                       onKeyDown={(e) => handleInputKeyDown(e, entry, payments, idx)}
                       style={{
@@ -640,7 +693,10 @@ export default function BankStatementEntryView({
                                 e.preventDefault(); // prevent blur
                                 handleSelectLedger(entry, l);
                               }}
-                              onMouseEnter={() => setHighlightedLedgerIdx(lIdx)}
+                              onMouseEnter={() => {
+                                setHighlightedLedgerIdx(lIdx);
+                                setUserNavigatedDropdown(true);
+                              }}
                               style={{
                                 padding: '6px 10px',
                                 fontSize: 12,
@@ -772,11 +828,14 @@ export default function BankStatementEntryView({
                         setActiveSide('receipt');
                         setDropdownOpenForId(entry.id);
                         setLedgerSearch(entry.selectedLedgerName || '');
-                        setHighlightedLedgerIdx(0);
+                        setHighlightedLedgerIdx(entry.selectedLedgerName ? 0 : -1);
+                        setUserNavigatedDropdown(false);
                       }}
                       onChange={(e) => {
-                        setLedgerSearch(e.target.value);
-                        setHighlightedLedgerIdx(0);
+                        const val = e.target.value;
+                        setLedgerSearch(val);
+                        setHighlightedLedgerIdx(val.trim() ? 0 : -1);
+                        setUserNavigatedDropdown(false);
                       }}
                       onKeyDown={(e) => handleInputKeyDown(e, entry, receipts, idx)}
                       style={{
@@ -819,7 +878,10 @@ export default function BankStatementEntryView({
                                 e.preventDefault();
                                 handleSelectLedger(entry, l);
                               }}
-                              onMouseEnter={() => setHighlightedLedgerIdx(lIdx)}
+                              onMouseEnter={() => {
+                                setHighlightedLedgerIdx(lIdx);
+                                setUserNavigatedDropdown(true);
+                              }}
                               style={{
                                 padding: '6px 10px',
                                 fontSize: 12,
