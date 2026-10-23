@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { authClient } from "@/lib/auth-client";
+import { bomOfflineStorage } from "@/lib/bomOfflineStorage";
 
 interface StockItem {
   id: number; companyId: number; name: string; unit: string; unitName?: string;
@@ -616,19 +617,49 @@ function BOMForm({
     if (saved || saving) return; // prevent double-save
     if (!form.name.trim()) { setError("BOM Name required"); return; }
     if (!form.finishedItemName.trim()) { setError("Finished Item required"); return; }
-    if (form.items.filter(i=>i.itemName.trim()).length===0) { setError("Add at least one Raw Material"); return; }
+    const cleanItems = form.items.filter(i => i.itemName.trim());
+    if (cleanItems.length === 0) { setError("Add at least one Raw Material"); return; }
+
+    const normName = form.name.trim().toLowerCase();
+    const existingBOMs = bomOfflineStorage.getLocalBOMs(company?.id || 0);
+    if (existingBOMs.some((b: any) => b.name?.trim().toLowerCase() === normName && (!form.id || b.id !== form.id))) {
+      setError(`BOM with name "${form.name}" already exists!`);
+      return;
+    }
+
     setSaving(true); setError("");
-    try {
-      const token = authClient.getToken();
-      const method = form.id ? "PUT" : "POST";
-      const res = await fetch("/api/bom", {
-        method,
-        headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
-        body: JSON.stringify({...form, saveType:"bom", items:form.items.filter(i=>i.itemName.trim())})
-      });
-      const d = await res.json();
-      if (d.success) { setSaved(true); onSave(); } else setError(d.error||"Save failed");
-    } catch(e:any) { setError(e.message); }
+    let success = false;
+
+    if (navigator.onLine) {
+      try {
+        const token = authClient.getToken();
+        const method = form.id ? "PUT" : "POST";
+        const res = await fetch("/api/bom", {
+          method,
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ ...form, saveType: "bom", items: cleanItems })
+        });
+        const d = await res.json();
+        if (d.success) {
+          success = true;
+          await bomOfflineStorage.saveBOM(company, { ...form, id: d.bom?.id || form.id, items: cleanItems });
+          setSaved(true);
+          onSave();
+        } else {
+          setError(d.error || "Save failed on server");
+          setSaving(false);
+          return;
+        }
+      } catch (cloudErr) {
+        console.warn("Cloud BOM save failed, saving locally on PC:", cloudErr);
+      }
+    }
+
+    if (!success) {
+      await bomOfflineStorage.saveBOM(company, { ...form, items: cleanItems });
+      setSaved(true);
+      onSave();
+    }
     setSaving(false);
   };
 
@@ -1031,34 +1062,53 @@ function ManufacturingJournalForm({
   const loadBOM = async (bomId:number) => {
     if(!bomId) return;
     setLoadingBOM(true);
-    try {
-      const token=authClient.getToken();
-      const res=await fetch(`/api/bom?id=${bomId}`,{headers:{Authorization:`Bearer ${token}`}});
-      const d=await res.json();
-      if(d.success&&d.bom) {
-        const bomOutputQty=parseFloat(d.bom.outputQty)||1;
-        loadedBOMRef.current={
-          id:d.bom.id, name:d.bom.name, finishedItemId:d.bom.finishedItemId,
-          finishedItemName:d.bom.finishedItemName, outputQty:bomOutputQty,
-          outputUnit:d.bom.outputUnit, items:d.items||[]
-        };
-        setForm(f=>{
-          const currentOut=parseFloat(String(f.outputQty))||bomOutputQty;
-          const ratio=currentOut/bomOutputQty;
-          return {
-            ...f, bomId, bomName:d.bom.name, finishedItemId:d.bom.finishedItemId,
-            finishedItemName:d.bom.finishedItemName, outputQty:currentOut, outputUnit:d.bom.outputUnit,
-            rawMaterials:(d.items||[]).filter((it:any)=>it.itemName?.trim()).map((it:any)=>{
-              const bq=parseFloat(String(it.qty||0));
-              const r=parseFloat(String(it.rate||0));
-              const calcQty=bq*ratio;
-              return {stockItemId:it.stockItemId,itemName:it.itemName,requiredQty:parseFloat(calcQty.toFixed(4)),
-                actualQty:parseFloat(calcQty.toFixed(4)),unit:it.unit,rate:r,amount:parseFloat((calcQty*r).toFixed(2))};
-            })
-          };
-        });
+    let bomData: any = null;
+    let bomItems: any[] = [];
+
+    if (navigator.onLine) {
+      try {
+        const token=authClient.getToken();
+        const res=await fetch(`/api/bom?id=${bomId}`,{headers:{Authorization:`Bearer ${token}`}});
+        const d=await res.json();
+        if(d.success&&d.bom) {
+          bomData = d.bom;
+          bomItems = d.items || [];
+        }
+      } catch(e){}
+    }
+
+    if (!bomData) {
+      const localBOMs = bomOfflineStorage.getLocalBOMs(company?.id || 0);
+      const found = localBOMs.find((b: any) => b.id === bomId) || boms.find((b: any) => b.id === bomId);
+      if (found) {
+        bomData = found;
+        bomItems = found.items || [];
       }
-    } catch(e){}
+    }
+
+    if (bomData) {
+      const bomOutputQty=parseFloat(bomData.outputQty)||1;
+      loadedBOMRef.current={
+        id:bomData.id, name:bomData.name, finishedItemId:bomData.finishedItemId,
+        finishedItemName:bomData.finishedItemName, outputQty:bomOutputQty,
+        outputUnit:bomData.outputUnit, items:bomItems
+      };
+      setForm(f=>{
+        const currentOut=parseFloat(String(f.outputQty))||bomOutputQty;
+        const ratio=currentOut/bomOutputQty;
+        return {
+          ...f, bomId, bomName:bomData.name, finishedItemId:bomData.finishedItemId,
+          finishedItemName:bomData.finishedItemName, outputQty:currentOut, outputUnit:bomData.outputUnit,
+          rawMaterials:(bomItems||[]).filter((it:any)=>it.itemName?.trim()).map((it:any)=>{
+            const bq=parseFloat(String(it.qty||0));
+            const r=parseFloat(String(it.rate||0));
+            const calcQty=bq*ratio;
+            return {stockItemId:it.stockItemId,itemName:it.itemName,requiredQty:parseFloat(calcQty.toFixed(4)),
+              actualQty:parseFloat(calcQty.toFixed(4)),unit:it.unit,rate:r,amount:parseFloat((calcQty*r).toFixed(2))};
+          })
+        };
+      });
+    }
     setLoadingBOM(false);
   };
 
@@ -1566,56 +1616,75 @@ function ManufacturingJournalForm({
     if(!outputQtyN){setError("Output Quantity is required");return;}
     if(form.rawMaterials.filter(r=>r.itemName.trim()).length===0){setError("Add at least one Raw Material");return;}
     setSaving(true); setError("");
-    try {
-      const token=authClient.getToken();
-      const wastageDetailsArray: WastageDetailItem[] = selectedWastageTypes.map(t => {
-        const it = wastageItems[t] || { qty: "0", unit: form.outputUnit || "Nos", rate: "0", value: 0 };
-        return {
-          type: t,
-          qty: parseFloat(it.qty) || 0,
-          unit: it.unit || form.outputUnit || "Nos",
-          rate: parseFloat(it.rate) || 0,
-          value: it.value || 0
-        };
-      });
 
-      const payload = {
-        ...form,
-        totalRawCost,
-        totalDirectExpenses: totalDirectExp,
-        totalCost,
-        costPerUnit,
-        wastageType: selectedWastageTypes.length > 0 ? selectedWastageTypes.join(", ") : "None",
-        wastageQty: totalWastageSelectedQty,
-        wastageUnit: form.outputUnit,
-        wastageValue: totalWastageSelectedVal,
-        wastageDetails: wastageDetailsArray,
-        rawMaterials: form.rawMaterials.filter(r=>r.itemName.trim()),
-        directExpenses: form.directExpenses.filter(d=>d.ledgerName.trim()),
+    const wastageDetailsArray: WastageDetailItem[] = selectedWastageTypes.map(t => {
+      const it = wastageItems[t] || { qty: "0", unit: form.outputUnit || "Nos", rate: "0", value: 0 };
+      return {
+        type: t,
+        qty: parseFloat(it.qty) || 0,
+        unit: it.unit || form.outputUnit || "Nos",
+        rate: parseFloat(it.rate) || 0,
+        value: it.value || 0
       };
-      const res=await fetch("/api/bom",{
-        method:"POST",
-        headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},
-        body:JSON.stringify({...payload,saveType:"journal"})
-      });
-      const d=await res.json();
-      if(d.success) {
-        const fullSaved: MJPrintData = {
-          company,
-          journal: {
+    });
+
+    const payload = {
+      ...form,
+      totalRawCost,
+      totalDirectExpenses: totalDirectExp,
+      totalCost,
+      costPerUnit,
+      wastageType: selectedWastageTypes.length > 0 ? selectedWastageTypes.join(", ") : "None",
+      wastageQty: totalWastageSelectedQty,
+      wastageUnit: form.outputUnit,
+      wastageValue: totalWastageSelectedVal,
+      wastageDetails: wastageDetailsArray,
+      rawMaterials: form.rawMaterials.filter(r=>r.itemName.trim()),
+      directExpenses: form.directExpenses.filter(d=>d.ledgerName.trim()),
+    };
+
+    let savedResult: any = null;
+
+    if (navigator.onLine) {
+      try {
+        const token=authClient.getToken();
+        const res=await fetch("/api/bom",{
+          method:"POST",
+          headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},
+          body:JSON.stringify({...payload,saveType:"journal"})
+        });
+        const d=await res.json();
+        if(d.success) {
+          savedResult = {
             ...payload,
             journalNo: d.journalNo || form.journalNo || `MJ-${Date.now().toString().slice(-4)}`,
             id: d.journalId
-          },
-          rawMaterials: payload.rawMaterials,
-          directExpenses: payload.directExpenses
-        };
-        setSavedMJData(fullSaved);
-        setShowSavePrompt(true);
-      } else {
-        setError(d.error||"Save failed");
+          };
+          await bomOfflineStorage.saveJournal(company, savedResult);
+        } else {
+          console.warn("Server journal post failed, falling back to local PC save:", d.error);
+        }
+      } catch(cloudErr) {
+        console.warn("Online journal save failed, saving offline:", cloudErr);
       }
-    } catch(e:any){setError(e.message);}
+    }
+
+    if (!savedResult) {
+      savedResult = await bomOfflineStorage.saveJournal(company, payload);
+    }
+
+    if (savedResult) {
+      const fullSaved: MJPrintData = {
+        company,
+        journal: savedResult,
+        rawMaterials: payload.rawMaterials,
+        directExpenses: payload.directExpenses
+      };
+      setSavedMJData(fullSaved);
+      setShowSavePrompt(true);
+    } else {
+      setError("Failed to save manufacturing journal");
+    }
     setSaving(false);
   };
 
@@ -3052,50 +3121,67 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
 
   const handlePrintJournal = async (id: number) => {
     setLoadingPrintId(id);
-    try {
-      const token = authClient.getToken();
-      const res = await fetch(`/api/bom?id=${id}&type=journal`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const d = await res.json();
-      if (d.success && d.journal) {
-        let wastageDetailsParsed: WastageDetailItem[] = [];
-        try {
-          if (d.journal.wastageDetails) {
-            wastageDetailsParsed = typeof d.journal.wastageDetails === "string"
-              ? JSON.parse(d.journal.wastageDetails)
-              : d.journal.wastageDetails;
-          }
-        } catch (e) {}
-
-        setPrintJournalData({
-          company,
-          journal: {
-            ...d.journal,
-            wastageDetails: wastageDetailsParsed
-          },
-          rawMaterials: (d.rawMaterials || []).map((rm: any) => ({
-            stockItemId: rm.stockItemId,
-            itemName: rm.itemName,
-            requiredQty: rm.requiredQty,
-            actualQty: rm.actualQty,
-            unit: rm.unit,
-            rate: rm.rate,
-            amount: rm.amount
-          })),
-          directExpenses: (d.directExpenses || []).map((de: any) => ({
-            ledgerId: de.ledgerId,
-            ledgerName: de.ledgerName,
-            method: de.method,
-            percentage: de.percentage,
-            amount: de.amount
-          }))
+    let loadedData: any = null;
+    if (navigator.onLine) {
+      try {
+        const token = authClient.getToken();
+        const res = await fetch(`/api/bom?id=${id}&type=journal`, {
+          headers: { Authorization: `Bearer ${token}` }
         });
-      } else {
-        showToast(d.error || "Failed to load journal for printing");
+        const d = await res.json();
+        if (d.success && d.journal) {
+          loadedData = { journal: d.journal, rawMaterials: d.rawMaterials || [], directExpenses: d.directExpenses || [] };
+        }
+      } catch (err: any) {}
+    }
+
+    if (!loadedData) {
+      const localJournals = bomOfflineStorage.getLocalJournals(company?.id || 0);
+      const found = localJournals.find((j: any) => j.id === id);
+      if (found) {
+        loadedData = {
+          journal: found,
+          rawMaterials: found.rawMaterials || [],
+          directExpenses: found.directExpenses || []
+        };
       }
-    } catch (err: any) {
-      showToast("Error loading journal details");
+    }
+
+    if (loadedData) {
+      let wastageDetailsParsed: WastageDetailItem[] = [];
+      try {
+        if (loadedData.journal.wastageDetails) {
+          wastageDetailsParsed = typeof loadedData.journal.wastageDetails === "string"
+            ? JSON.parse(loadedData.journal.wastageDetails)
+            : loadedData.journal.wastageDetails;
+        }
+      } catch (e) {}
+
+      setPrintJournalData({
+        company,
+        journal: {
+          ...loadedData.journal,
+          wastageDetails: wastageDetailsParsed
+        },
+        rawMaterials: (loadedData.rawMaterials || []).map((rm: any) => ({
+          stockItemId: rm.stockItemId,
+          itemName: rm.itemName,
+          requiredQty: rm.requiredQty,
+          actualQty: rm.actualQty,
+          unit: rm.unit,
+          rate: rm.rate,
+          amount: rm.amount
+        })),
+        directExpenses: (loadedData.directExpenses || []).map((de: any) => ({
+          ledgerId: de.ledgerId,
+          ledgerName: de.ledgerName,
+          method: de.method,
+          percentage: de.percentage,
+          amount: de.amount
+        }))
+      });
+    } else {
+      showToast("Journal details not found");
     }
     setLoadingPrintId(null);
   };
@@ -3112,23 +3198,45 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
 
   const loadBOMs = useCallback(async()=>{
     if(!companyId) return;
-    try {
-      const token=authClient.getToken();
-      const res=await fetch(`/api/bom?companyId=${companyId}`,{headers:{Authorization:`Bearer ${token}`}});
-      const d=await res.json();
-      if(d.success) setBOMs(d.boms||[]);
-    } catch(e){}
+    let fetched = false;
+    if (navigator.onLine) {
+      try {
+        const token=authClient.getToken();
+        const res=await fetch(`/api/bom?companyId=${companyId}`,{headers:{Authorization:`Bearer ${token}`}});
+        const d=await res.json();
+        if(d.success && Array.isArray(d.boms)) {
+          fetched = true;
+          setBOMs(d.boms);
+          bomOfflineStorage.saveLocalBOMs(companyId, d.boms);
+        }
+      } catch(e){}
+    }
+    if (!fetched) {
+      const local = bomOfflineStorage.getLocalBOMs(companyId);
+      setBOMs(local);
+    }
   },[companyId]);
 
   const loadJournals = useCallback(async()=>{
     if(!companyId) return;
     setLoading(true);
-    try {
-      const token=authClient.getToken();
-      const res=await fetch(`/api/bom?companyId=${companyId}&type=journals`,{headers:{Authorization:`Bearer ${token}`}});
-      const d=await res.json();
-      if(d.success) setJournals(d.journals||[]);
-    } catch(e){}
+    let fetched = false;
+    if (navigator.onLine) {
+      try {
+        const token=authClient.getToken();
+        const res=await fetch(`/api/bom?companyId=${companyId}&type=journals`,{headers:{Authorization:`Bearer ${token}`}});
+        const d=await res.json();
+        if(d.success && Array.isArray(d.journals)) {
+          fetched = true;
+          setJournals(d.journals);
+          bomOfflineStorage.saveLocalJournals(companyId, d.journals);
+        }
+      } catch(e){}
+    }
+    if (!fetched) {
+      const local = bomOfflineStorage.getLocalJournals(companyId);
+      setJournals(local);
+    }
     setLoading(false);
   },[companyId]);
 
@@ -3136,40 +3244,55 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
 
   const showToast=(msg:string)=>{ setToast(msg); setTimeout(()=>setToast(""),3000); };
 
-  // FIX: Load BOM with items from API before editing
   const handleEditBOM = async (b:any) => {
-    try {
-      const token=authClient.getToken();
-      const res=await fetch(`/api/bom?id=${b.id}`,{headers:{Authorization:`Bearer ${token}`}});
-      const d=await res.json();
-      if(d.success&&d.bom) {
-        setEditBOM({
-          ...d.bom,
-          items:(d.items||[]).map((it:any)=>({
-            id:it.id, stockItemId:it.stockItemId, itemName:it.itemName,
-            qty:it.qty, unit:it.unit, rate:it.rate, amount:it.amount
-          }))
-        });
-        setShowBOMForm(true);
-      }
-    } catch(e) {
-      setEditBOM({...b,items:[]});
-      setShowBOMForm(true);
+    let bomFound: any = null;
+    if (navigator.onLine) {
+      try {
+        const token=authClient.getToken();
+        const res=await fetch(`/api/bom?id=${b.id}`,{headers:{Authorization:`Bearer ${token}`}});
+        const d=await res.json();
+        if(d.success&&d.bom) {
+          bomFound = {
+            ...d.bom,
+            items:(d.items||[]).map((it:any)=>({
+              id:it.id, stockItemId:it.stockItemId, itemName:it.itemName,
+              qty:it.qty, unit:it.unit, rate:it.rate, amount:it.amount
+            }))
+          };
+        }
+      } catch(e) {}
     }
+    if (!bomFound) {
+      const local = bomOfflineStorage.getLocalBOMs(company?.id || 0);
+      const matched = local.find((x: any) => x.id === b.id);
+      bomFound = matched || { ...b, items: b.items || [] };
+    }
+    setEditBOM(bomFound);
+    setShowBOMForm(true);
   };
 
   const deleteBOM = async (id:number) => {
     if(!confirm("Delete this BOM template?")) return;
-    const token=authClient.getToken();
-    await fetch("/api/bom",{method:"DELETE",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({id,type:"bom"})});
+    await bomOfflineStorage.deleteBOM(company, id);
+    if (navigator.onLine) {
+      try {
+        const token=authClient.getToken();
+        await fetch("/api/bom",{method:"DELETE",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({id,type:"bom"})});
+      } catch (e) {}
+    }
     await loadBOMs();
     showToast("BOM deleted");
   };
 
   const deleteJournal = async (id:number) => {
     if(!confirm("Delete this manufacturing journal?")) return;
-    const token=authClient.getToken();
-    await fetch("/api/bom",{method:"DELETE",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({id,type:"journal"})});
+    await bomOfflineStorage.deleteJournal(company, id);
+    if (navigator.onLine) {
+      try {
+        const token=authClient.getToken();
+        await fetch("/api/bom",{method:"DELETE",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({id,type:"journal"})});
+      } catch (e) {}
+    }
     await loadJournals();
     showToast("Journal deleted");
     if (onStockUpdated) onStockUpdated();

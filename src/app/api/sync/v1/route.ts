@@ -142,6 +142,20 @@ export async function POST(req: Request) {
     }
 
     // A. Ledgers
+    // Delete Ledgers if requested
+    if (push && Array.isArray(push.deletedLedgerIds) && push.deletedLedgerIds.length > 0) {
+      for (const dId of push.deletedLedgerIds) {
+        try {
+          const numId = parseInt(String(dId), 10);
+          if (numId && numId < 1000000000000) {
+            await prisma.ledger.deleteMany({ where: { id: numId, companyId: cId } });
+          }
+        } catch (delLErr) {
+          console.error('Error deleting ledger during sync:', delLErr);
+        }
+      }
+    }
+
     if (push && Array.isArray(push.ledgers) && push.ledgers.length > 0) {
       for (const l of push.ledgers) {
         try {
@@ -175,6 +189,31 @@ export async function POST(req: Request) {
                 ifsc: l.ifsc || null,
                 bankHolderName: l.bankHolderName || null,
                 odLimit: l.odLimit ? parseFloat(String(l.odLimit)) : null,
+              },
+            });
+            pushedLedgersCount++;
+          } else {
+            await prisma.ledger.update({
+              where: { id: existingLedger.id },
+              data: {
+                groupName: l.groupName || existingLedger.groupName,
+                alias: l.alias !== undefined ? (l.alias || null) : existingLedger.alias,
+                mailingName: l.mailingName !== undefined ? (l.mailingName || null) : existingLedger.mailingName,
+                openingBal: l.openingBal !== undefined ? parseFloat(String(l.openingBal)) : (l.openingBalance !== undefined ? parseFloat(String(l.openingBalance)) : existingLedger.openingBal),
+                balanceType: l.balanceType || existingLedger.balanceType,
+                address: l.address !== undefined ? (l.address || null) : existingLedger.address,
+                state: l.state !== undefined ? (l.state || null) : existingLedger.state,
+                pinCode: l.pinCode !== undefined ? (l.pinCode || null) : existingLedger.pinCode,
+                panItNo: l.panItNo !== undefined ? (l.panItNo || null) : existingLedger.panItNo,
+                gstin: l.gstin !== undefined ? (l.gstin || null) : existingLedger.gstin,
+                country: l.country || existingLedger.country,
+                phone: l.phone !== undefined ? (l.phone || null) : existingLedger.phone,
+                email: l.email !== undefined ? (l.email || null) : existingLedger.email,
+                bankName: l.bankName !== undefined ? (l.bankName || null) : existingLedger.bankName,
+                accountNo: l.accountNo !== undefined ? (l.accountNo || null) : existingLedger.accountNo,
+                ifsc: l.ifsc !== undefined ? (l.ifsc || null) : existingLedger.ifsc,
+                bankHolderName: l.bankHolderName !== undefined ? (l.bankHolderName || null) : existingLedger.bankHolderName,
+                odLimit: l.odLimit ? parseFloat(String(l.odLimit)) : existingLedger.odLimit,
               },
             });
             pushedLedgersCount++;
@@ -230,6 +269,20 @@ export async function POST(req: Request) {
       }
     }
 
+    // Delete Stock Items if requested
+    if (push && Array.isArray(push.deletedStockItemIds) && push.deletedStockItemIds.length > 0) {
+      for (const dId of push.deletedStockItemIds) {
+        try {
+          const numId = parseInt(String(dId), 10);
+          if (numId && numId < 1000000000000) {
+            await prisma.stockItem.deleteMany({ where: { id: numId, companyId: cId } });
+          }
+        } catch (delSIErr) {
+          console.error('Error deleting stock item during sync:', delSIErr);
+        }
+      }
+    }
+
     // D. Stock Items
     if (push && Array.isArray(push.stockItems) && push.stockItems.length > 0) {
       for (const si of push.stockItems) {
@@ -256,6 +309,25 @@ export async function POST(req: Request) {
                 showInclTax: !!si.showInclTax,
                 showAmtInclTax: !!si.showAmtInclTax,
                 defaultDiscount: parseFloat(String(si.defaultDiscount || 0)) || 0,
+              },
+            });
+            pushedStockItemsCount++;
+          } else {
+            await prisma.stockItem.update({
+              where: { id: existingSI.id },
+              data: {
+                openingQty: si.openingQty !== undefined ? parseFloat(String(si.openingQty)) : existingSI.openingQty,
+                openingVal: si.openingVal !== undefined ? parseFloat(String(si.openingVal)) : existingSI.openingVal,
+                openingRate: si.openingRate !== undefined ? parseFloat(String(si.openingRate)) : existingSI.openingRate,
+                groupName: si.groupName !== undefined ? (si.groupName || null) : existingSI.groupName,
+                categoryName: si.categoryName !== undefined ? (si.categoryName || null) : existingSI.categoryName,
+                unitName: si.unitName !== undefined ? (si.unitName || null) : existingSI.unitName,
+                gstApplicable: si.gstApplicable || existingSI.gstApplicable,
+                gstRate: si.gstRate !== undefined ? parseFloat(String(si.gstRate)) : existingSI.gstRate,
+                hsnCode: si.hsnCode !== undefined ? (si.hsnCode || null) : existingSI.hsnCode,
+                showInclTax: si.showInclTax !== undefined ? !!si.showInclTax : existingSI.showInclTax,
+                showAmtInclTax: si.showAmtInclTax !== undefined ? !!si.showAmtInclTax : existingSI.showAmtInclTax,
+                defaultDiscount: si.defaultDiscount !== undefined ? parseFloat(String(si.defaultDiscount)) : existingSI.defaultDiscount,
               },
             });
             pushedStockItemsCount++;

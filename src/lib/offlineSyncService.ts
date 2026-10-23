@@ -10,7 +10,7 @@ const OFFLINE_BACKUP_KEY = 'ledgerx_offline_data_backup';
 
 export interface SyncQueueItem {
   id: string; // unique local ID e.g. "sq_1712345678"
-  type: 'VOUCHER' | 'LEDGER' | 'STOCK_ITEM' | 'UNIT' | 'STOCK_GROUP' | 'COMPANY' | 'PURCHASE_ORDER';
+  type: 'VOUCHER' | 'LEDGER' | 'STOCK_ITEM' | 'UNIT' | 'STOCK_GROUP' | 'COMPANY' | 'PURCHASE_ORDER' | 'BOM' | 'MANUFACTURING_JOURNAL';
   action: 'CREATE' | 'UPDATE' | 'DELETE';
   data: any;
   companyId: number;
@@ -456,6 +456,10 @@ class OfflineSyncService {
       const pushedStockGroups = queue.filter(q => q.type === 'STOCK_GROUP' && q.action !== 'DELETE').map(q => q.data);
       const pushedPurchaseOrders = queue.filter(q => q.type === 'PURCHASE_ORDER' && q.action !== 'DELETE').map(q => q.data);
       const deletedPOIds = queue.filter(q => q.type === 'PURCHASE_ORDER' && q.action === 'DELETE').map(q => q.data?.id);
+      const pushedBOMs = queue.filter(q => q.type === 'BOM' && q.action !== 'DELETE').map(q => q.data);
+      const deletedBOMIds = queue.filter(q => q.type === 'BOM' && q.action === 'DELETE').map(q => q.data?.id);
+      const pushedJournals = queue.filter(q => q.type === 'MANUFACTURING_JOURNAL' && q.action !== 'DELETE').map(q => q.data);
+      const deletedJournalIds = queue.filter(q => q.type === 'MANUFACTURING_JOURNAL' && q.action === 'DELETE').map(q => q.data?.id);
 
       const lastSyncedAt = localStorage.getItem(LAST_SYNC_TIME_KEY);
 
@@ -477,6 +481,10 @@ class OfflineSyncService {
             stockGroups: pushedStockGroups,
             purchaseOrders: pushedPurchaseOrders,
             deletedPOIds,
+            boms: pushedBOMs,
+            deletedBOMIds,
+            manufacturingJournals: pushedJournals,
+            deletedJournalIds,
           },
         }),
       });

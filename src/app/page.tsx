@@ -2052,130 +2052,207 @@ export default function App() {
 
     if (targetItem && targetItem.id) {
       if (type === 'ledger') {
-        try {
-          const res = await fetch('/api/ledgers', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: targetItem.id, ...data })
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            const updated = {
-              ...targetItem,
-              ...data,
-              id: targetItem.id,
-              openingBalance: resData.ledger?.openingBalance ?? data.openingBalance,
-              pan: resData.ledger?.pan ?? data.pan,
-            };
-            setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
-            return updated;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            const errMsg = errData.error || `Failed to update ledger on server`;
-            alert(errMsg);
-            return null;
-          }
-        } catch (e: any) {
-          console.error("Ledger update failed", e);
-          alert("Error connecting to server to update ledger: " + e.message);
+        const normName = (data.name || '').trim().toLowerCase();
+        if (normName && ledgers.some(l => l.name.trim().toLowerCase() === normName && l.id !== targetItem.id)) {
+          alert(`Ledger "${data.name}" already exists!`);
           return null;
         }
+
+        let updated = {
+          ...targetItem,
+          ...data,
+          id: targetItem.id,
+          companyId: cid || targetItem.companyId,
+        };
+
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/ledgers', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ id: targetItem.id, ...data })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              updated = {
+                ...updated,
+                openingBalance: resData.ledger?.openingBalance ?? data.openingBalance ?? updated.openingBalance,
+                pan: resData.ledger?.pan ?? data.pan ?? updated.pan,
+              };
+              setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
+              return updated;
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              const errMsg = errData.error || `Failed to update ledger on server`;
+              alert(errMsg);
+              return null;
+            }
+          } catch (e: any) {
+            console.warn("Server ledger update failed, saving offline:", e);
+          }
+        }
+
+        // Offline update fallback (no network error alert)
+        setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
+        offlineSyncService.enqueue({ type: 'LEDGER', action: 'UPDATE', data: updated, companyId: cid });
+        if (!isInitializingRef.current) {
+          setSaveToast("Ledger updated locally (Offline Mode • Will auto-sync)");
+        }
+        return updated;
       }
       else if (type === 'stockItem') {
-        try {
-          const res = await fetch('/api/stock-items', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: targetItem.id, companyId: cid, ...data })
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            setAllStockItems(p => p.map(x => x.id === targetItem.id ? resData.item : x));
-            return resData.item;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            const errMsg = errData.error || `Failed to update stock item on server`;
-            alert(errMsg);
-            return null;
-          }
-        } catch (e: any) {
-          console.error('Stock Item update error:', e);
-          alert('Error connecting to server to update stock item: ' + e.message);
+        const normName = (data.name || '').trim().toLowerCase();
+        if (normName && stockItems.some(it => it.name.trim().toLowerCase() === normName && it.id !== targetItem.id)) {
+          alert(`Stock Item "${data.name}" already exists!`);
           return null;
         }
+
+        let updated = {
+          ...targetItem,
+          companyId: cid || targetItem.companyId,
+          ...data,
+          id: targetItem.id,
+        };
+
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/stock-items', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ id: targetItem.id, companyId: cid, ...data })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              const finalItem = resData.item || updated;
+              setAllStockItems(p => p.map(x => x.id === targetItem.id ? finalItem : x));
+              return finalItem;
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              const errMsg = errData.error || `Failed to update stock item on server`;
+              alert(errMsg);
+              return null;
+            }
+          } catch (e: any) {
+            console.warn('Server stock item update failed, saving offline:', e);
+          }
+        }
+
+        // Offline update fallback (no network error alert)
+        setAllStockItems(p => p.map(x => x.id === targetItem.id ? updated : x));
+        offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: updated, companyId: cid });
+        if (!isInitializingRef.current) {
+          setSaveToast("Stock item updated locally (Offline Mode • Will auto-sync)");
+        }
+        return updated;
       }
       else if (type === 'group') setAllGroups(p => p.map(x => x.id === targetItem.id ? { ...x, ...data } : x));
       else if (type === 'stockGroup') {
-        try {
-          const res = await fetch('/api/stock-groups', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: targetItem.id, ...data })
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            setAllStockGroups(p => p.map(x => x.id === targetItem.id ? resData.group : x));
-            return resData.group;
-          } else {
-            const errText = await res.text();
-            alert("Failed to update stock group: " + errText);
-            return null;
-          }
-        } catch (e: any) {
-          console.error("Stock Group update failed", e);
-          alert("Error connecting to server to update stock group: " + e.message);
+        const normName = (data.name || '').trim().toLowerCase();
+        if (normName && allStockGroups.some(g => Number(g.companyId) === Number(cid) && g.name.trim().toLowerCase() === normName && g.id !== targetItem.id)) {
+          alert(`Stock Group "${data.name}" already exists!`);
           return null;
         }
+
+        const updated = { ...targetItem, ...data, id: targetItem.id, companyId: cid };
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/stock-groups', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ id: targetItem.id, ...data })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              setAllStockGroups(p => p.map(x => x.id === targetItem.id ? resData.group : x));
+              return resData.group;
+            } else {
+              const errText = await res.text();
+              alert("Failed to update stock group: " + errText);
+              return null;
+            }
+          } catch (e: any) {
+            console.warn("Stock Group update server failed, saving offline:", e);
+          }
+        }
+        setAllStockGroups(p => p.map(x => x.id === targetItem.id ? updated : x));
+        offlineSyncService.enqueue({ type: 'STOCK_GROUP', action: 'UPDATE', data: updated, companyId: cid });
+        return updated;
       }
       else if (type === 'unit') {
-        try {
-          const res = await fetch('/api/units', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: targetItem.id, ...data })
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            setAllUnits(p => p.map(x => x.id === targetItem.id ? resData.unit : x));
-            return resData.unit;
-          } else {
-            const errText = await res.text();
-            alert("Failed to update unit: " + errText);
-            return null;
-          }
-        } catch (e: any) {
-          console.error("Unit update failed", e);
-          alert("Error connecting to server to update unit: " + e.message);
+        const normSym = (data.symbol || data.name || '').trim().toLowerCase();
+        if (normSym && allUnits.some(u => Number(u.companyId) === Number(cid) && (u.symbol || u.name || '').trim().toLowerCase() === normSym && u.id !== targetItem.id)) {
+          alert(`Unit "${data.symbol || data.name}" already exists!`);
           return null;
         }
+
+        const updated = { ...targetItem, ...data, id: targetItem.id, companyId: cid };
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/units', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ id: targetItem.id, ...data })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              setAllUnits(p => p.map(x => x.id === targetItem.id ? resData.unit : x));
+              return resData.unit;
+            } else {
+              const errText = await res.text();
+              alert("Failed to update unit: " + errText);
+              return null;
+            }
+          } catch (e: any) {
+            console.warn("Unit update server failed, saving offline:", e);
+          }
+        }
+        setAllUnits(p => p.map(x => x.id === targetItem.id ? updated : x));
+        offlineSyncService.enqueue({ type: 'UNIT', action: 'UPDATE', data: updated, companyId: cid });
+        return updated;
       }
       else if (type === 'company') {
-        setCompanies(p => p.map(x => x.id === targetItem.id ? { ...x, ...data } : x));
+        const normName = (data.name || '').trim().toLowerCase();
+        if (normName && companies.some(c => c.name.trim().toLowerCase() === normName && c.id !== targetItem.id)) {
+          alert(`Company "${data.name}" already exists!`);
+          return false;
+        }
+
+        const updated = { ...targetItem, ...data, id: targetItem.id };
+        setCompanies(p => p.map(x => x.id === targetItem.id ? updated : x));
         if (activeCompany && activeCompany.id === targetItem.id) {
           setActiveCompany({ ...activeCompany, ...data });
         }
-        try {
-          const res = await fetch('/api/companies', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: targetItem.id, ...data })
-          });
-          if (res.ok) {
-            return true;
-          } else {
-            const resData = await res.json();
-            alert("Failed to update company: " + (resData.error || "Unknown error"));
-            return false;
+        if (navigator.onLine) {
+          try {
+            const res = await fetch('/api/companies', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ id: targetItem.id, ...data })
+            });
+            if (res.ok) {
+              return true;
+            } else {
+              const resData = await res.json().catch(() => ({}));
+              alert("Failed to update company: " + (resData.error || "Unknown error"));
+              return false;
+            }
+          } catch (e: any) {
+            console.warn("Error updating company on server, saving offline:", e);
           }
-        } catch (e: any) {
-          alert("Error updating company: " + e.message);
-          return false;
         }
+        offlineSyncService.enqueue({ type: 'COMPANY', action: 'UPDATE', data: updated, companyId: targetItem.id });
+        return true;
       }
       return true;
     } else {
       const id = Date.now();
       if (type === 'ledger') {
+        const normName = (data.name || '').trim().toLowerCase();
+        if (normName && ledgers.some(l => l.name.trim().toLowerCase() === normName)) {
+          alert(`Ledger "${data.name}" already exists!`);
+          return null;
+        }
+
         if (navigator.onLine) {
           try {
             const res = await fetch('/api/ledgers', {
@@ -2187,12 +2264,17 @@ export default function App() {
               const resData = await res.json();
               setAllLedgers(p => [...p, resData.ledger]);
               return resData.ledger;
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              const errMsg = errData.error || `Failed to create ledger on server`;
+              alert(errMsg);
+              return null;
             }
           } catch (e: any) {
             console.warn("Online ledger save failed, saving offline locally:", e);
           }
         }
-        // Local offline save & queue
+        // Local offline save & queue (duplicate-checked above)
         const localLedger = { id, companyId: cid, ...data };
         setAllLedgers(p => [...p, localLedger]);
         offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
@@ -2202,6 +2284,12 @@ export default function App() {
         return localLedger;
       }
       else if (type === 'stockItem') {
+        const normName = (data.name || '').trim().toLowerCase();
+        if (normName && stockItems.some(it => it.name.trim().toLowerCase() === normName)) {
+          alert(`Stock Item "${data.name}" already exists!`);
+          return null;
+        }
+
         if (navigator.onLine) {
           try {
             const res = await fetch('/api/stock-items', {
@@ -2213,6 +2301,11 @@ export default function App() {
               const resData = await res.json();
               setAllStockItems(p => [...p, resData.item]);
               return resData.item;
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              const errMsg = errData.error || `Failed to create stock item on server`;
+              alert(errMsg);
+              return null;
             }
           } catch (e: any) {
             console.warn("Online stock item save failed, saving offline locally:", e);
@@ -2227,6 +2320,12 @@ export default function App() {
         return localItem;
       }
       else if (type === 'unit') {
+        const normSym = (data.symbol || data.name || '').trim().toLowerCase();
+        if (normSym && allUnits.some(u => Number(u.companyId) === Number(cid) && (u.symbol || u.name || '').trim().toLowerCase() === normSym)) {
+          alert(`Unit "${data.symbol || data.name}" already exists!`);
+          return null;
+        }
+
         if (navigator.onLine) {
           try {
             const res = await fetch('/api/units', {
@@ -2238,6 +2337,11 @@ export default function App() {
               const resData = await res.json();
               setAllUnits(p => [...p, resData.unit]);
               return resData.unit;
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              const errMsg = errData.error || `Failed to create unit on server`;
+              alert(errMsg);
+              return null;
             }
           } catch (e: any) {
             console.warn("Online unit save failed, saving offline locally:", e);
@@ -2252,6 +2356,12 @@ export default function App() {
         return localUnit;
       }
       else if (type === 'stockGroup') {
+        const normName = (data.name || '').trim().toLowerCase();
+        if (normName && allStockGroups.some(g => Number(g.companyId) === Number(cid) && g.name.trim().toLowerCase() === normName)) {
+          alert(`Stock Group "${data.name}" already exists!`);
+          return null;
+        }
+
         if (navigator.onLine) {
           try {
             const res = await fetch('/api/stock-groups', {
@@ -2263,6 +2373,11 @@ export default function App() {
               const resData = await res.json();
               setAllStockGroups(p => [...p, resData.group]);
               return resData.group;
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              const errMsg = errData.error || `Failed to create stock group on server`;
+              alert(errMsg);
+              return null;
             }
           } catch (e: any) {
             console.warn("Online stock group save failed, saving offline locally:", e);
@@ -2887,17 +3002,55 @@ export default function App() {
       if (e.key === 'F2' && !e.altKey)  { e.preventDefault(); setShowDate(true); }
       if (e.key === 'F2' && e.altKey)   { e.preventDefault(); setShowPeriod(true); }
       if (e.key === 'F9' && e.ctrlKey)  { e.preventDefault(); nav('PURCHASE_ORDER_ENTRY'); }
-      if (e.key === 'b' && e.altKey)    { e.preventDefault(); nav('BOM_MODULE'); }
-      if (screen === 'VOUCHER_ENTRY') {
-        if (e.key === 'F4') { e.preventDefault(); setActiveVoucher('Contra'); }
-        if (e.key === 'F5') { e.preventDefault(); setActiveVoucher('Payment'); }
-        if (e.key === 'F6') { e.preventDefault(); setActiveVoucher('Receipt'); }
-        if (e.key === 'F7') { e.preventDefault(); setActiveVoucher('Journal'); }
-        if (e.key === 'F8' && !e.altKey && !e.ctrlKey) { e.preventDefault(); setActiveVoucher('Sales'); }
-        if (e.key === 'F8' && (e.altKey || e.ctrlKey)) { e.preventDefault(); setActiveVoucher('Sales Quotation'); }
-        if (e.key === 'F9' && !e.ctrlKey && !e.altKey) { e.preventDefault(); setActiveVoucher('Purchase'); }
-        if (e.key === 'F9' && e.altKey) { e.preventDefault(); setActiveVoucher('Debit Note'); }
-        if (e.key === 'F10') { e.preventDefault(); setActiveVoucher('Sales Quotation'); }
+      if (e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); nav('BOM_MODULE'); }
+      // Global Function Keys for Vouchers (Contra, Payment, Receipt, Journal, Sales, Purchase, Pur. Order, Quotation, Credit Note, Debit Note)
+      if (e.key === 'F4') { 
+        e.preventDefault(); 
+        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+        setActiveVoucher('Contra'); 
+      }
+      if (e.key === 'F5') { 
+        e.preventDefault(); 
+        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+        setActiveVoucher('Payment'); 
+      }
+      if (e.key === 'F6') { 
+        e.preventDefault(); 
+        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+        setActiveVoucher('Receipt'); 
+      }
+      if (e.key === 'F7') { 
+        e.preventDefault(); 
+        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+        setActiveVoucher('Journal'); 
+      }
+      if (e.key === 'F8') {
+        e.preventDefault();
+        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
+        if (e.ctrlKey) {
+          setActiveVoucher('Credit Note');
+        } else if (e.altKey) {
+          setActiveVoucher('Sales Quotation');
+        } else {
+          setActiveVoucher('Sales');
+        }
+      }
+      if (e.key === 'F9') {
+        e.preventDefault();
+        if (e.ctrlKey) {
+          nav('PURCHASE_ORDER_ENTRY');
+        } else if (e.altKey) {
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
+          setActiveVoucher('Debit Note');
+        } else {
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
+          setActiveVoucher('Purchase');
+        }
+      }
+      if (e.key === 'F10') { 
+        e.preventDefault(); 
+        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+        setActiveVoucher('Sales Quotation'); 
       }
       if (e.altKey && e.key.toLowerCase() === 'd' && alterItem) {
         e.preventDefault();
@@ -3850,7 +4003,17 @@ export default function App() {
             {screen==='DAY_BOOK'             && <DayBookView vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='BALANCE_SHEET'        && <BalanceSheetView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} activeCompany={activeCompany} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} signatoryTitle={finalBSForm.signatoryTitle} />}
             {screen==='PROFIT_LOSS'          && <ProfitLossView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} activeCompany={activeCompany} stockItems={stockItems} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onDrillDownVoucher={v=>{nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} signatoryTitle={finalBSForm.signatoryTitle} />}
-            {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onSaveOpeningBalance={async (ledgerId, ob, bt) => { const token = authClient.getToken(); const res = await fetch('/api/ledgers', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:ledgerId,openingBalance:ob,balanceType:bt})}); const d = await res.json(); if(d.success){setAllLedgers(p=>p.map(x=>x.id===ledgerId?{...x,openingBalance:ob,balanceType:bt}:x));} }} />}
+            {screen==='TRIAL_BALANCE'        && <TrialBalanceView ledgers={ledgers} vouchers={filteredVouchers.filter(v => v.type !== 'Sales Quotation' && v.type !== 'Quotation')} currentPeriod={currentPeriod} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} onSaveOpeningBalance={async (ledgerId, ob, bt) => {
+              setAllLedgers(p=>p.map(x=>x.id===ledgerId?{...x,openingBalance:ob,balanceType:bt}:x));
+              const cid = activeCompany?.id || 0;
+              offlineSyncService.enqueue({ type: 'LEDGER', action: 'UPDATE', data: { id: ledgerId, openingBalance: ob, balanceType: bt }, companyId: cid });
+              if (navigator.onLine) {
+                try {
+                  const token = authClient.getToken();
+                  await fetch('/api/ledgers', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:ledgerId,openingBalance:ob,balanceType:bt})});
+                } catch(e) { console.warn("Online opening balance update failed, saved offline:", e); }
+              }
+            }} />}
             {screen==='SALES_REGISTER'       && <UniversalRegisterView voucherType='Sales'       vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='QUOTATION_REGISTER'   && <UniversalRegisterView voucherType='Sales Quotation' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PURCHASE_ORDER_ENTRY'    && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="form" onBack={goBack}/>}
@@ -3865,7 +4028,17 @@ export default function App() {
             {screen==='CREDIT_NOTE_REGISTER' && <UniversalRegisterView voucherType='Credit Note' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='LEDGER_REPORT'        && <LedgerReportView ledgers={ledgers} vouchers={filteredVouchers} preselectedId={reportLedgerId} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='GROUP_SUMMARY'        && <GroupSummaryView ledgers={ledgers} vouchers={filteredVouchers} groupName={reportGroupName} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
-            {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} stockGroups={stockGroups} vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={(id: number)=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownVoucher={(v: Voucher)=>{ if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') { nav('BOM_MODULE'); return; } nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} onSaveOpeningStock={async (itemId: number, qty: number, rate: number) => { const token = authClient.getToken(); const res = await fetch('/api/stock-items', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:itemId,openingQty:qty,openingRate:rate})}); const d = await res.json(); if(d.success){setAllStockItems(p=>p.map(x=>x.id===itemId?{...x,openingQty:qty,openingRate:rate}:x));} }} />}
+            {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} stockGroups={stockGroups} vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={(id: number)=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownVoucher={(v: Voucher)=>{ if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') { nav('BOM_MODULE'); return; } nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} onSaveOpeningStock={async (itemId: number, qty: number, rate: number) => {
+              setAllStockItems(p=>p.map(x=>x.id===itemId?{...x,openingQty:qty,openingRate:rate}:x));
+              const cid = activeCompany?.id || 0;
+              offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: { id: itemId, openingQty: qty, openingRate: rate }, companyId: cid });
+              if (navigator.onLine) {
+                try {
+                  const token = authClient.getToken();
+                  await fetch('/api/stock-items', {method:'PUT',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({id:itemId,openingQty:qty,openingRate:rate})});
+                } catch(e) { console.warn("Online opening stock update failed, saved offline:", e); }
+              }
+            }} />}
             {screen==='OUTSTANDING_REPORT'   && <OutstandingView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} onDrillDown={ledgerId=>{ setReportLedgerId(ledgerId); nav('LEDGER_REPORT'); }} />}
             {screen==='CHART_OF_ACCOUNTS'    && <ChartOfAccountsView ledgers={ledgers} vouchers={filteredVouchers} onBack={goBack} />}
             {screen==='PRINT_PREVIEW'        && <PrintPreview vouchers={vouchers} company={activeCompany} companies={companies} printVoucher={printVoucher} ledgers={ledgers} onSelectVoucher={setPrintVoucher} onBack={goBack} />}
@@ -3930,10 +4103,11 @@ export default function App() {
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Journal');}}>F7: Journal</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales');}}>F8: Sales</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>Alt+F8: Quotation</div>
+          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Credit Note');}}>Ctrl+F8: Credit Note</div>
           <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Purchase');}}>F9: Purchase</div>
+          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Debit Note');}}>Alt+F9: Debit Note</div>
           <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>
           <div className="sidebar-btn" onClick={()=>nav('BOM_MODULE')} style={{color:'#a78bfa',fontWeight:'bold'}}>Alt+B: BOM / Mfg</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>F10: Quotation</div>
           <div className="sidebar-btn-spacer"/>
           <div className="sidebar-btn" onClick={()=>setShowFeatures(true)}>F11: Features</div>
           <div className="sidebar-btn">F12: Configure</div>
@@ -9738,7 +9912,23 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           onPrintPreview(getVoucherData() as Voucher);
         }
         else if (e.key === 'F2') { e.preventDefault(); e.stopPropagation(); onF2(); }
-        else if (e.ctrlKey && e.key === 'F9') { e.preventDefault(); e.stopPropagation(); onNav('PURCHASE_ORDER_ENTRY'); }
+        else if (e.key === 'F4') { e.preventDefault(); e.stopPropagation(); onChangeType('Contra'); }
+        else if (e.key === 'F5') { e.preventDefault(); e.stopPropagation(); onChangeType('Payment'); }
+        else if (e.key === 'F6') { e.preventDefault(); e.stopPropagation(); onChangeType('Receipt'); }
+        else if (e.key === 'F7') { e.preventDefault(); e.stopPropagation(); onChangeType('Journal'); }
+        else if (e.key === 'F8') {
+          e.preventDefault(); e.stopPropagation();
+          if (e.ctrlKey) onChangeType('Credit Note');
+          else if (e.altKey) onChangeType('Sales Quotation');
+          else onChangeType('Sales');
+        }
+        else if (e.key === 'F9') {
+          e.preventDefault(); e.stopPropagation();
+          if (e.ctrlKey) onNav('PURCHASE_ORDER_ENTRY');
+          else if (e.altKey) onChangeType('Debit Note');
+          else onChangeType('Purchase');
+        }
+        else if (e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); e.stopPropagation(); onNav('BOM_MODULE'); }
       }}
     >
       {/* Voucher type bar */}
@@ -16269,7 +16459,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                    3 Copies: Original + Duplicate + Triplicate
                  </div>
                  <div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:4,padding:'8px 10px',marginTop:12,fontSize:11,color:'#1e40af',lineHeight:1.4}}>
-                   ℹ️ <b>Continuous Print Tip:</b> Agar printer 2 print ke baad ruk kar paper palatne ka message dikhaye, to printer settings me <b>&quot;Two-sided&quot; / &quot;Duplex (Manual)&quot;</b> ko <u>uncheck</u> rakhein taaki teeno copies bina pause ke continuous niklein.
+                   ℹ️ <b>Continuous Print Tip:</b> If the printer pauses after 2 pages and prompts to flip the paper, keep <b>&quot;Two-sided&quot; / &quot;Duplex (Manual)&quot;</b> <u>unchecked</u> in printer settings so all copies print continuously without pause.
                  </div>
               </div>
               <div style={{background:'#f9f9f9',padding:'12px',display:'flex',justifyContent:'flex-end',gap:10,borderTop:'1px solid #eee'}}>

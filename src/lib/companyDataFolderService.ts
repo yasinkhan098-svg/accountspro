@@ -25,6 +25,8 @@ export interface CompanyFolderData {
   groups?: any[];
   voucherTypes?: any[];
   purchaseOrders?: any[];  // Purchase Orders offline storage
+  boms?: any[];            // BOM templates offline storage
+  manufacturingJournals?: any[]; // Manufacturing Journals offline storage
 }
 
 const LOCAL_BRIDGE_URL = 'http://127.0.0.1:45454';
@@ -155,17 +157,30 @@ class CompanyDataFolderService {
    * Saves a company and all its accounting data into its numbered folder
    * e.g. %LocalAppData%\LedgerX\data\10001\
    */
-  public async saveCompanyFolder(data: CompanyFolderData): Promise<boolean> {
+  public async saveCompanyFolder(data: Partial<CompanyFolderData>): Promise<boolean> {
     if (typeof window === 'undefined') return false;
 
     const code = (data.companyCode || this.getCompanyFolderCode(data.company)).toUpperCase();
+    const existing = this.loadFromLocalCache(code);
     const cleanData: CompanyFolderData = {
+      ...existing,
       ...data,
       companyCode: code,
       company: {
+        ...(existing?.company || {}),
         ...data.company,
         companyCode: code,
       },
+      ledgers: data.ledgers !== undefined ? data.ledgers : (existing?.ledgers || []),
+      vouchers: data.vouchers !== undefined ? data.vouchers : (existing?.vouchers || []),
+      stockItems: data.stockItems !== undefined ? data.stockItems : (existing?.stockItems || []),
+      stockGroups: data.stockGroups !== undefined ? data.stockGroups : (existing?.stockGroups || []),
+      units: data.units !== undefined ? data.units : (existing?.units || []),
+      groups: data.groups !== undefined ? data.groups : (existing?.groups || []),
+      voucherTypes: data.voucherTypes !== undefined ? data.voucherTypes : (existing?.voucherTypes || []),
+      purchaseOrders: data.purchaseOrders !== undefined ? data.purchaseOrders : (existing?.purchaseOrders || []),
+      boms: data.boms !== undefined ? data.boms : (existing?.boms || []),
+      manufacturingJournals: data.manufacturingJournals !== undefined ? data.manufacturingJournals : (existing?.manufacturingJournals || []),
     };
 
     // 1. Electron bridge

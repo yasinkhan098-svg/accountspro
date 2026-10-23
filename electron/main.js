@@ -180,6 +180,8 @@ ipcMain.handle('load-company-folder', async (event, companyCode) => {
       groups: read('groups.json', []),
       voucherTypes: read('voucher_types.json', []),
       purchaseOrders: read('purchase_orders.json', []),
+      boms: read('boms.json', []),
+      manufacturingJournals: read('manufacturing_journals.json', []),
     };
   } catch (e) {
     return null;
@@ -201,6 +203,8 @@ ipcMain.handle('save-company-folder', async (event, data) => {
     if (data.groups !== undefined) write('groups.json', data.groups);
     if (data.voucherTypes !== undefined) write('voucher_types.json', data.voucherTypes);
     if (data.purchaseOrders !== undefined) write('purchase_orders.json', data.purchaseOrders);
+    if (data.boms !== undefined) write('boms.json', data.boms);
+    if (data.manufacturingJournals !== undefined) write('manufacturing_journals.json', data.manufacturingJournals);
     return true;
   } catch (e) {
     console.error('Error saving company folder:', e);

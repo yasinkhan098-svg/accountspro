@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { BankStatementState } from './types';
 import { saveBankStatementState } from './bankStatementStorage';
+import { parseBankStatementClient } from './parseBankStatementClient';
 
 interface Props {
   companyId: number;
@@ -53,18 +54,29 @@ export default function BankStatementUploadModal({
       setIsUploading(true);
       setError(null);
 
-      const formData = new FormData();
-      formData.append('file', file);
+      let data: any = null;
+      if (navigator.onLine) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const res = await fetch('/api/bank-statement/parse', {
+            method: 'POST',
+            body: formData
+          });
+          if (res.ok) {
+            data = await res.json();
+          }
+        } catch (netErr) {
+          console.warn("Online statement parsing failed, falling back to local client parsing:", netErr);
+        }
+      }
 
-      const res = await fetch('/api/bank-statement/parse', {
-        method: 'POST',
-        body: formData
-      });
+      if (!data || !data.success) {
+        data = await parseBankStatementClient(file);
+      }
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to parse bank statement');
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Failed to parse bank statement');
       }
 
       setDetectedAccountNo(data.detectedAccountNo || '');
