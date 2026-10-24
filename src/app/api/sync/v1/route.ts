@@ -446,6 +446,43 @@ export async function POST(req: Request) {
       }
     }
 
+    // Handle manufacturing journals sync push
+    if (push && Array.isArray(push.manufacturingJournals) && push.manufacturingJournals.length > 0) {
+      for (const mj of push.manufacturingJournals) {
+        try {
+          const jNo = String(mj.journalNo || '').trim();
+          if (!jNo) continue;
+          const existingMj = await prisma.$queryRawUnsafe<any[]>(
+            `SELECT id FROM "ManufacturingJournal" WHERE "companyId" = ? AND "journalNo" = ? LIMIT 1`,
+            cId, jNo
+          );
+          if (!existingMj || existingMj.length === 0) {
+            const wDetailsStr = typeof mj.wastageDetails === 'string'
+              ? mj.wastageDetails
+              : JSON.stringify(mj.wastageDetails || []);
+            await prisma.$executeRawUnsafe(
+              `INSERT INTO "ManufacturingJournal"
+                ("companyId","journalNo","date","bomId","bomName","finishedItemId","finishedItemName",
+                 "outputQty","outputUnit","outputRate","totalRawCost","totalDirectExpenses","totalCost","costPerUnit",
+                 "wastageType","wastageQty","wastageUnit","wastageValue","wastageDetails","narration","status")
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Posted')`,
+              cId, jNo,
+              new Date(mj.date || Date.now()).toISOString(),
+              mj.bomId ? parseInt(mj.bomId) : null, mj.bomName || null,
+              parseInt(mj.finishedItemId || 0), mj.finishedItemName || '',
+              parseFloat(mj.outputQty || 0), mj.outputUnit || 'Nos', parseFloat(mj.costPerUnit || mj.outputRate || 0),
+              parseFloat(mj.totalRawCost || 0), parseFloat(mj.totalDirectExpenses || 0),
+              parseFloat(mj.totalCost || 0), parseFloat(mj.costPerUnit || 0),
+              mj.wastageType || 'None', parseFloat(mj.wastageQty || 0), mj.wastageUnit || 'Nos', parseFloat(mj.wastageValue || 0),
+              wDetailsStr, mj.narration || null
+            );
+          }
+        } catch (mjErr) {
+          // Ignore if table does not exist yet or error occurs
+        }
+      }
+    }
+
     // ==================== 4. PULL CLOUD DATA TO DESKTOP ====================
 
     const sinceDate = lastSyncedAt ? new Date(lastSyncedAt) : new Date(0);

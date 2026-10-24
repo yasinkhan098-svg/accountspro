@@ -69,6 +69,8 @@ interface BOMModuleProps {
   onBack: () => void; initialTab?: "bom" | "journal" | "register";
   onAltC?: (ctx: { fieldType: 'stockItem' | 'ledger' | 'group' | 'stockGroup' | 'unit'; onCreated: (newItem: any) => void }) => void;
   onStockUpdated?: () => void;
+  onSaveManufacturingJournal?: (journal: any, fullData: any) => Promise<void> | void;
+  onDeleteManufacturingJournal?: (journalId: number) => Promise<void> | void;
 }
 
 const AVAILABLE_WASTAGE_TYPES: { type: string; icon: string; label: string }[] = [
@@ -911,7 +913,7 @@ function ManufacturingJournalForm({
   company, stockItems, ledgers, boms, onSave, onCancel, onAltC
 }: {
   company: Company|null; stockItems: StockItem[]; ledgers: Ledger[];
-  boms: any[]; onSave: ()=>void; onCancel: ()=>void;
+  boms: any[]; onSave: (savedData?: any)=>void; onCancel: ()=>void;
   onAltC?: (ctx: { fieldType: 'stockItem' | 'ledger' | 'group' | 'stockGroup' | 'unit'; onCreated: (newItem: any) => void }) => void;
 }) {
   const [form, setForm] = useState<ManufacturingJournal>(emptyJournal(company?.id||0));
@@ -1017,7 +1019,7 @@ function ManufacturingJournalForm({
       } else if (e.key.toLowerCase() === "n" || e.key === "Escape") {
         e.preventDefault();
         setShowSavePrompt(false);
-        onSave();
+        onSave(savedMJData);
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (savePromptChoice === "yes") {
@@ -1025,7 +1027,7 @@ function ManufacturingJournalForm({
           setShowPrintModal(true);
         } else {
           setShowSavePrompt(false);
-          onSave();
+          onSave(savedMJData);
         }
       } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
@@ -1034,7 +1036,7 @@ function ManufacturingJournalForm({
     };
     window.addEventListener("keydown", onPromptKey);
     return () => window.removeEventListener("keydown", onPromptKey);
-  }, [showSavePrompt, savePromptChoice, onSave]);
+  }, [showSavePrompt, savePromptChoice, onSave, savedMJData]);
 
   const ensureRMRefs = (len:number) => {
     while(rmRefs.current.length<len) {
@@ -2389,7 +2391,7 @@ function ManufacturingJournalForm({
               <button
                 onClick={() => {
                   setShowSavePrompt(false);
-                  onSave();
+                  onSave(savedMJData);
                 }}
                 style={{
                   background: savePromptChoice === "no" ? "#1c3a5f" : "#ffffff",
@@ -2416,7 +2418,7 @@ function ManufacturingJournalForm({
           data={savedMJData}
           onClose={() => {
             setShowPrintModal(false);
-            onSave();
+            onSave(savedMJData);
           }}
         />
       )}
@@ -3108,7 +3110,7 @@ export function ManufacturingJournalPrintModal({
 // ============================================================
 // MAIN BOM MODULE
 // ============================================================
-export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="journal", onAltC, onStockUpdated }: BOMModuleProps) {
+export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="journal", onAltC, onStockUpdated, onSaveManufacturingJournal, onDeleteManufacturingJournal }: BOMModuleProps) {
   const [tab, setTab] = useState<"bom"|"journal"|"register">(initialTab);
   const [boms, setBOMs] = useState<any[]>([]);
   const [journals, setJournals] = useState<SavedJournal[]>([]);
@@ -3287,6 +3289,9 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
   const deleteJournal = async (id:number) => {
     if(!confirm("Delete this manufacturing journal?")) return;
     await bomOfflineStorage.deleteJournal(company, id);
+    if (onDeleteManufacturingJournal) {
+      await onDeleteManufacturingJournal(id);
+    }
     if (navigator.onLine) {
       try {
         const token=authClient.getToken();
@@ -3311,10 +3316,13 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
     return (
       <ManufacturingJournalForm company={company} stockItems={stockItems} ledgers={ledgers} boms={boms}
         onAltC={onAltC}
-        onSave={async()=>{
+        onSave={async(savedResultData?: any)=>{
           await loadJournals();
           setShowJournalForm(false);
           showToast("Manufacturing Journal posted! Stock updated ✓");
+          if (onSaveManufacturingJournal && savedResultData) {
+            await onSaveManufacturingJournal(savedResultData.journal || savedResultData, savedResultData);
+          }
           if (onStockUpdated) onStockUpdated();
         }}
         onCancel={()=>setShowJournalForm(false)}/>
