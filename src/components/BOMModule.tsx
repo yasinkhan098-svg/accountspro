@@ -1019,7 +1019,7 @@ function ManufacturingJournalForm({
       } else if (e.key.toLowerCase() === "n" || e.key === "Escape") {
         e.preventDefault();
         setShowSavePrompt(false);
-        onSave(savedMJData);
+        onCancel();
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (savePromptChoice === "yes") {
@@ -1027,7 +1027,7 @@ function ManufacturingJournalForm({
           setShowPrintModal(true);
         } else {
           setShowSavePrompt(false);
-          onSave(savedMJData);
+          onCancel();
         }
       } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
@@ -1036,7 +1036,7 @@ function ManufacturingJournalForm({
     };
     window.addEventListener("keydown", onPromptKey);
     return () => window.removeEventListener("keydown", onPromptKey);
-  }, [showSavePrompt, savePromptChoice, onSave, savedMJData]);
+  }, [showSavePrompt, savePromptChoice, onCancel]);
 
   const ensureRMRefs = (len:number) => {
     while(rmRefs.current.length<len) {
@@ -1630,8 +1630,33 @@ function ManufacturingJournalForm({
       };
     });
 
+    const cleanRMs = form.rawMaterials
+      .filter(r => r.itemName.trim())
+      .map(r => {
+        const act = (r.actualQty !== undefined && r.actualQty !== "")
+          ? r.actualQty
+          : (r.requiredQty !== undefined && r.requiredQty !== "" ? r.requiredQty : "0");
+        const q = parseFloat(String(act)) || 0;
+        const rate = parseFloat(String(r.rate)) || 0;
+        const amt = r.amount || parseFloat((q * rate).toFixed(2)) || 0;
+        return {
+          ...r,
+          actualQty: act,
+          requiredQty: r.requiredQty || act,
+          rate,
+          amount: amt
+        };
+      });
+
+    let fgId = form.finishedItemId || 0;
+    if (!fgId) {
+      const matchFg = stockItems.find(s => s.name.trim().toLowerCase() === form.finishedItemName.trim().toLowerCase());
+      if (matchFg) fgId = matchFg.id;
+    }
+
     const payload = {
       ...form,
+      finishedItemId: fgId,
       totalRawCost,
       totalDirectExpenses: totalDirectExp,
       totalCost,
@@ -1641,7 +1666,7 @@ function ManufacturingJournalForm({
       wastageUnit: form.outputUnit,
       wastageValue: totalWastageSelectedVal,
       wastageDetails: wastageDetailsArray,
-      rawMaterials: form.rawMaterials.filter(r=>r.itemName.trim()),
+      rawMaterials: cleanRMs,
       directExpenses: form.directExpenses.filter(d=>d.ledgerName.trim()),
     };
 
@@ -1683,6 +1708,14 @@ function ManufacturingJournalForm({
         directExpenses: payload.directExpenses
       };
       setSavedMJData(fullSaved);
+      // Immediately notify parent so stock and vouchers update right away!
+      try {
+        if (onSave) {
+          await onSave(fullSaved);
+        }
+      } catch (saveErr) {
+        console.error("Error in onSave callback:", saveErr);
+      }
       setShowSavePrompt(true);
     } else {
       setError("Failed to save manufacturing journal");
@@ -1832,7 +1865,23 @@ function ManufacturingJournalForm({
                       </td>
                       <td style={{padding:"3px 4px"}}>
                         <input ref={refs.reqRef} type="number" min={0} step="any" value={rm.requiredQty}
-                          onChange={e=>setForm(f=>{const rms=[...f.rawMaterials];rms[idx]={...rms[idx],requiredQty:e.target.value};return{...f,rawMaterials:rms};})}
+                          onChange={e=>{
+                            const val = e.target.value;
+                            setForm(f=>{
+                              const rms=[...f.rawMaterials];
+                              const prevAct = rms[idx].actualQty;
+                              const nextAct = (!prevAct || prevAct === rms[idx].requiredQty) ? val : prevAct;
+                              const r = parseFloat(String(rms[idx].rate)) || 0;
+                              const q = parseFloat(String(nextAct || val)) || 0;
+                              rms[idx]={
+                                ...rms[idx],
+                                requiredQty: val,
+                                actualQty: nextAct,
+                                amount: parseFloat((q * r).toFixed(2))
+                              };
+                              return {...f,rawMaterials:rms};
+                            });
+                          }}
                           onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();refs.actRef.current?.focus();}}}
                           style={{width:"100%",padding:"4px",border:"1px solid #e2e8f0",borderRadius:3,textAlign:"right",fontSize:11,background:"#f0f9ff"}}/>
                       </td>
@@ -2391,7 +2440,7 @@ function ManufacturingJournalForm({
               <button
                 onClick={() => {
                   setShowSavePrompt(false);
-                  onSave(savedMJData);
+                  onCancel();
                 }}
                 style={{
                   background: savePromptChoice === "no" ? "#1c3a5f" : "#ffffff",
@@ -2418,7 +2467,7 @@ function ManufacturingJournalForm({
           data={savedMJData}
           onClose={() => {
             setShowPrintModal(false);
-            onSave(savedMJData);
+            onCancel();
           }}
         />
       )}
@@ -3317,15 +3366,17 @@ export function BOMModule({ company, stockItems, ledgers, onBack, initialTab="jo
       <ManufacturingJournalForm company={company} stockItems={stockItems} ledgers={ledgers} boms={boms}
         onAltC={onAltC}
         onSave={async(savedResultData?: any)=>{
-          await loadJournals();
-          setShowJournalForm(false);
-          showToast("Manufacturing Journal posted! Stock updated ✓");
           if (onSaveManufacturingJournal && savedResultData) {
             await onSaveManufacturingJournal(savedResultData.journal || savedResultData, savedResultData);
           }
+          await loadJournals();
+          showToast("Manufacturing Journal posted! Stock updated ✓");
           if (onStockUpdated) onStockUpdated();
         }}
-        onCancel={()=>setShowJournalForm(false)}/>
+        onCancel={()=>{
+          setShowJournalForm(false);
+          loadJournals();
+        }}/>
     );
   }
 

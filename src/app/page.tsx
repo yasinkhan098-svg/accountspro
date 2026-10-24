@@ -61,9 +61,9 @@ interface Ledger {
 interface StockGroup { id: number; companyId: number; name: string; alias?: string; under: string; }
 interface StockCategory { id: number; companyId: number; name: string; alias?: string; under: string; }
 interface StockItem {
-  id: number; companyId: number; name: string; alias?: string; under: string; category: string;
+  id: number; companyId: number; name: string; alias?: string; under: string; category?: string;
   unit: any; altUnit?: any; gstRate: number; hsnCode?: string;
-  openingQty: number; openingRate: number;
+  openingQty: number; openingRate: number; openingVal?: number; groupName?: string;
   showInclTax?: boolean;
   showAmtInclTax?: boolean;
   gstApplicable?: string;
@@ -2703,7 +2703,7 @@ export default function App() {
       rawMaterials: fullData?.rawMaterials || savedJournal.rawMaterials,
       wastageDetails: fullData?.wastageDetails || savedJournal.wastageDetails,
       directExpenses: fullData?.directExpenses || savedJournal.directExpenses
-    });
+    }, allStockItems);
 
     // 2. Add / Update voucher in allVouchers state & localStorage
     setAllVouchers(prev => {
@@ -2711,16 +2711,23 @@ export default function App() {
       const nextVouchers = exists
         ? prev.map(v => (v.id === newVoucher.id || (v.type === 'Manufacturing Journal' && v.voucherNo === newVoucher.voucherNo)) ? newVoucher : v)
         : [...prev, newVoucher];
+      if (currentUser?.id) {
+        try { localStorage.setItem(`tally_u${currentUser.id}_allVouchers`, JSON.stringify(nextVouchers)); } catch (e) {}
+      }
       return nextVouchers;
     });
 
-    // 3. Update stock items: Add finished good (and scrap) to allStockItems
+    // 3. Update stock items: Ensure finished good, consumed raw materials, and scrap exist in allStockItems
     setAllStockItems(prev => {
-      return bomOfflineStorage.applyManufacturingToStock(cid, prev, {
+      const nextItems = bomOfflineStorage.applyManufacturingToStock(cid, prev, {
         ...savedJournal,
         rawMaterials: fullData?.rawMaterials || savedJournal.rawMaterials,
         wastageDetails: fullData?.wastageDetails || savedJournal.wastageDetails
       }, false);
+      if (currentUser?.id) {
+        try { localStorage.setItem(`tally_u${currentUser.id}_allStockItems`, JSON.stringify(nextItems)); } catch (e) {}
+      }
+      return nextItems;
     });
 
     // 4. Enqueue voucher into offlineSyncService
@@ -2732,7 +2739,7 @@ export default function App() {
     });
 
     setSaveToast("Manufacturing Journal posted! Stock Summary updated ✓");
-  }, [activeCompany?.id]);
+  }, [activeCompany?.id, allStockItems]);
 
   const handleDeleteManufacturingJournal = useCallback(async (journalId: number) => {
     if (!activeCompany?.id) return;
@@ -2777,33 +2784,45 @@ export default function App() {
     let updatedItems = [...allStockItems];
 
     for (const mj of localJournals) {
-      const vExists = allVouchers.some(v => 
+      const existingV = allVouchers.find(v => 
         Number(v.companyId) === cid && 
         v.type === 'Manufacturing Journal' && 
         v.voucherNo === mj.journalNo
       );
-      if (!vExists) {
-        const v = bomOfflineStorage.buildJournalVoucher(cid, mj);
+      if (!existingV) {
+        const v = bomOfflineStorage.buildJournalVoucher(cid, mj, allStockItems);
         vouchersToAdd.push(v);
-        // Also check if finished good exists in allStockItems
-        const fgExists = updatedItems.some(si => 
-          Number(si.companyId) === cid && 
-          ((mj.finishedItemId && Number(si.id) === Number(mj.finishedItemId)) || (si.name && si.name.trim().toLowerCase() === (mj.finishedItemName || '').trim().toLowerCase()))
-        );
-        if (!fgExists) {
-          updatedItems = bomOfflineStorage.applyManufacturingToStock(cid, updatedItems, mj, false);
-          shouldUpdateItems = true;
-        }
+      } else if (!existingV.inventoryEntries || existingV.inventoryEntries.length === 0 || !existingV.inventoryEntries.some(ie => ie.entryType === 'Consumption')) {
+        const refreshed = bomOfflineStorage.buildJournalVoucher(cid, mj, allStockItems);
+        vouchersToAdd.push({ ...refreshed, id: existingV.id });
+      }
+
+      // Also ensure finished good and raw materials exist in stock items
+      const fgExists = updatedItems.some(si => 
+        Number(si.companyId) === cid && 
+        ((mj.finishedItemId && Number(si.id) === Number(mj.finishedItemId)) || (si.name && si.name.trim().toLowerCase() === (mj.finishedItemName || '').trim().toLowerCase()))
+      );
+      if (!fgExists) {
+        updatedItems = bomOfflineStorage.applyManufacturingToStock(cid, updatedItems, mj, false);
+        shouldUpdateItems = true;
       }
     }
 
     if (vouchersToAdd.length > 0) {
-      setAllVouchers(prev => [...prev, ...vouchersToAdd]);
+      setAllVouchers(prev => {
+        let list = [...prev];
+        for (const nv of vouchersToAdd) {
+          const idx = list.findIndex(x => x.id === nv.id || (x.type === 'Manufacturing Journal' && x.voucherNo === nv.voucherNo));
+          if (idx >= 0) list[idx] = nv;
+          else list.push(nv);
+        }
+        return list;
+      });
     }
     if (shouldUpdateItems) {
       setAllStockItems(updatedItems);
     }
-  }, [activeCompany?.id, allVouchers.length]);
+  }, [activeCompany?.id, allVouchers.length, allStockItems.length]);
 
   const initStandardLedgers = async () => {
     if (!activeCompany) return;
@@ -4142,7 +4161,7 @@ export default function App() {
             {screen==='CREDIT_NOTE_REGISTER' && <UniversalRegisterView voucherType='Credit Note' vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='LEDGER_REPORT'        && <LedgerReportView ledgers={ledgers} vouchers={filteredVouchers} preselectedId={reportLedgerId} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='GROUP_SUMMARY'        && <GroupSummaryView ledgers={ledgers} vouchers={filteredVouchers} groupName={reportGroupName} onBack={goBack} onDrillDownLedger={id=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownGroup={gn=>{setReportGroupName(gn); nav('GROUP_SUMMARY');}} />}
-            {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} stockGroups={stockGroups} vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={(id: number)=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownVoucher={(v: Voucher)=>{ if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') { nav('BOM_MODULE'); return; } nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} onSaveOpeningStock={async (itemId: number, qty: number, rate: number) => {
+            {screen==='STOCK_SUMMARY'        && <StockSummaryView stockItems={stockItems} stockGroups={stockGroups} vouchers={vouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={(id: number)=>{setReportLedgerId(id); nav('LEDGER_REPORT');}} onDrillDownVoucher={(v: Voucher)=>{ if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') { nav('BOM_MODULE'); return; } nav('VOUCHER_ENTRY',v); setActiveVoucher(v.type as VoucherTypeKey);}} onSaveOpeningStock={async (itemId: number, qty: number, rate: number) => {
               setAllStockItems(p=>p.map(x=>x.id===itemId?{...x,openingQty:qty,openingRate:rate}:x));
               const cid = activeCompany?.id || 0;
               offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: { id: itemId, openingQty: qty, openingRate: rate }, companyId: cid });
@@ -12703,8 +12722,12 @@ function ProfitLossView({
               else if (v.type==='Sales'||v.type==='Debit Note'){qty-=ie.qty||0;}
               else if (v.type==='Manufacturing Journal'||v.type==='Manufacturing'){
                 const isMfgProd = ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production'));
-                if (!isMfgProd) {
-                  qty-=ie.qty||0; // Raw materials consumption reduces stock
+                if (isMfgProd) {
+                  qty += ie.qty || 0;
+                  totalCost += (ie.qty || 0) * (ie.rate || 0);
+                  totalInQty += ie.qty || 0;
+                } else {
+                  qty -= ie.qty || 0; // Raw materials consumption reduces stock
                 }
               }
             }
@@ -14603,6 +14626,41 @@ function StockSummaryView({
   // Helper for unit symbol
   const getUnitSymbol = (u: any) => typeof u === 'string' ? u : (u?.symbol || u?.name || 'Nos');
 
+  // Combine provided stockItems with any inventory items found in vouchers
+  const effectiveStockItems = useMemo(() => {
+    const list = [...stockItems];
+    for (const v of vouchers) {
+      if (!v || !v.inventoryEntries) continue;
+      for (const ie of v.inventoryEntries) {
+        const name = (ie.itemName || '').trim();
+        if (!name) continue;
+        const exists = list.some(it => 
+          (ie.itemId && it.id && Number(ie.itemId) === Number(it.id)) ||
+          (ie.stockItemId && it.id && Number(ie.stockItemId) === Number(it.id)) ||
+          (it.name && it.name.trim().toLowerCase() === name.toLowerCase())
+        );
+        if (!exists) {
+          const isMfgProd = (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') && 
+            (ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production')));
+          list.push({
+            id: Number(ie.itemId || ie.stockItemId) || (Date.now() + Math.floor(Math.random() * 10000)),
+            companyId: v.companyId,
+            name: name,
+            under: isMfgProd ? 'Finished Goods' : 'Raw Materials',
+            groupName: isMfgProd ? 'Finished Goods' : 'Raw Materials',
+            unit: ie.unit || 'Nos',
+            openingQty: 0,
+            openingRate: ie.rate || 0,
+            openingVal: 0,
+            gstRate: 18,
+            gstApplicable: 'Applicable'
+          });
+        }
+      }
+    }
+    return list;
+  }, [stockItems, vouchers]);
+
   // Compute stats for each item
   const itemStats = useMemo(()=>{
     const map = new Map<number, {
@@ -14614,7 +14672,7 @@ function StockSummaryView({
       transactions: { voucher: Voucher; entry: InventoryEntry }[];
     }>();
 
-    for (const it of stockItems) {
+    for (const it of effectiveStockItems) {
       const opQty = it.openingQty || 0;
       const opRate = it.openingRate || 0;
       const opVal = opQty * opRate;
@@ -14626,30 +14684,31 @@ function StockSummaryView({
       for (const v of vouchers) {
         if (!v || !v.inventoryEntries) continue;
         for (const ie of v.inventoryEntries) {
-          const matchItem = ie.itemId === it.id || (ie.stockItemId && ie.stockItemId === it.id) || (ie.itemName && ie.itemName.trim().toLowerCase() === it.name.trim().toLowerCase());
+          const matchItem = 
+            (ie.itemId && it.id && Number(ie.itemId) === Number(it.id)) ||
+            (ie.stockItemId && it.id && Number(ie.stockItemId) === Number(it.id)) ||
+            (Boolean(ie.itemName && it.name && ie.itemName.trim().toLowerCase() === it.name.trim().toLowerCase()));
+
           if (matchItem) {
-            txns.push({ voucher: v, entry: ie });
-            const q = ie.qty || 0;
-            const amt = ie.amount || (q * (ie.rate || 0)) || 0;
-            if (v.type === 'Purchase' || v.type === 'Credit Note') {
+            const q = Math.abs(parseFloat(String(ie.qty || 0))) || 0;
+            const r = Math.max(0, parseFloat(String(ie.rate || 0))) || 0;
+            const amt = Math.max(0, parseFloat(String(ie.amount || (q * r)))) || 0;
+
+            const isMfg = v.type === 'Manufacturing Journal' || v.type === 'Manufacturing';
+            const isMfgProd = isMfg && (ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production')) || (!ie.entryType && it.under === 'Finished Goods'));
+            const isMfgCons = isMfg && !isMfgProd;
+
+            const isInward = v.type === 'Purchase' || v.type === 'Credit Note' || isMfgProd;
+            const isOutward = v.type === 'Sales' || v.type === 'Debit Note' || isMfgCons;
+
+            if (isInward) {
               inQty += q;
               inVal += amt;
-            } else if (v.type === 'Sales' || v.type === 'Debit Note') {
+              txns.push({ voucher: v, entry: { ...ie, qty: q, rate: r, amount: amt, entryType: isMfgProd ? 'Production' : ie.entryType } });
+            } else if (isOutward) {
               outQty += q;
               outVal += amt;
-            } else if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') {
-              const isMfgProd = ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production'));
-              if (isMfgProd) {
-                // If Finished Good quantity is not already reflected in openingQty, count in Inwards
-                if (opQty === 0) {
-                  inQty += q;
-                  inVal += amt;
-                }
-              } else {
-                // Raw materials consumed in Manufacturing Journal reduce stock
-                outQty += q;
-                outVal += amt;
-              }
+              txns.push({ voucher: v, entry: { ...ie, qty: q, rate: r, amount: amt, entryType: isMfgCons ? 'Consumption' : ie.entryType } });
             }
           }
         }
@@ -14661,7 +14720,7 @@ function StockSummaryView({
       const clQty = opQty + inQty - outQty;
       const totalAvailableQty = opQty + inQty;
       const totalAvailableVal = opVal + inVal;
-      const avgRate = totalAvailableQty > 0 ? (totalAvailableVal / totalAvailableQty) : opRate;
+      const avgRate = totalAvailableQty > 0 ? (totalAvailableVal / totalAvailableQty) : (opRate > 0 ? opRate : (inQty > 0 ? inVal / inQty : 0));
       const clVal = clQty * avgRate;
 
       map.set(it.id, {
@@ -14674,18 +14733,18 @@ function StockSummaryView({
       });
     }
     return map;
-  }, [stockItems, vouchers]);
+  }, [effectiveStockItems, vouchers]);
 
   // Group items by groupName (it.under)
   const groupedItems = useMemo(()=>{
-    const map: Record<string, typeof stockItems> = {};
-    for (const it of stockItems) {
+    const map: Record<string, typeof effectiveStockItems> = {};
+    for (const it of effectiveStockItems) {
       const gn = it.under || 'Primary';
       if (!map[gn]) map[gn] = [];
       map[gn].push(it);
     }
     return map;
-  }, [stockItems]);
+  }, [effectiveStockItems]);
 
   // Expand all by default
   useEffect(()=>{
@@ -14808,7 +14867,20 @@ function StockSummaryView({
     return () => window.removeEventListener('keydown', onKey);
   }, [flatStockItems, rowIdx, editId, selectedItemForMovement, onBack]);
 
-  const movementData = selectedItemForMovement ? itemStats.get(selectedItemForMovement.id) : null;
+  const movementData = useMemo(() => {
+    if (!selectedItemForMovement) return null;
+    let data = itemStats.get(selectedItemForMovement.id);
+    if (!data) data = itemStats.get(Number(selectedItemForMovement.id));
+    if (!data) {
+      for (const val of Array.from(itemStats.values())) {
+        if (val.item.name.trim().toLowerCase() === selectedItemForMovement.name.trim().toLowerCase()) {
+          data = val;
+          break;
+        }
+      }
+    }
+    return data;
+  }, [selectedItemForMovement, itemStats]);
   let runningStockFlatIdx = 0;
 
   return (
@@ -15071,17 +15143,18 @@ function StockSummaryView({
                       const isMfg = v.type === 'Manufacturing Journal' || v.type === 'Manufacturing';
                       const isMfgProd = isMfg && (ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production')));
                       const isMfgCons = isMfg && !isMfgProd;
-                      const isInward = v.type === 'Purchase' || v.type === 'Credit Note' || (isMfgProd && movementData.opQty === 0);
+                      const isInward = v.type === 'Purchase' || v.type === 'Credit Note' || isMfgProd;
+                      const isOutward = v.type === 'Sales' || v.type === 'Debit Note' || isMfgCons;
                       const q = ie.qty || 0;
                       if (isInward) runningQty += q;
-                      else if (!isMfgProd) runningQty -= q;
+                      else if (isOutward) runningQty -= q;
                       const amt = ie.amount || (q * (ie.rate || 0)) || 0;
 
                       let particularName = v.partyName;
                       if (isMfg) {
                         particularName = isMfgProd
-                          ? 'Manufacturing Production (Finished Goods)'
-                          : (ie.desc1 || v.narration || 'Manufacturing Consumption');
+                          ? '🏭 Manufacturing Production (Finished Goods)'
+                          : `⚙️ Consumed in Production: ${v.narration || ie.desc1 || 'Manufacturing'}`;
                       } else if (!particularName || particularName === 'Party A/c' || particularName === 'Cash') {
                         particularName = v.partyName || (v.type === 'Sales' ? 'Cash Sales' : 'Cash Purchase');
                       }
@@ -15106,8 +15179,8 @@ function StockSummaryView({
                             </span>
                           </td>
                           <td style={{textAlign:'center',padding:'5px 8px',fontSize:11,color:'#555'}}>{v.voucherNo || v.number}</td>
-                          <td style={{textAlign:'right',padding:'5px 10px',color:'#006600',fontWeight:'bold'}}>{isInward || isMfgProd ? fmt(q) : ''}</td>
-                          <td style={{textAlign:'right',padding:'5px 10px',color:'#8B0000',fontWeight:'bold'}}>{!isInward && !isMfgProd ? fmt(q) : ''}</td>
+                          <td style={{textAlign:'right',padding:'5px 10px',color:'#006600',fontWeight:'bold'}}>{isInward ? fmt(q) : '—'}</td>
+                          <td style={{textAlign:'right',padding:'5px 10px',color:'#8B0000',fontWeight:'bold'}}>{isOutward ? fmt(q) : '—'}</td>
                           <td style={{textAlign:'right',padding:'5px 10px'}}>{fmt(ie.rate || 0)}</td>
                           <td style={{textAlign:'right',padding:'5px 10px',fontWeight:'bold'}}>₹ {fmt(amt)}</td>
                           <td style={{textAlign:'right',padding:'5px 10px',fontWeight:'bold',color:runningQty<0?'#8B0000':'#1c5282'}}>{fmt(runningQty)}</td>

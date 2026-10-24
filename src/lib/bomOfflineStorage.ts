@@ -117,15 +117,24 @@ export const bomOfflineStorage = {
    * - Raw materials are recorded with entryType: 'Consumption' (Outward from stock).
    * - Finished good is recorded with entryType: 'Production' (Inward to stock).
    */
-  buildJournalVoucher(companyId: number, journal: any): any {
+  buildJournalVoucher(companyId: number, journal: any, stockItemsList: any[] = []): any {
     const cid = Number(companyId || journal.companyId || 0);
     const jNo = journal.journalNo || `MFG-${Date.now().toString().slice(-4)}`;
-    const outputQty = parseFloat(journal.outputQty || 0);
-    const costPerUnit = parseFloat(journal.costPerUnit || journal.outputRate || 0);
-    const totalCost = parseFloat(journal.totalCost || (outputQty * costPerUnit) || 0);
+    const outputQty = Math.max(0, parseFloat(String(journal.outputQty || 0)) || 0);
+    const costPerUnit = Math.max(0, parseFloat(String(journal.costPerUnit || journal.outputRate || 0)) || 0);
+    const totalCost = Math.max(0, parseFloat(String(journal.totalCost || (outputQty * costPerUnit) || 0)) || 0);
     const fItemName = (journal.finishedItemName || '').trim();
-    const fItemId = parseInt(journal.finishedItemId || 0, 10);
+    let fItemId = parseInt(String(journal.finishedItemId || 0), 10);
     const fUnit = journal.outputUnit || 'Nos';
+
+    // Match finished good in stock items list if available
+    const matchedFg = stockItemsList.find(si =>
+      Number(si.companyId) === cid &&
+      ((fItemId > 0 && Number(si.id) === fItemId) || (si.name && si.name.trim().toLowerCase() === fItemName.toLowerCase()))
+    );
+    if (matchedFg) {
+      fItemId = Number(matchedFg.id);
+    }
 
     const invEntries: any[] = [];
 
@@ -134,23 +143,37 @@ export const bomOfflineStorage = {
     rms.forEach((rm: any, idx: number) => {
       const rmName = (rm.itemName || '').trim();
       if (!rmName) return;
-      const sId = parseInt(rm.stockItemId || rm.itemId || 0, 10);
-      const q = parseFloat(rm.actualQty || rm.qty || 0);
-      const r = parseFloat(rm.rate || 0);
-      const amt = parseFloat(rm.amount || (q * r) || 0);
+
+      let sId = parseInt(String(rm.stockItemId || rm.itemId || 0), 10);
+      const matchedRm = stockItemsList.find(si =>
+        Number(si.companyId) === cid &&
+        ((sId > 0 && Number(si.id) === sId) || (si.name && si.name.trim().toLowerCase() === rmName.toLowerCase()))
+      );
+      if (matchedRm) {
+        sId = Number(matchedRm.id);
+      }
+
+      // Read actualQty or requiredQty or qty (never 0 if user entered either)
+      const rawQty = (rm.actualQty !== undefined && rm.actualQty !== "")
+        ? rm.actualQty
+        : (rm.requiredQty !== undefined && rm.requiredQty !== "" ? rm.requiredQty : (rm.qty || 0));
+      const q = Math.abs(parseFloat(String(rawQty))) || 0;
+      const r = Math.max(0, parseFloat(String(rm.rate || (matchedRm ? matchedRm.openingRate : 0))) || 0);
+      const amt = Math.max(0, parseFloat(String(rm.amount || (q * r))) || 0);
+
       invEntries.push({
         id: Date.now() + 10 + idx,
-        itemId: sId,
-        stockItemId: sId,
-        itemName: rmName,
+        itemId: sId || 0,
+        stockItemId: sId || 0,
+        itemName: matchedRm ? matchedRm.name : rmName,
         qty: q,
         rate: r,
         rateInclTax: r,
         amountInclTax: amt,
         amount: amt,
-        unit: rm.unit || 'Nos',
+        unit: rm.unit || matchedRm?.unit || 'Nos',
         gstRate: 0,
-        desc1: `Consumed in ${fItemName}`,
+        desc1: `Consumed in ${matchedFg ? matchedFg.name : fItemName}`,
         entryType: 'Consumption'
       });
     });
@@ -159,15 +182,15 @@ export const bomOfflineStorage = {
     if (fItemName && outputQty > 0) {
       invEntries.push({
         id: Date.now() + 1,
-        itemId: fItemId,
-        stockItemId: fItemId,
-        itemName: fItemName,
+        itemId: fItemId || 0,
+        stockItemId: fItemId || 0,
+        itemName: matchedFg ? matchedFg.name : fItemName,
         qty: outputQty,
         rate: costPerUnit,
         rateInclTax: costPerUnit,
         amountInclTax: totalCost,
         amount: totalCost,
-        unit: fUnit,
+        unit: matchedFg?.unit || fUnit,
         gstRate: 0,
         desc1: 'Production / Inward',
         entryType: 'Production'
@@ -181,16 +204,16 @@ export const bomOfflineStorage = {
       try { wList = JSON.parse(journal.wastageDetails); } catch { wList = []; }
     }
     wList.forEach((w: any, idx: number) => {
-      const wQ = parseFloat(w.qty || 0);
+      const wQ = parseFloat(String(w.qty || 0)) || 0;
       if (wQ <= 0) return;
       const wType = (w.type || 'Scrap').trim();
       const wName = `${wType} - ${fItemName}`;
-      const wR = parseFloat(w.rate || 0);
-      const wVal = parseFloat(w.value || (wQ * wR) || 0);
+      const wR = parseFloat(String(w.rate || 0)) || 0;
+      const wVal = parseFloat(String(w.value || (wQ * wR))) || 0;
       invEntries.push({
         id: Date.now() + 100 + idx,
-        itemId: parseInt(w.stockItemId || 0, 10),
-        stockItemId: parseInt(w.stockItemId || 0, 10),
+        itemId: parseInt(String(w.stockItemId || 0), 10) || 0,
+        stockItemId: parseInt(String(w.stockItemId || 0), 10) || 0,
         itemName: wName,
         qty: wQ,
         rate: wR,
@@ -222,23 +245,21 @@ export const bomOfflineStorage = {
   },
 
   /**
-   * Applies or reverses the finished good and scrap stock item updates for a Manufacturing Journal.
-   * Updates openingQty, openingRate (weighted average), and openingVal on the StockItem.
+   * Ensures the finished good, consumed raw materials, and scrap stock item masters exist in stockItems.
+   * Keeps opening balance intact so the voucher's Inwards and Outwards accurately reflect transactions.
    */
   applyManufacturingToStock(companyId: number, stockItems: any[], journal: any, isReversal: boolean = false): any[] {
     const cid = Number(companyId || journal.companyId || 0);
     const fItemName = (journal.finishedItemName || '').trim();
-    const fItemId = parseInt(journal.finishedItemId || 0, 10);
-    const outputQty = Math.max(0, parseFloat(journal.outputQty || 0));
-    const costPerUnit = Math.max(0, parseFloat(journal.costPerUnit || journal.outputRate || 0));
-    const outputVal = outputQty * costPerUnit;
+    const fItemId = parseInt(String(journal.finishedItemId || 0), 10);
+    const costPerUnit = Math.max(0, parseFloat(String(journal.costPerUnit || journal.outputRate || 0)) || 0);
     const fUnit = journal.outputUnit || 'Nos';
 
-    if (!fItemName || outputQty <= 0) return stockItems;
+    if (!fItemName) return stockItems;
 
     let items = [...stockItems];
 
-    // Find Finished Good by ID or exact name
+    // 1. Ensure Finished Good exists in stock items
     const fgIdx = items.findIndex(si => 
       Number(si.companyId) === cid && 
       ((fItemId > 0 && Number(si.id) === fItemId) || (si.name && si.name.trim().toLowerCase() === fItemName.toLowerCase()))
@@ -246,35 +267,14 @@ export const bomOfflineStorage = {
 
     if (fgIdx >= 0) {
       const cur = items[fgIdx];
-      const curQ = Math.max(0, parseFloat(cur.openingQty || 0));
-      const curR = Math.max(0, parseFloat(cur.openingRate || 0));
-      const curVal = curQ * curR;
-
-      let nextQ: number;
-      let nextVal: number;
-      let nextR: number;
-
-      if (!isReversal) {
-        nextQ = curQ + outputQty;
-        nextVal = curVal + outputVal;
-        nextR = nextQ > 0 ? nextVal / nextQ : costPerUnit;
-      } else {
-        nextQ = Math.max(0, curQ - outputQty);
-        nextVal = Math.max(0, curVal - outputVal);
-        nextR = nextQ > 0 ? nextVal / nextQ : curR;
-      }
-
       items[fgIdx] = {
         ...cur,
-        openingQty: nextQ,
-        openingRate: nextR,
-        openingVal: nextVal,
         unit: cur.unit || fUnit,
         under: cur.under || cur.groupName || 'Finished Goods',
         groupName: cur.groupName || cur.under || 'Finished Goods'
       };
     } else if (!isReversal) {
-      // Auto-create Finished Product stock item
+      // Auto-create Finished Product stock item master
       const newItem = {
         id: fItemId > 0 ? fItemId : Date.now(),
         companyId: cid,
@@ -282,16 +282,43 @@ export const bomOfflineStorage = {
         under: 'Finished Goods',
         groupName: 'Finished Goods',
         unit: fUnit,
-        openingQty: outputQty,
+        openingQty: 0,
         openingRate: costPerUnit,
-        openingVal: outputVal,
+        openingVal: 0,
         gstRate: 18,
         gstApplicable: 'Applicable'
       };
       items.push(newItem);
     }
 
-    // Process Scrap / Wastage items
+    // 2. Ensure Consumed Raw Materials exist in stock items
+    const rms = Array.isArray(journal.rawMaterials) ? journal.rawMaterials : [];
+    rms.forEach((rm: any, idx: number) => {
+      const rmName = (rm.itemName || '').trim();
+      if (!rmName) return;
+      const sId = parseInt(String(rm.stockItemId || rm.itemId || 0), 10);
+      const exists = items.some(si =>
+        Number(si.companyId) === cid &&
+        ((sId > 0 && Number(si.id) === sId) || (si.name && si.name.trim().toLowerCase() === rmName.toLowerCase()))
+      );
+      if (!exists && !isReversal) {
+        items.push({
+          id: sId > 0 ? sId : Date.now() + 500 + idx,
+          companyId: cid,
+          name: rmName,
+          under: 'Raw Materials',
+          groupName: 'Raw Materials',
+          unit: rm.unit || 'Nos',
+          openingQty: 0,
+          openingRate: parseFloat(String(rm.rate || 0)) || 0,
+          openingVal: 0,
+          gstRate: 18,
+          gstApplicable: 'Applicable'
+        });
+      }
+    });
+
+    // 3. Process Scrap / Wastage items
     let wList: any[] = [];
     if (Array.isArray(journal.wastageDetails)) wList = journal.wastageDetails;
     else if (typeof journal.wastageDetails === 'string') {
@@ -299,38 +326,17 @@ export const bomOfflineStorage = {
     }
 
     wList.forEach((w: any) => {
-      const wQ = parseFloat(w.qty || 0);
+      const wQ = parseFloat(String(w.qty || 0)) || 0;
       if (wQ <= 0) return;
       const wType = (w.type || 'Scrap').trim();
       const wName = `${wType} - ${fItemName}`;
-      const wR = parseFloat(w.rate || 0);
-      const wVal = parseFloat(w.value || (wQ * wR) || 0);
+      const wR = parseFloat(String(w.rate || 0)) || 0;
 
       const scrapIdx = items.findIndex(si =>
         Number(si.companyId) === cid && si.name && si.name.trim().toLowerCase() === wName.toLowerCase()
       );
 
-      if (scrapIdx >= 0) {
-        const cur = items[scrapIdx];
-        const curQ = Math.max(0, parseFloat(cur.openingQty || 0));
-        const curVal = curQ * Math.max(0, parseFloat(cur.openingRate || 0));
-        let nextQ: number;
-        let nextV: number;
-        if (!isReversal) {
-          nextQ = curQ + wQ;
-          nextV = curVal + wVal;
-        } else {
-          nextQ = Math.max(0, curQ - wQ);
-          nextV = Math.max(0, curVal - wVal);
-        }
-        const nextR = nextQ > 0 ? nextV / nextQ : wR;
-        items[scrapIdx] = {
-          ...cur,
-          openingQty: nextQ,
-          openingRate: nextR,
-          openingVal: nextV,
-        };
-      } else if (!isReversal) {
+      if (scrapIdx < 0 && !isReversal) {
         items.push({
           id: Date.now() + Math.floor(Math.random() * 1000),
           companyId: cid,
@@ -338,9 +344,9 @@ export const bomOfflineStorage = {
           under: 'Wastage & Scrap',
           groupName: 'Wastage & Scrap',
           unit: w.unit || fUnit,
-          openingQty: wQ,
+          openingQty: 0,
           openingRate: wR,
-          openingVal: wVal,
+          openingVal: 0,
           gstRate: 18,
           gstApplicable: 'Applicable'
         });
