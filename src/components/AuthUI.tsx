@@ -96,6 +96,145 @@ const AUTH_CSS = `
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
+
+  /* ===== RIGHT SIDE: DOWNLOAD & ACTIVATION GUIDE CARD (Yellow Box) ===== */
+  .auth-guide-card {
+    position: absolute;
+    left: 80.85%;
+    top: 29.5%;
+    width: 17.85%;
+    height: 11.2%;
+    background: rgba(15, 23, 42, 0.94);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(241, 196, 15, 0.45);
+    border-top: 3px solid #f1c40f;
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), 0 0 20px rgba(241, 196, 15, 0.12);
+    pointer-events: auto;
+    color: #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .auth-guide-card:hover {
+    border-color: #f1c40f;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.8), 0 0 26px rgba(241, 196, 15, 0.25);
+  }
+  .auth-guide-header {
+    padding: 7px 10px;
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.75) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .auth-guide-header-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .auth-guide-icon {
+    width: 18px;
+    height: 18px;
+    background: #f1c40f;
+    color: #0f172a;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 900;
+  }
+  .auth-guide-h3 {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #ffffff;
+    text-transform: uppercase;
+  }
+  .auth-guide-badge {
+    font-size: 8px;
+    font-weight: 700;
+    background: rgba(241, 196, 15, 0.18);
+    color: #f1c40f;
+    padding: 2px 5px;
+    border-radius: 3px;
+    border: 1px solid rgba(241, 196, 15, 0.35);
+    letter-spacing: 0.3px;
+  }
+  .auth-guide-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .auth-guide-body::-webkit-scrollbar {
+    width: 4px;
+  }
+  .auth-guide-body::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.25);
+  }
+  .auth-guide-body::-webkit-scrollbar-thumb {
+    background: #f1c40f;
+    border-radius: 4px;
+  }
+  .auth-step-item {
+    display: flex;
+    gap: 7px;
+    align-items: flex-start;
+  }
+  .auth-step-num {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: rgba(241, 196, 15, 0.2);
+    color: #f1c40f;
+    border: 1px solid rgba(241, 196, 15, 0.5);
+    font-size: 8px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .auth-step-content {
+    flex: 1;
+    font-size: 9.5px;
+    line-height: 1.45;
+    color: #cbd5e1;
+  }
+  .auth-step-content strong {
+    color: #ffffff;
+    font-weight: 700;
+  }
+  .auth-guide-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: linear-gradient(135deg, #f1c40f 0%, #e67e22 100%);
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 9.5px;
+    padding: 5px 8px;
+    border-radius: 5px;
+    text-decoration: none;
+    margin-top: 2px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    transition: transform 0.15s ease, filter 0.15s ease;
+  }
+  .auth-guide-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+  }
   .auth-wrapper::before {
     content: '';
     position: fixed;
@@ -650,6 +789,57 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                 <span>YouTube ↗</span>
               </div>
             </a>
+          </div>
+
+          {/* Right: Smart & Premium Download / Activation Guide Card */}
+          <div className="auth-guide-card">
+            <div className="auth-guide-header">
+              <div className="auth-guide-header-title">
+                <div className="auth-guide-icon">⚡</div>
+                <h3 className="auth-guide-h3">DOWNLOAD / ACTIVATION</h3>
+              </div>
+              <span className="auth-guide-badge">Desktop App</span>
+            </div>
+            <div className="auth-guide-body">
+              <a href="/api/download/desktop-setup?os=windows" download className="auth-guide-btn">
+                <span>⬇</span> Download Windows App (.exe)
+              </a>
+
+              <div className="auth-step-item">
+                <div className="auth-step-num">1</div>
+                <div className="auth-step-content">
+                  <strong>Download Setup</strong>: Upar diye gaye button se <code>LedgerX-Setup.exe</code> download karein.
+                </div>
+              </div>
+
+              <div className="auth-step-item">
+                <div className="auth-step-num">2</div>
+                <div className="auth-step-content">
+                  <strong>Easy Install</strong>: Setup run karein. Windows prompt aane par <em>"More info &gt; Run anyway"</em> karein.
+                </div>
+              </div>
+
+              <div className="auth-step-item">
+                <div className="auth-step-num">3</div>
+                <div className="auth-step-content">
+                  <strong>Get License Key</strong>: Pehle web portal par <em>"Register Organization"</em> karke License Key generate karein.
+                </div>
+              </div>
+
+              <div className="auth-step-item">
+                <div className="auth-step-num">4</div>
+                <div className="auth-step-content">
+                  <strong>Device Activation</strong>: Desktop App me <strong>"License Key Activation"</strong> tab me Email &amp; Key enter karein.
+                </div>
+              </div>
+
+              <div className="auth-step-item">
+                <div className="auth-step-num">5</div>
+                <div className="auth-step-content">
+                  <strong>100% Offline ERP</strong>: Activate hote hi app bina internet ke chalegi aur online aate hi auto-sync hogi.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
