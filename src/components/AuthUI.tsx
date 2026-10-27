@@ -215,25 +215,38 @@ const AUTH_CSS = `
     color: #ffffff;
     font-weight: 700;
   }
+  .auth-guide-buttons {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+  }
   .auth-guide-btn {
+    flex: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    background: linear-gradient(135deg, #f1c40f 0%, #e67e22 100%);
-    color: #0f172a;
+    gap: 4px;
     font-weight: 800;
-    font-size: 9.5px;
-    padding: 5px 8px;
+    font-size: 9px;
+    padding: 6px 5px;
     border-radius: 5px;
     text-decoration: none;
-    margin-top: 2px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
     transition: transform 0.15s ease, filter 0.15s ease;
+    white-space: nowrap;
+  }
+  .auth-guide-btn.win {
+    background: linear-gradient(135deg, #f1c40f 0%, #e67e22 100%);
+    color: #0f172a;
+  }
+  .auth-guide-btn.mac {
+    background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.2);
   }
   .auth-guide-btn:hover {
     transform: translateY(-1px);
-    filter: brightness(1.1);
+    filter: brightness(1.15);
   }
   .auth-wrapper::before {
     content: '';
@@ -801,21 +814,26 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
               <span className="auth-guide-badge">Desktop App</span>
             </div>
             <div className="auth-guide-body">
-              <a href="/api/download/desktop-setup?os=windows" download className="auth-guide-btn">
-                <span>⬇</span> Download Windows App (.exe)
-              </a>
+              <div className="auth-guide-buttons">
+                <a href="/api/download/desktop-setup?os=windows" download className="auth-guide-btn win" title="Download LedgerX for Windows (.exe)">
+                  <span>🪟</span> Windows (.exe)
+                </a>
+                <a href="/api/download/desktop-setup?os=mac" download className="auth-guide-btn mac" title="Download LedgerX for macOS (.dmg)">
+                  <span>🍎</span> macOS (.dmg)
+                </a>
+              </div>
 
               <div className="auth-step-item">
                 <div className="auth-step-num">1</div>
                 <div className="auth-step-content">
-                  <strong>Download Installer</strong>: Click the button above to download <code>LedgerX-Setup.exe</code> for Windows.
+                  <strong>Download Installer</strong>: Choose your OS above: <code>Windows (.exe)</code> or <code>macOS (.dmg)</code>.
                 </div>
               </div>
 
               <div className="auth-step-item">
                 <div className="auth-step-num">2</div>
                 <div className="auth-step-content">
-                  <strong>Run &amp; Install</strong>: Launch the installer. If Windows SmartScreen prompts, select <em>"More info &gt; Run anyway"</em>.
+                  <strong>Install &amp; Launch</strong>: Run setup. On Windows select <em>"Run anyway"</em>; on macOS drag to Applications.
                 </div>
               </div>
 
