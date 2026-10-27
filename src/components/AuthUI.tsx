@@ -11,13 +11,90 @@ interface AuthUIProps {
 const AUTH_CSS = `
   .auth-wrapper {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background-image: url('/auth-bg.png');
-    background-size: cover;
-    background-position: center center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-color: #0b1320;
     display: flex; justify-content: center; align-items: center;
     padding: 20px; z-index: 10000; overflow-y: auto;
+  }
+  .auth-bg-layer {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .auth-bg-canvas {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100vw, 100vh);
+    height: max(100vw, 100vh);
+    transform: translate(-50%, -50%);
+  }
+  .auth-bg-img {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    object-fit: fill;
+    display: block;
+  }
+  .auth-monitor-video-frame {
+    position: absolute;
+    left: 10.25%;
+    top: 32.55%;
+    width: 15.35%;
+    height: 12.0%;
+    overflow: hidden;
+    background: #000;
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .auth-monitor-video-frame:hover {
+    transform: scale(1.03);
+    box-shadow: 0 8px 28px rgba(255, 0, 0, 0.5), 0 0 0 1px rgba(255, 0, 0, 0.4);
+  }
+  .auth-monitor-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .auth-monitor-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border: 0;
+    pointer-events: none;
+  }
+  .auth-monitor-badge {
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: rgba(15, 23, 42, 0.92);
+    color: #ffffff;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  .auth-monitor-video-frame:hover .auth-monitor-badge {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
   .auth-wrapper::before {
     content: '';
@@ -25,11 +102,12 @@ const AUTH_CSS = `
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.2);
     backdrop-filter: none;
-    z-index: 0;
+    z-index: 1;
+    pointer-events: none;
   }
   .auth-container {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     background: #fff;
     display: flex;
     width: 100%;
@@ -182,6 +260,7 @@ const AUTH_CSS = `
 
   /* ===== MOBILE (≤768px) - All phones and small tablets ===== */
   @media (max-width: 768px) {
+    .auth-bg-layer { display: none; }
     .auth-wrapper {
       padding: 0;
       align-items: flex-start;
@@ -546,6 +625,35 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
 
   return (
     <div className="auth-wrapper">
+      {/* Background with video playing inside the monitor screen */}
+      <div className="auth-bg-layer">
+        <div className="auth-bg-canvas">
+          <img src="/auth-bg.png" alt="" className="auth-bg-img" />
+          <div className="auth-monitor-video-frame">
+            <a
+              href="https://www.youtube.com/watch?v=hjsto8zoWR8"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="auth-monitor-link"
+              title="LedgerX ERP Tutorial - Click to watch on YouTube"
+            >
+              <iframe
+                src="https://www.youtube-nocookie.com/embed/hjsto8zoWR8?autoplay=1&mute=1&loop=1&playlist=hjsto8zoWR8&controls=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1"
+                title="LedgerX ERP Tutorial"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                className="auth-monitor-video"
+              />
+              <div className="auth-monitor-badge">
+                <svg viewBox="0 0 24 24" width="10" height="10" fill="#ff0000">
+                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                </svg>
+                <span>YouTube ↗</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+
       <div className={`auth-container ${isLogin ? 'login-mode' : 'signup-mode'}`}>
 
         {/* Sidebar */}
