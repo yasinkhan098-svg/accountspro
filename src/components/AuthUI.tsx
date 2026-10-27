@@ -808,35 +808,35 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
               <div className="auth-step-item">
                 <div className="auth-step-num">1</div>
                 <div className="auth-step-content">
-                  <strong>Download Setup</strong>: Upar diye gaye button se <code>LedgerX-Setup.exe</code> download karein.
+                  <strong>Download Installer</strong>: Click the button above to download <code>LedgerX-Setup.exe</code> for Windows.
                 </div>
               </div>
 
               <div className="auth-step-item">
                 <div className="auth-step-num">2</div>
                 <div className="auth-step-content">
-                  <strong>Easy Install</strong>: Setup run karein. Windows prompt aane par <em>"More info &gt; Run anyway"</em> karein.
+                  <strong>Run &amp; Install</strong>: Launch the installer. If Windows SmartScreen prompts, select <em>"More info &gt; Run anyway"</em>.
                 </div>
               </div>
 
               <div className="auth-step-item">
                 <div className="auth-step-num">3</div>
                 <div className="auth-step-content">
-                  <strong>Get License Key</strong>: Pehle web portal par <em>"Register Organization"</em> karke License Key generate karein.
+                  <strong>Obtain License Key</strong>: Register your organization on this web portal to generate your official License Key.
                 </div>
               </div>
 
               <div className="auth-step-item">
                 <div className="auth-step-num">4</div>
                 <div className="auth-step-content">
-                  <strong>Device Activation</strong>: Desktop App me <strong>"License Key Activation"</strong> tab me Email &amp; Key enter karein.
+                  <strong>Activate Device</strong>: Open the Desktop App, switch to <strong>"License Key Activation"</strong>, and enter your Email &amp; Key.
                 </div>
               </div>
 
               <div className="auth-step-item">
                 <div className="auth-step-num">5</div>
                 <div className="auth-step-content">
-                  <strong>100% Offline ERP</strong>: Activate hote hi app bina internet ke chalegi aur online aate hi auto-sync hogi.
+                  <strong>Offline ERP &amp; Auto-Sync</strong>: Work at ultra-fast speeds 100% offline. Data automatically syncs with Cloud when online.
                 </div>
               </div>
             </div>
