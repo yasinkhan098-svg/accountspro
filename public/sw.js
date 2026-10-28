@@ -1,8 +1,9 @@
-const CACHE_NAME = 'ledgerx-offline-v2';
+const CACHE_NAME = 'ledgerx-offline-v3';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
   '/auth-bg.png',
+  '/vendor/exceljs.min.js',
 ];
 
 // Install: pre-cache critical shell assets
