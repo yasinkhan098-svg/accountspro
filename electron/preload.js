@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   saveDataFile: (data) => ipcRenderer.invoke('save-data-file', data),
   loadDataFile: () => ipcRenderer.invoke('load-data-file'),
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
+  getDataPath: () => ipcRenderer.invoke('get-data-path'),
   scanCompanyFolders: () => ipcRenderer.invoke('scan-company-folders'),
   loadCompanyFolder: (code) => ipcRenderer.invoke('load-company-folder', code),
   saveCompanyFolder: (data) => ipcRenderer.invoke('save-company-folder', data),

@@ -29,6 +29,226 @@ import {
   PartnerItem
 } from '@/lib/provisionalEngine';
 
+// ==================== OFFLINE EXCEL UTILITY ====================
+// Loads SheetJS (XLSX) from CDN once and generates Excel client-side
+// Used in offline/desktop mode when /api/reports/* endpoints are unreachable
+async function loadXLSX(): Promise<any> {
+  if ((window as any).XLSX) return (window as any).XLSX;
+
+  // Try loading from CDN (multiple sources for reliability)
+  const cdnSources = [
+    'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js',
+    'https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js',
+  ];
+
+  for (const src of cdnSources) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Failed: ${src}`));
+        const timeoutId = setTimeout(() => reject(new Error('Timeout')), 8000);
+        script.onload = () => { clearTimeout(timeoutId); resolve(); };
+        document.head.appendChild(script);
+      });
+      if ((window as any).XLSX) return (window as any).XLSX;
+    } catch (e) {
+      // Try next CDN source
+    }
+  }
+
+  // Final fallback: dynamic import of xlsx npm package (available in bundle)
+  try {
+    const xlsxMod = await import('xlsx');
+    return xlsxMod;
+  } catch (e) {}
+
+  throw new Error('Excel library load karne mein problem aayi. Pehli baar Excel export ke liye internet connection zaruri hai.');
+}
+
+function f2Num(n: number) { return Math.round(n * 100) / 100; }
+
+/**
+ * Generates a Balance Sheet Excel file client-side (offline-compatible)
+ */
+async function generateOfflineBalanceSheetExcel(params: {
+  companyName: string; companyAddress?: string; asOnDate: string;
+  liabilities: any[]; assets: any[];
+  totalLiabilities: number; totalAssets: number;
+  signatoryTitle?: string;
+}): Promise<void> {
+  const XLSX = await loadXLSX();
+  const { companyName, companyAddress, asOnDate, liabilities, assets, totalLiabilities, totalAssets } = params;
+  const wb = XLSX.utils.book_new();
+  const rows: any[][] = [];
+  // Header
+  rows.push([companyName.toUpperCase(), '', '', '']);
+  if (companyAddress) rows.push([companyAddress.toUpperCase(), '', '', '']);
+  rows.push([`BALANCE SHEET AS ON ${asOnDate.toUpperCase()}`, '', '', '']);
+  rows.push(['']);
+  rows.push(['LIABILITIES', 'AMOUNT (₹)', 'ASSETS', 'AMOUNT (₹)']);
+  const maxR = Math.max(liabilities.length, assets.length);
+  for (let i = 0; i < maxR; i++) {
+    const l = liabilities[i];
+    const a = assets[i];
+    const lName = l ? (l.name || '') : '';
+    const lAmt = l && l.amount !== undefined && l.type !== 'section-header' && l.type !== 'blank' ? f2Num(l.amount) : '';
+    const aName = a ? (a.name || '') : '';
+    const aAmt = a && a.amount !== undefined && a.type !== 'section-header' && a.type !== 'blank' ? f2Num(a.amount) : '';
+    rows.push([lName, lAmt, aName, aAmt]);
+  }
+  rows.push(['']);
+  rows.push(['TOTAL', f2Num(totalLiabilities), 'TOTAL', f2Num(totalAssets)]);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 40 }, { wch: 18 }, { wch: 40 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Balance Sheet');
+  const fileName = `${(companyName || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_')}_Balance_Sheet_${asOnDate.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
+/**
+ * Generates a Final CA-Format Balance Sheet Excel client-side (offline-compatible)
+ */
+async function generateOfflineFinalBSExcel(params: {
+  companyName: string; companyId: string; caName?: string; caMno?: string;
+  place?: string; signatoryTitle?: string; reportMode?: string;
+  asOnDate?: string; fromDate?: string; toDate?: string;
+  balanceSheetRows?: { liabilities: any[]; assets: any[]; totalLiabilities: number; totalAssets: number; netProfit: number };
+  statementData?: any; partnersData?: any[];
+  filePrefix?: string;
+}): Promise<void> {
+  const XLSX = await loadXLSX();
+  const { companyName, caName, caMno, place, signatoryTitle, asOnDate, fromDate, toDate, balanceSheetRows, statementData, partnersData, filePrefix = '' } = params;
+  const wb = XLSX.utils.book_new();
+
+  // ── Sheet 1: Balance Sheet ──
+  const bsRows: any[][] = [];
+  bsRows.push([companyName.toUpperCase(), '', '', '']);
+  if (place) bsRows.push([place.toUpperCase(), '', '', '']);
+  bsRows.push([`BALANCE SHEET AS ON ${(asOnDate || '').toUpperCase()}`, '', '', '']);
+  bsRows.push(['']);
+  bsRows.push(['LIABILITIES', 'AMOUNT (₹)', 'ASSETS', 'AMOUNT (₹)']);
+  const bsLiab = balanceSheetRows?.liabilities || [];
+  const bsAsset = balanceSheetRows?.assets || [];
+  const maxR = Math.max(bsLiab.length, bsAsset.length);
+  for (let i = 0; i < maxR; i++) {
+    const l = bsLiab[i]; const a = bsAsset[i];
+    const lName = l ? (l.name || '') : '';
+    const lAmt = l && l.amount !== undefined && l.type !== 'section-header' && l.type !== 'blank' ? f2Num(l.amount) : '';
+    const aName = a ? (a.name || '') : '';
+    const aAmt = a && a.amount !== undefined && a.type !== 'section-header' && a.type !== 'blank' ? f2Num(a.amount) : '';
+    bsRows.push([lName, lAmt, aName, aAmt]);
+  }
+  bsRows.push(['']);
+  bsRows.push(['TOTAL', f2Num(balanceSheetRows?.totalLiabilities || 0), 'TOTAL', f2Num(balanceSheetRows?.totalAssets || 0)]);
+  if (caName) { bsRows.push(['']); bsRows.push([`CA: ${caName}  |  M.No: ${caMno || ''}`]); }
+  const ws1 = XLSX.utils.aoa_to_sheet(bsRows);
+  ws1['!cols'] = [{ wch: 40 }, { wch: 18 }, { wch: 40 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Balance Sheet');
+
+  // ── Sheet 2: P&L (if available in statementData) ──
+  if (statementData && (statementData.salesItems || statementData.salesAmount)) {
+    const plRows: any[][] = [];
+    plRows.push([companyName.toUpperCase(), '', '', '']);
+    plRows.push([`PROFIT & LOSS ACCOUNT`, '', '', '']);
+    plRows.push([`Period: ${fromDate || ''} to ${toDate || asOnDate || ''}`, '', '', '']);
+    plRows.push(['']);
+    plRows.push(['EXPENDITURE', 'AMOUNT (₹)', 'INCOME', 'AMOUNT (₹)']);
+    const salesAmt = f2Num(statementData.salesAmount || statementData.sales || 0);
+    const purchaseAmt = f2Num(statementData.purchaseAmount || statementData.purchases || 0);
+    const netProfit = f2Num(statementData.netProfit || 0);
+    plRows.push(['To Purchases', purchaseAmt, 'By Sales', salesAmt]);
+    if (statementData.directExpItems) {
+      (statementData.directExpItems as any[]).forEach(i => plRows.push([`To ${i.name}`, f2Num(i.amount), '', '']));
+    }
+    if (statementData.indirectExpItems) {
+      (statementData.indirectExpItems as any[]).forEach(i => plRows.push([`To ${i.name}`, f2Num(i.amount), '', '']));
+    }
+    if (statementData.indirectIncItems) {
+      (statementData.indirectIncItems as any[]).forEach(i => plRows.push(['', '', `By ${i.name}`, f2Num(i.amount)]));
+    }
+    if (netProfit >= 0) { plRows.push([`To Net Profit`, netProfit, '', '']); }
+    else { plRows.push(['', '', `By Net Loss`, Math.abs(netProfit)]); }
+    const ws2 = XLSX.utils.aoa_to_sheet(plRows);
+    ws2['!cols'] = [{ wch: 40 }, { wch: 18 }, { wch: 40 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'P&L');
+  }
+
+  // ── Sheet 3: Partners Capital (if available) ──
+  if (Array.isArray(partnersData) && partnersData.length > 0) {
+    const capRows: any[][] = [];
+    capRows.push([companyName.toUpperCase()]);
+    capRows.push(['PARTNERS CAPITAL ACCOUNT (ANNEXURE A)']);
+    capRows.push(['']);
+    capRows.push(['Partner', 'Share %', 'Opening Bal', 'Salary', 'Interest', 'Withdrawals', 'Profit Share', 'Closing Balance']);
+    (partnersData as any[]).forEach(p => {
+      capRows.push([
+        p.name || '', `${p.share || 0}%`,
+        f2Num(p.openingBalance || 0), f2Num(p.salary || 0),
+        f2Num(p.interest || 0), f2Num(p.withdrawals || 0),
+        f2Num(p.profitShare || 0), f2Num(p.closingBalance || 0)
+      ]);
+    });
+    const ws3 = XLSX.utils.aoa_to_sheet(capRows);
+    ws3['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Partners Capital');
+  }
+
+  const fileName = `${(companyName || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_')}_${filePrefix}Financial_Statements_CA_Format.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
+/**
+ * Generates a P&L Excel file client-side (offline-compatible)
+ */
+async function generateOfflinePLExcel(params: {
+  companyName: string; companyAddress?: string;
+  startDate: string; endDate: string; signatoryTitle?: string;
+  trading: { leftRows: any[]; rightRows: any[]; total: number };
+  pl: { leftRows: any[]; rightRows: any[]; total: number };
+}): Promise<void> {
+  const XLSX = await loadXLSX();
+  const { companyName, startDate, endDate, trading, pl } = params;
+  const wb = XLSX.utils.book_new();
+
+  const buildRows = (title: string, leftRows: any[], rightRows: any[], total: number): any[][] => {
+    const rows: any[][] = [];
+    rows.push([companyName.toUpperCase(), '', '', '']);
+    rows.push([title, '', '', '']);
+    rows.push([`Period: ${startDate} to ${endDate}`, '', '', '']);
+    rows.push(['']);
+    rows.push(['EXPENDITURE', 'AMOUNT (₹)', 'INCOME', 'AMOUNT (₹)']);
+    const maxR = Math.max(leftRows.length, rightRows.length);
+    for (let i = 0; i < maxR; i++) {
+      const l = leftRows[i]; const r = rightRows[i];
+      const lName = l ? (l.name || l.label || '') : '';
+      const lAmt = l && l.amount !== undefined ? f2Num(l.amount) : '';
+      const rName = r ? (r.name || r.label || '') : '';
+      const rAmt = r && r.amount !== undefined ? f2Num(r.amount) : '';
+      rows.push([lName, lAmt, rName, rAmt]);
+    }
+    rows.push(['']);
+    rows.push(['TOTAL', f2Num(total), 'TOTAL', f2Num(total)]);
+    return rows;
+  };
+
+  const tradingRows = buildRows('TRADING ACCOUNT', trading.leftRows, trading.rightRows, trading.total);
+  const ws1 = XLSX.utils.aoa_to_sheet(tradingRows);
+  ws1['!cols'] = [{ wch: 40 }, { wch: 18 }, { wch: 40 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Trading Account');
+
+  const plRows2 = buildRows('PROFIT & LOSS ACCOUNT', pl.leftRows, pl.rightRows, pl.total);
+  const ws2 = XLSX.utils.aoa_to_sheet(plRows2);
+  ws2['!cols'] = [{ wch: 40 }, { wch: 18 }, { wch: 40 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'P&L Account');
+
+  const safeName = (companyName || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = `${safeName}_Profit_and_Loss_${startDate.replace(/[^a-zA-Z0-9_-]/g, '_')}_to_${endDate.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
 // ==================== SCREEN TYPES ====================
 type ScreenType =
   | 'GATEWAY_MAIN' | 'MASTER_MENU' | 'ALTER_MENU' | 'DISPLAY_REPORTS_MENU' | 'ACCOUNT_BOOKS_MENU'
@@ -1232,32 +1452,71 @@ export default function App() {
         exportBody.statementData = baseFin;
       }
 
-      const res = await fetch('/api/reports/export-excel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(exportBody),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || 'Export failed');
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      // ── Offline-first Excel Export ──
+      // In desktop/offline mode: generate directly client-side (no server needed)
+      // In online mode: try server first, fall back to client-side if it fails
+      const isDesktopOffline = (window as any).desktopBridge?.isDesktopApp || !navigator.onLine;
       const filePrefix = finalBSMode === 'provisional' ? 'PROV_' : '';
-      a.download = `${(activeCompany.name || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_')}_${filePrefix}Financial_Statements_CA_Format.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setShowFinalBSModal(false);
+
+      if (isDesktopOffline) {
+        // Client-side generation — works without internet
+        await generateOfflineFinalBSExcel({
+          companyName: activeCompany.name || 'Company',
+          companyId: String(activeCompany.id),
+          caName: exportBody.caName,
+          caMno: exportBody.caMno,
+          place: exportBody.place,
+          signatoryTitle: exportBody.signatoryTitle,
+          reportMode: finalBSMode,
+          asOnDate: exportBody.asOnDate,
+          fromDate: exportBody.fromDate,
+          toDate: exportBody.toDate,
+          balanceSheetRows: exportBody.balanceSheetRows,
+          statementData: exportBody.statementData,
+          partnersData: exportBody.partnersData,
+          filePrefix,
+        });
+        setShowFinalBSModal(false);
+      } else {
+        // Online: use server API for full CA-format multi-sheet Excel
+        const res = await fetch('/api/reports/export-excel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(exportBody),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || 'Export failed');
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(activeCompany.name || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_')}_${filePrefix}Financial_Statements_CA_Format.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setShowFinalBSModal(false);
+      }
     } catch (err: any) {
-      alert(`Excel export error: ${err.message || 'Kuch galat ho gaya'}`);
+      // Last-resort fallback: try client-side if server failed
+      try {
+        const filePrefix = finalBSMode === 'provisional' ? 'PROV_' : '';
+        await generateOfflineFinalBSExcel({
+          companyName: activeCompany?.name || 'Company',
+          companyId: String(activeCompany?.id || ''),
+          filePrefix,
+        });
+        setShowFinalBSModal(false);
+      } catch (e2: any) {
+        alert(`Excel export error: ${err.message || 'Kuch galat ho gaya'}`);
+      }
     } finally {
       setFinalBSExporting(false);
     }
   };
+
 
   const handlePdfExport = async (customFileName: string) => {
     if (!(window as any).html2pdf) {
@@ -12474,6 +12733,22 @@ function BalanceSheetView({
         totalAssets: totalAssetDisplay,
       };
 
+      // Offline-first: desktop/no-internet → client-side Excel generation
+      const isDesktopOffline = (window as any).desktopBridge?.isDesktopApp || !navigator.onLine;
+      if (isDesktopOffline) {
+        await generateOfflineBalanceSheetExcel({
+          companyName: compName,
+          companyAddress: compAddr,
+          asOnDate: endDate,
+          liabilities: liabRows,
+          assets: assetRows,
+          totalLiabilities: totalLiabDisplay,
+          totalAssets: totalAssetDisplay,
+          signatoryTitle: signatoryTitle || 'PARTNER',
+        });
+        return;
+      }
+
       const res = await fetch('/api/reports/export-statement-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -12496,11 +12771,25 @@ function BalanceSheetView({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(`Excel export error: ${e.message || 'Something went wrong'}`);
+      // Fallback: client-side generation if server failed
+      try {
+        await generateOfflineBalanceSheetExcel({
+          companyName: compName,
+          companyAddress: compAddr,
+          asOnDate: endDate,
+          liabilities: liabRows,
+          assets: assetRows,
+          totalLiabilities: totalLiabDisplay,
+          totalAssets: totalAssetDisplay,
+        });
+      } catch (e2: any) {
+        alert(`Excel export error: ${e.message || 'Something went wrong'}`);
+      }
     } finally {
       setExportingExcel(false);
     }
   };
+
 
   function renderRow_l(row: BSRow|undefined, i: number, isSel: boolean): React.ReactNode {
     if (!row) return <><td style={{borderRight:'2px solid #555',padding:'2px 8px'}}></td><td style={{borderRight:'2px solid #555'}}></td></>;
@@ -13171,6 +13460,21 @@ function ProfitLossView({
         },
       };
 
+      // Offline-first: desktop/no-internet → client-side Excel generation
+      const isDesktopOffline = (window as any).desktopBridge?.isDesktopApp || !navigator.onLine;
+      if (isDesktopOffline) {
+        await generateOfflinePLExcel({
+          companyName: compName,
+          companyAddress: compAddr,
+          startDate: startDate,
+          endDate: endDate,
+          signatoryTitle: signatoryTitle || 'PARTNER',
+          trading: { leftRows: dirExpRows, rightRows: dirIncRows, total: totalTrading },
+          pl: { leftRows: indExpRows, rightRows: indIncRows, total: totalPL },
+        });
+        return;
+      }
+
       const res = await fetch('/api/reports/export-statement-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -13193,11 +13497,24 @@ function ProfitLossView({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(`Excel export error: ${e.message || 'Something went wrong'}`);
+      // Fallback: client-side generation if server failed
+      try {
+        await generateOfflinePLExcel({
+          companyName: compName,
+          companyAddress: compAddr,
+          startDate: startDate,
+          endDate: endDate,
+          trading: { leftRows: dirExpRows, rightRows: dirIncRows, total: totalTrading },
+          pl: { leftRows: indExpRows, rightRows: indIncRows, total: totalPL },
+        });
+      } catch (e2: any) {
+        alert(`Excel export error: ${e.message || 'Something went wrong'}`);
+      }
     } finally {
       setExportingExcel(false);
     }
   };
+
 
   return (
     <div className="report-view-container" style={{height:'100%',display:'flex',flexDirection:'column',background:'#e8e8e8'}}>

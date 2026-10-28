@@ -140,6 +140,10 @@ ipcMain.handle('open-data-folder', async () => {
   return true;
 });
 
+ipcMain.handle('get-data-path', async () => {
+  return dataDir;
+});
+
 ipcMain.handle('scan-company-folders', async () => {
   try {
     const entries = fs.readdirSync(dataDir, { withFileTypes: true });

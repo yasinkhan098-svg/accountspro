@@ -138,17 +138,36 @@ class CompanyDataFolderService {
       // User cancelled picker or denied permission
     }
 
-    // 5. Fallback: Show path with Windows %LocalAppData% shorthand + copy to clipboard
-    // Electron userData path: C:\Users\<user>\AppData\Local\LedgerX\AccountsProData\data\
-    const fallbackPath = '%LOCALAPPDATA%\\LedgerX\\AccountsProData\\data\\';
+    // 5. Fallback: try to get actual path from bridge, then show it
+    let actualDataPath = '[LedgerX Install Folder]\\data\\';
+    // Try C# bridge for actual path
+    for (const bUrl of [LOCAL_BRIDGE_URL, 'http://localhost:45454']) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1200);
+        const r = await fetch(`${bUrl}/api/data-path`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (r.ok) {
+          const j = await r.json();
+          if (j.dataDir) { actualDataPath = j.dataDir; break; }
+        }
+      } catch (e) {}
+    }
+
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(fallbackPath);
+        await navigator.clipboard.writeText(actualDataPath);
       }
     } catch (e) {}
 
     alert(
-      `📂 Local Company Data Folder:\n\n${fallbackPath}\n\n(Path copied to clipboard!)\n\nWindows mein kholne ke liye:\n1. Win + R press karein\n2. Ctrl+V paste karein aur Enter dabayein\n\nYa Windows Explorer mein:\n%LOCALAPPDATA%\\LedgerX\\AccountsProData\\data\\`
+      `📂 Local Company Data Folder:\n\n${actualDataPath}\n\n(Path copied to clipboard!)\n\n` +
+      `Data folder .exe file ke saath SAME folder mein hota hai!\n\n` +
+      `Windows mein kholne ke liye:\n` +
+      `1. Win + R press karein\n` +
+      `2. Ctrl+V paste karein aur Enter dabayein\n\n` +
+      `Note: Agar Program Files mein install hai aur admin nahi hai,\n` +
+      `to data %LOCALAPPDATA%\\LedgerX\\data\\ mein ho sakta hai.`
     );
     return true;
   }

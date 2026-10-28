@@ -32,15 +32,29 @@ namespace LedgerXLauncher
         {
             try
             {
+                // AppData for config/profile (safe, always writable)
                 string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string appDir = Path.Combine(localApp, "LedgerX");
                 string configFile = Path.Combine(appDir, "config.json");
                 string profileDir = Path.Combine(appDir, "Profile");
-                string dataDir = Path.Combine(appDir, "data");
 
                 if (!Directory.Exists(appDir)) Directory.CreateDirectory(appDir);
                 if (!Directory.Exists(profileDir)) Directory.CreateDirectory(profileDir);
-                if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
+
+                // Data folder: next to .exe (installation directory) — Tally-style
+                string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
+                string dataDir = Path.Combine(exeDir, "data");
+                try
+                {
+                    if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
+                }
+                catch
+                {
+                    // Fallback to AppData if exe dir is not writable (e.g. Program Files without admin)
+                    dataDir = Path.Combine(appDir, "data");
+                    if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
+                }
 
                 // Start local HTTP Bridge for Tally-style company data folders
                 StartHttpBridge(dataDir);
@@ -226,6 +240,13 @@ namespace LedgerXLauncher
                 {
                     try { Process.Start("explorer.exe", dataDir); } catch { }
                     WriteJsonResponse(res, "{\"success\":true}");
+                    return;
+                }
+
+                if (path == "/api/data-path")
+                {
+                    string escapedPath = dataDir.Replace("\\", "\\\\");
+                    WriteJsonResponse(res, "{\"dataDir\":\"" + escapedPath + "\"}");
                     return;
                 }
 
