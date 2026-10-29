@@ -3132,6 +3132,9 @@ export default function App() {
     else if (screen === 'ALTER_MENU') m = getMasterMenu(true);
     else if (screen === 'DISPLAY_REPORTS_MENU') m = getReportsMenu();
     else if (screen === 'ACCOUNT_BOOKS_MENU') m = getAccountBooksMenu();
+    if (!permissionGuard.isRestrictedSession()) {
+      return m;
+    }
     return filterMenuByPermissions(m);
   };
 
@@ -4070,19 +4073,7 @@ export default function App() {
            >
              💻 DESKTOP APP
            </button>
-           <button
-             onClick={() => setShowUserSwitchModal(true)}
-             title="Switch Active LAN User / Test Permissions"
-             style={{
-               background: currentLANUser && !currentLANUser.isAdmin ? '#059669' : '#1e3a5f',
-               color: 'white', border: 'none',
-               padding: '4px 10px', fontSize: '10px',
-               fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
-               display: 'inline-flex', alignItems: 'center', gap: '4px'
-             }}
-           >
-             👤 {currentLANUser ? `${currentLANUser.username} (${currentLANUser.isAdmin ? 'Admin' : 'Operator'})` : 'Admin (Master)'}
-           </button>
+           
            <button 
              onClick={handleLogout}
              style={{

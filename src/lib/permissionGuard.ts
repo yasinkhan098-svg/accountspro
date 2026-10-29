@@ -218,6 +218,20 @@ class PermissionGuardService {
     };
   }
 
+  public isRestrictedSession(): boolean {
+    if (typeof window === 'undefined') return false;
+    // Host PC / Main Desktop App / Online Admin is NEVER restricted!
+    // Restrictions ONLY apply to a connected LAN Client PC
+    const isLanClient = window.location.search.includes('lan_client=1') || 
+                        Boolean(sessionStorage.getItem('ledgerx_is_lan_client'));
+    if (!isLanClient) {
+      return false;
+    }
+    if (!this.currentUser) return false;
+    if (this.currentUser.isAdmin) return false;
+    return true;
+  }
+
   private notifyListeners() {
     for (const listener of this.listeners) {
       try { listener(this.currentUser); } catch (e) {}
@@ -228,6 +242,7 @@ class PermissionGuardService {
    * Checks if current user has permission for a specific Voucher Type (e.g. 'Purchase', 'Sales')
    */
   public canAccessVoucher(voucherType: string): boolean {
+    if (!this.isRestrictedSession()) return true;
     if (!this.currentUser) return true; // Standalone single-user admin by default
     if (this.currentUser.isAdmin) return true;
 
@@ -239,6 +254,7 @@ class PermissionGuardService {
    * Checks if current user has permission for a specific screen or report
    */
   public canAccessScreen(screen: string): boolean {
+    if (!this.isRestrictedSession()) return true;
     if (!this.currentUser) return true;
     if (this.currentUser.isAdmin) return true;
 
@@ -306,6 +322,7 @@ class PermissionGuardService {
    * Checks if current user can delete records
    */
   public canDelete(type: 'master' | 'voucher' = 'voucher'): boolean {
+    if (!this.isRestrictedSession()) return true;
     if (!this.currentUser) return true;
     if (this.currentUser.isAdmin) return true;
     if (type === 'master') return !!this.currentUser.permissions?.masters?.deleteMaster;
@@ -316,6 +333,7 @@ class PermissionGuardService {
    * Checks if current user is allowed to access a specific company code
    */
   public canAccessCompany(companyCode: string): boolean {
+    if (!this.isRestrictedSession()) return true;
     if (!this.currentUser) return true;
     if (this.currentUser.isAdmin) return true;
     const assigned = this.currentUser.assignedCompanyCodes;
@@ -327,6 +345,7 @@ class PermissionGuardService {
    * Checks if current user can access a menu item by label
    */
   public canAccessMenuItem(label: string): boolean {
+    if (!this.isRestrictedSession()) return true;
     if (!this.currentUser) return true;
     if (this.currentUser.isAdmin) return true;
     const perms = this.currentUser.permissions;
