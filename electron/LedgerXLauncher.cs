@@ -136,7 +136,7 @@ namespace LedgerXLauncher
                 {
                     ProcessStartInfo psi = new ProcessStartInfo();
                     psi.FileName = browserPath;
-                    psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --allow-running-insecure-content --unsafely-treat-insecure-origin-as-secure=http://127.0.0.1:45454", launchUrl, profileDir);
+                    psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
                     psi.WindowStyle = ProcessWindowStyle.Maximized;
                     psi.UseShellExecute = true;
                     Process.Start(psi);
