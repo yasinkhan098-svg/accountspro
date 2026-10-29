@@ -216,10 +216,13 @@ namespace LedgerXLauncher
                 HttpListenerRequest req = ctx.Request;
                 HttpListenerResponse res = ctx.Response;
 
-                res.Headers.Add("Access-Control-Allow-Origin", "*");
-                res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                string origin = req.Headers["Origin"];
+                if (string.IsNullOrEmpty(origin)) origin = "*";
+                res.Headers.Add("Access-Control-Allow-Origin", origin);
+                res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
                 res.Headers.Add("Access-Control-Allow-Headers", "*");
                 res.Headers.Add("Access-Control-Allow-Private-Network", "true");
+                res.Headers.Add("Access-Control-Max-Age", "86400");
 
                 if (req.HttpMethod == "OPTIONS")
                 {
@@ -232,14 +235,17 @@ namespace LedgerXLauncher
 
                 if (path == "/api/ping")
                 {
-                    WriteJsonResponse(res, "{\"status\":\"ok\",\"version\":\"2.4\"}");
+                    WriteJsonResponse(res, "{\"status\":\"ok\",\"version\":\"2.5\",\"dataDir\":\"" + dataDir.Replace("\\", "\\\\") + "\"}");
                     return;
                 }
 
                 if (path == "/api/open-folder")
                 {
-                    try { Process.Start("explorer.exe", dataDir); } catch { }
-                    WriteJsonResponse(res, "{\"success\":true}");
+                    string code = req.QueryString["code"];
+                    string target = string.IsNullOrEmpty(code) ? dataDir : Path.Combine(dataDir, code.ToUpper().Trim());
+                    if (!Directory.Exists(target)) target = dataDir;
+                    try { Process.Start("explorer.exe", target); } catch { }
+                    WriteJsonResponse(res, "{\"success\":true,\"opened\":\"" + target.Replace("\\", "\\\\") + "\"}");
                     return;
                 }
 
@@ -247,6 +253,45 @@ namespace LedgerXLauncher
                 {
                     string escapedPath = dataDir.Replace("\\", "\\\\");
                     WriteJsonResponse(res, "{\"dataDir\":\"" + escapedPath + "\"}");
+                    return;
+                }
+
+                if (path == "/api/next-code")
+                {
+                    int maxCode = 9999;
+                    if (Directory.Exists(dataDir))
+                    {
+                        foreach (string dir in Directory.GetDirectories(dataDir))
+                        {
+                            string name = Path.GetFileName(dir);
+                            int parsed;
+                            if (int.TryParse(name, out parsed) && parsed >= 10000 && parsed <= 99999)
+                            {
+                                if (parsed > maxCode) maxCode = parsed;
+                            }
+                        }
+                    }
+                    int nextCode = (maxCode < 10000) ? 10000 : (maxCode + 1);
+                    WriteJsonResponse(res, "{\"nextCode\":\"" + nextCode.ToString() + "\"}");
+                    return;
+                }
+
+                if (path == "/api/save-file" && req.HttpMethod == "POST")
+                {
+                    string code = req.QueryString["code"];
+                    if (string.IsNullOrEmpty(code)) code = "10000";
+                    code = code.ToUpper().Trim();
+                    string file = req.QueryString["file"];
+                    if (string.IsNullOrEmpty(file)) file = "data.json";
+                    file = Path.GetFileName(file);
+                    string cDir = Path.Combine(dataDir, code);
+                    if (!Directory.Exists(cDir)) Directory.CreateDirectory(cDir);
+                    string targetFile = Path.Combine(cDir, file);
+                    using (FileStream fs = File.Create(targetFile))
+                    {
+                        req.InputStream.CopyTo(fs);
+                    }
+                    WriteJsonResponse(res, "{\"success\":true,\"code\":\"" + code + "\",\"file\":\"" + file + "\"}");
                     return;
                 }
 
@@ -282,8 +327,8 @@ namespace LedgerXLauncher
                 if (path == "/api/company" && req.HttpMethod == "GET")
                 {
                     string code = req.QueryString["code"];
-                    if (string.IsNullOrEmpty(code)) code = "10001";
-                    code = code.ToUpper();
+                    if (string.IsNullOrEmpty(code)) code = "10000";
+                    code = code.ToUpper().Trim();
                     string cDir = Path.Combine(dataDir, code);
                     if (!Directory.Exists(cDir))
                     {
@@ -298,10 +343,15 @@ namespace LedgerXLauncher
                     string sJson = File.Exists(Path.Combine(cDir, "stock_items.json")) ? File.ReadAllText(Path.Combine(cDir, "stock_items.json")) : "[]";
                     string sgJson = File.Exists(Path.Combine(cDir, "stock_groups.json")) ? File.ReadAllText(Path.Combine(cDir, "stock_groups.json")) : "[]";
                     string uJson = File.Exists(Path.Combine(cDir, "units.json")) ? File.ReadAllText(Path.Combine(cDir, "units.json")) : "[]";
+                    string gJson = File.Exists(Path.Combine(cDir, "groups.json")) ? File.ReadAllText(Path.Combine(cDir, "groups.json")) : "[]";
+                    string vtJson = File.Exists(Path.Combine(cDir, "voucher_types.json")) ? File.ReadAllText(Path.Combine(cDir, "voucher_types.json")) : "[]";
+                    string poJson = File.Exists(Path.Combine(cDir, "purchase_orders.json")) ? File.ReadAllText(Path.Combine(cDir, "purchase_orders.json")) : "[]";
+                    string bomJson = File.Exists(Path.Combine(cDir, "boms.json")) ? File.ReadAllText(Path.Combine(cDir, "boms.json")) : "[]";
+                    string mjJson = File.Exists(Path.Combine(cDir, "manufacturing_journals.json")) ? File.ReadAllText(Path.Combine(cDir, "manufacturing_journals.json")) : "[]";
 
                     string jsonOut = string.Format(
-                        "{{\"success\":true,\"companyCode\":\"{0}\",\"company\":{1},\"ledgers\":{2},\"vouchers\":{3},\"stockItems\":{4},\"stockGroups\":{5},\"units\":{6}}}",
-                        code, cJson, lJson, vJson, sJson, sgJson, uJson
+                        "{{\"success\":true,\"companyCode\":\"{0}\",\"company\":{1},\"ledgers\":{2},\"vouchers\":{3},\"stockItems\":{4},\"stockGroups\":{5},\"units\":{6},\"groups\":{7},\"voucherTypes\":{8},\"purchaseOrders\":{9},\"boms\":{10},\"manufacturingJournals\":{11}}}",
+                        code, cJson, lJson, vJson, sJson, sgJson, uJson, gJson, vtJson, poJson, bomJson, mjJson
                     );
                     WriteJsonResponse(res, jsonOut);
                     return;
@@ -312,7 +362,7 @@ namespace LedgerXLauncher
                     using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
                     {
                         string body = reader.ReadToEnd();
-                        string code = "10001";
+                        string code = "10000";
                         int idx = body.IndexOf("\"companyCode\":");
                         if (idx >= 0)
                         {
@@ -333,6 +383,11 @@ namespace LedgerXLauncher
                         ExtractAndWrite(body, "stockItems", Path.Combine(cDir, "stock_items.json"), "[]");
                         ExtractAndWrite(body, "stockGroups", Path.Combine(cDir, "stock_groups.json"), "[]");
                         ExtractAndWrite(body, "units", Path.Combine(cDir, "units.json"), "[]");
+                        ExtractAndWrite(body, "groups", Path.Combine(cDir, "groups.json"), "[]");
+                        ExtractAndWrite(body, "voucherTypes", Path.Combine(cDir, "voucher_types.json"), "[]");
+                        ExtractAndWrite(body, "purchaseOrders", Path.Combine(cDir, "purchase_orders.json"), "[]");
+                        ExtractAndWrite(body, "boms", Path.Combine(cDir, "boms.json"), "[]");
+                        ExtractAndWrite(body, "manufacturingJournals", Path.Combine(cDir, "manufacturing_journals.json"), "[]");
 
                         WriteJsonResponse(res, "{\"success\":true,\"companyCode\":\"" + code + "\"}");
                         return;

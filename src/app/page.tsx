@@ -2506,6 +2506,8 @@ export default function App() {
             const resData = await res.json();
             if (res.ok && resData.company) {
               const newCo = resData.company;
+              const nextCode = await companyDataFolderService.getNextCompanyCode(companies);
+              newCo.companyCode = newCo.companyCode || nextCode;
               setCompanies(p => [...p, newCo]);
               setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' }))]);
               setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
@@ -2513,6 +2515,20 @@ export default function App() {
               setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
               setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id }))]);
               setActiveCompany(newCo);
+
+              // Immediately save initial company folder to local disk (e.g. data/10000/)
+              await companyDataFolderService.saveCompanyFolder({
+                companyCode: newCo.companyCode,
+                company: newCo,
+                ledgers: [{ id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }],
+                vouchers: [],
+                stockItems: [],
+                stockGroups: [],
+                units: INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id })),
+                groups: TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' })),
+                voucherTypes: VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 })),
+              });
+
               return newCo;
             }
           }
@@ -2522,8 +2538,9 @@ export default function App() {
           (saveMaster as any)._savingCompany = false;
         }
 
-        // Local offline company creation
-        const localCo = { id: Date.now(), ...data };
+        // Local offline company creation - Tally-style 5-digit folder (10000, 10001, 10002...)
+        const nextCode = await companyDataFolderService.getNextCompanyCode(companies);
+        const localCo = { id: Date.now(), companyCode: nextCode, ...data };
         setCompanies(p => [...p, localCo]);
         setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: localCo.id, name: g, under: 'Primary' }))]);
         setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: localCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
@@ -2532,7 +2549,21 @@ export default function App() {
         setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: localCo.id }))]);
         setActiveCompany(localCo);
         offlineSyncService.enqueue({ type: 'COMPANY', action: 'CREATE', data: localCo, companyId: localCo.id });
-        setSaveToast("Company created locally (Offline Mode)");
+
+        // Immediately save initial company folder to local disk (e.g. data/10000/)
+        await companyDataFolderService.saveCompanyFolder({
+          companyCode: nextCode,
+          company: localCo,
+          ledgers: [{ id: Date.now() + 300, companyId: localCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }],
+          vouchers: [],
+          stockItems: [],
+          stockGroups: [],
+          units: INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: localCo.id })),
+          groups: TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: localCo.id, name: g, under: 'Primary' })),
+          voucherTypes: VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: localCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 })),
+        });
+
+        setSaveToast(`Company created in folder [${nextCode}] (Offline Mode)`);
         return localCo;
       }
       else if (type === 'group') setAllGroups(p => [...p, { id, companyId: cid, ...data }]);

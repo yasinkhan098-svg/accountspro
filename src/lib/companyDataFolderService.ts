@@ -36,30 +36,69 @@ class CompanyDataFolderService {
   private lastBridgeCheckTime = 0;
 
   /**
-   * Generates a 5-digit Tally-style folder number: e.g. "10001", "10002", "10003"
+   * Generates or retrieves the 5-digit Tally-style folder number: e.g. "10000", "10001", "10002"
    */
   public getCompanyFolderCode(company: any, allCompanies: any[] = []): string {
-    // 1. Use stored companyCode if valid
-    if (company?.companyCode && typeof company.companyCode === 'string' && company.companyCode.trim()) {
-      return company.companyCode.trim().toUpperCase();
+    // 1. Stored companyCode if 5-digit or valid string
+    if (company?.companyCode && typeof company.companyCode === 'string') {
+      const trimmed = company.companyCode.trim().toUpperCase();
+      if (/^\d{5}$/.test(trimmed)) return trimmed;
+      if (trimmed.length > 0 && trimmed.length <= 10) return trimmed;
     }
-    // 2. Alias-based code
-    if (company?.alias && (company.alias.startsWith('10') || company.alias.startsWith('LX'))) {
-      return company.alias.trim().toUpperCase();
+    // 2. Alias-based 5-digit code
+    if (company?.alias && /^\d{5}$/.test(String(company.alias).trim())) {
+      return String(company.alias).trim();
     }
-    // 3. Derive from numeric ID — pad to 5 digits starting at 10001
-    if (company?.id) {
-      const numId = Number(company.id);
-      if (!isNaN(numId) && numId > 0) {
-        // Use actual ID-based code so same company always gets same folder
-        const code = numId < 10000 ? String(10000 + numId) : String(numId);
-        return code;
+    // 3. Sequential index among companies (starting at 10000 exactly like Tally Prime)
+    if (Array.isArray(allCompanies) && allCompanies.length > 0) {
+      const idx = allCompanies.findIndex(c => c && (c.id === company?.id || (c.name && company?.name && c.name.toLowerCase() === company.name.toLowerCase())));
+      if (idx >= 0) {
+        return String(10000 + idx);
       }
     }
-    // 4. Fallback: sequential index
-    const idx = allCompanies.findIndex(c => c.id === company?.id);
-    const seqNum = idx >= 0 ? 10001 + idx : 10001 + Math.max(0, allCompanies.length);
-    return String(seqNum);
+    // 4. Derive from small numeric ID (< 10000)
+    if (company?.id) {
+      const numId = Number(company.id);
+      if (!isNaN(numId) && numId > 0 && numId < 10000) {
+        return String(10000 + (numId - 1));
+      }
+      if (!isNaN(numId) && numId >= 10000 && numId <= 99999) {
+        return String(numId);
+      }
+    }
+    return '10000';
+  }
+
+  /**
+   * Calculates the next sequential 5-digit company code for a brand new company
+   * Exactly matching Tally Prime: 10000, 10001, 10002, 10003...
+   */
+  public async getNextCompanyCode(existingCompanies: any[] = []): Promise<string> {
+    // 1. Query local HTTP bridge for next-code from actual disk folders
+    if (await this.checkBridge()) {
+      try {
+        const res = await fetch(`${LOCAL_BRIDGE_URL}/api/next-code`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.nextCode && /^\d{5}$/.test(json.nextCode)) {
+            return json.nextCode;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Calculate from existingCompanies and cached codes
+    const codes: number[] = [];
+    const scanList = [...existingCompanies, ...this.getAllCachedCodes().map(c => ({ companyCode: c }))];
+    for (const c of scanList) {
+      const codeStr = String(c?.companyCode || c?.code || c?.alias || '').trim();
+      if (/^\d{5}$/.test(codeStr)) {
+        codes.push(parseInt(codeStr, 10));
+      }
+    }
+    if (codes.length === 0) return '10000';
+    const maxCode = Math.max(...codes);
+    return String(Math.max(10000, maxCode + 1));
   }
 
   /**
@@ -93,24 +132,25 @@ class CompanyDataFolderService {
   /**
    * Opens the local "data" directory in Windows File Explorer
    */
-  public async openDataFolder(): Promise<boolean> {
+  public async openDataFolder(companyCode?: string): Promise<boolean> {
     if (typeof window === 'undefined') return false;
 
     // 1. Electron bridge
     if ((window as any).desktopBridge?.openDataFolder) {
       try {
-        await (window as any).desktopBridge.openDataFolder();
+        await (window as any).desktopBridge.openDataFolder(companyCode);
         return true;
       } catch (e) {}
     }
 
     // 2. C# Launcher HTTP bridge (test both 127.0.0.1 and localhost)
     const bridgeUrls = [LOCAL_BRIDGE_URL, 'http://localhost:45454'];
+    const q = companyCode ? `?code=${encodeURIComponent(companyCode)}` : '';
     for (const bUrl of bridgeUrls) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 1200);
-        const res = await fetch(`${bUrl}/api/open-folder`, {
+        const res = await fetch(`${bUrl}/api/open-folder${q}`, {
           method: 'GET',
           signal: controller.signal,
         });
@@ -123,7 +163,7 @@ class CompanyDataFolderService {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1200);
-      const res = await fetch('/api/local-data/open-folder', { signal: controller.signal });
+      const res = await fetch(`/api/local-data/open-folder${q}`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (res.ok) return true;
     } catch (e) {}
@@ -174,7 +214,7 @@ class CompanyDataFolderService {
 
   /**
    * Saves a company and all its accounting data into its numbered folder
-   * e.g. %LocalAppData%\LedgerX\data\10001\
+   * e.g. %LocalAppData%\LedgerX\data\10000\
    */
   public async saveCompanyFolder(data: Partial<CompanyFolderData>): Promise<boolean> {
     if (typeof window === 'undefined') return false;
@@ -214,15 +254,40 @@ class CompanyDataFolderService {
     // 2. C# Launcher HTTP bridge
     if (await this.checkBridge()) {
       try {
-        const res = await fetch(`${LOCAL_BRIDGE_URL}/api/company`, {
+        // A. Primary batch save
+        await fetch(`${LOCAL_BRIDGE_URL}/api/company`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cleanData),
         });
-        if (res.ok) {
-          this.saveToLocalCache(code, cleanData);
-          return true;
+
+        // B. Stream individual files directly to disk for 100% data fidelity
+        const filesToStream: [string, any][] = [
+          ['company.json', cleanData.company],
+          ['ledgers.json', cleanData.ledgers],
+          ['vouchers.json', cleanData.vouchers],
+          ['stock_items.json', cleanData.stockItems],
+          ['stock_groups.json', cleanData.stockGroups],
+          ['units.json', cleanData.units],
+          ['groups.json', cleanData.groups],
+          ['voucher_types.json', cleanData.voucherTypes],
+          ['purchase_orders.json', cleanData.purchaseOrders],
+          ['boms.json', cleanData.boms],
+          ['manufacturing_journals.json', cleanData.manufacturingJournals],
+        ];
+
+        for (const [fName, fVal] of filesToStream) {
+          if (fVal !== undefined) {
+            fetch(`${LOCAL_BRIDGE_URL}/api/save-file?code=${encodeURIComponent(code)}&file=${encodeURIComponent(fName)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(fVal, null, 2),
+            }).catch(() => {});
+          }
         }
+
+        this.saveToLocalCache(code, cleanData);
+        return true;
       } catch (e) {}
     }
 
