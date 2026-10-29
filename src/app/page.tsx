@@ -20,6 +20,10 @@ import { bomOfflineStorage } from '@/lib/bomOfflineStorage';
 import OfflineLicenseGuard from '@/components/OfflineLicenseGuard';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 import AutoUpdateManager from '@/components/AutoUpdateManager';
+import RoleManagementView from '@/components/RoleManagementView';
+import UserSwitchModal from '@/components/UserSwitchModal';
+import { permissionGuard, LANUser } from '@/lib/permissionGuard';
+import { lanUserManagementService } from '@/lib/lanUserManagementService';
 import {
   computeBaseFinancials,
 
@@ -663,6 +667,15 @@ export default function App() {
     selectedIdxRef.current = selectedIdx;
   }, [selectedIdx]);
   const [activeVoucher, setActiveVoucher] = useState<VoucherTypeKey>('Sales');
+  const [currentLANUser, setCurrentLANUser] = useState<LANUser | null>(() => permissionGuard.getCurrentUser());
+  const [showUserSwitchModal, setShowUserSwitchModal] = useState(false);
+
+  useEffect(() => {
+    const unsub = permissionGuard.subscribe(u => {
+      setCurrentLANUser(u);
+    });
+    return unsub;
+  }, []);
   const [alterItem, setAlterItem] = useState<any>(null);
   const [alterListType, setAlterListType] = useState('');
   const [reportLedgerId, setReportLedgerId] = useState<number | null>(null);
@@ -2106,6 +2119,10 @@ export default function App() {
   };
 
   const nav = (s: ScreenType, item?: any, typeName?: string) => {
+    if (!permissionGuard.canAccessScreen(s)) {
+      alert("Access Denied: You do not have permission to access this screen.");
+      return;
+    }
     lastFocusRef.current = document.activeElement as HTMLElement;
     setHistory(h => [...h, screen]);
     setScreen(s);
@@ -2114,6 +2131,21 @@ export default function App() {
     // When opening a saved voucher, show its original date in the form
     // When creating a new voucher, reset to today's date
     if (s === 'VOUCHER_ENTRY') {
+      if (item?.type) {
+        if (!permissionGuard.canAccessVoucher(item.type)) {
+          alert(`Access Denied: You do not have permission for ${item.type} vouchers.`);
+          return;
+        }
+        setActiveVoucher(item.type);
+      } else {
+        // Ensure activeVoucher is permitted for this role
+        setActiveVoucher(prev => {
+          if (permissionGuard.canAccessVoucher(prev)) return prev;
+          const candidates: VoucherTypeKey[] = ['Purchase', 'Sales', 'Payment', 'Receipt', 'Contra', 'Journal', 'Debit Note', 'Credit Note', 'Sales Quotation'];
+          const found = candidates.find(c => permissionGuard.canAccessVoucher(c));
+          return found || prev;
+        });
+      }
       if (item?.date) {
         setCurrentDate(item.date);
       } else if (!item) {
@@ -3066,12 +3098,41 @@ export default function App() {
     { label:'Quit',               highlight:'Q', action:()=>alert('Close application?') },
   ];
 
+  const filterMenuByPermissions = (menu: MenuOption[]): MenuOption[] => {
+    const rawFiltered = menu.filter(item => {
+      if (item.category === 'header') return true;
+      return permissionGuard.canAccessMenuItem(item.label);
+    });
+
+    const cleaned: MenuOption[] = [];
+    for (let i = 0; i < rawFiltered.length; i++) {
+      const it = rawFiltered[i];
+      if (it.category === 'header' && it.label !== '') {
+        let hasChildren = false;
+        for (let j = i + 1; j < rawFiltered.length; j++) {
+          if (rawFiltered[j].category !== 'header' && rawFiltered[j].label !== '') {
+            hasChildren = true;
+            break;
+          }
+          if (rawFiltered[j].category === 'header' && rawFiltered[j].label !== '') {
+            break;
+          }
+        }
+        if (hasChildren) cleaned.push(it);
+      } else {
+        cleaned.push(it);
+      }
+    }
+    return cleaned;
+  };
+
   const getActiveMenu = () => {
-    if (screen === 'MASTER_MENU') return getMasterMenu(false);
-    if (screen === 'ALTER_MENU') return getMasterMenu(true);
-    if (screen === 'DISPLAY_REPORTS_MENU') return getReportsMenu();
-    if (screen === 'ACCOUNT_BOOKS_MENU') return getAccountBooksMenu();
-    return gatewayMenu;
+    let m = gatewayMenu;
+    if (screen === 'MASTER_MENU') m = getMasterMenu(false);
+    else if (screen === 'ALTER_MENU') m = getMasterMenu(true);
+    else if (screen === 'DISPLAY_REPORTS_MENU') m = getReportsMenu();
+    else if (screen === 'ACCOUNT_BOOKS_MENU') m = getAccountBooksMenu();
+    return filterMenuByPermissions(m);
   };
 
   // KEYBOARD
@@ -3266,56 +3327,76 @@ export default function App() {
       if (e.key === 'F3')  { e.preventDefault(); setShowCompanySelect(true); }
       if (e.key === 'F2' && !e.altKey)  { e.preventDefault(); setShowDate(true); }
       if (e.key === 'F2' && e.altKey)   { e.preventDefault(); setShowPeriod(true); }
-      if (e.key === 'F9' && e.ctrlKey)  { e.preventDefault(); nav('PURCHASE_ORDER_ENTRY'); }
-      if (e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); nav('BOM_MODULE'); }
+      if (e.key === 'F9' && e.ctrlKey)  { 
+        if (permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY')) { e.preventDefault(); nav('PURCHASE_ORDER_ENTRY'); }
+      }
+      if (e.altKey && e.key.toLowerCase() === 'b') { 
+        if (permissionGuard.canAccessScreen('BOM_MODULE')) { e.preventDefault(); nav('BOM_MODULE'); }
+      }
       // Global Function Keys for Vouchers (Contra, Payment, Receipt, Journal, Sales, Purchase, Pur. Order, Quotation, Credit Note, Debit Note)
       if (e.key === 'F4') { 
-        e.preventDefault(); 
-        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
-        setActiveVoucher('Contra'); 
+        if (permissionGuard.canAccessVoucher('Contra')) {
+          e.preventDefault(); 
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+          setActiveVoucher('Contra'); 
+        }
       }
       if (e.key === 'F5') { 
-        e.preventDefault(); 
-        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
-        setActiveVoucher('Payment'); 
+        if (permissionGuard.canAccessVoucher('Payment')) {
+          e.preventDefault(); 
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+          setActiveVoucher('Payment'); 
+        }
       }
       if (e.key === 'F6') { 
-        e.preventDefault(); 
-        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
-        setActiveVoucher('Receipt'); 
+        if (permissionGuard.canAccessVoucher('Receipt')) {
+          e.preventDefault(); 
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+          setActiveVoucher('Receipt'); 
+        }
       }
       if (e.key === 'F7') { 
-        e.preventDefault(); 
-        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
-        setActiveVoucher('Journal'); 
+        if (permissionGuard.canAccessVoucher('Journal')) {
+          e.preventDefault(); 
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+          setActiveVoucher('Journal'); 
+        }
       }
       if (e.key === 'F8') {
-        e.preventDefault();
-        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
-        if (e.ctrlKey) {
+        if (e.ctrlKey && permissionGuard.canAccessVoucher('Credit Note')) {
+          e.preventDefault();
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Credit Note');
-        } else if (e.altKey) {
+        } else if (e.altKey && permissionGuard.canAccessVoucher('Sales Quotation')) {
+          e.preventDefault();
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Sales Quotation');
-        } else {
+        } else if (!e.ctrlKey && !e.altKey && permissionGuard.canAccessVoucher('Sales')) {
+          e.preventDefault();
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Sales');
         }
       }
       if (e.key === 'F9') {
-        e.preventDefault();
-        if (e.ctrlKey) {
+        if (e.ctrlKey && permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY')) {
+          e.preventDefault();
           nav('PURCHASE_ORDER_ENTRY');
-        } else if (e.altKey) {
+        } else if (e.altKey && permissionGuard.canAccessVoucher('Debit Note')) {
+          e.preventDefault();
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Debit Note');
-        } else {
+        } else if (!e.ctrlKey && !e.altKey && permissionGuard.canAccessVoucher('Purchase')) {
+          e.preventDefault();
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Purchase');
         }
       }
       if (e.key === 'F10') { 
-        e.preventDefault(); 
-        if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
-        setActiveVoucher('Sales Quotation'); 
+        if (permissionGuard.canAccessVoucher('Sales Quotation')) {
+          e.preventDefault(); 
+          if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
+          setActiveVoucher('Sales Quotation'); 
+        }
       }
       if (e.altKey && e.key.toLowerCase() === 'd' && alterItem) {
         e.preventDefault();
@@ -3989,6 +4070,19 @@ export default function App() {
            >
              💻 DESKTOP APP
            </button>
+           <button
+             onClick={() => setShowUserSwitchModal(true)}
+             title="Switch Active LAN User / Test Permissions"
+             style={{
+               background: currentLANUser && !currentLANUser.isAdmin ? '#059669' : '#1e3a5f',
+               color: 'white', border: 'none',
+               padding: '4px 10px', fontSize: '10px',
+               fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+               display: 'inline-flex', alignItems: 'center', gap: '4px'
+             }}
+           >
+             👤 {currentLANUser ? `${currentLANUser.username} (${currentLANUser.isAdmin ? 'Admin' : 'Operator'})` : 'Admin (Master)'}
+           </button>
            <button 
              onClick={handleLogout}
              style={{
@@ -4229,7 +4323,7 @@ export default function App() {
                   <div className="tally-menu-box" tabIndex={0} style={{outline:'none'}}>
                     <div className="tally-menu-title">Gateway of LedgerX</div>
                     <div className="menu-list-container">
-                      {gatewayMenu.map((item,i)=>{
+                      {getActiveMenu().map((item,i)=>{
                         if(item.category==='header') return <div key={i} className="menu-header">{item.label}</div>;
                         return <div key={i} className={`menu-item ${selectedIdx===i?'selected':''}`} onClick={()=>{setSelectedIdx(i);item.action?.();}}>
                           <span className="highlight">{item.highlight}</span>: {item.label}
@@ -4349,7 +4443,7 @@ export default function App() {
             )}
             {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
             {screen==='AUDIT_TRAIL'          && <AuditTrailView company={activeCompany} onBack={goBack} />}
-            {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} />}
+            {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} availableCompanies={companies} />}
             {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} ledgers={ledgers} vouchers={vouchers} stockItems={stockItems} activeCompany={activeCompany} onDataImported={()=>window.location.reload()} />}
             {screen==='ALTER_LIST' && (
               <AlterListView type={alterListType} ledgers={ledgers} groups={groups} stockGroups={stockGroups}
@@ -4383,17 +4477,17 @@ export default function App() {
         <div className="sidebar" style={{display:screen==='VOUCHER_ENTRY'?'none':'flex'}}>
           <div className="sidebar-btn" onClick={()=>setShowDate(true)}>F2: Date</div>
           <div className="sidebar-btn" onClick={()=>setShowCompanySelect(true)}>F3: Company</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Contra');}}>F4: Contra</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Payment');}}>F5: Payment</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Receipt');}}>F6: Receipt</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Journal');}}>F7: Journal</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales');}}>F8: Sales</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>Alt+F8: Quotation</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Credit Note');}}>Ctrl+F8: Credit Note</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Purchase');}}>F9: Purchase</div>
-          <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Debit Note');}}>Alt+F9: Debit Note</div>
-          <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>
-          <div className="sidebar-btn" onClick={()=>nav('BOM_MODULE')} style={{color:'#a78bfa',fontWeight:'bold'}}>Alt+B: BOM / Mfg</div>
+          {permissionGuard.canAccessVoucher('Contra') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Contra');}}>F4: Contra</div>}
+          {permissionGuard.canAccessVoucher('Payment') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Payment');}}>F5: Payment</div>}
+          {permissionGuard.canAccessVoucher('Receipt') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Receipt');}}>F6: Receipt</div>}
+          {permissionGuard.canAccessVoucher('Journal') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Journal');}}>F7: Journal</div>}
+          {permissionGuard.canAccessVoucher('Sales') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales');}}>F8: Sales</div>}
+          {permissionGuard.canAccessVoucher('Sales Quotation') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>Alt+F8: Quotation</div>}
+          {permissionGuard.canAccessVoucher('Credit Note') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Credit Note');}}>Ctrl+F8: Credit Note</div>}
+          {permissionGuard.canAccessVoucher('Purchase') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Purchase');}}>F9: Purchase</div>}
+          {permissionGuard.canAccessVoucher('Debit Note') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Debit Note');}}>Alt+F9: Debit Note</div>}
+          {permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY') && <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>}
+          {permissionGuard.canAccessScreen('BOM_MODULE') && <div className="sidebar-btn" onClick={()=>nav('BOM_MODULE')} style={{color:'#a78bfa',fontWeight:'bold'}}>Alt+B: BOM / Mfg</div>}
           <div className="sidebar-btn-spacer"/>
           <div className="sidebar-btn" onClick={()=>setShowFeatures(true)}>F11: Features</div>
           <div className="sidebar-btn">F12: Configure</div>
@@ -4401,6 +4495,11 @@ export default function App() {
       </div>
 
       {/* ====== MODALS ====== */}
+      <UserSwitchModal 
+        isOpen={showUserSwitchModal} 
+        onClose={() => setShowUserSwitchModal(false)} 
+        onOpenRoleManager={() => nav('USER_ROLES')} 
+      />
       {altCCtx && (
         <AltCModal 
           ctx={altCCtx} 
@@ -10218,28 +10317,30 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           onPrintPreview(getVoucherData() as Voucher);
         }
         else if (e.key === 'F2') { e.preventDefault(); e.stopPropagation(); onF2(); }
-        else if (e.key === 'F4') { e.preventDefault(); e.stopPropagation(); onChangeType('Contra'); }
-        else if (e.key === 'F5') { e.preventDefault(); e.stopPropagation(); onChangeType('Payment'); }
-        else if (e.key === 'F6') { e.preventDefault(); e.stopPropagation(); onChangeType('Receipt'); }
-        else if (e.key === 'F7') { e.preventDefault(); e.stopPropagation(); onChangeType('Journal'); }
+        else if (e.key === 'F4') { if (permissionGuard.canAccessVoucher('Contra')) { e.preventDefault(); e.stopPropagation(); onChangeType('Contra'); } }
+        else if (e.key === 'F5') { if (permissionGuard.canAccessVoucher('Payment')) { e.preventDefault(); e.stopPropagation(); onChangeType('Payment'); } }
+        else if (e.key === 'F6') { if (permissionGuard.canAccessVoucher('Receipt')) { e.preventDefault(); e.stopPropagation(); onChangeType('Receipt'); } }
+        else if (e.key === 'F7') { if (permissionGuard.canAccessVoucher('Journal')) { e.preventDefault(); e.stopPropagation(); onChangeType('Journal'); } }
         else if (e.key === 'F8') {
           e.preventDefault(); e.stopPropagation();
-          if (e.ctrlKey) onChangeType('Credit Note');
-          else if (e.altKey) onChangeType('Sales Quotation');
-          else onChangeType('Sales');
+          if (e.ctrlKey && permissionGuard.canAccessVoucher('Credit Note')) onChangeType('Credit Note');
+          else if (e.altKey && permissionGuard.canAccessVoucher('Sales Quotation')) onChangeType('Sales Quotation');
+          else if (!e.ctrlKey && !e.altKey && permissionGuard.canAccessVoucher('Sales')) onChangeType('Sales');
         }
         else if (e.key === 'F9') {
           e.preventDefault(); e.stopPropagation();
-          if (e.ctrlKey) onNav('PURCHASE_ORDER_ENTRY');
-          else if (e.altKey) onChangeType('Debit Note');
-          else onChangeType('Purchase');
+          if (e.ctrlKey && permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY')) onNav('PURCHASE_ORDER_ENTRY');
+          else if (e.altKey && permissionGuard.canAccessVoucher('Debit Note')) onChangeType('Debit Note');
+          else if (!e.ctrlKey && !e.altKey && permissionGuard.canAccessVoucher('Purchase')) onChangeType('Purchase');
         }
-        else if (e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); e.stopPropagation(); onNav('BOM_MODULE'); }
+        else if (e.altKey && e.key.toLowerCase() === 'b') { 
+          if (permissionGuard.canAccessScreen('BOM_MODULE')) { e.preventDefault(); e.stopPropagation(); onNav('BOM_MODULE'); } 
+        }
       }}
     >
       {/* Voucher type bar */}
       <div style={{background:'#1e2d3d',display:'flex',fontSize:11,flexWrap:'wrap'}}>
-        {(['Contra','Payment','Receipt','Journal','Sales','Purchase','Sales Quotation','Credit Note','Debit Note'] as VoucherTypeKey[]).map((v,i)=>{
+        {(['Contra','Payment','Receipt','Journal','Sales','Purchase','Sales Quotation','Credit Note','Debit Note'] as VoucherTypeKey[]).filter(v => permissionGuard.canAccessVoucher(v)).map((v,i)=>{
           const labelMap: Record<string, string> = {
             'Contra': 'F4: Contra',
             'Payment': 'F5: Payment',
@@ -18108,43 +18209,7 @@ function GSTR3BReportView({vouchers, goBack}: {vouchers: Voucher[], goBack: () =
   );
 }
 
-// ==================== ROLE MANAGEMENT VIEW ====================
-function RoleManagementView({goBack}: {goBack: () => void}) {
-  const users: AppUser[] = [
-    { id: 1, username: 'admin', role: 'Admin', email: 'admin@ledgerx.com' },
-    { id: 2, username: 'accountant_1', role: 'Accountant', email: 'acc@ledgerx.com' },
-    { id: 3, username: 'data_entry', role: 'Data Entry' }
-  ];
-
-  return (
-    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'#fff'}}>
-      <div style={{background:'#1a7a4a',color:'white',padding:'10px 15px',fontWeight:'bold'}}>User & Role Management</div>
-      <div style={{padding:15}}>
-        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-          <thead>
-            <tr style={{background:'#f0f4f8',borderBottom:'2px solid #ccc'}}>
-              <th style={{padding:10,textAlign:'left'}}>Username</th>
-              <th style={{padding:10,textAlign:'left'}}>Email</th>
-              <th style={{padding:10,textAlign:'left'}}>Role</th>
-              <th style={{padding:10,textAlign:'center'}}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id} style={{borderBottom:'1px solid #eee'}}>
-                <td style={{padding:10}}>{u.username}</td>
-                <td style={{padding:10}}>{u.email || '—'}</td>
-                <td style={{padding:10}}><span style={{background:'#e8f5e9',padding:'2px 8px',borderRadius:10,fontSize:11,color:'#2e7d32'}}>{u.role}</span></td>
-                <td style={{padding:10,textAlign:'center'}}><button style={{fontSize:11,color:'#1c5282',border:'none',background:'transparent',cursor:'pointer'}}>Edit</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <button style={{marginTop:20,padding:'8px 20px',background:'#1a7a4a',color:'white',border:'none',cursor:'pointer',fontWeight:'bold'}}>+ Add New User</button>
-      </div>
-    </div>
-  );
-}
+// RoleManagementView is imported from @/components/RoleManagementView
 
 // ==================== DATA EXCHANGE VIEW — FULLY FUNCTIONAL ====================
 function DataExchangeView({

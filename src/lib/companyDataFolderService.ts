@@ -29,11 +29,38 @@ export interface CompanyFolderData {
   manufacturingJournals?: any[]; // Manufacturing Journals offline storage
 }
 
+export function getBridgeBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const hostParam = params.get('host');
+      if (hostParam && hostParam.trim()) {
+        localStorage.setItem('ledgerx_lan_host_ip', hostParam.trim());
+        return `http://${hostParam.trim()}:45454`;
+      }
+    } catch (e) {}
+    try {
+      const savedHost = localStorage.getItem('ledgerx_lan_host_ip');
+      if (savedHost && savedHost !== 'localhost' && savedHost !== '127.0.0.1') {
+        return `http://${savedHost}:45454`;
+      }
+    } catch (e) {}
+    if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && !window.location.hostname.includes('vercel.app')) {
+      return `http://${window.location.hostname}:45454`;
+    }
+  }
+  return 'http://127.0.0.1:45454';
+}
+
 const LOCAL_BRIDGE_URL = 'http://127.0.0.1:45454';
 
 class CompanyDataFolderService {
   private bridgeAvailable: boolean | null = null;
   private lastBridgeCheckTime = 0;
+
+  public getBridgeUrl(): string {
+    return getBridgeBaseUrl();
+  }
 
   /**
    * Generates or retrieves the 5-digit Tally-style folder number: e.g. "10000", "10001", "10002"
@@ -77,7 +104,7 @@ class CompanyDataFolderService {
     // 1. Query local HTTP bridge for next-code from actual disk folders
     if (await this.checkBridge()) {
       try {
-        const res = await fetch(`${LOCAL_BRIDGE_URL}/api/next-code`);
+        const res = await fetch(`${this.getBridgeUrl()}/api/next-code`);
         if (res.ok) {
           const json = await res.json();
           if (json.nextCode && /^\d{5}$/.test(json.nextCode)) {
@@ -114,7 +141,7 @@ class CompanyDataFolderService {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1200);
-      const res = await fetch(`${LOCAL_BRIDGE_URL}/api/ping`, {
+      const res = await fetch(`${this.getBridgeUrl()}/api/ping`, {
         method: 'GET',
         signal: controller.signal,
       });
@@ -144,7 +171,7 @@ class CompanyDataFolderService {
     }
 
     // 2. C# Launcher HTTP bridge (test both 127.0.0.1 and localhost)
-    const bridgeUrls = [LOCAL_BRIDGE_URL, 'http://localhost:45454'];
+    const bridgeUrls = [this.getBridgeUrl(), 'http://127.0.0.1:45454', 'http://localhost:45454'];
     const q = companyCode ? `?code=${encodeURIComponent(companyCode)}` : '';
     for (const bUrl of bridgeUrls) {
       try {
@@ -181,7 +208,7 @@ class CompanyDataFolderService {
     // 5. Fallback: try to get actual path from bridge, then show it
     let actualDataPath = '[LedgerX Install Folder]\\data\\';
     // Try C# bridge for actual path
-    for (const bUrl of [LOCAL_BRIDGE_URL, 'http://localhost:45454']) {
+    for (const bUrl of [this.getBridgeUrl(), 'http://127.0.0.1:45454', 'http://localhost:45454']) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 1200);
@@ -255,7 +282,7 @@ class CompanyDataFolderService {
     if (await this.checkBridge()) {
       try {
         // A. Primary batch save
-        await fetch(`${LOCAL_BRIDGE_URL}/api/company`, {
+        await fetch(`${this.getBridgeUrl()}/api/company`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cleanData),
@@ -278,7 +305,7 @@ class CompanyDataFolderService {
 
         for (const [fName, fVal] of filesToStream) {
           if (fVal !== undefined) {
-            fetch(`${LOCAL_BRIDGE_URL}/api/save-file?code=${encodeURIComponent(code)}&file=${encodeURIComponent(fName)}`, {
+            fetch(`${this.getBridgeUrl()}/api/save-file?code=${encodeURIComponent(code)}&file=${encodeURIComponent(fName)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(fVal, null, 2),
@@ -327,7 +354,7 @@ class CompanyDataFolderService {
     // 2. C# Launcher HTTP bridge
     if (await this.checkBridge()) {
       try {
-        const res = await fetch(`${LOCAL_BRIDGE_URL}/api/company?code=${encodeURIComponent(code)}`);
+        const res = await fetch(`${this.getBridgeUrl()}/api/company?code=${encodeURIComponent(code)}`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.company) return data;
@@ -368,7 +395,7 @@ class CompanyDataFolderService {
     // 2. C# Launcher HTTP bridge
     if (scanned.length === 0 && (await this.checkBridge())) {
       try {
-        const res = await fetch(`${LOCAL_BRIDGE_URL}/api/companies`);
+        const res = await fetch(`${this.getBridgeUrl()}/api/companies`);
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json.companies) && json.companies.length > 0) {

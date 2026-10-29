@@ -191,22 +191,157 @@ namespace LedgerXLauncher
             catch { }
         }
 
+        private static readonly object _fileLock = new object();
+
         private static void RunListener(object objDataDir)
         {
             string dataDir = (string)objDataDir;
+            int backendPort = 45453;
+            int frontPort = 45454;
+
             try
             {
+                // 1. Start internal HttpListener on 127.0.0.1:45453
                 HttpListener listener = new HttpListener();
-                listener.Prefixes.Add("http://127.0.0.1:45454/");
+                listener.Prefixes.Add("http://127.0.0.1:" + backendPort + "/");
                 listener.Start();
+
+                Thread backendThread = new Thread(() =>
+                {
+                    while (true)
+                    {
+                        try
+                        {
+                            HttpListenerContext ctx = listener.GetContext();
+                            ThreadPool.QueueUserWorkItem((state) => HandleRequest(ctx, dataDir));
+                        }
+                        catch { break; }
+                    }
+                });
+                backendThread.IsBackground = true;
+                backendThread.Start();
+
+                // 2. Start TCP proxy on 0.0.0.0:45454 (accessible locally & over LAN without admin rights)
+                TcpListener proxy = new TcpListener(IPAddress.Any, frontPort);
+                proxy.Start();
 
                 while (true)
                 {
-                    HttpListenerContext ctx = listener.GetContext();
-                    ThreadPool.QueueUserWorkItem((state) => HandleRequest(ctx, dataDir));
+                    try
+                    {
+                        TcpClient client = proxy.AcceptTcpClient();
+                        ThreadPool.QueueUserWorkItem((st) => ForwardClient(client, backendPort));
+                    }
+                    catch { break; }
+                }
+            }
+            catch
+            {
+                // Fallback: If 45453 is already taken, try direct HttpListener on 45454
+                try
+                {
+                    HttpListener fallbackListener = new HttpListener();
+                    fallbackListener.Prefixes.Add("http://127.0.0.1:45454/");
+                    fallbackListener.Start();
+                    while (true)
+                    {
+                        HttpListenerContext ctx = fallbackListener.GetContext();
+                        ThreadPool.QueueUserWorkItem((state) => HandleRequest(ctx, dataDir));
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private static void ForwardClient(TcpClient client, int targetPort)
+        {
+            try
+            {
+                TcpClient backend = new TcpClient("127.0.0.1", targetPort);
+                NetworkStream clientStream = client.GetStream();
+                NetworkStream backendStream = backend.GetStream();
+
+                byte[] buffer = new byte[8192];
+                int read = clientStream.Read(buffer, 0, buffer.Length);
+                if (read > 0)
+                {
+                    string req = Encoding.UTF8.GetString(buffer, 0, read);
+                    int hostIdx = req.IndexOf("Host:", StringComparison.OrdinalIgnoreCase);
+                    if (hostIdx >= 0)
+                    {
+                        int endLine = req.IndexOf("\r\n", hostIdx);
+                        if (endLine > hostIdx)
+                        {
+                            req = req.Substring(0, hostIdx) + "Host: 127.0.0.1:" + targetPort + req.Substring(endLine);
+                        }
+                    }
+                    byte[] modBytes = Encoding.UTF8.GetBytes(req);
+                    backendStream.Write(modBytes, 0, modBytes.Length);
+                }
+
+                Thread t1 = new Thread(() => PipeStream(clientStream, backendStream));
+                Thread t2 = new Thread(() => PipeStream(backendStream, clientStream));
+                t1.IsBackground = true;
+                t2.IsBackground = true;
+                t1.Start();
+                t2.Start();
+            }
+            catch
+            {
+                try { client.Close(); } catch { }
+            }
+        }
+
+        private static void PipeStream(Stream input, Stream output)
+        {
+            byte[] buf = new byte[8192];
+            try
+            {
+                int read;
+                while ((read = input.Read(buf, 0, buf.Length)) > 0)
+                {
+                    output.Write(buf, 0, read);
+                    output.Flush();
                 }
             }
             catch { }
+            finally
+            {
+                try { input.Close(); } catch { }
+                try { output.Close(); } catch { }
+            }
+        }
+
+        private static string GetLocalIPAddress()
+        {
+            try
+            {
+                using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
+                {
+                    socket.Connect("8.8.8.8", 65530);
+                    IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
+                    if (endPoint != null)
+                    {
+                        return endPoint.Address.ToString();
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip))
+                    {
+                        return ip.ToString();
+                    }
+                }
+            }
+            catch { }
+
+            return "127.0.0.1";
         }
 
         private static void HandleRequest(HttpListenerContext ctx, string dataDir)
@@ -237,6 +372,77 @@ namespace LedgerXLauncher
                 {
                     WriteJsonResponse(res, "{\"status\":\"ok\",\"version\":\"2.5\",\"dataDir\":\"" + dataDir.Replace("\\", "\\\\") + "\"}");
                     return;
+                }
+
+                if (path == "/api/lan/info")
+                {
+                    string lanIp = GetLocalIPAddress();
+                    string hostName = Environment.MachineName;
+                    string json = string.Format(
+                        "{{\"isHostRunning\":true,\"hostName\":\"{0}\",\"localIps\":[\"{1}\",\"127.0.0.1\"],\"port\":45454,\"lanUrl\":\"http://{1}:45454\",\"dataDir\":\"{2}\"}}",
+                        hostName, lanIp, dataDir.Replace("\\", "\\\\")
+                    );
+                    WriteJsonResponse(res, json);
+                    return;
+                }
+
+                if (path == "/api/lan/users" && req.HttpMethod == "GET")
+                {
+                    string usersFile = Path.Combine(dataDir, "users.json");
+                    if (File.Exists(usersFile))
+                    {
+                        string uJson = File.ReadAllText(usersFile);
+                        WriteJsonResponse(res, "{\"success\":true,\"users\":" + uJson + "}");
+                    }
+                    else
+                    {
+                        WriteJsonResponse(res, "{\"success\":true,\"users\":[]}");
+                    }
+                    return;
+                }
+
+                if (path == "/api/lan/users" && req.HttpMethod == "POST")
+                {
+                    using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
+                    {
+                        string body = reader.ReadToEnd();
+                        string usersFile = Path.Combine(dataDir, "users.json");
+                        int idx = body.IndexOf("\"users\":");
+                        string toWrite = body;
+                        if (idx >= 0)
+                        {
+                            int start = body.IndexOf("[", idx);
+                            int end = body.LastIndexOf("]");
+                            if (start >= 0 && end > start)
+                            {
+                                toWrite = body.Substring(start, (end - start) + 1);
+                            }
+                        }
+                        File.WriteAllText(usersFile, toWrite);
+                        WriteJsonResponse(res, "{\"success\":true}");
+                        return;
+                    }
+                }
+
+                if (path == "/downloads/ledgerx-client.exe")
+                {
+                    string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                    if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
+                    string clientExe = Path.Combine(exeDir, "LedgerX-Client.exe");
+                    if (!File.Exists(clientExe))
+                    {
+                        clientExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public", "downloads", "LedgerX-Client.exe");
+                    }
+                    if (File.Exists(clientExe))
+                    {
+                        byte[] bytes = File.ReadAllBytes(clientExe);
+                        res.ContentType = "application/octet-stream";
+                        res.Headers.Add("Content-Disposition", "attachment; filename=\"LedgerX-Client.exe\"");
+                        res.ContentLength64 = bytes.Length;
+                        res.OutputStream.Write(bytes, 0, bytes.Length);
+                        res.OutputStream.Close();
+                        return;
+                    }
                 }
 
                 if (path == "/api/open-folder")
@@ -287,9 +493,15 @@ namespace LedgerXLauncher
                     string cDir = Path.Combine(dataDir, code);
                     if (!Directory.Exists(cDir)) Directory.CreateDirectory(cDir);
                     string targetFile = Path.Combine(cDir, file);
-                    using (FileStream fs = File.Create(targetFile))
+                    lock (_fileLock)
                     {
-                        req.InputStream.CopyTo(fs);
+                        string tempFile = targetFile + ".tmp." + Guid.NewGuid().ToString("N");
+                        using (FileStream fs = File.Create(tempFile))
+                        {
+                            req.InputStream.CopyTo(fs);
+                        }
+                        if (File.Exists(targetFile)) File.Delete(targetFile);
+                        File.Move(tempFile, targetFile);
                     }
                     WriteJsonResponse(res, "{\"success\":true,\"code\":\"" + code + "\",\"file\":\"" + file + "\"}");
                     return;
@@ -377,17 +589,20 @@ namespace LedgerXLauncher
                         string cDir = Path.Combine(dataDir, code);
                         if (!Directory.Exists(cDir)) Directory.CreateDirectory(cDir);
 
-                        ExtractAndWrite(body, "company", Path.Combine(cDir, "company.json"), "{}");
-                        ExtractAndWrite(body, "ledgers", Path.Combine(cDir, "ledgers.json"), "[]");
-                        ExtractAndWrite(body, "vouchers", Path.Combine(cDir, "vouchers.json"), "[]");
-                        ExtractAndWrite(body, "stockItems", Path.Combine(cDir, "stock_items.json"), "[]");
-                        ExtractAndWrite(body, "stockGroups", Path.Combine(cDir, "stock_groups.json"), "[]");
-                        ExtractAndWrite(body, "units", Path.Combine(cDir, "units.json"), "[]");
-                        ExtractAndWrite(body, "groups", Path.Combine(cDir, "groups.json"), "[]");
-                        ExtractAndWrite(body, "voucherTypes", Path.Combine(cDir, "voucher_types.json"), "[]");
-                        ExtractAndWrite(body, "purchaseOrders", Path.Combine(cDir, "purchase_orders.json"), "[]");
-                        ExtractAndWrite(body, "boms", Path.Combine(cDir, "boms.json"), "[]");
-                        ExtractAndWrite(body, "manufacturingJournals", Path.Combine(cDir, "manufacturing_journals.json"), "[]");
+                        lock (_fileLock)
+                        {
+                            ExtractAndWrite(body, "company", Path.Combine(cDir, "company.json"), "{}");
+                            ExtractAndWrite(body, "ledgers", Path.Combine(cDir, "ledgers.json"), "[]");
+                            ExtractAndWrite(body, "vouchers", Path.Combine(cDir, "vouchers.json"), "[]");
+                            ExtractAndWrite(body, "stockItems", Path.Combine(cDir, "stock_items.json"), "[]");
+                            ExtractAndWrite(body, "stockGroups", Path.Combine(cDir, "stock_groups.json"), "[]");
+                            ExtractAndWrite(body, "units", Path.Combine(cDir, "units.json"), "[]");
+                            ExtractAndWrite(body, "groups", Path.Combine(cDir, "groups.json"), "[]");
+                            ExtractAndWrite(body, "voucherTypes", Path.Combine(cDir, "voucher_types.json"), "[]");
+                            ExtractAndWrite(body, "purchaseOrders", Path.Combine(cDir, "purchase_orders.json"), "[]");
+                            ExtractAndWrite(body, "boms", Path.Combine(cDir, "boms.json"), "[]");
+                            ExtractAndWrite(body, "manufacturingJournals", Path.Combine(cDir, "manufacturing_journals.json"), "[]");
+                        }
 
                         WriteJsonResponse(res, "{\"success\":true,\"companyCode\":\"" + code + "\"}");
                         return;
