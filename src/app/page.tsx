@@ -1636,6 +1636,12 @@ export default function App() {
         } else {
           setActiveCompany(currentCos[0]);
         }
+
+        // Auto-ensure all existing companies have their numbered Tally-style folder (10000, 10001...) in data/
+        for (const comp of currentCos) {
+          const code = companyDataFolderService.getCompanyFolderCode(comp, currentCos);
+          companyDataFolderService.saveCompanyFolder({ companyCode: code, company: { ...comp, companyCode: code } });
+        }
       }
     };
     fetchCompanies();
@@ -3709,6 +3715,27 @@ export default function App() {
       { label: '✏️ Alter Company', action: () => { setShowCompanySelect(false); nav('ALTER_LIST', undefined, 'Company'); } },
       { label: '🗑️ Delete Company', action: () => { setShowCompanySelect(false); nav('ALTER_LIST', undefined, 'Company'); alert('Select a company to alter, then press Alt+D or click Delete button to remove it.'); } },
       { label: '📂 Open Local Data Folder (data/)', action: () => { companyDataFolderService.openDataFolder(); } },
+      { label: '🔄 Scan & Reload Local Folders', action: async () => {
+          const scanned = await companyDataFolderService.scanCompanyFolders();
+          if (scanned && scanned.length > 0) {
+            setCompanies(prev => {
+              const updated = [...prev];
+              for (const sc of scanned) {
+                const existingIdx = updated.findIndex(u => String(u.companyCode || '').toUpperCase() === sc.companyCode.toUpperCase() || (u.name && sc.company?.name && u.name.toLowerCase().trim() === sc.company.name.toLowerCase().trim()));
+                if (existingIdx >= 0) {
+                  updated[existingIdx] = { ...updated[existingIdx], ...sc.company, companyCode: sc.companyCode };
+                } else {
+                  updated.push({ ...sc.company, id: sc.company.id || Date.now() + Math.floor(Math.random() * 1000), companyCode: sc.companyCode });
+                }
+              }
+              return updated;
+            });
+            alert(`✓ Local Data Folder scanned! Found ${scanned.length} company folder(s).`);
+          } else {
+            alert('No local company folders found.');
+          }
+        }
+      },
       { label: '---', category: 'header' },
       ...companies.map(c => {
         const code = companyDataFolderService.getCompanyFolderCode(c, companies);
@@ -4419,6 +4446,26 @@ export default function App() {
                 {label:'✏️ Alter Company', action:()=>{setShowCompanySelect(false);nav('ALTER_LIST',undefined,'Company');}},
                 {label:'🗑️ Delete Company', action:()=>{setShowCompanySelect(false);nav('ALTER_LIST',undefined,'Company'); alert('Select a company to alter, then press Alt+D or click Delete button to remove it.');}},
                 {label:'📂 Open Local Data Folder (data/)', action:()=>{ companyDataFolderService.openDataFolder(); }},
+                {label:'🔄 Scan & Reload Local Folders', action: async ()=>{
+                    const scanned = await companyDataFolderService.scanCompanyFolders();
+                    if (scanned && scanned.length > 0) {
+                      setCompanies(prev => {
+                        const updated = [...prev];
+                        for (const sc of scanned) {
+                          const existingIdx = updated.findIndex(u => String(u.companyCode || '').toUpperCase() === sc.companyCode.toUpperCase() || (u.name && sc.company?.name && u.name.toLowerCase().trim() === sc.company.name.toLowerCase().trim()));
+                          if (existingIdx >= 0) {
+                            updated[existingIdx] = { ...updated[existingIdx], ...sc.company, companyCode: sc.companyCode };
+                          } else {
+                            updated.push({ ...sc.company, id: sc.company.id || Date.now() + Math.floor(Math.random() * 1000), companyCode: sc.companyCode });
+                          }
+                        }
+                        return updated;
+                      });
+                      alert(`✓ Local Data Folder scanned! Found ${scanned.length} company folder(s).`);
+                    } else {
+                      alert('No local company folders found.');
+                    }
+                  }},
                 {label:'---', category:'header'},
                 ...companies.map(c=>{
                   const code = companyDataFolderService.getCompanyFolderCode(c, companies);
