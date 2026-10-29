@@ -59,6 +59,9 @@ namespace LedgerXLauncher
                 // Start local HTTP Bridge for Tally-style company data folders
                 StartHttpBridge(dataDir);
 
+                // Ensure Windows Firewall inbound rule for port 45454
+                ThreadPool.QueueUserWorkItem((st) => EnsureFirewallRule());
+
                 // Allow passing server URL via command-line argument e.g. LedgerX.exe https://mysite.vercel.app
                 if (args != null && args.Length > 0 && args[0].Trim().StartsWith("http"))
                 {
@@ -344,6 +347,33 @@ namespace LedgerXLauncher
             return "127.0.0.1";
         }
 
+        private static void EnsureFirewallRule()
+        {
+            try
+            {
+                Process p = new Process();
+                p.StartInfo.FileName = "netsh";
+                p.StartInfo.Arguments = "advfirewall firewall show rule name=\"LedgerX LAN MultiUser\"";
+                p.StartInfo.CreateNoWindow = true;
+                p.StartInfo.UseShellExecute = false;
+                p.StartInfo.RedirectStandardOutput = true;
+                p.Start();
+                string outText = p.StandardOutput.ReadToEnd();
+                p.WaitForExit();
+
+                if (string.IsNullOrEmpty(outText) || !outText.Contains("LedgerX LAN MultiUser"))
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo();
+                    psi.FileName = "powershell.exe";
+                    psi.Arguments = "-NoProfile -WindowStyle Hidden -Command \"Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\\\"LedgerX LAN MultiUser\\\" dir=in action=allow protocol=TCP localport=45454' -Verb RunAs\"";
+                    psi.WindowStyle = ProcessWindowStyle.Hidden;
+                    psi.UseShellExecute = true;
+                    Process.Start(psi);
+                }
+            }
+            catch { }
+        }
+
         private static void HandleRequest(HttpListenerContext ctx, string dataDir)
         {
             try
@@ -605,6 +635,59 @@ namespace LedgerXLauncher
                         }
 
                         WriteJsonResponse(res, "{\"success\":true,\"companyCode\":\"" + code + "\"}");
+                        return;
+                    }
+                }
+
+                // Static file serving for 100% Offline LAN Multi-User Access
+                string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string wwwDir = Path.Combine(localApp, "LedgerX", "www");
+                if (!Directory.Exists(wwwDir))
+                {
+                    string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                    if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
+                    wwwDir = Path.Combine(exeDir, "www");
+                }
+
+                if (Directory.Exists(wwwDir))
+                {
+                    string cleanPath = path;
+                    if (cleanPath == "/" || cleanPath == "" || cleanPath == "/index.html")
+                    {
+                        cleanPath = "/index.html";
+                    }
+
+                    string relFile = cleanPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+                    string targetFile = Path.Combine(wwwDir, relFile);
+
+                    if (!File.Exists(targetFile))
+                    {
+                        if (!path.StartsWith("/api/") && !path.Contains("."))
+                        {
+                            targetFile = Path.Combine(wwwDir, "index.html");
+                        }
+                    }
+
+                    if (File.Exists(targetFile))
+                    {
+                        string ext = Path.GetExtension(targetFile).ToLower();
+                        string mime = "application/octet-stream";
+                        if (ext == ".html" || ext == ".htm") mime = "text/html; charset=utf-8";
+                        else if (ext == ".js") mime = "application/javascript; charset=utf-8";
+                        else if (ext == ".css") mime = "text/css; charset=utf-8";
+                        else if (ext == ".json") mime = "application/json; charset=utf-8";
+                        else if (ext == ".ico") mime = "image/x-icon";
+                        else if (ext == ".png") mime = "image/png";
+                        else if (ext == ".jpg" || ext == ".jpeg") mime = "image/jpeg";
+                        else if (ext == ".svg") mime = "image/svg+xml";
+                        else if (ext == ".woff" || ext == ".woff2") mime = "font/woff2";
+
+                        byte[] fileBytes = File.ReadAllBytes(targetFile);
+                        res.ContentType = mime;
+                        res.ContentLength64 = fileBytes.Length;
+                        res.StatusCode = 200;
+                        res.OutputStream.Write(fileBytes, 0, fileBytes.Length);
+                        res.OutputStream.Close();
                         return;
                     }
                 }

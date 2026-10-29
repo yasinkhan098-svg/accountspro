@@ -867,3 +867,4 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
     </div>
   );
 }
+

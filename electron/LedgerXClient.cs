@@ -3,9 +3,12 @@ using System.IO;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Net.NetworkInformation;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Text;
+using System.Collections.Generic;
+using System.Threading;
 
 [assembly: System.Reflection.AssemblyTitle("LedgerX LAN Client")]
 [assembly: System.Reflection.AssemblyDescription("LedgerX Portable Multi-User Offline LAN Client")]
@@ -37,7 +40,7 @@ namespace LedgerXClient
                 catch { }
             }
 
-            // If IP passed via args e.g. LedgerX-Client.exe 192.168.1.15
+            // If IP passed via args e.g. LedgerX-Client.exe 192.168.240.50
             if (args != null && args.Length > 0 && !string.IsNullOrEmpty(args[0]))
             {
                 savedHostIp = args[0].Trim();
@@ -61,7 +64,7 @@ namespace LedgerXClient
                 using (TcpClient client = new TcpClient())
                 {
                     var result = client.BeginConnect(ip, port, null, null);
-                    bool success = result.AsyncWaitHandle.WaitOne(400);
+                    bool success = result.AsyncWaitHandle.WaitOne(450);
                     if (!success) return false;
                     client.EndConnect(result);
                     return true;
@@ -72,7 +75,7 @@ namespace LedgerXClient
 
         public static void LaunchHostPortal(string hostIp)
         {
-            string url = string.Format("http://{0}:45454?lan_client=1", hostIp);
+            string url = string.Format("http://{0}:45454/?lan_client=1", hostIp);
 
             // Find Edge or Chrome
             string browser = FindBrowser();
@@ -107,6 +110,37 @@ namespace LedgerXClient
             foreach (string p in possiblePaths) { if (File.Exists(p)) return p; }
             return null;
         }
+
+        public static List<string> GetLocalSubnets()
+        {
+            List<string> subnets = new List<string>();
+            try
+            {
+                foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                        continue;
+
+                    foreach (UnicastIPAddressInformation ua in ni.GetIPProperties().UnicastAddresses)
+                    {
+                        if (ua.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ua.Address))
+                        {
+                            string ipStr = ua.Address.ToString();
+                            int lastDot = ipStr.LastIndexOf('.');
+                            if (lastDot > 0)
+                            {
+                                string sub = ipStr.Substring(0, lastDot + 1);
+                                if (!subnets.Contains(sub)) subnets.Add(sub);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            if (subnets.Count == 0) subnets.Add("192.168.240.");
+            return subnets;
+        }
     }
 
     public class LanConnectForm : Form
@@ -114,13 +148,14 @@ namespace LedgerXClient
         private TextBox txtIp;
         private Label lblStatus;
         private Button btnConnect;
+        private Button btnScan;
         private string configFile;
 
         public LanConnectForm(string defaultIp, string cfgFile)
         {
             this.configFile = cfgFile;
             this.Text = "LedgerX Offline LAN Client — Connect to Host PC";
-            this.Size = new Size(500, 310);
+            this.Size = new Size(520, 330);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -131,15 +166,15 @@ namespace LedgerXClient
             title.Font = new Font("Segoe UI", 12, FontStyle.Bold);
             title.ForeColor = Color.FromArgb(15, 60, 100);
             title.Location = new Point(25, 20);
-            title.Size = new Size(440, 30);
+            title.Size = new Size(460, 30);
             this.Controls.Add(title);
 
             Label desc = new Label();
-            desc.Text = "Enter the IP address of the main Host PC where LedgerX Desktop is running on this local network (Wi-Fi / Ethernet):";
+            desc.Text = "Enter the IP address of the main Host PC (e.g. 192.168.240.50) where LedgerX Desktop is running on this local network:";
             desc.Font = new Font("Segoe UI", 9);
             desc.ForeColor = Color.FromArgb(71, 85, 105);
             desc.Location = new Point(25, 55);
-            desc.Size = new Size(440, 40);
+            desc.Size = new Size(460, 40);
             this.Controls.Add(desc);
 
             Label lblIp = new Label();
@@ -147,25 +182,41 @@ namespace LedgerXClient
             lblIp.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             lblIp.ForeColor = Color.FromArgb(30, 41, 59);
             lblIp.Location = new Point(25, 105);
-            lblIp.Size = new Size(150, 22);
+            lblIp.Size = new Size(180, 22);
             this.Controls.Add(lblIp);
 
+            // Determine sensible default IP from local network interface
+            string initialIp = defaultIp;
+            if (string.IsNullOrEmpty(initialIp) || initialIp == "192.168.1.15")
+            {
+                List<string> subs = Program.GetLocalSubnets();
+                if (subs.Count > 0)
+                {
+                    // If subnet is 192.168.240., suggest .50 (the host IP in the network)
+                    initialIp = subs[0] + "50";
+                }
+                else
+                {
+                    initialIp = "192.168.240.50";
+                }
+            }
+
             txtIp = new TextBox();
-            txtIp.Text = string.IsNullOrEmpty(defaultIp) ? "192.168.1.15" : defaultIp;
+            txtIp.Text = initialIp;
             txtIp.Font = new Font("Segoe UI", 11);
             txtIp.Location = new Point(25, 130);
-            txtIp.Size = new Size(300, 30);
+            txtIp.Size = new Size(310, 30);
             this.Controls.Add(txtIp);
 
-            Button btnScan = new Button();
+            btnScan = new Button();
             btnScan.Text = "🔍 Auto-Scan";
             btnScan.Font = new Font("Segoe UI", 9, FontStyle.Bold);
             btnScan.BackColor = Color.FromArgb(224, 231, 255);
             btnScan.ForeColor = Color.FromArgb(67, 56, 202);
             btnScan.FlatStyle = FlatStyle.Flat;
             btnScan.FlatAppearance.BorderSize = 0;
-            btnScan.Location = new Point(335, 129);
-            btnScan.Size = new Size(125, 30);
+            btnScan.Location = new Point(345, 129);
+            btnScan.Size = new Size(130, 30);
             btnScan.Cursor = Cursors.Hand;
             btnScan.Click += BtnScan_Click;
             this.Controls.Add(btnScan);
@@ -175,7 +226,7 @@ namespace LedgerXClient
             lblStatus.Font = new Font("Segoe UI", 8);
             lblStatus.ForeColor = Color.FromArgb(100, 116, 139);
             lblStatus.Location = new Point(25, 170);
-            lblStatus.Size = new Size(440, 20);
+            lblStatus.Size = new Size(460, 25);
             this.Controls.Add(lblStatus);
 
             btnConnect = new Button();
@@ -186,7 +237,7 @@ namespace LedgerXClient
             btnConnect.FlatStyle = FlatStyle.Flat;
             btnConnect.FlatAppearance.BorderSize = 0;
             btnConnect.Location = new Point(25, 205);
-            btnConnect.Size = new Size(435, 42);
+            btnConnect.Size = new Size(450, 44);
             btnConnect.Cursor = Cursors.Hand;
             btnConnect.Click += BtnConnect_Click;
             this.Controls.Add(btnConnect);
@@ -194,39 +245,79 @@ namespace LedgerXClient
 
         private void BtnScan_Click(object sender, EventArgs e)
         {
-            lblStatus.Text = "Scanning local subnet for Host PC on port 45454...";
+            lblStatus.Text = "Scanning local network for Host PC on port 45454...";
             lblStatus.ForeColor = Color.FromArgb(37, 99, 235);
+            btnScan.Enabled = false;
+            btnConnect.Enabled = false;
             Application.DoEvents();
 
-            // Try standard gateway subnets
-            string baseSubnet = "192.168.1.";
-            try
-            {
-                using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
-                {
-                    socket.Connect("8.8.8.8", 65530);
-                    IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
-                    string myIp = endPoint.Address.ToString();
-                    int lastDot = myIp.LastIndexOf('.');
-                    if (lastDot > 0) baseSubnet = myIp.Substring(0, lastDot + 1);
-                }
-            }
-            catch { }
+            List<string> subnets = Program.GetLocalSubnets();
+            List<string> targets = new List<string>();
 
-            for (int i = 1; i <= 30; i++)
+            // Prioritize common host IPs first (.50, .1, .2, .100, etc.)
+            int[] priorityLastBytes = new int[] { 50, 1, 2, 100, 10, 20, 30, 40, 51, 52 };
+            foreach (string sub in subnets)
             {
-                string target = baseSubnet + i.ToString();
-                if (Program.IsHostAlive(target, 45454))
+                foreach (int p in priorityLastBytes) targets.Add(sub + p);
+                for (int i = 1; i <= 254; i++)
                 {
-                    txtIp.Text = target;
-                    lblStatus.Text = "✓ Found Host PC at: " + target;
-                    lblStatus.ForeColor = Color.FromArgb(22, 163, 74);
-                    return;
+                    string ip = sub + i;
+                    if (!targets.Contains(ip)) targets.Add(ip);
                 }
             }
 
-            lblStatus.Text = "Scan finished. If not found, enter Host PC IP manually.";
-            lblStatus.ForeColor = Color.FromArgb(180, 83, 9);
+            string foundHost = null;
+            object lockObj = new object();
+            int remaining = targets.Count;
+            ManualResetEvent doneEvent = new ManualResetEvent(false);
+
+            ThreadPool.SetMinThreads(64, 64);
+            foreach (string target in targets)
+            {
+                string ip = target;
+                ThreadPool.QueueUserWorkItem((st) =>
+                {
+                    try
+                    {
+                        if (foundHost == null && Program.IsHostAlive(ip, 45454))
+                        {
+                            lock (lockObj)
+                            {
+                                if (foundHost == null)
+                                {
+                                    foundHost = ip;
+                                    doneEvent.Set();
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                    finally
+                    {
+                        if (Interlocked.Decrement(ref remaining) == 0)
+                        {
+                            doneEvent.Set();
+                        }
+                    }
+                });
+            }
+
+            doneEvent.WaitOne(2500);
+
+            btnScan.Enabled = true;
+            btnConnect.Enabled = true;
+
+            if (foundHost != null)
+            {
+                txtIp.Text = foundHost;
+                lblStatus.Text = "✓ Found Host PC at: " + foundHost + " (Port 45454 Active)";
+                lblStatus.ForeColor = Color.FromArgb(22, 163, 74);
+            }
+            else
+            {
+                lblStatus.Text = "Host PC not auto-detected. Enter Host IP manually (e.g. 192.168.240.50).";
+                lblStatus.ForeColor = Color.FromArgb(180, 83, 9);
+            }
         }
 
         private void BtnConnect_Click(object sender, EventArgs e)
@@ -234,17 +325,22 @@ namespace LedgerXClient
             string ip = txtIp.Text.Trim();
             if (string.IsNullOrEmpty(ip))
             {
-                MessageBox.Show("Please enter Host PC IP address.", "IP Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please enter Host PC IP address (e.g. 192.168.240.50).", "IP Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             btnConnect.Enabled = false;
-            btnConnect.Text = "Connecting...";
+            btnConnect.Text = "Connecting to " + ip + "...";
+            lblStatus.Text = "Testing connection to " + ip + ":45454...";
+            lblStatus.ForeColor = Color.FromArgb(37, 99, 235);
             Application.DoEvents();
 
             if (Program.IsHostAlive(ip, 45454) || ip == "127.0.0.1" || ip == "localhost")
             {
                 try { File.WriteAllText(configFile, ip); } catch { }
+                lblStatus.Text = "✓ Connected! Launching LedgerX...";
+                lblStatus.ForeColor = Color.FromArgb(22, 163, 74);
+                Application.DoEvents();
                 Program.LaunchHostPortal(ip);
                 this.Close();
             }
@@ -252,12 +348,15 @@ namespace LedgerXClient
             {
                 btnConnect.Enabled = true;
                 btnConnect.Text = "🚀 Connect & Open LedgerX";
+                lblStatus.Text = "Connection failed to " + ip + ":45454.";
+                lblStatus.ForeColor = Color.FromArgb(220, 38, 38);
+
                 MessageBox.Show(
                     "Unable to connect to Host PC at: " + ip + ":45454\n\n" +
-                    "Please ensure:\n" +
-                    "1. LedgerX Desktop is running on the Host PC.\n" +
-                    "2. Both computers are on the same Wi-Fi / LAN router.\n" +
-                    "3. Windows Firewall on Host PC allows inbound traffic on port 45454.",
+                    "Please check:\n" +
+                    "1. LedgerX Desktop must be running on the Host PC (" + ip + ").\n" +
+                    "2. Run 'Fix-Firewall-LAN.bat' as Administrator on Host PC.\n" +
+                    "3. Ensure the entered IP matches the Host PC's IP (e.g. 192.168.240.50).",
                     "Host Not Reachable",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
