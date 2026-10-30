@@ -15,6 +15,7 @@ export interface VoucherPermissions {
   'Debit Note': boolean;
   'Credit Note': boolean;
   'Sales Quotation': boolean;
+  'POS Sale': boolean;
 }
 
 export interface RegisterPermissions {
@@ -86,6 +87,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
     'Debit Note': true,
     'Credit Note': true,
     'Sales Quotation': true,
+    'POS Sale': true,
   },
   registers: {
     'Purchase Register': true,
@@ -134,6 +136,7 @@ export const DEFAULT_OPERATOR_PERMISSIONS: UserPermissions = {
     'Debit Note': false,
     'Credit Note': false,
     'Sales Quotation': true,
+    'POS Sale': true,
   },
   registers: {
     'Purchase Register': false,
@@ -275,6 +278,8 @@ class PermissionGuardService {
         return !!perms.reports?.GSTReports;
       case 'AUDIT_TRAIL':
         return !!perms.reports?.AuditTrail;
+      case 'POS_SALE':
+        return !!perms.vouchers?.['POS Sale'] || !!perms.vouchers?.Sales;
 
       case 'BOM_MODULE':
         return !!perms.modules?.BOM || !!perms.modules?.Manufacturing;
@@ -366,6 +371,7 @@ class PermissionGuardService {
     if (lower.includes('user roles') || lower.includes('role management')) return !!this.currentUser.isAdmin;
 
     // Vouchers
+    if (lower.includes('pos')) return !!perms.vouchers?.['POS Sale'] || !!perms.vouchers?.Sales;
     if (lower === 'vouchers') {
       const v = perms.vouchers;
       return !!v && Object.values(v).some(Boolean);

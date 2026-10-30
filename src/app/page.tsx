@@ -21,6 +21,7 @@ import OfflineLicenseGuard from '@/components/OfflineLicenseGuard';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 import AutoUpdateManager from '@/components/AutoUpdateManager';
 import RoleManagementView from '@/components/RoleManagementView';
+import POSSaleView from '@/components/pos/POSSaleView';
 import UserSwitchModal from '@/components/UserSwitchModal';
 import { permissionGuard, LANUser } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
@@ -88,7 +89,7 @@ type ScreenType =
   | 'LEDGER_REPORT' | 'GROUP_SUMMARY' | 'STOCK_SUMMARY'
   | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
   | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE' | 'BANK_STATEMENT_ENTRY' | 'AUDIT_TRAIL'
-  | 'BOM_MODULE';
+  | 'BOM_MODULE' | 'POS_SALE';
 
 type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note' | 'Sales Quotation';
 
@@ -3089,6 +3090,7 @@ export default function App() {
     { label:'User Roles',         highlight:'U', action:()=>nav('USER_ROLES') },
     { label:'TRANSACTIONS',       highlight:'', action:()=>{}, category:'header' },
     { label:'Vouchers',           highlight:'V', action:()=>nav('VOUCHER_ENTRY') },
+    { label:'POS Sale (Counter)', highlight:'O', action:()=>nav('POS_SALE') },
     { label:'Day Book',           highlight:'K', action:()=>nav('DAY_BOOK') },
     { label:'Data Exchange',      highlight:'E', action:()=>nav('DATA_EXCHANGE') },
     { label:'REPORTS',            highlight:'', action:()=>{}, category:'header' },
@@ -3287,7 +3289,7 @@ export default function App() {
         // GATEWAY_MAIN = topmost screen, nothing to go back to
         if (screen === 'GATEWAY_MAIN') return;
         // BOM_MODULE handles its own ESC step-by-step internally
-        if (screen === 'BOM_MODULE') return;
+        if (screen === 'BOM_MODULE' || screen === 'POS_SALE') return;
         // All other screens: step-by-step back through history
         goBack();
       }
@@ -3339,6 +3341,9 @@ export default function App() {
       }
       if (e.altKey && e.key.toLowerCase() === 'b') { 
         if (permissionGuard.canAccessScreen('BOM_MODULE')) { e.preventDefault(); nav('BOM_MODULE'); }
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === 'p') { 
+        if (permissionGuard.canAccessScreen('POS_SALE')) { e.preventDefault(); nav('POS_SALE'); }
       }
       // Global Function Keys for Vouchers (Contra, Payment, Receipt, Journal, Sales, Purchase, Pur. Order, Quotation, Credit Note, Debit Note)
       if (e.key === 'F4') { 
@@ -4394,6 +4399,18 @@ export default function App() {
             {screen==='PURCHASE_ORDER_ENTRY'    && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="form" onBack={goBack}/>}
             {screen==='PURCHASE_ORDER_REGISTER' && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="register" onBack={goBack}/>}
             {screen==='BOM_MODULE'              && <BOMModule company={activeCompany} stockItems={stockItems} ledgers={ledgers} initialTab="journal" onBack={goBack} onAltC={handleOpenAltC} onStockUpdated={syncData} onSaveManufacturingJournal={handleSaveManufacturingJournal} onDeleteManufacturingJournal={handleDeleteManufacturingJournal}/>}
+            {screen==='POS_SALE'                && (
+              <POSSaleView
+                company={activeCompany}
+                availableCompanies={companies}
+                stockItems={allStockItems}
+                ledgers={allLedgers}
+                vouchers={allVouchers}
+                onBack={goBack}
+                onStockUpdated={updated => setAllStockItems(updated)}
+                onVouchersUpdated={updated => setAllVouchers(updated)}
+              />
+            )}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='CONTRA_REGISTER'      && <UniversalRegisterView voucherType='Contra'      vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
             {screen==='PAYMENT_REGISTER'     && <UniversalRegisterView voucherType='Payment'     vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
@@ -4483,6 +4500,7 @@ export default function App() {
           {permissionGuard.canAccessVoucher('Debit Note') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Debit Note');}}>Alt+F9: Debit Note</div>}
           {permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY') && <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>}
           {permissionGuard.canAccessScreen('BOM_MODULE') && <div className="sidebar-btn" onClick={()=>nav('BOM_MODULE')} style={{color:'#a78bfa',fontWeight:'bold'}}>Alt+B: BOM / Mfg</div>}
+          {permissionGuard.canAccessScreen('POS_SALE') && <div className="sidebar-btn" onClick={()=>nav('POS_SALE')} style={{background:'#059669',color:'#ffffff',fontWeight:'bold',margin:'2px 0'}}>Ctrl+P: POS Sale</div>}
           <div className="sidebar-btn-spacer"/>
           <div className="sidebar-btn" onClick={()=>setShowFeatures(true)}>F11: Features</div>
           <div className="sidebar-btn">F12: Configure</div>
@@ -10403,6 +10421,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 </div>
               )}
               {v === 'Debit Note' && (
+                <>
                 <div
                   style={{
                     padding:'5px 10px',
@@ -10420,7 +10439,27 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 >
                   <span>🏭 BOM</span>
                 </div>
-              )}
+                <div
+                  style={{
+                    padding:'5px 12px',
+                    cursor:'pointer',
+                    fontWeight:'bold',
+                    background:'linear-gradient(135deg, #059669, #10b981)',
+                    color:'#ffffff',
+                    borderRight:'1px solid #333',
+                    display:'flex',
+                    alignItems:'center',
+                    gap:4,
+                    borderRadius: 3,
+                    margin: '0 4px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                  }}
+                  onClick={() => onNav('POS_SALE')}
+                  title="Retail POS Sales Counter (Posiflex Touch Terminal • Ctrl+P)"
+                >
+                  <span>🛒 POS SALE</span>
+                </div>
+              </>)}
             </React.Fragment>
           );
         })}

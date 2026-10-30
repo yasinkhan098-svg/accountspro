@@ -160,6 +160,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
           Contra: false,
           Journal: false,
           'Sales Quotation': false,
+          'POS Sale': false,
         },
         registers: {
           'Purchase Register': true,
@@ -209,6 +210,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
           Contra: false,
           Journal: false,
           'Sales Quotation': true,
+          'POS Sale': true,
         },
         registers: {
           'Purchase Register': false,
@@ -672,6 +674,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                           { key: 'Debit Note', label: 'Debit Note (Purchase Return)', highlight: '#ea580c' },
                           { key: 'Credit Note', label: 'Credit Note (Sales Return)', highlight: '#0891b2' },
                           { key: 'Sales Quotation', label: 'Sales Quotation / Estimate', highlight: '#0d9488' },
+                          { key: 'POS Sale', label: '🛒 POS Sale (Retail Touch Counter)', highlight: '#059669' },
                         ].map(v => (
                           <label 
                             key={v.key}
