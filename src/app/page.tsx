@@ -2013,6 +2013,8 @@ export default function App() {
       setPwdPrompt(null);
       setSelectedIdx(1); 
       prevCompanyIdRef.current = activeCompany.id;
+      const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
+      lanUserManagementService.setActiveCompanyCode(compCode);
     }
   }, [activeCompany?.id]);
 
@@ -2565,6 +2567,7 @@ export default function App() {
                 units: INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id })),
                 groups: TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' })),
                 voucherTypes: VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 })),
+                users: [lanUserManagementService.getDefaultCompanyAdmin(newCo.companyCode, newCo.name)],
               });
 
               return newCo;
@@ -2599,6 +2602,7 @@ export default function App() {
           units: INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: localCo.id })),
           groups: TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: localCo.id, name: g, under: 'Primary' })),
           voucherTypes: VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: localCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 })),
+          users: [lanUserManagementService.getDefaultCompanyAdmin(nextCode, localCo.name)],
         });
 
         setSaveToast(`Company created in folder [${nextCode}] (Offline Mode)`);
@@ -4434,7 +4438,7 @@ export default function App() {
             )}
             {screen==='GSTR3B_REPORT'        && <GSTR3BReportView vouchers={vouchers} goBack={goBack} />}
             {screen==='AUDIT_TRAIL'          && <AuditTrailView company={activeCompany} onBack={goBack} />}
-            {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} availableCompanies={companies} />}
+            {screen==='USER_ROLES'           && <RoleManagementView goBack={goBack} availableCompanies={companies} activeCompany={activeCompany} />}
             {screen==='DATA_EXCHANGE'        && <DataExchangeView goBack={goBack} ledgers={ledgers} vouchers={vouchers} stockItems={stockItems} activeCompany={activeCompany} onDataImported={()=>window.location.reload()} />}
             {screen==='ALTER_LIST' && (
               <AlterListView type={alterListType} ledgers={ledgers} groups={groups} stockGroups={stockGroups}
@@ -4490,6 +4494,8 @@ export default function App() {
         isOpen={showUserSwitchModal} 
         onClose={() => setShowUserSwitchModal(false)} 
         onOpenRoleManager={() => nav('USER_ROLES')} 
+        activeCompany={activeCompany}
+        availableCompanies={companies} 
       />
       {altCCtx && (
         <AltCModal 

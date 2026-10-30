@@ -1,6 +1,7 @@
 /**
  * LAN User & Role Management Service
- * Communicates with the local Host PC bridge to store and manage users in data/users.json
+ * Communicates with the local Host PC bridge to store and manage users in data/<companyCode>/users.json
+ * Isolated 100% per company!
  */
 
 import { LANUser, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_OPERATOR_PERMISSIONS } from './permissionGuard';
@@ -16,8 +17,49 @@ export interface HostLANInfo {
 }
 
 class LANUserManagementService {
-  private cachedUsers: LANUser[] = [];
-  private usersLoaded = false;
+  private companyUsersCache: Map<string, LANUser[]> = new Map();
+
+  /**
+   * Helper to get currently active company code from localStorage
+   */
+  public getActiveCompanyCode(): string {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('ledgerx_active_company_code');
+        if (stored && /^\d{5}$/.test(stored.trim())) return stored.trim().toUpperCase();
+      } catch (e) {}
+    }
+    return '10000';
+  }
+
+  /**
+   * Helper to set active company code
+   */
+  public setActiveCompanyCode(code: string) {
+    if (typeof window !== 'undefined' && code) {
+      try {
+        localStorage.setItem('ledgerx_active_company_code', code.trim().toUpperCase());
+      } catch (e) {}
+    }
+  }
+
+  /**
+   * Generates a starter administrator for a given company
+   */
+  public getDefaultCompanyAdmin(companyCode: string, companyName?: string): LANUser {
+    const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
+    return {
+      id: `usr_admin_${code}`,
+      username: 'admin',
+      fullName: companyName ? `Administrator (${companyName})` : `Company Administrator`,
+      password: '',
+      assignedCompanyCodes: [code],
+      isAdmin: true,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      permissions: DEFAULT_ADMIN_PERMISSIONS,
+    };
+  }
 
   /**
    * Fetches the host PC's LAN IP, port, and status
@@ -59,78 +101,72 @@ class LANUserManagementService {
   }
 
   /**
-   * Retrieves all LAN users from the Host PC
+   * Retrieves LAN users for a specific company (from data/<companyCode>/users.json)
    */
-  public async getUsers(): Promise<LANUser[]> {
+  public async getUsers(companyCode?: string, companyName?: string): Promise<LANUser[]> {
     if (typeof window === 'undefined') return [];
+    const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
 
-    // 1. Try local bridge
+    // 1. Try local C# bridge for company-specific users.json
     try {
-      const res = await fetch(`${getBridgeBaseUrl()}/api/lan/users`);
+      const res = await fetch(`${getBridgeBaseUrl()}/api/lan/users?code=${encodeURIComponent(code)}`);
       if (res.ok) {
         const json = await res.json();
-        if (Array.isArray(json.users)) {
-          this.cachedUsers = json.users;
-          this.usersLoaded = true;
-          this.saveToLocalStorage(json.users);
+        if (Array.isArray(json.users) && json.users.length > 0) {
+          this.companyUsersCache.set(code, json.users);
+          this.saveToLocalStorage(code, json.users);
           return json.users;
         }
       }
     } catch (e) {}
 
-    // 2. Fallback: LocalStorage
-    const local = this.loadFromLocalStorage();
+    // 2. Fallback: LocalStorage company cache
+    const local = this.loadFromLocalStorage(code);
     if (local.length > 0) {
-      this.cachedUsers = local;
-      this.usersLoaded = true;
+      this.companyUsersCache.set(code, local);
       return local;
     }
 
-    // 3. Default starter admin user
-    const defaultAdmin: LANUser = {
-      id: 'usr_admin',
-      username: 'admin',
-      fullName: 'System Administrator',
-      password: '',
-      assignedCompanyCodes: [],
-      isAdmin: true,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      permissions: DEFAULT_ADMIN_PERMISSIONS,
-    };
+    // 3. In-memory cache
+    if (this.companyUsersCache.has(code)) {
+      return this.companyUsersCache.get(code)!;
+    }
 
+    // 4. Default starter admin user for this company
+    const defaultAdmin = this.getDefaultCompanyAdmin(code, companyName);
     const initial = [defaultAdmin];
-    this.cachedUsers = initial;
-    this.saveToLocalStorage(initial);
-    this.saveUsers(initial).catch(() => {});
+    this.companyUsersCache.set(code, initial);
+    this.saveToLocalStorage(code, initial);
+    this.saveUsers(initial, code).catch(() => {});
     return initial;
   }
 
   /**
-   * Saves the entire users array to Host PC's data/users.json
+   * Saves the users array to Host PC's data/<companyCode>/users.json
    */
-  public async saveUsers(users: LANUser[]): Promise<boolean> {
-    this.cachedUsers = users;
-    this.saveToLocalStorage(users);
+  public async saveUsers(users: LANUser[], companyCode?: string): Promise<boolean> {
+    const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
+    this.companyUsersCache.set(code, users);
+    this.saveToLocalStorage(code, users);
 
     if (typeof window === 'undefined') return true;
 
     // Send to local C# bridge
     try {
-      const res = await fetch(`${getBridgeBaseUrl()}/api/lan/users`, {
+      const res = await fetch(`${getBridgeBaseUrl()}/api/lan/users?code=${encodeURIComponent(code)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ users }),
+        body: JSON.stringify({ companyCode: code, users }),
       });
       if (res.ok) return true;
     } catch (e) {}
 
     // Fallback: direct save-file endpoint
     try {
-      await fetch(`${getBridgeBaseUrl()}/api/save-file?file=users.json`, {
+      await fetch(`${getBridgeBaseUrl()}/api/save-file?code=${encodeURIComponent(code)}&file=users.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ users }, null, 2),
+        body: JSON.stringify(users, null, 2),
       });
       return true;
     } catch (e) {}
@@ -139,45 +175,47 @@ class LANUserManagementService {
   }
 
   /**
-   * Adds or updates a single user
+   * Adds or updates a single user for a specific company
    */
-  public async saveUser(user: LANUser): Promise<boolean> {
-    const users = await this.getUsers();
+  public async saveUser(user: LANUser, companyCode?: string): Promise<boolean> {
+    const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
+    const users = await this.getUsers(code);
     const idx = users.findIndex(u => u.id === user.id || u.username.toLowerCase() === user.username.toLowerCase());
     if (idx >= 0) {
       users[idx] = { ...users[idx], ...user };
     } else {
       users.push(user);
     }
-    return this.saveUsers(users);
+    return this.saveUsers(users, code);
   }
 
   /**
-   * Deletes a user by ID
+   * Deletes a user by ID for a specific company
    */
-  public async deleteUser(id: string): Promise<boolean> {
-    const users = await this.getUsers();
+  public async deleteUser(id: string, companyCode?: string): Promise<boolean> {
+    const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
+    const users = await this.getUsers(code);
     const filtered = users.filter(u => u.id !== id);
-    return this.saveUsers(filtered);
+    return this.saveUsers(filtered, code);
   }
 
   /**
-   * Authenticates a user credentials on LAN
+   * Authenticates a user credentials on LAN for a specific company
    */
-  public async loginUser(username: string, password = ''): Promise<{ success: boolean; user?: LANUser; error?: string }> {
-    const users = await this.getUsers();
+  public async loginUser(username: string, password = '', companyCode?: string): Promise<{ success: boolean; user?: LANUser; error?: string }> {
+    const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
+    const users = await this.getUsers(code);
     const cleanUser = username.trim().toLowerCase();
     const found = users.find(u => u.username.toLowerCase() === cleanUser);
 
     if (!found) {
-      return { success: false, error: 'User does not exist on this system.' };
+      return { success: false, error: 'User does not exist in this company.' };
     }
 
     if (!found.isActive) {
       return { success: false, error: 'This user account is deactivated by the Administrator.' };
     }
 
-    // Verify password if set
     if (found.password && found.password.trim()) {
       if (found.password.trim() !== password.trim()) {
         return { success: false, error: 'Incorrect password.' };
@@ -189,16 +227,18 @@ class LANUserManagementService {
 
   // ==================== LOCAL STORAGE HELPERS ====================
 
-  private saveToLocalStorage(users: LANUser[]) {
+  private saveToLocalStorage(companyCode: string, users: LANUser[]) {
     try {
+      localStorage.setItem(`ledgerx_lan_users_${companyCode}`, JSON.stringify(users));
       localStorage.setItem('ledgerx_lan_users_cache', JSON.stringify(users));
     } catch (e) {}
   }
 
-  private loadFromLocalStorage(): LANUser[] {
+  private loadFromLocalStorage(companyCode: string): LANUser[] {
     try {
-      const raw = localStorage.getItem('ledgerx_lan_users_cache');
-      return raw ? JSON.parse(raw) : [];
+      const raw = localStorage.getItem(`ledgerx_lan_users_${companyCode}`);
+      if (raw) return JSON.parse(raw);
+      return [];
     } catch (e) {
       return [];
     }

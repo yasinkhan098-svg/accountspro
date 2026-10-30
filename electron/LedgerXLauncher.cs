@@ -418,15 +418,22 @@ namespace LedgerXLauncher
 
                 if (path == "/api/lan/users" && req.HttpMethod == "GET")
                 {
-                    string usersFile = Path.Combine(dataDir, "users.json");
+                    string code = req.QueryString["code"];
+                    if (string.IsNullOrEmpty(code)) code = req.QueryString["companyCode"];
+                    if (!string.IsNullOrEmpty(code)) code = code.ToUpper().Trim();
+
+                    string usersFile = !string.IsNullOrEmpty(code)
+                        ? Path.Combine(dataDir, code, "users.json")
+                        : Path.Combine(dataDir, "users.json");
+
                     if (File.Exists(usersFile))
                     {
                         string uJson = File.ReadAllText(usersFile);
-                        WriteJsonResponse(res, "{\"success\":true,\"users\":" + uJson + "}");
+                        WriteJsonResponse(res, "{\"success\":true,\"code\":\"" + (code ?? "") + "\",\"users\":" + uJson + "}");
                     }
                     else
                     {
-                        WriteJsonResponse(res, "{\"success\":true,\"users\":[]}");
+                        WriteJsonResponse(res, "{\"success\":true,\"code\":\"" + (code ?? "") + "\",\"users\":[]}");
                     }
                     return;
                 }
@@ -436,7 +443,31 @@ namespace LedgerXLauncher
                     using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
                     {
                         string body = reader.ReadToEnd();
-                        string usersFile = Path.Combine(dataDir, "users.json");
+                        string code = req.QueryString["code"];
+                        if (string.IsNullOrEmpty(code)) code = req.QueryString["companyCode"];
+                        if (string.IsNullOrEmpty(code))
+                        {
+                            int cIdx = body.IndexOf("\"companyCode\":");
+                            if (cIdx >= 0)
+                            {
+                                int q1 = body.IndexOf("\"", cIdx + 14);
+                                int q2 = q1 >= 0 ? body.IndexOf("\"", q1 + 1) : -1;
+                                if (q1 >= 0 && q2 > q1)
+                                {
+                                    code = body.Substring(q1 + 1, q2 - (q1 + 1)).Trim().ToUpper();
+                                }
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(code)) code = code.ToUpper().Trim();
+
+                        string targetDir = !string.IsNullOrEmpty(code)
+                            ? Path.Combine(dataDir, code)
+                            : dataDir;
+
+                        if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                        string usersFile = Path.Combine(targetDir, "users.json");
+
                         int idx = body.IndexOf("\"users\":");
                         string toWrite = body;
                         if (idx >= 0)
@@ -448,8 +479,14 @@ namespace LedgerXLauncher
                                 toWrite = body.Substring(start, (end - start) + 1);
                             }
                         }
-                        File.WriteAllText(usersFile, toWrite);
-                        WriteJsonResponse(res, "{\"success\":true}");
+                        lock (_fileLock)
+                        {
+                            string tmp = usersFile + ".tmp." + Guid.NewGuid().ToString("N");
+                            File.WriteAllText(tmp, toWrite);
+                            if (File.Exists(usersFile)) File.Delete(usersFile);
+                            File.Move(tmp, usersFile);
+                        }
+                        WriteJsonResponse(res, "{\"success\":true,\"code\":\"" + (code ?? "") + "\"}");
                         return;
                     }
                 }
@@ -590,10 +627,11 @@ namespace LedgerXLauncher
                     string poJson = File.Exists(Path.Combine(cDir, "purchase_orders.json")) ? File.ReadAllText(Path.Combine(cDir, "purchase_orders.json")) : "[]";
                     string bomJson = File.Exists(Path.Combine(cDir, "boms.json")) ? File.ReadAllText(Path.Combine(cDir, "boms.json")) : "[]";
                     string mjJson = File.Exists(Path.Combine(cDir, "manufacturing_journals.json")) ? File.ReadAllText(Path.Combine(cDir, "manufacturing_journals.json")) : "[]";
+                    string usrJson = File.Exists(Path.Combine(cDir, "users.json")) ? File.ReadAllText(Path.Combine(cDir, "users.json")) : "[]";
 
                     string jsonOut = string.Format(
-                        "{{\"success\":true,\"companyCode\":\"{0}\",\"company\":{1},\"ledgers\":{2},\"vouchers\":{3},\"stockItems\":{4},\"stockGroups\":{5},\"units\":{6},\"groups\":{7},\"voucherTypes\":{8},\"purchaseOrders\":{9},\"boms\":{10},\"manufacturingJournals\":{11}}}",
-                        code, cJson, lJson, vJson, sJson, sgJson, uJson, gJson, vtJson, poJson, bomJson, mjJson
+                        "{{\"success\":true,\"companyCode\":\"{0}\",\"company\":{1},\"ledgers\":{2},\"vouchers\":{3},\"stockItems\":{4},\"stockGroups\":{5},\"units\":{6},\"groups\":{7},\"voucherTypes\":{8},\"purchaseOrders\":{9},\"boms\":{10},\"manufacturingJournals\":{11},\"users\":{12}}}",
+                        code, cJson, lJson, vJson, sJson, sgJson, uJson, gJson, vtJson, poJson, bomJson, mjJson, usrJson
                     );
                     WriteJsonResponse(res, jsonOut);
                     return;
@@ -632,6 +670,7 @@ namespace LedgerXLauncher
                             ExtractAndWrite(body, "purchaseOrders", Path.Combine(cDir, "purchase_orders.json"), "[]");
                             ExtractAndWrite(body, "boms", Path.Combine(cDir, "boms.json"), "[]");
                             ExtractAndWrite(body, "manufacturingJournals", Path.Combine(cDir, "manufacturing_journals.json"), "[]");
+                            ExtractAndWrite(body, "users", Path.Combine(cDir, "users.json"), "[]");
                         }
 
                         WriteJsonResponse(res, "{\"success\":true,\"companyCode\":\"" + code + "\"}");

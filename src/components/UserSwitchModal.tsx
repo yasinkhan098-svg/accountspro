@@ -2,12 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { LANUser, permissionGuard } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
+import { companyDataFolderService } from '@/lib/companyDataFolderService';
 
 interface UserSwitchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUserChanged?: (user: LANUser | null) => void;
   onOpenRoleManager?: () => void;
+  activeCompany?: any;
+  availableCompanies?: any[];
 }
 
 export default function UserSwitchModal({
@@ -15,7 +18,14 @@ export default function UserSwitchModal({
   onClose,
   onUserChanged,
   onOpenRoleManager,
+  activeCompany,
+  availableCompanies = [],
 }: UserSwitchModalProps) {
+  const activeCompanyCode = activeCompany 
+    ? companyDataFolderService.getCompanyFolderCode(activeCompany, availableCompanies) 
+    : lanUserManagementService.getActiveCompanyCode();
+  const activeCompanyName = activeCompany?.name || 'Company';
+
   const [users, setUsers] = useState<LANUser[]>([]);
   const [currentUser, setCurrentUser] = useState<LANUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,13 +37,13 @@ export default function UserSwitchModal({
     if (isOpen) {
       loadData();
     }
-  }, [isOpen]);
+  }, [isOpen, activeCompanyCode]);
 
   const loadData = async () => {
     setLoading(true);
     setErrorMsg('');
     setPasswordInput('');
-    const uList = await lanUserManagementService.getUsers();
+    const uList = await lanUserManagementService.getUsers(activeCompanyCode, activeCompanyName);
     setUsers(uList);
     const active = permissionGuard.getCurrentUser();
     setCurrentUser(active);
@@ -126,9 +136,14 @@ export default function UserSwitchModal({
           }}
         >
           <div>
-            <div style={{ fontSize: 16, fontWeight: 'bold' }}>👤 LAN Multi-User Switcher</div>
+            <div style={{ fontSize: 16, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>👤 User Account Switcher</span>
+              <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: 4, fontWeight: 'normal' }}>
+                🏢 {activeCompanyName} [{activeCompanyCode}]
+              </span>
+            </div>
             <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-              Switch active local profile or test role-based access control
+              Switch active profile for this company or login with your LAN role
             </div>
           </div>
           <button

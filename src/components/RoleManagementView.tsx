@@ -8,13 +8,20 @@ import {
   permissionGuard 
 } from '@/lib/permissionGuard';
 import { lanUserManagementService, HostLANInfo } from '@/lib/lanUserManagementService';
+import { companyDataFolderService } from '@/lib/companyDataFolderService';
 
 interface RoleManagementViewProps {
   goBack: () => void;
   availableCompanies?: any[];
+  activeCompany?: any;
 }
 
-export default function RoleManagementView({ goBack, availableCompanies = [] }: RoleManagementViewProps) {
+export default function RoleManagementView({ goBack, availableCompanies = [], activeCompany }: RoleManagementViewProps) {
+  const activeCompanyCode = activeCompany 
+    ? companyDataFolderService.getCompanyFolderCode(activeCompany, availableCompanies) 
+    : lanUserManagementService.getActiveCompanyCode();
+  const activeCompanyName = activeCompany?.name || 'Current Company';
+
   const [users, setUsers] = useState<LANUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [hostInfo, setHostInfo] = useState<HostLANInfo | null>(null);
@@ -30,17 +37,17 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
   const [formPassword, setFormPassword] = useState('');
   const [formIsAdmin, setFormIsAdmin] = useState(false);
   const [formIsActive, setFormIsActive] = useState(true);
-  const [formCompanies, setFormCompanies] = useState<string[]>([]);
+  const [formCompanies, setFormCompanies] = useState<string[]>([activeCompanyCode]);
   const [formPerms, setFormPerms] = useState<UserPermissions>(DEFAULT_OPERATOR_PERMISSIONS);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeCompanyCode]);
 
   const loadData = async () => {
     setLoading(true);
     const [uList, hInfo] = await Promise.all([
-      lanUserManagementService.getUsers(),
+      lanUserManagementService.getUsers(activeCompanyCode, activeCompanyName),
       lanUserManagementService.getHostLANInfo(),
     ]);
     setUsers(uList);
@@ -60,7 +67,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
     setFormPassword('');
     setFormIsAdmin(false);
     setFormIsActive(true);
-    setFormCompanies([]);
+    setFormCompanies([activeCompanyCode]);
     setFormPerms(JSON.parse(JSON.stringify(DEFAULT_OPERATOR_PERMISSIONS)));
     setShowModal(true);
   };
@@ -72,7 +79,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
     setFormPassword(u.password || '');
     setFormIsAdmin(!!u.isAdmin);
     setFormIsActive(u.isActive !== false);
-    setFormCompanies(u.assignedCompanyCodes || []);
+    setFormCompanies(u.assignedCompanyCodes && u.assignedCompanyCodes.length > 0 ? u.assignedCompanyCodes : [activeCompanyCode]);
     setFormPerms(JSON.parse(JSON.stringify(u.permissions || DEFAULT_OPERATOR_PERMISSIONS)));
     setShowModal(true);
   };
@@ -82,11 +89,11 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
       alert('The root "admin" user cannot be deleted.');
       return;
     }
-    if (!confirm(`Are you sure you want to delete user "${u.username}"?`)) return;
+    if (!confirm(`Are you sure you want to delete user "${u.username}" from ${activeCompanyName}?`)) return;
 
-    await lanUserManagementService.deleteUser(u.id);
+    await lanUserManagementService.deleteUser(u.id, activeCompanyCode);
     setUsers(prev => prev.filter(x => x.id !== u.id));
-    showToastMsg(`User "${u.username}" deleted successfully.`);
+    showToastMsg(`User "${u.username}" deleted from ${activeCompanyName}.`);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -99,7 +106,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
     const cleanUsername = formUsername.trim().toLowerCase();
     const existing = users.find(u => u.username.toLowerCase() === cleanUsername && (!editingUser || u.id !== editingUser.id));
     if (existing) {
-      alert(`User with username "${formUsername}" already exists!`);
+      alert(`User with username "${formUsername}" already exists for this company!`);
       return;
     }
 
@@ -110,15 +117,15 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
       password: formPassword.trim(),
       isAdmin: formIsAdmin,
       isActive: formIsActive,
-      assignedCompanyCodes: formCompanies,
+      assignedCompanyCodes: formCompanies.length > 0 ? formCompanies : [activeCompanyCode],
       createdAt: editingUser?.createdAt || new Date().toISOString(),
       permissions: formIsAdmin ? DEFAULT_ADMIN_PERMISSIONS : formPerms,
     };
 
-    await lanUserManagementService.saveUser(updatedUser);
+    await lanUserManagementService.saveUser(updatedUser, activeCompanyCode);
     await loadData();
     setShowModal(false);
-    showToastMsg(`User "${updatedUser.username}" saved successfully!`);
+    showToastMsg(`User "${updatedUser.username}" saved for ${activeCompanyName}!`);
   };
 
   const copyLANLink = () => {
@@ -292,8 +299,15 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
             ← Esc Back
           </button>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 'bold', letterSpacing: 0.5 }}>👥 User & Role Management (Offline LAN Multi-User)</div>
-            <div style={{ fontSize: 11, opacity: 0.85 }}>Granular Role-Based Access Control • 100% Offline Local Area Network</div>
+            <div style={{ fontSize: 17, fontWeight: 'bold', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span>👥 User & Role Management</span>
+              <span style={{ background: 'rgba(255,255,255,0.2)', padding: '2px 10px', borderRadius: 4, fontSize: 13, fontWeight: 'normal' }}>
+                🏢 {activeCompanyName} [{activeCompanyCode}]
+              </span>
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
+              Independent Per-Company User Roles • 100% Offline Local Area Network
+            </div>
           </div>
         </div>
 
@@ -384,8 +398,11 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
 
         {/* User Roster Table */}
         <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ padding: '12px 18px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold', fontSize: 14, color: '#334155' }}>
-            Registered LAN Users ({users.length})
+          <div style={{ padding: '12px 18px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold', fontSize: 14, color: '#334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Registered LAN Users for {activeCompanyName} ({users.length})</span>
+            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 'normal' }}>
+              Data stored in: <code style={{ background: '#e2e8f0', padding: '2px 6px', borderRadius: 4, color: '#0f3c64', fontWeight: 600 }}>data/{activeCompanyCode}/users.json</code>
+            </span>
           </div>
 
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -501,6 +518,14 @@ export default function RoleManagementView({ goBack, availableCompanies = [] }: 
             {/* Modal Body */}
             <form onSubmit={handleSave} style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
               
+              {/* Active Company Scope Badge */}
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '8px 14px', marginBottom: 14, fontSize: 12, color: '#1e40af', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>🏢 Managing Access For: <b>{activeCompanyName}</b></span>
+                <span style={{ background: '#dbeafe', padding: '2px 8px', borderRadius: 4, fontWeight: 'bold', fontFamily: 'monospace' }}>
+                  Folder: {activeCompanyCode}
+                </span>
+              </div>
+
               {/* Basic User Details Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18, background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0' }}>
                 <div>
