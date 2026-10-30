@@ -512,3 +512,4 @@ export class POSService {
 }
 
 export const posService = new POSService();
+

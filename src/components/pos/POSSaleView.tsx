@@ -400,12 +400,58 @@ export default function POSSaleView({
           minHeight: 52,
         }}
       >
-        {/* Left Branding (LedgerX POS replaces Reliance POS) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.8, color: '#ffffff', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-            LedgerX POS
+        {/* Left Branding (Exact LedgerX logo mark matching user image) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Yellow Rounded Badge with Bold Dark Blue 'L' */}
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 8,
+              background: '#f59e0b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 900,
+              fontSize: 26,
+              color: '#0f3c64',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+              userSelect: 'none',
+              lineHeight: 1,
+            }}
+          >
+            L
           </div>
-          <span style={{ background: '#f59e0b', color: '#78350f', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 'bold' }}>
+
+          {/* Bold White 'LedgerX' typography */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span
+              style={{
+                fontSize: 24,
+                fontWeight: 900,
+                color: '#ffffff',
+                letterSpacing: -0.5,
+                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+              }}
+            >
+              LedgerX
+            </span>
+            <span
+              style={{
+                background: '#f59e0b',
+                color: '#0f3c64',
+                padding: '2px 7px',
+                borderRadius: 4,
+                fontSize: 11,
+                fontWeight: 900,
+                letterSpacing: 0.5,
+              }}
+            >
+              POS
+            </span>
+          </div>
+
+          <span style={{ background: 'rgba(255,255,255,0.15)', color: '#ffffff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 'bold' }}>
             TERMINAL 01
           </span>
         </div>
@@ -914,3 +960,4 @@ export default function POSSaleView({
     </div>
   );
 }
+
