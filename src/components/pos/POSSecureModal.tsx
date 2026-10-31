@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface POSSecureModalProps {
   isOpen: boolean;
@@ -21,6 +21,30 @@ export default function POSSecureModal({
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Esc key listener: only Esc closes the modal from keyboard
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  // Focus password input on open
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -28,6 +52,7 @@ export default function POSSecureModal({
     if (e) e.preventDefault();
     if (!password.trim()) {
       setErrorMsg('Password is required');
+      inputRef.current?.focus();
       return;
     }
     setLoading(true);
@@ -39,6 +64,7 @@ export default function POSSecureModal({
         onClose();
       } else {
         setErrorMsg('Invalid password!');
+        inputRef.current?.focus();
       }
     } catch (err: any) {
       setErrorMsg('Authorization failed');
@@ -65,13 +91,18 @@ export default function POSSecureModal({
         left: 0,
         right: 0,
         bottom: 0,
+        // No blur, completely clear background as requested
         background: 'rgba(0, 0, 0, 0.05)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000000,
       }}
-      onClick={handleCancel}
+      // Clicking outside DOES NOT close the modal - it retains focus on password input!
+      onClick={e => {
+        e.stopPropagation();
+        inputRef.current?.focus();
+      }}
     >
       {/* Modal Box matching exact Posiflex screen poss3 */}
       <div
@@ -79,7 +110,7 @@ export default function POSSecureModal({
           width: 370,
           background: '#ffffff',
           borderRadius: 8,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0,0,0,0.15)',
           overflow: 'hidden',
           border: '2px solid #1e3a5f',
         }}
@@ -121,6 +152,7 @@ export default function POSSecureModal({
             </label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input
+                ref={inputRef}
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
@@ -170,7 +202,7 @@ export default function POSSecureModal({
             </div>
           )}
 
-          {/* Cancel Button (matching Posiflex pill cancel) */}
+          {/* Cancel Button (Explicit button to close or press Esc) */}
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
             <button
               type="button"
@@ -186,7 +218,7 @@ export default function POSSecureModal({
                 cursor: 'pointer',
               }}
             >
-              Cancel
+              Cancel (Esc)
             </button>
           </div>
         </form>
