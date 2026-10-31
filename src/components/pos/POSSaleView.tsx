@@ -861,23 +861,7 @@ export default function POSSaleView({
                 className="pos-touch-btn"
                 onClick={handleSelectDown}
                 title="Select Next Row Down"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 8,
-                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.95)',
-                  borderBottom: '2px solid rgba(148, 163, 184, 0.65)',
-                  fontSize: 18,
-                  fontWeight: 900,
-                  color: '#0f172a',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 8px -1px rgba(0, 0, 0, 0.1), inset 0 1.5px 1px #ffffff, inset 0 -2px 0 rgba(0, 0, 0, 0.06)',
-                  touchAction: 'manipulation',
-                }}
+                style={glassArrowBtnStyle}
               >
                 ⬇
               </button>
@@ -886,23 +870,7 @@ export default function POSSaleView({
                 className="pos-touch-btn"
                 onClick={handleSelectUp}
                 title="Select Previous Row Up"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 8,
-                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.95)',
-                  borderBottom: '2px solid rgba(148, 163, 184, 0.65)',
-                  fontSize: 18,
-                  fontWeight: 900,
-                  color: '#0f172a',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 8px -1px rgba(0, 0, 0, 0.1), inset 0 1.5px 1px #ffffff, inset 0 -2px 0 rgba(0, 0, 0, 0.06)',
-                  touchAction: 'manipulation',
-                }}
+                style={glassArrowBtnStyle}
               >
                 ⬆
               </button>
@@ -1098,7 +1066,8 @@ export default function POSSaleView({
                   style={glassQuickPillStyle}
                   title={item.name}
                 >
-                  {item.name}
+                  <span style={{ fontSize: 13, flexShrink: 0 }}>🏷️</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                 </button>
               ))}
             </div>
@@ -1209,9 +1178,11 @@ export default function POSSaleView({
                 onClick={() => handleVirtualClear()}
                 style={{
                   ...numpadBtnStyle,
-                  background: 'linear-gradient(180deg, #fee2e2 0%, #fecaca 100%)',
-                  border: '1px solid #f87171',
-                  color: '#dc2626',
+                  background: 'linear-gradient(180deg, #f87171 0%, #dc2626 50%, #b91c1c 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.75)',
+                  borderBottom: '2.5px solid #7f1d1d',
+                  color: '#ffffff',
+                  boxShadow: '0 4px 10px rgba(220, 38, 38, 0.35), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
                   fontWeight: 900,
                 }}
               >
@@ -1228,9 +1199,11 @@ export default function POSSaleView({
                 onClick={() => handleVirtualBackspace()}
                 style={{
                   ...numpadBtnStyle,
-                  background: 'linear-gradient(180deg, #fef3c7 0%, #fde68a 100%)',
-                  border: '1px solid #fbbf24',
-                  color: '#d97706',
+                  background: 'linear-gradient(180deg, #fbbf24 0%, #d97706 50%, #b45309 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.75)',
+                  borderBottom: '2.5px solid #78350f',
+                  color: '#ffffff',
+                  boxShadow: '0 4px 10px rgba(217, 119, 6, 0.35), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
                   fontWeight: 900,
                   fontSize: 20,
                 }}
@@ -1248,11 +1221,13 @@ export default function POSSaleView({
                 onClick={() => handleDecrementSelected()}
                 style={{
                   ...numpadBtnStyle,
-                  background: 'linear-gradient(180deg, #e0f2fe 0%, #bae6fd 100%)',
-                  border: '1px solid #38bdf8',
-                  color: '#0284c7',
+                  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.75)',
+                  borderBottom: '2.5px solid #075985',
+                  color: '#ffffff',
+                  boxShadow: '0 4px 10px rgba(2, 132, 199, 0.35), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
                   fontWeight: 900,
-                  fontSize: 20,
+                  fontSize: 22,
                 }}
               >
                 −
@@ -1274,16 +1249,16 @@ export default function POSSaleView({
                 style={{
                   ...numpadBtnStyle,
                   gridColumn: 'span 2',
-                  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 60%, #0369a1 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.7)',
-                  borderBottom: '2px solid #075985',
+                  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.75)',
+                  borderBottom: '3px solid #075985',
                   color: '#ffffff',
                   fontWeight: 900,
                   fontSize: 16,
-                  boxShadow: '0 6px 14px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.2)',
+                  boxShadow: '0 6px 14px rgba(2, 132, 199, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
                 }}
               >
-                Enter
+                ↵ Enter
               </button>
             </div>
           </div>
@@ -1358,11 +1333,11 @@ export default function POSSaleView({
   );
 }
 
-// 3D Glassmorphism & Embossed Button Styles
+// 3D Glassmorphism & Embossed Blue Button Styles
 const ribbonBtnStyle: React.CSSProperties = {
-  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.9) 55%, rgba(226, 232, 240, 0.85) 100%)',
-  border: '1px solid rgba(255, 255, 255, 0.95)',
-  borderBottom: '2.5px solid rgba(148, 163, 184, 0.6)',
+  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.75)',
+  borderBottom: '3px solid #075985',
   borderRadius: 10,
   padding: '6px 10px',
   display: 'flex',
@@ -1370,9 +1345,9 @@ const ribbonBtnStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   cursor: 'pointer',
-  minWidth: 76,
-  height: 62,
-  boxShadow: '0 4px 8px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1.5px 1px rgba(255, 255, 255, 1), inset 0 -2px 2px rgba(0, 0, 0, 0.05)',
+  minWidth: 78,
+  height: 64,
+  boxShadow: '0 5px 12px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
   userSelect: 'none',
   WebkitUserSelect: 'none',
   touchAction: 'manipulation',
@@ -1381,66 +1356,94 @@ const ribbonBtnStyle: React.CSSProperties = {
 };
 
 const ribbonIconCircleStyle: React.CSSProperties = {
-  width: 30,
-  height: 30,
+  width: 32,
+  height: 32,
   borderRadius: '50%',
-  background: 'linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%)',
-  border: '1px solid rgba(255, 255, 255, 0.9)',
-  boxShadow: '0 2px 5px rgba(0, 0, 0, 0.12), inset 0 1px 1px #ffffff',
+  background: 'linear-gradient(145deg, #ffffff 0%, #e0f2fe 100%)',
+  border: '1.5px solid rgba(255, 255, 255, 0.95)',
+  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.25), inset 0 1.5px 1.5px #ffffff',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 15,
+  fontSize: 16,
   marginBottom: 3,
 };
 
 const ribbonTextStyle: React.CSSProperties = {
   fontSize: 10.5,
   fontWeight: 800,
-  color: '#1e293b',
+  color: '#ffffff',
   whiteSpace: 'nowrap',
   letterSpacing: -0.2,
+  textShadow: '0 1px 2px rgba(0, 0, 0, 0.4)',
 };
 
-const numpadBtnStyle: React.CSSProperties = {
-  height: 50,
-  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
-  border: '1px solid rgba(255, 255, 255, 0.95)',
-  borderBottom: '2.5px solid rgba(148, 163, 184, 0.65)',
+const glassArrowBtnStyle: React.CSSProperties = {
+  width: 44,
+  height: 44,
   borderRadius: 8,
+  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.75)',
+  borderBottom: '2.5px solid #075985',
   fontSize: 18,
-  fontWeight: 800,
-  color: '#0f172a',
+  fontWeight: 900,
+  color: '#ffffff',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  boxShadow: '0 4px 8px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1.5px 1px #ffffff, inset 0 -2px 0 rgba(0, 0, 0, 0.06)',
+  boxShadow: '0 4px 10px rgba(2, 132, 199, 0.35), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
   userSelect: 'none',
   WebkitUserSelect: 'none',
   touchAction: 'manipulation',
   backdropFilter: 'blur(8px)',
   WebkitBackdropFilter: 'blur(8px)',
+  textShadow: '0 1px 2px rgba(0, 0, 0, 0.35)',
 };
 
-const glassQuickPillStyle: React.CSSProperties = {
-  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
-  border: '1px solid rgba(255, 255, 255, 0.95)',
-  borderBottom: '2px solid rgba(148, 163, 184, 0.55)',
-  borderRadius: 20,
-  padding: '10px 14px',
-  fontSize: 12,
-  fontWeight: 700,
-  color: '#0f3c64',
+const numpadBtnStyle: React.CSSProperties = {
+  height: 50,
+  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.75)',
+  borderBottom: '2.5px solid #075985',
+  borderRadius: 8,
+  fontSize: 19,
+  fontWeight: 900,
+  color: '#ffffff',
   cursor: 'pointer',
-  textAlign: 'left',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  boxShadow: '0 3px 8px rgba(0, 0, 0, 0.08), inset 0 1.5px 1px rgba(255, 255, 255, 1), inset 0 -1.5px 2px rgba(0, 0, 0, 0.05)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow: '0 4px 10px rgba(2, 132, 199, 0.35), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
   userSelect: 'none',
   WebkitUserSelect: 'none',
   touchAction: 'manipulation',
-  backdropFilter: 'blur(6px)',
-  WebkitBackdropFilter: 'blur(6px)',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  textShadow: '0 1px 2px rgba(0, 0, 0, 0.35)',
+};
+
+const glassQuickPillStyle: React.CSSProperties = {
+  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.75)',
+  borderBottom: '2.5px solid #075985',
+  borderRadius: 20,
+  padding: '8px 12px',
+  fontSize: 12,
+  fontWeight: 800,
+  color: '#ffffff',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  boxShadow: '0 4px 10px rgba(2, 132, 199, 0.35), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  touchAction: 'manipulation',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  textShadow: '0 1px 2px rgba(0, 0, 0, 0.35)',
 };

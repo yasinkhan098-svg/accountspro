@@ -52,7 +52,7 @@ export default function POSVirtualKeyboard({
         }
         .pos-kb-key:active {
           transform: translateY(2px) scale(0.97) !important;
-          box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+          box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.1) !important;
         }
       `}</style>
 
@@ -68,7 +68,7 @@ export default function POSVirtualKeyboard({
           borderRight: '1px solid rgba(148, 163, 184, 0.5)',
         }}
       >
-        {/* Round 3D Glass View Button */}
+        {/* Round Blue 3D Glass View Button with Image */}
         {onOpenView && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <button
@@ -80,16 +80,16 @@ export default function POSVirtualKeyboard({
                 width: 50,
                 height: 50,
                 borderRadius: '50%',
-                background: 'linear-gradient(145deg, #ffffff 0%, #e0f2fe 50%, #bae6fd 100%)',
-                border: '2px solid #38bdf8',
-                color: '#0284c7',
-                boxShadow: '0 5px 12px rgba(2, 132, 199, 0.3), inset 0 2px 2px rgba(255, 255, 255, 0.95), inset 0 -2px 4px rgba(2, 132, 199, 0.2)',
+                background: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)',
+                border: '2px solid rgba(255, 255, 255, 0.8)',
+                color: '#ffffff',
+                boxShadow: '0 5px 14px rgba(2, 132, 199, 0.45), inset 0 2px 3px rgba(255, 255, 255, 0.8), inset 0 -2px 4px rgba(0, 0, 0, 0.25)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 22,
-                backdropFilter: 'blur(6px)',
+                backdropFilter: 'blur(8px)',
               }}
             >
               🖼️
@@ -98,7 +98,7 @@ export default function POSVirtualKeyboard({
           </div>
         )}
 
-        {/* Round 3D Glass Lock Button */}
+        {/* Round Blue/Red 3D Glass Lock Button with Image */}
         {onOpenSecureMode && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <button
@@ -110,21 +110,21 @@ export default function POSVirtualKeyboard({
                 width: 50,
                 height: 50,
                 borderRadius: '50%',
-                background: 'linear-gradient(145deg, #ffffff 0%, #fee2e2 50%, #fecaca 100%)',
-                border: '2px solid #f87171',
-                color: '#b91c1c',
-                boxShadow: '0 5px 12px rgba(239, 68, 68, 0.3), inset 0 2px 2px rgba(255, 255, 255, 0.95), inset 0 -2px 4px rgba(239, 68, 68, 0.2)',
+                background: 'linear-gradient(145deg, #60a5fa 0%, #2563eb 55%, #1d4ed8 100%)',
+                border: '2px solid rgba(255, 255, 255, 0.8)',
+                color: '#ffffff',
+                boxShadow: '0 5px 14px rgba(37, 99, 235, 0.45), inset 0 2px 3px rgba(255, 255, 255, 0.8), inset 0 -2px 4px rgba(0, 0, 0, 0.25)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 20,
-                backdropFilter: 'blur(6px)',
+                backdropFilter: 'blur(8px)',
               }}
             >
               🔒
             </button>
-            <span style={{ fontSize: 10, fontWeight: 800, color: '#991b1b', letterSpacing: 0.5 }}>Lock</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#1e40af', letterSpacing: 0.5 }}>Lock</span>
           </div>
         )}
       </div>
@@ -139,7 +139,7 @@ export default function POSVirtualKeyboard({
               type="button"
               className="pos-kb-key"
               onClick={() => handleKeyClick(key)}
-              style={glassKeyStyle}
+              style={blueGlassKeyStyle}
             >
               {isCaps ? key.toUpperCase() : key.toLowerCase()}
             </button>
@@ -154,7 +154,7 @@ export default function POSVirtualKeyboard({
               type="button"
               className="pos-kb-key"
               onClick={() => (key === '@' ? onKeyPress('@') : handleKeyClick(key))}
-              style={glassKeyStyle}
+              style={blueGlassKeyStyle}
             >
               {key === '@' ? '@' : isCaps ? key.toUpperCase() : key.toLowerCase()}
             </button>
@@ -169,7 +169,7 @@ export default function POSVirtualKeyboard({
               type="button"
               className="pos-kb-key"
               onClick={() => handleKeyClick(key)}
-              style={glassKeyStyle}
+              style={blueGlassKeyStyle}
             >
               {isCaps ? key.toUpperCase() : key.toLowerCase()}
             </button>
@@ -181,12 +181,11 @@ export default function POSVirtualKeyboard({
             className="pos-kb-key"
             onClick={() => setIsCaps(!isCaps)}
             style={{
-              ...glassKeyStyle,
+              ...blueGlassKeyStyle,
               background: isCaps 
-                ? 'linear-gradient(180deg, #38bdf8 0%, #0284c7 100%)' 
-                : 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.85) 100%)',
-              color: isCaps ? '#ffffff' : '#0f172a',
-              border: isCaps ? '1px solid #0369a1' : '1px solid rgba(255, 255, 255, 0.9)',
+                ? 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)' 
+                : 'linear-gradient(180deg, #0284c7 0%, #0369a1 100%)',
+              border: isCaps ? '1px solid #fef3c7' : '1px solid rgba(255, 255, 255, 0.7)',
               fontSize: 15,
               fontWeight: 900,
             }}
@@ -201,11 +200,11 @@ export default function POSVirtualKeyboard({
             className="pos-kb-key"
             onClick={() => onKeyPress(' ')}
             style={{
-              ...glassKeyStyle,
+              ...blueGlassKeyStyle,
               gridColumn: 'span 2',
               fontSize: 13,
               fontWeight: 800,
-              color: '#475569',
+              color: '#ffffff',
               letterSpacing: 2,
             }}
           >
@@ -217,18 +216,18 @@ export default function POSVirtualKeyboard({
   );
 }
 
-// 3D Glassmorphism Embossed Key Style
-const glassKeyStyle: React.CSSProperties = {
+// 3D Blue Glassmorphism Embossed Key Style
+const blueGlassKeyStyle: React.CSSProperties = {
   height: 48,
-  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
-  border: '1px solid rgba(255, 255, 255, 0.9)',
-  borderBottom: '2px solid rgba(148, 163, 184, 0.6)',
+  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.75)',
+  borderBottom: '2.5px solid #075985',
   borderRadius: 8,
   fontSize: 18,
   fontWeight: 800,
-  color: '#0f172a',
+  color: '#ffffff',
   cursor: 'pointer',
-  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1px 1px rgba(255, 255, 255, 1), inset 0 -2px 0 rgba(0, 0, 0, 0.06)',
+  boxShadow: '0 4px 10px rgba(2, 132, 199, 0.35), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -237,4 +236,5 @@ const glassKeyStyle: React.CSSProperties = {
   touchAction: 'manipulation',
   backdropFilter: 'blur(8px)',
   WebkitBackdropFilter: 'blur(8px)',
+  textShadow: '0 1px 2px rgba(0, 0, 0, 0.35)',
 };
