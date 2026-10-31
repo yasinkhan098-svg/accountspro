@@ -1,6 +1,7 @@
 /**
  * LedgerX Retail POS (Point of Sale) Engine
  * Handles tax-inclusive calculations, barcode lookup, bill management,
+ * split payments (Cash + UPI), dynamic QR code generation,
  * stock deduction, and offline company persistence.
  */
 
@@ -15,6 +16,7 @@ export interface POSCartItem {
   hsnCode?: string;
   unit: string;
   qty: number;
+  mrpRate: number;         // Original MRP before discount
   rateWithTax: number;     // User requirement: Price WITH TAX (Inclusive / MRP)
   taxableRate: number;     // Base rate without tax
   gstRate: number;         // 0, 5, 12, 18, 28
@@ -29,13 +31,14 @@ export interface POSCartItem {
 }
 
 export interface POSCartTotals {
+  grossSalesValue: number; // Original MRP total
   subtotal: number;
   totalTaxable: number;
   totalCgst: number;
   totalSgst: number;
   totalIgst: number;
   totalTax: number;
-  discountAmount: number;
+  discountAmount: number;  // Promo / Savings
   roundOff: number;
   grandTotal: number;
   itemsCount: number;
@@ -47,12 +50,15 @@ export interface POSCustomer {
   mobile: string;
   gstin?: string;
   address?: string;
+  walkInDelivery?: boolean;
 }
 
 export interface POSPaymentDetails {
   mode: 'Cash' | 'UPI_QR' | 'Card' | 'Credit' | 'Split';
   cashTendered: number;
   changeDue: number;
+  cashAmount?: number;     // for split payment
+  upiAmount?: number;      // for split payment
   upiRef?: string;
   cardRef?: string;
   cardLast4?: string;
@@ -118,6 +124,7 @@ export class POSService {
       hsnCode?: string;
       unit: string;
       qty: number;
+      mrpRate?: number;
       rateWithTax: number;
       gstRate: number;
       discountPerc?: number;
@@ -128,6 +135,7 @@ export class POSService {
   ): POSCartItem {
     const qty = Math.max(0.001, Number(item.qty) || 1);
     const origRateWithTax = Number(item.rateWithTax) || 0;
+    const mrp = Number(item.mrpRate || origRateWithTax);
     const discPerc = Number(item.discountPerc) || 0;
     const discAmt = discPerc > 0 ? (origRateWithTax * discPerc) / 100 : 0;
     const netRateWithTax = Math.max(0, origRateWithTax - discAmt);
@@ -143,6 +151,7 @@ export class POSService {
       hsnCode: item.hsnCode,
       unit: item.unit || 'NOS',
       qty,
+      mrpRate: mrp,
       rateWithTax: origRateWithTax,
       taxableRate: taxInfo.taxableRate,
       gstRate: item.gstRate || 0,
@@ -158,9 +167,10 @@ export class POSService {
   }
 
   /**
-   * Calculates grand totals, taxes, and round off for cart
+   * Calculates grand totals, taxes, savings, and round off for cart
    */
-  public calculateCartTotals(items: POSCartItem[], globalDiscountPerc = 0): POSCartTotals {
+  public calculateCartTotals(items: POSCartItem[], globalDiscountAmount = 0): POSCartTotals {
+    let grossSalesValue = 0;
     let subtotal = 0;
     let totalTaxable = 0;
     let totalCgst = 0;
@@ -170,6 +180,7 @@ export class POSService {
     let totalQty = 0;
 
     for (const item of items) {
+      grossSalesValue += (item.mrpRate || item.rateWithTax) * item.qty;
       subtotal += item.lineTotal;
       totalTaxable += item.taxableRate * item.qty;
       totalCgst += item.cgstAmount;
@@ -179,6 +190,7 @@ export class POSService {
       totalQty += item.qty;
     }
 
+    grossSalesValue = Math.round(grossSalesValue * 100) / 100;
     subtotal = Math.round(subtotal * 100) / 100;
     totalTaxable = Math.round(totalTaxable * 100) / 100;
     totalCgst = Math.round(totalCgst * 100) / 100;
@@ -186,16 +198,13 @@ export class POSService {
     totalIgst = Math.round(totalIgst * 100) / 100;
     totalTax = Math.round(totalTax * 100) / 100;
 
-    let discountAmount = 0;
-    if (globalDiscountPerc > 0) {
-      discountAmount = Math.round(((subtotal * globalDiscountPerc) / 100) * 100) / 100;
-    }
-
-    const netBeforeRound = Math.max(0, subtotal - discountAmount);
+    const discountAmount = Math.max(0, globalDiscountAmount + (grossSalesValue - subtotal));
+    const netBeforeRound = Math.max(0, subtotal - globalDiscountAmount);
     const grandTotal = Math.round(netBeforeRound);
     const roundOff = Math.round((grandTotal - netBeforeRound) * 100) / 100;
 
     return {
+      grossSalesValue,
       subtotal,
       totalTaxable,
       totalCgst,
@@ -253,7 +262,7 @@ export class POSService {
   }
 
   /**
-   * Generates sequential POS bill number e.g. POS-2627-0001
+   * Generates sequential POS bill number e.g. POS-0037
    */
   public generateBillNo(vouchers: any[], companyCode = '10000'): string {
     const prefix = 'POS';
@@ -263,6 +272,22 @@ export class POSService {
     const nextSeq = posVouchers.length + 1;
     const padded = String(nextSeq).padStart(4, '0');
     return `${prefix}-${padded}`;
+  }
+
+  /**
+   * Construct dynamic UPI payment URI
+   */
+  public getUpiUri(params: { vpa: string; companyName: string; amount: number; billNo: string }): string {
+    const vpa = params.vpa || 'retail@upi';
+    const cleanName = params.companyName.replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'Store';
+    return `upi://pay?pa=${encodeURIComponent(vpa)}&pn=${encodeURIComponent(cleanName)}&am=${params.amount.toFixed(2)}&cu=INR&tn=POS-${params.billNo}`;
+  }
+
+  /**
+   * Generate QR Code Image URL using reliable standard API
+   */
+  public getQrImageUrl(data: string, size = 180): string {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
   }
 
   /**
@@ -301,11 +326,12 @@ export class POSService {
   }
 
   /**
-   * Completes a POS Sale:
+   * Finalizes a POS Sale:
    * 1. Creates Sales Voucher with all inventory & accounting entries
-   * 2. Deducts sold quantities from stockItems
-   * 3. Persists to local disk (data/<companyCode>/vouchers.json and stockItems.json)
-   * 4. Enqueues for offline sync
+   * 2. Supports Split Payment (Cash + UPI)
+   * 3. Deducts sold quantities from stockItems
+   * 4. Persists to local disk (data/<companyCode>/vouchers.json and stockItems.json)
+   * 5. Enqueues for offline sync
    */
   public async finalizePOSSale(params: {
     company: any;
@@ -357,17 +383,6 @@ export class POSService {
     const igstLedger = ledgers.find(l => l.name.toUpperCase().includes('IGST')) || { id: 9005, name: 'IGST Payable' };
     const roundOffLedger = ledgers.find(l => l.name.toLowerCase().includes('round off')) || { id: 9006, name: 'Round Off' };
 
-    let debitLedgerName = 'Cash';
-    let debitLedgerId = cashLedger.id;
-
-    if (payment.mode === 'UPI_QR' || payment.mode === 'Card') {
-      debitLedgerName = bankLedger.name;
-      debitLedgerId = bankLedger.id;
-    } else if (payment.mode === 'Credit') {
-      debitLedgerName = customer.name || 'Sundry Debtor (POS Customer)';
-      debitLedgerId = payment.customerLedgerId || 9099;
-    }
-
     // 2. Build Inventory Entries
     const inventoryEntries = items.map((it, idx) => ({
       id: Date.now() + idx,
@@ -387,25 +402,64 @@ export class POSService {
       discountAmt: it.discountAmt || 0,
     }));
 
-    // 3. Build Double-Entry Accounting Rows
-    const entries: any[] = [
-      {
+    // 3. Build Double-Entry Accounting Rows (supports Split Payment: Cash + UPI)
+    const entries: any[] = [];
+
+    if (payment.mode === 'Split') {
+      const cAmt = Number(payment.cashAmount) || 0;
+      const uAmt = Number(payment.upiAmount) || 0;
+      if (cAmt > 0) {
+        entries.push({
+          id: Date.now() + 10,
+          ledgerId: cashLedger.id,
+          ledgerName: cashLedger.name,
+          amount: cAmt,
+          entryType: 'Dr',
+          narration: `POS Split Cash: ₹${cAmt} | Bill #${billNo}`,
+        });
+      }
+      if (uAmt > 0) {
+        entries.push({
+          id: Date.now() + 11,
+          ledgerId: bankLedger.id,
+          ledgerName: bankLedger.name,
+          amount: uAmt,
+          entryType: 'Dr',
+          narration: `POS Split UPI QR: ₹${uAmt} | Ref: ${payment.upiRef || 'Direct'} | Bill #${billNo}`,
+        });
+      }
+    } else {
+      let debitLedgerName = 'Cash';
+      let debitLedgerId = cashLedger.id;
+
+      if (payment.mode === 'UPI_QR' || payment.mode === 'Card') {
+        debitLedgerName = bankLedger.name;
+        debitLedgerId = bankLedger.id;
+      } else if (payment.mode === 'Credit') {
+        debitLedgerName = customer.name || 'Sundry Debtor (POS Customer)';
+        debitLedgerId = payment.customerLedgerId || 9099;
+      }
+
+      entries.push({
         id: Date.now() + 10,
         ledgerId: debitLedgerId,
         ledgerName: debitLedgerName,
         amount: totals.grandTotal,
         entryType: 'Dr',
         narration: `POS Tender: ${payment.mode} | Bill #${billNo}`,
-      },
-      {
-        id: Date.now() + 20,
-        ledgerId: salesLedger.id,
-        ledgerName: salesLedger.name,
-        amount: totals.totalTaxable,
-        entryType: 'Cr',
-      },
-    ];
+      });
+    }
 
+    // Credit Sales Account
+    entries.push({
+      id: Date.now() + 20,
+      ledgerId: salesLedger.id,
+      ledgerName: salesLedger.name,
+      amount: totals.totalTaxable,
+      entryType: 'Cr',
+    });
+
+    // Credit GST
     if (totals.totalCgst > 0) {
       entries.push({
         id: Date.now() + 30,
@@ -454,7 +508,7 @@ export class POSService {
       voucherNo: billNo,
       refNo: `POS-${billNo}`,
       partyName: customer.name || 'Cash Customer',
-      partyId: debitLedgerId,
+      partyId: entries[0]?.ledgerId || cashLedger.id,
       narration: `Retail POS Counter Sale | Cashier: ${cashierName} | Pay Mode: ${payment.mode}${payment.upiRef ? ' Ref: ' + payment.upiRef : ''}`,
       total: totals.grandTotal,
       entries,
@@ -512,4 +566,3 @@ export class POSService {
 }
 
 export const posService = new POSService();
-

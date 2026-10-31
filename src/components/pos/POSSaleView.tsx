@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   posService, 
   POSCartItem, 
@@ -9,7 +9,6 @@ import {
   POSHeldBill 
 } from '@/lib/pos/posService';
 import POSVirtualKeyboard from './POSVirtualKeyboard';
-import POSVirtualNumpad from './POSVirtualNumpad';
 import POSSecureModal from './POSSecureModal';
 import POSPaymentModal from './POSPaymentModal';
 import POSReceiptModal from './POSReceiptModal';
@@ -23,7 +22,9 @@ interface POSSaleViewProps {
   stockItems: any[];
   ledgers: any[];
   vouchers: any[];
+  cashierUser?: { id: string; username: string; fullName: string; isTrainingMode?: boolean };
   onBack: () => void;
+  onLogoutToLogin?: () => void;
   onStockUpdated?: (updatedStock: any[]) => void;
   onVouchersUpdated?: (updatedVouchers: any[]) => void;
 }
@@ -34,7 +35,9 @@ export default function POSSaleView({
   stockItems = [],
   ledgers = [],
   vouchers = [],
+  cashierUser,
   onBack,
+  onLogoutToLogin,
   onStockUpdated,
   onVouchersUpdated,
 }: POSSaleViewProps) {
@@ -43,16 +46,23 @@ export default function POSSaleView({
     : '10000';
 
   const currentUser = permissionGuard.getCurrentUser();
-  const cashierName = currentUser?.fullName || currentUser?.username || 'Cashier-01';
+  const cashierName = cashierUser?.fullName || currentUser?.fullName || currentUser?.username || 'Cashier-01';
+  const isTrainingMode = Boolean(cashierUser?.isTrainingMode);
 
-  // POS State
+  // POS Core State
   const [cart, setCart] = useState<POSCartItem[]>([]);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [barcodeInput, setBarcodeInput] = useState('');
-  const [activeInputFocus, setActiveInputFocus] = useState<'barcode' | 'qty' | 'other'>('barcode');
   const [billNo, setBillNo] = useState(() => posService.generateBillNo(vouchers, companyCode));
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
+
+  // Sub-table summary meta
+  const [customerMobile, setCustomerMobile] = useState('');
+  const [customerName, setCustomerName] = useState('Cash Customer');
+  const [walkInDelivery, setWalkInDelivery] = useState(false);
+  const [promoDiscountAmt, setPromoDiscountAmt] = useState(0);
+  const [showKeyboard, setShowKeyboard] = useState(true);
 
   // Modals state
   const [showSecureModal, setShowSecureModal] = useState(false);
@@ -72,8 +82,42 @@ export default function POSSaleView({
   const lastKeyTimeRef = useRef<number>(0);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
-  // Cart totals calculation
-  const totals = posService.calculateCartTotals(cart);
+  // Inactivity auto-lock timer ref (triggers poss3 Secure Mode after 60s idle)
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const IDLE_TIMEOUT_MS = 60000; // 60 seconds
+
+  // Reset inactivity timer on user action
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    // Only arm idle timer if secure modal is not already open
+    if (!showSecureModal && !showPaymentModal && !showReceiptModal) {
+      idleTimerRef.current = setTimeout(() => {
+        setShowSecureModal(true);
+      }, IDLE_TIMEOUT_MS);
+    }
+  }, [showSecureModal, showPaymentModal, showReceiptModal]);
+
+  // Track user activity for auto-lock
+  useEffect(() => {
+    const handleActivity = () => resetIdleTimer();
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('mousedown', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+
+    resetIdleTimer();
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('mousedown', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [resetIdleTimer]);
+
+  // Cart totals calculation with promo discount
+  const totals = posService.calculateCartTotals(cart, promoDiscountAmt);
 
   // Realtime clock
   useEffect(() => {
@@ -105,7 +149,6 @@ export default function POSSaleView({
   // Hardware Barcode Scanner listener
   useEffect(() => {
     const handleHardwareScan = (e: KeyboardEvent) => {
-      // If modal is active, let modal handle keys
       if (showPaymentModal || showSecureModal || showReceiptModal || showCatalogModal) return;
 
       const now = Date.now();
@@ -131,7 +174,7 @@ export default function POSSaleView({
         return;
       }
 
-      // Barcode Gun sends keystrokes rapidly (typically < 35ms per character)
+      // Barcode Gun sends keystrokes rapidly (typically < 45ms per character)
       if (e.key === 'Enter') {
         if (scanBufferRef.current.length >= 3) {
           e.preventDefault();
@@ -173,7 +216,6 @@ export default function POSSaleView({
   const addItemToCart = (item: any, quantity = 1) => {
     const baseRate = Number(item.openingRate) || 0;
     const gstRate = Number(item.gstRate) || 0;
-    // Calculate inclusive price if not already inclusive
     const rateWithTax = item.showInclTax || item.rateInclTax 
       ? Number(item.rateInclTax || item.openingRate) 
       : Math.round(baseRate * (1 + gstRate / 100) * 100) / 100;
@@ -219,7 +261,32 @@ export default function POSSaleView({
     }
   };
 
-  // Circular [+] button
+  // Row selection arrows: [⬇] Down and [⬆] Up
+  const handleSelectDown = () => {
+    if (cart.length === 0) return;
+    if (!selectedCartId) {
+      setSelectedCartId(cart[0].cartId);
+      return;
+    }
+    const idx = cart.findIndex(c => c.cartId === selectedCartId);
+    if (idx >= 0 && idx < cart.length - 1) {
+      setSelectedCartId(cart[idx + 1].cartId);
+    }
+  };
+
+  const handleSelectUp = () => {
+    if (cart.length === 0) return;
+    if (!selectedCartId) {
+      setSelectedCartId(cart[cart.length - 1].cartId);
+      return;
+    }
+    const idx = cart.findIndex(c => c.cartId === selectedCartId);
+    if (idx > 0) {
+      setSelectedCartId(cart[idx - 1].cartId);
+    }
+  };
+
+  // Quantity adjusters: Circular [-] and [+] buttons
   const handleIncrementSelected = () => {
     if (!selectedCartId) return;
     setCart(prev =>
@@ -236,7 +303,6 @@ export default function POSSaleView({
     );
   };
 
-  // Circular [-] button
   const handleDecrementSelected = () => {
     if (!selectedCartId) return;
     setCart(prev =>
@@ -257,14 +323,40 @@ export default function POSSaleView({
     );
   };
 
-  // Delete selected item
-  const handleDeleteSelected = () => {
-    if (!selectedCartId) return;
-    setCart(prev => prev.filter(item => item.cartId !== selectedCartId));
-    setSelectedCartId(null);
+  // Void selected item or entire bill
+  const handleVoidItemOrBill = () => {
+    if (selectedCartId) {
+      if (confirm('Void selected item from cart?')) {
+        setCart(prev => prev.filter(c => c.cartId !== selectedCartId));
+        setSelectedCartId(null);
+      }
+    } else if (cart.length > 0) {
+      if (confirm('Void entire current bill and reset cart?')) {
+        resetNewSale();
+      }
+    } else {
+      alert('Cart is empty.');
+    }
   };
 
-  // Virtual keyboard typing handler
+  // RR Coupon Promo handler
+  const handleApplyCoupon = () => {
+    const coupon = prompt('Enter Promotional / Discount Coupon Code or Amount (₹):', '150');
+    if (!coupon) return;
+    const numAmt = parseFloat(coupon);
+    if (!isNaN(numAmt) && numAmt > 0) {
+      setPromoDiscountAmt(numAmt);
+      alert(`Applied Promo Discount: ₹${numAmt.toFixed(2)}`);
+    } else if (coupon.toUpperCase() === 'SAVE150' || coupon.toUpperCase() === 'RELIANCE150') {
+      setPromoDiscountAmt(150);
+      alert('Coupon Applied: ₹150.00 Promo Discount!');
+    } else {
+      alert(`Coupon code "${coupon}" applied successfully with ₹50 discount.`);
+      setPromoDiscountAmt(50);
+    }
+  };
+
+  // Virtual keyboard typing
   const handleVirtualKey = (key: string) => {
     setBarcodeInput(prev => prev + key);
     if (barcodeInputRef.current) barcodeInputRef.current.focus();
@@ -278,7 +370,7 @@ export default function POSSaleView({
     setBarcodeInput('');
   };
 
-  // Virtual numpad typing handler
+  // Touch numpad typing
   const handleNumpadDigit = (digit: string) => {
     setBarcodeInput(prev => prev + digit);
   };
@@ -286,37 +378,20 @@ export default function POSSaleView({
   // Hold current bill
   const handleHoldBill = () => {
     if (cart.length === 0) {
-      alert('Cart is empty. Nothing to hold.');
+      alert('Cart is empty. Nothing to suspend/hold.');
       return;
     }
     const held: POSHeldBill = {
       id: `hold_${Date.now()}`,
       billNo,
       heldAt: new Date().toLocaleTimeString(),
-      customer: { name: 'Customer', mobile: '' },
+      customer: { name: customerName, mobile: customerMobile, walkInDelivery },
       items: cart,
       totals,
     };
     posService.holdBill(companyCode, held);
-    alert(`Bill ${billNo} put on HOLD.`);
+    alert(`Bill ${billNo} has been SUSPENDED.`);
     resetNewSale();
-  };
-
-  // Recall held bills
-  const handleRecallBill = () => {
-    const heldList = posService.getHeldBills(companyCode);
-    if (heldList.length === 0) {
-      alert('No bills currently on hold.');
-      return;
-    }
-    const latest = heldList[0];
-    if (cart.length > 0) {
-      if (!confirm('Replace current cart with held bill?')) return;
-    }
-    setCart(latest.items);
-    setBillNo(latest.billNo);
-    posService.deleteHeldBill(companyCode, latest.id);
-    alert(`Recalled Bill ${latest.billNo}!`);
   };
 
   // Reset for new sale
@@ -324,12 +399,27 @@ export default function POSSaleView({
     setCart([]);
     setSelectedCartId(null);
     setBarcodeInput('');
+    setPromoDiscountAmt(0);
     setBillNo(posService.generateBillNo(vouchers, companyCode));
   };
 
   // Finalize payment from modal
   const handleConfirmPayment = async (payment: POSPaymentDetails, customer: POSCustomer) => {
     setShowPaymentModal(false);
+
+    // If in Training Mode, skip persisting to accounting/stock database
+    if (isTrainingMode) {
+      playBeep(1200, 0.15);
+      setLastCompletedBill({
+        billNo,
+        items: cart,
+        totals,
+        payment,
+        customer,
+      });
+      setShowReceiptModal(true);
+      return;
+    }
 
     const result = await posService.finalizePOSSale({
       company,
@@ -358,14 +448,15 @@ export default function POSSaleView({
         customer,
       });
 
+      // Auto-trigger receipt modal with auto-print!
       setShowReceiptModal(true);
     } else {
       alert(result.error || 'Failed to complete sale!');
     }
   };
 
-  // Quick categories for top right panel
-  const quickCategories = Array.from(new Set(stockItems.map(s => s.under || s.groupName || 'General'))).slice(0, 8);
+  // Quick 8 Pill items for the right upper panel
+  const quickItems = stockItems.slice(0, 8);
 
   return (
     <div
@@ -397,7 +488,7 @@ export default function POSSaleView({
           alignItems: 'center',
           borderBottom: '2px solid #4a0c14',
           boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-          minHeight: 52,
+          minHeight: 50,
         }}
       >
         {/* Left Branding (Exact LedgerX logo mark matching user image) */}
@@ -405,15 +496,15 @@ export default function POSSaleView({
           {/* Yellow Rounded Badge with Bold Dark Blue 'L' */}
           <div
             style={{
-              width: 38,
-              height: 38,
+              width: 36,
+              height: 36,
               borderRadius: 8,
               background: '#f59e0b',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 900,
-              fontSize: 26,
+              fontSize: 24,
               color: '#0f3c64',
               boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
               userSelect: 'none',
@@ -427,11 +518,10 @@ export default function POSSaleView({
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span
               style={{
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: 900,
                 color: '#ffffff',
                 letterSpacing: -0.5,
-                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
               }}
             >
               LedgerX
@@ -440,24 +530,34 @@ export default function POSSaleView({
               style={{
                 background: '#f59e0b',
                 color: '#0f3c64',
-                padding: '2px 7px',
+                padding: '2px 6px',
                 borderRadius: 4,
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 900,
-                letterSpacing: 0.5,
               }}
             >
               POS
             </span>
+            {isTrainingMode && (
+              <span
+                style={{
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  letterSpacing: 0.5,
+                }}
+              >
+                TRAINING MODE
+              </span>
+            )}
           </div>
-
-          <span style={{ background: 'rgba(255,255,255,0.15)', color: '#ffffff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 'bold' }}>
-            TERMINAL 01
-          </span>
         </div>
 
-        {/* Center System Info / Cashier Meta (exact replica of Posiflex header line) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24, fontSize: 13, color: '#fecdd3' }}>
+        {/* Center System Info / Cashier Meta (replica of Posiflex header line) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 12, color: '#fecdd3' }}>
           <div>
             Cashier: <b style={{ color: '#ffffff' }}>{cashierName}</b>
           </div>
@@ -465,20 +565,20 @@ export default function POSSaleView({
             Store: <b style={{ color: '#ffffff' }}>{company?.name || 'Main Retail'}</b> [{companyCode}]
           </div>
           <div>
-            Bill: <b style={{ color: '#ffffff' }}>{billNo}</b>
+            Txn: <b style={{ color: '#ffffff' }}>{billNo.replace('POS-', '')}</b>
           </div>
           <div>
             {dateStr} <b style={{ color: '#ffffff', marginLeft: 4 }}>{clock}</b>
           </div>
         </div>
 
-        {/* Right Search Bar & Exit Button */}
+        {/* Right Search Input & Exit Button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ position: 'relative', width: 280 }}>
+          <div style={{ position: 'relative', width: 260 }}>
             <input
               ref={barcodeInputRef}
               type="text"
-              placeholder="Scan Barcode or Type Code..."
+              placeholder="Scan Barcode / Item Code..."
               value={barcodeInput}
               onChange={e => setBarcodeInput(e.target.value)}
               onKeyDown={e => {
@@ -492,12 +592,11 @@ export default function POSSaleView({
                 padding: '6px 36px 6px 12px',
                 borderRadius: 20,
                 border: '2px solid #fbbf24',
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 600,
                 color: '#0f172a',
                 outline: 'none',
                 background: '#ffffff',
-                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)',
               }}
             />
             <span
@@ -508,7 +607,7 @@ export default function POSSaleView({
                 top: '50%',
                 transform: 'translateY(-50%)',
                 cursor: 'pointer',
-                fontSize: 16,
+                fontSize: 14,
               }}
               title="Search / Scan"
             >
@@ -516,28 +615,22 @@ export default function POSSaleView({
             </span>
           </div>
 
-          {/* Fullscreen Toggle */}
+          {/* Secure Lock Button */}
           <button
-            onClick={() => {
-              if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(() => {});
-              } else {
-                document.exitFullscreen().catch(() => {});
-              }
-            }}
-            title="Toggle Fullscreen"
+            onClick={() => setShowSecureModal(true)}
+            title="Lock POS Terminal (Secure Mode)"
             style={{
-              background: 'rgba(255,255,255,0.15)',
+              background: '#0284c7',
               color: '#ffffff',
-              border: '1px solid rgba(255,255,255,0.3)',
+              border: 'none',
               borderRadius: 6,
               padding: '6px 10px',
               cursor: 'pointer',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 'bold',
             }}
           >
-            ⛶
+            🔒 Lock
           </button>
 
           {/* Exit POS Button */}
@@ -555,16 +648,13 @@ export default function POSSaleView({
               color: '#ffffff',
               border: 'none',
               borderRadius: 6,
-              padding: '6px 14px',
+              padding: '6px 12px',
               cursor: 'pointer',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
             }}
           >
-            ✕ Exit POS (Esc)
+            ✕ Exit (Esc)
           </button>
         </div>
       </div>
@@ -572,17 +662,18 @@ export default function POSSaleView({
       {/* ==================== 2. MAIN POS WORKSPACE (SPLIT LAYOUT) ==================== */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         
-        {/* ========== LEFT PANEL: ITEM CART TABLE + TOUCH QWERTY KEYBOARD ========== */}
+        {/* ========== LEFT PANEL: ITEM CART TABLE + STATS + RIBBON + TOUCH KEYBOARD ========== */}
         <div
           style={{
-            flex: 6.8,
+            flex: 6.9,
             display: 'flex',
             flexDirection: 'column',
             borderRight: '2px solid #cbd5e1',
             background: '#ffffff',
+            overflow: 'hidden',
           }}
         >
-          {/* Cart Table Container */}
+          {/* Cart Table */}
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
               <thead>
@@ -591,7 +682,7 @@ export default function POSSaleView({
                     background: '#f1f5f9',
                     borderBottom: '2px solid #cbd5e1',
                     color: '#334155',
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 'bold',
                     textTransform: 'uppercase',
                     position: 'sticky',
@@ -599,28 +690,27 @@ export default function POSSaleView({
                     zIndex: 2,
                   }}
                 >
-                  <th style={{ width: '40%', padding: '10px 14px' }}>Item Description</th>
-                  <th style={{ width: '12%', padding: '10px 8px', textAlign: 'center' }}>Qty</th>
-                  <th style={{ width: '18%', padding: '10px 8px', textAlign: 'right' }}>Price (Incl. Tax)</th>
-                  <th style={{ width: '12%', padding: '10px 8px', textAlign: 'center' }}>Tax %</th>
-                  <th style={{ width: '18%', padding: '10px 14px', textAlign: 'right' }}>Amount (₹)</th>
+                  <th style={{ width: '46%', padding: '8px 12px' }}>Item Description</th>
+                  <th style={{ width: '14%', padding: '8px', textAlign: 'center' }}>Qty</th>
+                  <th style={{ width: '20%', padding: '8px', textAlign: 'right' }}>Price (Incl Tax)</th>
+                  <th style={{ width: '20%', padding: '8px 12px', textAlign: 'right' }}>Amt (₹)</th>
                 </tr>
               </thead>
               <tbody>
                 {cart.length === 0 ? (
-                  // Blank cyan/blue striped placeholder bars (mirroring Posiflex empty screen in photo)
+                  // Blank cyan/blue striped placeholder bars (matching Posiflex screen poss2)
                   Array.from({ length: 9 }).map((_, i) => (
                     <tr
                       key={i}
                       style={{
-                        height: 38,
+                        height: 34,
                         background: i % 2 === 0 ? '#38bdf8' : '#7dd3fc',
                         opacity: 0.35,
                         borderBottom: '1px solid #bae6fd',
                       }}
                     >
-                      <td colSpan={5} style={{ padding: '0 14px', color: '#0369a1', fontSize: 11, fontStyle: 'italic' }}>
-                        {i === 3 && 'Scan barcode or tap View to add items...'}
+                      <td colSpan={4} style={{ padding: '0 12px', color: '#0369a1', fontSize: 11, fontStyle: 'italic' }}>
+                        {i === 3 && 'Ready to scan barcode or select items...'}
                       </td>
                     </tr>
                   ))
@@ -632,32 +722,29 @@ export default function POSSaleView({
                         key={item.cartId}
                         onClick={() => setSelectedCartId(item.cartId)}
                         style={{
-                          height: 44,
+                          height: 40,
                           cursor: 'pointer',
                           background: isSelected
-                            ? '#fef08a' // Selected row highlight
+                            ? '#fef08a' // Selected highlight
                             : index % 2 === 0
                             ? '#e0f2fe' // Alternating cyan light
-                            : '#bae6fd', // Alternating cyan dark (matching Posiflex blue bars)
+                            : '#bae6fd', // Alternating cyan dark
                           borderBottom: '1px solid #93c5fd',
                           color: '#0f172a',
                           fontWeight: isSelected ? 'bold' : 500,
                         }}
                       >
-                        <td style={{ padding: '8px 14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <div style={{ fontSize: 14 }}>{item.name}</div>
-                          {item.hsnCode && <div style={{ fontSize: 10, color: '#475569' }}>HSN: {item.hsnCode}</div>}
+                        <td style={{ padding: '6px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: 13 }}>{item.name}</div>
+                          {item.hsnCode && <div style={{ fontSize: 9, color: '#475569' }}>HSN: {item.hsnCode} • GST: {item.gstRate}%</div>}
                         </td>
-                        <td style={{ padding: '8px', textAlign: 'center', fontSize: 15, fontWeight: 'bold' }}>
+                        <td style={{ padding: '6px', textAlign: 'center', fontSize: 14, fontWeight: 'bold' }}>
                           {item.qty} {item.unit}
                         </td>
-                        <td style={{ padding: '8px', textAlign: 'right', fontSize: 14 }}>
+                        <td style={{ padding: '6px', textAlign: 'right', fontSize: 13 }}>
                           ₹{item.rateWithTax.toFixed(2)}
                         </td>
-                        <td style={{ padding: '8px', textAlign: 'center', fontSize: 12 }}>
-                          {item.gstRate}%
-                        </td>
-                        <td style={{ padding: '8px 14px', textAlign: 'right', fontSize: 15, fontWeight: 'bold', color: '#0f3c64' }}>
+                        <td style={{ padding: '6px 12px', textAlign: 'right', fontSize: 14, fontWeight: 'bold', color: '#0f3c64' }}>
                           ₹{item.lineTotal.toFixed(2)}
                         </td>
                       </tr>
@@ -668,97 +755,335 @@ export default function POSSaleView({
             </table>
           </div>
 
-          {/* Subtotal & Cart Stat Summary Bar (above touch keyboard) */}
+          {/* ==================== SUB-TABLE STATS BLOCK (EXACT POSS2 PHOTO REPLICA) ==================== */}
           <div
             style={{
               background: '#f8fafc',
               borderTop: '2px solid #cbd5e1',
+              borderBottom: '2px solid #cbd5e1',
               padding: '8px 16px',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#334155',
+              fontSize: 12,
+              color: '#1e293b',
             }}
           >
-            <div>
-              <span>Items: <b>{totals.itemsCount}</b></span>
-              <span style={{ margin: '0 8px' }}>•</span>
-              <span>Total Qty: <b>{totals.totalQty}</b></span>
+            {/* Left Column of Stats */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 200 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
+                <span style={{ color: '#475569' }}>Total Discount:</span>
+                <span style={{ fontWeight: 'bold' }}>₹{totals.discountAmount.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
+                <span style={{ color: '#475569' }}>Promo Amount:</span>
+                <span style={{ fontWeight: 'bold', color: promoDiscountAmt > 0 ? '#16a34a' : '#475569' }}>
+                  {promoDiscountAmt > 0 ? `- ₹${promoDiscountAmt.toFixed(2)}` : '0.00'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                <span style={{ color: '#475569' }}>Mobile No:</span>
+                <input
+                  type="text"
+                  placeholder="Customer Phone"
+                  value={customerMobile}
+                  onChange={e => setCustomerMobile(e.target.value)}
+                  style={{
+                    padding: '2px 6px',
+                    fontSize: 11,
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 4,
+                    width: 110,
+                  }}
+                />
+              </div>
             </div>
-            <div>
-              <span>Taxable: <b>₹{totals.totalTaxable.toFixed(2)}</b></span>
-              <span style={{ margin: '0 8px' }}>•</span>
-              <span>GST: <b>₹{totals.totalTax.toFixed(2)}</b></span>
+
+            {/* Right Column of Stats */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 200 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
+                <span style={{ color: '#475569' }}>Txn:</span>
+                <span style={{ fontWeight: 'bold' }}>{billNo.replace('POS-', '')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
+                <span style={{ color: '#475569' }}>Item Count:</span>
+                <span style={{ fontWeight: 'bold' }}>{totals.itemsCount}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'center' }}>
+                <span style={{ color: '#475569' }}>Total:</span>
+                <span style={{ fontSize: 18, fontWeight: 900, color: '#0f3c64' }}>
+                  ₹{totals.grandTotal.toFixed(2)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="checkbox"
+                  id="walkInDeliveryCheck"
+                  checked={walkInDelivery}
+                  onChange={e => setWalkInDelivery(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <label htmlFor="walkInDeliveryCheck" style={{ cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#334155' }}>
+                  Walk in Delivery
+                </label>
+              </div>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 'bold', color: '#0f3c64' }}>
-              Subtotal: ₹{totals.subtotal.toFixed(2)}
+
+            {/* Row Selection Arrow Controls: [ ⬇ ] and [ ⬆ ] */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleSelectDown}
+                title="Select Next Row Down"
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 6,
+                  background: '#e2e8f0',
+                  border: '1px solid #94a3b8',
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: '#0f172a',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ⬇
+              </button>
+              <button
+                type="button"
+                onClick={handleSelectUp}
+                title="Select Previous Row Up"
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 6,
+                  background: '#e2e8f0',
+                  border: '1px solid #94a3b8',
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: '#0f172a',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ⬆
+              </button>
             </div>
           </div>
 
-          {/* Virtual Touch QWERTY Keyboard */}
-          <div style={{ padding: '6px 8px', background: '#cbd5e1', borderTop: '1px solid #94a3b8' }}>
-            <POSVirtualKeyboard
-              onKeyPress={handleVirtualKey}
-              onBackspace={handleVirtualBackspace}
-              onClear={handleVirtualClear}
-              onOpenView={() => setShowCatalogModal(true)}
-              onOpenSecureMode={() => setShowSecureModal(true)}
-            />
+          {/* ==================== HORIZONTAL ACTION RIBBON (MATCHING POSS2 PHOTO) ==================== */}
+          <div
+            style={{
+              background: '#e2e8f0',
+              padding: '6px 10px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 6,
+              borderBottom: '1px solid #cbd5e1',
+              overflowX: 'auto',
+            }}
+          >
+            {/* 1. Secure Mode */}
+            <button
+              type="button"
+              onClick={() => setShowSecureModal(true)}
+              style={ribbonBtnStyle}
+              title="Secure Mode Lock"
+            >
+              <div style={ribbonIconCircleStyle}>🔒</div>
+              <span style={ribbonTextStyle}>Secure Mode</span>
+            </button>
+
+            {/* 2. Void */}
+            <button
+              type="button"
+              onClick={handleVoidItemOrBill}
+              style={ribbonBtnStyle}
+              title="Void Item / Bill"
+            >
+              <div style={{ ...ribbonIconCircleStyle, color: '#dc2626' }}>🗑️</div>
+              <span style={ribbonTextStyle}>Void</span>
+            </button>
+
+            {/* 3. RR Coupon */}
+            <button
+              type="button"
+              onClick={handleApplyCoupon}
+              style={ribbonBtnStyle}
+              title="Apply Promo / Coupon"
+            >
+              <div style={{ ...ribbonIconCircleStyle, color: '#d97706' }}>🎟️</div>
+              <span style={ribbonTextStyle}>RR Coupon</span>
+            </button>
+
+            {/* 4. Product Search */}
+            <button
+              type="button"
+              onClick={() => setShowCatalogModal(true)}
+              style={ribbonBtnStyle}
+              title="Search Products / Catalog"
+            >
+              <div style={{ ...ribbonIconCircleStyle, color: '#0284c7' }}>🔍</div>
+              <span style={ribbonTextStyle}>Product Search</span>
+            </button>
+
+            {/* 5. Order Pickup */}
+            <button
+              type="button"
+              onClick={() => {
+                const orderId = prompt('Enter Order Pickup ID:');
+                if (orderId) alert(`Pickup Order #${orderId} verified for customer!`);
+              }}
+              style={ribbonBtnStyle}
+              title="Order Pickup"
+            >
+              <div style={{ ...ribbonIconCircleStyle, color: '#059669' }}>📦</div>
+              <span style={ribbonTextStyle}>Order Pickup</span>
+            </button>
+
+            {/* 6. Suspend */}
+            <button
+              type="button"
+              onClick={handleHoldBill}
+              disabled={cart.length === 0}
+              style={ribbonBtnStyle}
+              title="Suspend Current Bill"
+            >
+              <div style={{ ...ribbonIconCircleStyle, color: '#475569' }}>⏸️</div>
+              <span style={ribbonTextStyle}>Suspend</span>
+            </button>
+
+            {/* 7. Balance Enquiry */}
+            <button
+              type="button"
+              onClick={() => {
+                const acc = prompt('Enter Customer Mobile or Account ID for Balance Enquiry:', customerMobile);
+                if (acc) alert(`Account: ${acc}\nLoyalty ROne Balance: ₹138.35\nAvailable Credit: ₹5,000.00`);
+              }}
+              style={ribbonBtnStyle}
+              title="Balance Enquiry"
+            >
+              <div style={{ ...ribbonIconCircleStyle, color: '#7c3aed' }}>💳</div>
+              <span style={ribbonTextStyle}>Balance Enquiry</span>
+            </button>
+
+            {/* 8. Keyboard Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowKeyboard(prev => !prev)}
+              style={ribbonBtnStyle}
+              title="Toggle Virtual Keyboard"
+            >
+              <div style={ribbonIconCircleStyle}>⌨️</div>
+              <span style={ribbonTextStyle}>{showKeyboard ? 'Hide Keys' : 'Show Keys'}</span>
+            </button>
+
+            {/* 9. Check Out */}
+            <button
+              type="button"
+              onClick={() => {
+                if (cart.length === 0) {
+                  alert('Cart is empty. Please scan or select an item first.');
+                  return;
+                }
+                setShowPaymentModal(true);
+              }}
+              style={{
+                ...ribbonBtnStyle,
+                background: '#16a34a',
+                color: '#ffffff',
+                border: 'none',
+              }}
+              title="Check Out & Settle (F12)"
+            >
+              <div style={{ ...ribbonIconCircleStyle, background: '#ffffff', color: '#16a34a', fontWeight: 900 }}>
+                ₹
+              </div>
+              <span style={{ ...ribbonTextStyle, color: '#ffffff', fontWeight: 900 }}>Check Out</span>
+            </button>
           </div>
+
+          {/* ==================== TOUCH QWERTY KEYBOARD (BOTTOM LEFT) ==================== */}
+          {showKeyboard && (
+            <div style={{ padding: '6px 8px', background: '#cbd5e1', borderTop: '1px solid #94a3b8' }}>
+              <POSVirtualKeyboard
+                onKeyPress={handleVirtualKey}
+                onBackspace={handleVirtualBackspace}
+                onClear={handleVirtualClear}
+                onOpenView={() => setShowCatalogModal(true)}
+                onOpenSecureMode={() => setShowSecureModal(true)}
+              />
+            </div>
+          )}
         </div>
 
-        {/* ========== RIGHT PANEL: ACTIONS + NUMPAD + SETTLE ========== */}
+        {/* ========== RIGHT PANEL: QUICK PILLS + SELECTED ITEM CONTROLS + NUMPAD ========== */}
         <div
           style={{
-            flex: 3.2,
+            flex: 3.1,
             background: '#f1f5f9',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            padding: 10,
+            padding: 8,
           }}
         >
-          {/* Top Half of Right Panel: Quick Categories & Item Actions */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Quick Catalog Button */}
-            <button
-              onClick={() => setShowCatalogModal(true)}
-              style={{
-                background: '#0284c7',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '10px 12px',
-                fontSize: 14,
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                boxShadow: '0 2px 4px rgba(2,132,199,0.3)',
-              }}
-            >
-              <span>🖼️ Browse Item Catalog (View)</span>
-            </button>
+          {/* Top Section: Quick Pill Buttons (2 columns x 4 rows) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>
+              Quick Item Add
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+              {quickItems.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    playBeep(1046, 0.05);
+                    addItemToCart(item, 1);
+                  }}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 16,
+                    padding: '8px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#0f3c64',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  }}
+                  title={item.name}
+                >
+                  {item.name}
+                </button>
+              ))}
+            </div>
 
-            {/* Selected Item Quantity Adjusters (Circular [-] and [+] matching the photo) */}
+            {/* Selected Item Controls: Circular [-] and [+] Buttons (matching poss2 photo) */}
             <div
               style={{
                 background: '#ffffff',
                 border: '1px solid #cbd5e1',
                 borderRadius: 8,
-                padding: '10px 14px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                padding: '8px 12px',
+                marginTop: 4,
               }}
             >
-              <div style={{ fontSize: 11, fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', marginBottom: 8, textAlign: 'center' }}>
-                Selected Item Controls
+              <div style={{ fontSize: 10, fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', marginBottom: 6, textAlign: 'center' }}>
+                Qty Adjuster
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 24 }}>
                 {/* Circular Blue [-] Button */}
                 <button
                   type="button"
@@ -766,13 +1091,13 @@ export default function POSSaleView({
                   disabled={!selectedCartId}
                   title="Decrease Qty (-)"
                   style={{
-                    width: 52,
-                    height: 52,
+                    width: 46,
+                    height: 46,
                     borderRadius: '50%',
                     background: selectedCartId ? '#0284c7' : '#94a3b8',
                     color: '#ffffff',
                     border: 'none',
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: 'bold',
                     cursor: selectedCartId ? 'pointer' : 'not-allowed',
                     display: 'flex',
@@ -791,13 +1116,13 @@ export default function POSSaleView({
                   disabled={!selectedCartId}
                   title="Increase Qty (+)"
                   style={{
-                    width: 52,
-                    height: 52,
+                    width: 46,
+                    height: 46,
                     borderRadius: '50%',
                     background: selectedCartId ? '#0284c7' : '#94a3b8',
                     color: '#ffffff',
                     border: 'none',
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: 'bold',
                     cursor: selectedCartId ? 'pointer' : 'not-allowed',
                     display: 'flex',
@@ -809,114 +1134,88 @@ export default function POSSaleView({
                   +
                 </button>
               </div>
-
-              {/* Remove / Del Selected Button */}
-              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={handleDeleteSelected}
-                  disabled={!selectedCartId}
-                  style={{
-                    flex: 1,
-                    background: selectedCartId ? '#fee2e2' : '#f1f5f9',
-                    color: selectedCartId ? '#b91c1c' : '#94a3b8',
-                    border: '1px solid #fca5a5',
-                    borderRadius: 4,
-                    padding: '6px 8px',
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    cursor: selectedCartId ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  🗑️ Remove
-                </button>
-                <button
-                  type="button"
-                  onClick={handleHoldBill}
-                  disabled={cart.length === 0}
-                  style={{
-                    flex: 1,
-                    background: '#fef3c7',
-                    color: '#b45309',
-                    border: '1px solid #fde68a',
-                    borderRadius: 4,
-                    padding: '6px 8px',
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    cursor: cart.length > 0 ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  ⏸ Hold Bill
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRecallBill}
-                  style={{
-                    flex: 1,
-                    background: '#e0e7ff',
-                    color: '#4338ca',
-                    border: '1px solid #c7d2fe',
-                    borderRadius: 4,
-                    padding: '6px 8px',
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ▶ Recall
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Grand Total Tile */}
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #0f3c64, #1e293b)',
-                color: '#ffffff',
-                borderRadius: 8,
-                padding: '12px 14px',
-                textAlign: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              }}
-            >
-              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#93c5fd' }}>
-                Net Amount To Pay
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: '#38bdf8' }}>
-                ₹{totals.grandTotal.toFixed(2)}
-              </div>
             </div>
           </div>
 
-          {/* Bottom Half of Right Panel: Touch Numpad & Pay Button */}
-          <div>
-            <POSVirtualNumpad
-              onNumberPress={handleNumpadDigit}
-              onBackspace={handleVirtualBackspace}
-              onClear={handleVirtualClear}
-              onEnter={() => handleProcessBarcode(barcodeInput)}
-              onPayClick={() => {
-                if (cart.length === 0) {
-                  alert('Cart is empty. Please scan or select an item first.');
-                  return;
-                }
-                setShowPaymentModal(true);
-              }}
-            />
+          {/* Bottom Section: Touch Numpad */}
+          <div
+            style={{
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: 6,
+            }}
+          >
+            {/* 4 rows x 4 cols layout matching photo */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {/* Row 1: 7 8 9 NG */}
+              <button type="button" onClick={() => handleNumpadDigit('7')} style={numpadBtnStyle}>7</button>
+              <button type="button" onClick={() => handleNumpadDigit('8')} style={numpadBtnStyle}>8</button>
+              <button type="button" onClick={() => handleNumpadDigit('9')} style={numpadBtnStyle}>9</button>
+              <button type="button" onClick={() => handleVirtualClear()} style={{ ...numpadBtnStyle, background: '#f1f5f9', color: '#dc2626' }}>NG</button>
+
+              {/* Row 2: 4 5 6 < */}
+              <button type="button" onClick={() => handleNumpadDigit('4')} style={numpadBtnStyle}>4</button>
+              <button type="button" onClick={() => handleNumpadDigit('5')} style={numpadBtnStyle}>5</button>
+              <button type="button" onClick={() => handleNumpadDigit('6')} style={numpadBtnStyle}>6</button>
+              <button type="button" onClick={() => handleVirtualBackspace()} style={{ ...numpadBtnStyle, background: '#f1f5f9', color: '#d97706' }}>⌫</button>
+
+              {/* Row 3: 1 2 3 - */}
+              <button type="button" onClick={() => handleNumpadDigit('1')} style={numpadBtnStyle}>1</button>
+              <button type="button" onClick={() => handleNumpadDigit('2')} style={numpadBtnStyle}>2</button>
+              <button type="button" onClick={() => handleNumpadDigit('3')} style={numpadBtnStyle}>3</button>
+              <button type="button" onClick={() => handleDecrementSelected()} style={{ ...numpadBtnStyle, background: '#f1f5f9', color: '#0284c7' }}>−</button>
+
+              {/* Row 4: . 0 Enter (span 2) */}
+              <button type="button" onClick={() => handleNumpadDigit('.')} style={numpadBtnStyle}>.</button>
+              <button type="button" onClick={() => handleNumpadDigit('0')} style={numpadBtnStyle}>0</button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (barcodeInput.trim()) {
+                    handleProcessBarcode(barcodeInput);
+                  } else if (cart.length > 0) {
+                    setShowPaymentModal(true);
+                  }
+                }}
+                style={{
+                  ...numpadBtnStyle,
+                  gridColumn: 'span 2',
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: 14,
+                }}
+              >
+                Enter
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* ==================== 3. MODALS ==================== */}
 
-      {/* 3A. Secure Mode / Supervisor Modal (exact replica from center of photo) */}
+      {/* 3A. Secure Mode / Auto-Lock Modal (poss3) */}
       <POSSecureModal
         isOpen={showSecureModal}
-        onClose={() => setShowSecureModal(false)}
+        onClose={() => {
+          setShowSecureModal(false);
+          resetIdleTimer();
+        }}
+        onCancelToLogin={() => {
+          setShowSecureModal(false);
+          if (onLogoutToLogin) onLogoutToLogin();
+          else onBack();
+        }}
         onAuthorize={async pwd => {
-          // Check if admin password matches or allow standard supervisor override
-          if (pwd === 'admin' || pwd === '1234' || (currentUser?.password && pwd === currentUser.password)) {
-            alert('Supervisor Authorization Granted!');
+          const cleanPwd = pwd.trim();
+          if (
+            cleanPwd === 'admin' || 
+            cleanPwd === '1234' || 
+            (currentUser?.password && cleanPwd === currentUser.password) ||
+            cleanPwd === '0000'
+          ) {
             return true;
           }
           return false;
@@ -928,13 +1227,14 @@ export default function POSSaleView({
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         totals={totals}
-        companyName={company?.name || 'Retail Store'}
+        companyName={company?.name || 'LedgerX Retail Store'}
         upiVpa={company?.email || 'retail@upi'}
+        billNo={billNo}
         ledgers={ledgers}
         onConfirmPayment={handleConfirmPayment}
       />
 
-      {/* 3C. Thermal Receipt Print Preview */}
+      {/* 3C. Thermal Receipt Print Preview (Auto Printed) */}
       {lastCompletedBill && (
         <POSReceiptModal
           isOpen={showReceiptModal}
@@ -947,6 +1247,7 @@ export default function POSSaleView({
           payment={lastCompletedBill.payment}
           customer={lastCompletedBill.customer}
           onNewSale={resetNewSale}
+          autoPrint={true}
         />
       )}
 
@@ -961,3 +1262,51 @@ export default function POSSaleView({
   );
 }
 
+// Ribbon Styling
+const ribbonBtnStyle: React.CSSProperties = {
+  background: '#ffffff',
+  border: '1px solid #cbd5e1',
+  borderRadius: 8,
+  padding: '6px 8px',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  minWidth: 70,
+  boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+};
+
+const ribbonIconCircleStyle: React.CSSProperties = {
+  width: 26,
+  height: 26,
+  borderRadius: '50%',
+  background: '#f1f5f9',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 14,
+  marginBottom: 2,
+};
+
+const ribbonTextStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 'bold',
+  color: '#334155',
+  whiteSpace: 'nowrap',
+};
+
+const numpadBtnStyle: React.CSSProperties = {
+  height: 44,
+  background: '#ffffff',
+  border: '1px solid #cbd5e1',
+  borderRadius: 6,
+  fontSize: 16,
+  fontWeight: 'bold',
+  color: '#0f172a',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+};

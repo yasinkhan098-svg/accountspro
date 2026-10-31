@@ -21,7 +21,7 @@ import OfflineLicenseGuard from '@/components/OfflineLicenseGuard';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 import AutoUpdateManager from '@/components/AutoUpdateManager';
 import RoleManagementView from '@/components/RoleManagementView';
-import POSSaleView from '@/components/pos/POSSaleView';
+import POSWorkflowContainer from '@/components/pos/POSWorkflowContainer';
 import UserSwitchModal from '@/components/UserSwitchModal';
 import { permissionGuard, LANUser } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
@@ -4400,7 +4400,7 @@ export default function App() {
             {screen==='PURCHASE_ORDER_REGISTER' && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="register" onBack={goBack}/>}
             {screen==='BOM_MODULE'              && <BOMModule company={activeCompany} stockItems={stockItems} ledgers={ledgers} initialTab="journal" onBack={goBack} onAltC={handleOpenAltC} onStockUpdated={syncData} onSaveManufacturingJournal={handleSaveManufacturingJournal} onDeleteManufacturingJournal={handleDeleteManufacturingJournal}/>}
             {screen==='POS_SALE'                && (
-              <POSSaleView
+              <POSWorkflowContainer
                 company={activeCompany}
                 availableCompanies={companies}
                 stockItems={allStockItems}

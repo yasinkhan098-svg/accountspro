@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 interface POSSecureModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCancelToLogin?: () => void;
   onAuthorize: (password: string) => boolean | Promise<boolean>;
   title?: string;
   actionDescription?: string;
@@ -12,9 +13,10 @@ interface POSSecureModalProps {
 export default function POSSecureModal({
   isOpen,
   onClose,
+  onCancelToLogin,
   onAuthorize,
   title = 'Secure Mode',
-  actionDescription = 'Supervisor Authorization Required',
+  actionDescription = 'Supervisor / Cashier Authorization',
 }: POSSecureModalProps) {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -36,12 +38,22 @@ export default function POSSecureModal({
         setPassword('');
         onClose();
       } else {
-        setErrorMsg('Invalid supervisor password!');
+        setErrorMsg('Invalid password!');
       }
     } catch (err: any) {
       setErrorMsg('Authorization failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setPassword('');
+    setErrorMsg('');
+    if (onCancelToLogin) {
+      onCancelToLogin();
+    } else {
+      onClose();
     }
   };
 
@@ -53,30 +65,31 @@ export default function POSSecureModal({
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'rgba(15, 23, 42, 0.65)',
+        background: 'rgba(15, 23, 42, 0.7)',
         backdropFilter: 'blur(3px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000000,
       }}
-      onClick={onClose}
+      onClick={handleCancel}
     >
+      {/* Modal Box matching exact Posiflex screen poss3 */}
       <div
         style={{
-          width: 360,
+          width: 370,
           background: '#ffffff',
           borderRadius: 8,
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
           overflow: 'hidden',
-          border: '2px solid #0f3c64',
+          border: '2px solid #1e3a5f',
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Navy Header matching Posiflex screen */}
+        {/* Navy Header matching photo poss3 */}
         <div
           style={{
-            background: '#1e3a5f',
+            background: 'linear-gradient(180deg, #1e3a5f 0%, #152942 100%)',
             color: '#ffffff',
             padding: '12px 16px',
             fontWeight: 'bold',
@@ -88,13 +101,13 @@ export default function POSSecureModal({
           {title}
         </div>
 
-        {/* Modal Content */}
-        <form onSubmit={handleSubmit} style={{ padding: '20px 24px' }}>
-          <div style={{ fontSize: 13, color: '#64748b', textAlign: 'center', marginBottom: 14 }}>
+        {/* Modal Form */}
+        <form onSubmit={handleSubmit} style={{ padding: '22px 24px' }}>
+          <div style={{ fontSize: 13, color: '#475569', textAlign: 'center', marginBottom: 14 }}>
             {actionDescription}
           </div>
 
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 14 }}>
             <label
               style={{
                 display: 'block',
@@ -116,12 +129,13 @@ export default function POSSecureModal({
                 placeholder="••••••••"
                 style={{
                   flex: 1,
-                  padding: '10px 12px',
+                  padding: '9px 12px',
                   border: '2px solid #0284c7',
                   borderRadius: 6,
                   fontSize: 18,
                   textAlign: 'center',
                   outline: 'none',
+                  letterSpacing: 3,
                 }}
               />
               <button
@@ -132,7 +146,7 @@ export default function POSSecureModal({
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: 6,
-                  padding: '0 16px',
+                  padding: '0 18px',
                   fontWeight: 'bold',
                   fontSize: 13,
                   cursor: 'pointer',
@@ -157,16 +171,16 @@ export default function POSSecureModal({
             </div>
           )}
 
-          {/* Cancel Button */}
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
+          {/* Cancel Button (matching Posiflex pill cancel) */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCancel}
               style={{
                 background: '#f1f5f9',
                 border: '1px solid #cbd5e1',
                 borderRadius: 20,
-                padding: '6px 24px',
+                padding: '6px 28px',
                 fontSize: 13,
                 fontWeight: '600',
                 color: '#475569',
@@ -181,4 +195,3 @@ export default function POSSecureModal({
     </div>
   );
 }
-
