@@ -66,6 +66,24 @@ export default function POSSaleView({
 
   // Modals state
   const [showSecureModal, setShowSecureModal] = useState(false);
+  const [securePassword, setSecurePassword] = useState('');
+  const secureInputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
+  const [activeField, setActiveField] = useState<'barcode' | 'mobile' | 'securePassword'>('barcode');
+  const activeFieldRef = useRef<'barcode' | 'mobile' | 'securePassword'>('barcode');
+
+  // Sync activeField with Secure Mode
+  useEffect(() => {
+    if (showSecureModal) {
+      activeFieldRef.current = 'securePassword';
+      setActiveField('securePassword');
+    } else {
+      activeFieldRef.current = 'barcode';
+      setActiveField('barcode');
+      setSecurePassword('');
+    }
+  }, [showSecureModal]);
+
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
@@ -356,23 +374,148 @@ export default function POSSaleView({
     }
   };
 
-  // Virtual keyboard typing
-  const handleVirtualKey = (key: string) => {
-    setBarcodeInput(prev => prev + key);
-    if (barcodeInputRef.current) barcodeInputRef.current.focus();
+  // Universal keyboard & numpad typing handler (works across Secure Mode, Mobile No, Barcode, etc.)
+  const handleUniversalKey = (key: string) => {
+    if (showSecureModal || activeFieldRef.current === 'securePassword') {
+      setSecurePassword(prev => prev + key);
+      return;
+    }
+
+    if (activeFieldRef.current === 'mobile') {
+      const el = mobileInputRef.current;
+      if (el && el.selectionStart !== null && el.selectionEnd !== null) {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        setCustomerMobile(prev => {
+          const nextVal = prev.slice(0, start) + key + prev.slice(end);
+          setTimeout(() => {
+            el.selectionStart = start + key.length;
+            el.selectionEnd = start + key.length;
+          }, 0);
+          return nextVal;
+        });
+      } else {
+        setCustomerMobile(prev => prev + key);
+      }
+      return;
+    }
+
+    // Default: Barcode input
+    const el = barcodeInputRef.current;
+    if (el && el.selectionStart !== null && el.selectionEnd !== null) {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      setBarcodeInput(prev => {
+        const nextVal = prev.slice(0, start) + key + prev.slice(end);
+        setTimeout(() => {
+          el.selectionStart = start + key.length;
+          el.selectionEnd = start + key.length;
+        }, 0);
+        return nextVal;
+      });
+    } else {
+      setBarcodeInput(prev => prev + key);
+      if (el && document.activeElement !== el) el.focus();
+    }
   };
 
-  const handleVirtualBackspace = () => {
+  const handleUniversalBackspace = () => {
+    if (showSecureModal || activeFieldRef.current === 'securePassword') {
+      setSecurePassword(prev => prev.slice(0, -1));
+      return;
+    }
+
+    if (activeFieldRef.current === 'mobile') {
+      const el = mobileInputRef.current;
+      if (el && el.selectionStart !== null && el.selectionEnd !== null) {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        if (start === end && start > 0) {
+          setCustomerMobile(prev => {
+            const nextVal = prev.slice(0, start - 1) + prev.slice(end);
+            setTimeout(() => {
+              el.selectionStart = start - 1;
+              el.selectionEnd = start - 1;
+            }, 0);
+            return nextVal;
+          });
+          return;
+        } else if (start !== end) {
+          setCustomerMobile(prev => {
+            const nextVal = prev.slice(0, start) + prev.slice(end);
+            setTimeout(() => {
+              el.selectionStart = start;
+              el.selectionEnd = start;
+            }, 0);
+            return nextVal;
+          });
+          return;
+        }
+      }
+      setCustomerMobile(prev => prev.slice(0, -1));
+      return;
+    }
+
+    const el = barcodeInputRef.current;
+    if (el && el.selectionStart !== null && el.selectionEnd !== null) {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      if (start === end && start > 0) {
+        setBarcodeInput(prev => {
+          const nextVal = prev.slice(0, start - 1) + prev.slice(end);
+          setTimeout(() => {
+            el.selectionStart = start - 1;
+            el.selectionEnd = start - 1;
+          }, 0);
+          return nextVal;
+        });
+        return;
+      } else if (start !== end) {
+        setBarcodeInput(prev => {
+          const nextVal = prev.slice(0, start) + prev.slice(end);
+          setTimeout(() => {
+            el.selectionStart = start;
+            el.selectionEnd = start;
+          }, 0);
+          return nextVal;
+        });
+        return;
+      }
+    }
     setBarcodeInput(prev => prev.slice(0, -1));
   };
 
-  const handleVirtualClear = () => {
+  const handleUniversalClear = () => {
+    if (showSecureModal || activeFieldRef.current === 'securePassword') {
+      setSecurePassword('');
+      return;
+    }
+    if (activeFieldRef.current === 'mobile') {
+      setCustomerMobile('');
+      return;
+    }
     setBarcodeInput('');
   };
 
-  // Touch numpad typing
-  const handleNumpadDigit = (digit: string) => {
-    setBarcodeInput(prev => prev + digit);
+  const handleUniversalEnter = () => {
+    if (showSecureModal || activeFieldRef.current === 'securePassword') {
+      const submitBtn = document.getElementById('pos-secure-submit-btn');
+      if (submitBtn) {
+        submitBtn.click();
+      }
+      return;
+    }
+    if (activeFieldRef.current === 'mobile') {
+      activeFieldRef.current = 'barcode';
+      setActiveField('barcode');
+      if (barcodeInputRef.current) barcodeInputRef.current.focus();
+      return;
+    }
+    if (barcodeInput.trim()) {
+      handleProcessBarcode(barcodeInput);
+    } else if (cart.length > 0) {
+      setShowPaymentModal(true);
+    }
   };
 
   // Hold current bill
@@ -502,6 +645,9 @@ export default function POSSaleView({
           borderBottom: '2px solid #4a0c14',
           boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
           minHeight: 50,
+          pointerEvents: showSecureModal ? 'none' : 'auto',
+          opacity: showSecureModal ? 0.65 : 1,
+          transition: 'opacity 0.2s ease',
         }}
       >
         {/* Left Branding (Exact LedgerX logo mark matching user image) */}
@@ -593,6 +739,10 @@ export default function POSSaleView({
               type="text"
               placeholder="Scan Barcode / Item Code..."
               value={barcodeInput}
+              onFocus={() => {
+                activeFieldRef.current = 'barcode';
+                setActiveField('barcode');
+              }}
               onChange={e => setBarcodeInput(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
@@ -604,7 +754,7 @@ export default function POSSaleView({
                 width: '100%',
                 padding: '6px 36px 6px 12px',
                 borderRadius: 20,
-                border: '2px solid #fbbf24',
+                border: activeField === 'barcode' ? '2px solid #38bdf8' : '2px solid #fbbf24',
                 fontSize: 12,
                 fontWeight: 600,
                 color: '#0f172a',
@@ -699,7 +849,15 @@ export default function POSSaleView({
           }}
         >
           {/* Cart Table */}
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              pointerEvents: showSecureModal ? 'none' : 'auto',
+            }}
+          >
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
               <thead>
                 <tr
@@ -792,6 +950,9 @@ export default function POSSaleView({
               alignItems: 'center',
               fontSize: 12,
               color: '#1e293b',
+              pointerEvents: showSecureModal ? 'none' : 'auto',
+              opacity: showSecureModal ? 0.7 : 1,
+              transition: 'opacity 0.2s ease',
             }}
           >
             {/* Left Column of Stats */}
@@ -809,16 +970,22 @@ export default function POSSaleView({
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                 <span style={{ color: '#475569' }}>Mobile No:</span>
                 <input
+                  ref={mobileInputRef}
                   type="text"
                   placeholder="Customer Phone"
                   value={customerMobile}
+                  onFocus={() => {
+                    activeFieldRef.current = 'mobile';
+                    setActiveField('mobile');
+                  }}
                   onChange={e => setCustomerMobile(e.target.value)}
                   style={{
                     padding: '2px 6px',
                     fontSize: 11,
-                    border: '1px solid #cbd5e1',
+                    border: activeField === 'mobile' ? '2px solid #0284c7' : '1px solid #cbd5e1',
                     borderRadius: 4,
                     width: 110,
+                    outline: 'none',
                   }}
                 />
               </div>
@@ -889,6 +1056,9 @@ export default function POSSaleView({
               borderBottom: '1px solid #cbd5e1',
               boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.8)',
               overflowX: 'auto',
+              pointerEvents: showSecureModal ? 'none' : 'auto',
+              opacity: showSecureModal ? 0.6 : 1,
+              transition: 'opacity 0.2s ease',
             }}
           >
             {/* 1. Secure Mode */}
@@ -1025,12 +1195,21 @@ export default function POSSaleView({
 
           {/* ==================== TOUCH QWERTY KEYBOARD (BOTTOM LEFT) ==================== */}
           {showKeyboard && (
-            <div style={{ padding: '6px 8px', background: '#cbd5e1', borderTop: '1px solid #94a3b8' }}>
+            <div
+              style={{
+                padding: '6px 8px',
+                background: '#cbd5e1',
+                borderTop: '1px solid #94a3b8',
+                position: 'relative',
+                zIndex: showSecureModal ? 10005 : 1,
+                pointerEvents: 'auto',
+              }}
+            >
               <POSVirtualKeyboard
-                onKeyPress={handleVirtualKey}
-                onBackspace={handleVirtualBackspace}
-                onClear={handleVirtualClear}
-                onOpenView={() => setShowCatalogModal(true)}
+                onKeyPress={handleUniversalKey}
+                onBackspace={handleUniversalBackspace}
+                onClear={handleUniversalClear}
+                onOpenView={() => { if (!showSecureModal) setShowCatalogModal(true); }}
                 onOpenSecureMode={() => setShowSecureModal(true)}
               />
             </div>
@@ -1049,7 +1228,16 @@ export default function POSSaleView({
           }}
         >
           {/* Top Section: Quick Pill Buttons (2 columns x 4 rows) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              pointerEvents: showSecureModal ? 'none' : 'auto',
+              opacity: showSecureModal ? 0.6 : 1,
+              transition: 'opacity 0.2s ease',
+            }}
+          >
             <div style={{ fontSize: 11, fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>
               Quick Item Add
             </div>
@@ -1164,18 +1352,22 @@ export default function POSSaleView({
               padding: 8,
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.06), inset 0 1px 2px #ffffff',
               backdropFilter: 'blur(8px)',
+              position: 'relative',
+              zIndex: showSecureModal ? 10005 : 1,
+              pointerEvents: 'auto',
             }}
           >
             {/* 4 rows x 4 cols layout matching photo */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {/* Row 1: 7 8 9 NG */}
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('7')} style={numpadBtnStyle}>7</button>
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('8')} style={numpadBtnStyle}>8</button>
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('9')} style={numpadBtnStyle}>9</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('7')} style={numpadBtnStyle}>7</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('8')} style={numpadBtnStyle}>8</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('9')} style={numpadBtnStyle}>9</button>
               <button
                 type="button"
                 className="pos-touch-btn"
-                onClick={() => handleVirtualClear()}
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => handleUniversalClear()}
                 style={{
                   ...numpadBtnStyle,
                   background: 'linear-gradient(180deg, #f87171 0%, #dc2626 50%, #b91c1c 100%)',
@@ -1190,13 +1382,14 @@ export default function POSSaleView({
               </button>
 
               {/* Row 2: 4 5 6 < */}
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('4')} style={numpadBtnStyle}>4</button>
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('5')} style={numpadBtnStyle}>5</button>
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('6')} style={numpadBtnStyle}>6</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('4')} style={numpadBtnStyle}>4</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('5')} style={numpadBtnStyle}>5</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('6')} style={numpadBtnStyle}>6</button>
               <button
                 type="button"
                 className="pos-touch-btn"
-                onClick={() => handleVirtualBackspace()}
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => handleUniversalBackspace()}
                 style={{
                   ...numpadBtnStyle,
                   background: 'linear-gradient(180deg, #fbbf24 0%, #d97706 50%, #b45309 100%)',
@@ -1212,13 +1405,20 @@ export default function POSSaleView({
               </button>
 
               {/* Row 3: 1 2 3 - */}
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('1')} style={numpadBtnStyle}>1</button>
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('2')} style={numpadBtnStyle}>2</button>
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('3')} style={numpadBtnStyle}>3</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('1')} style={numpadBtnStyle}>1</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('2')} style={numpadBtnStyle}>2</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('3')} style={numpadBtnStyle}>3</button>
               <button
                 type="button"
                 className="pos-touch-btn"
-                onClick={() => handleDecrementSelected()}
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => {
+                  if (showSecureModal || activeFieldRef.current === 'mobile') {
+                    handleUniversalKey('-');
+                  } else {
+                    handleDecrementSelected();
+                  }
+                }}
                 style={{
                   ...numpadBtnStyle,
                   background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 50%, #0369a1 100%)',
@@ -1234,18 +1434,13 @@ export default function POSSaleView({
               </button>
 
               {/* Row 4: . 0 Enter (span 2) */}
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('.')} style={numpadBtnStyle}>.</button>
-              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('0')} style={numpadBtnStyle}>0</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('.')} style={numpadBtnStyle}>.</button>
+              <button type="button" className="pos-touch-btn" onMouseDown={e => e.preventDefault()} onClick={() => handleUniversalKey('0')} style={numpadBtnStyle}>0</button>
               <button
                 type="button"
                 className="pos-touch-btn"
-                onClick={() => {
-                  if (barcodeInput.trim()) {
-                    handleProcessBarcode(barcodeInput);
-                  } else if (cart.length > 0) {
-                    setShowPaymentModal(true);
-                  }
-                }}
+                onMouseDown={e => e.preventDefault()}
+                onClick={handleUniversalEnter}
                 style={{
                   ...numpadBtnStyle,
                   gridColumn: 'span 2',
@@ -1270,12 +1465,17 @@ export default function POSSaleView({
       {/* 3A. Secure Mode / Auto-Lock Modal (poss3) */}
       <POSSecureModal
         isOpen={showSecureModal}
+        password={securePassword}
+        onPasswordChange={setSecurePassword}
+        inputRef={secureInputRef}
         onClose={() => {
           setShowSecureModal(false);
+          setSecurePassword('');
           resetIdleTimer();
         }}
         onCancelToLogin={() => {
           setShowSecureModal(false);
+          setSecurePassword('');
           if (onLogoutToLogin) onLogoutToLogin();
           else onBack();
         }}
@@ -1287,6 +1487,7 @@ export default function POSSaleView({
             (currentUser?.password && cleanPwd === currentUser.password) ||
             cleanPwd === '0000'
           ) {
+            setSecurePassword('');
             return true;
           }
           return false;

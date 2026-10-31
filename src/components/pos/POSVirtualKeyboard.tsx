@@ -74,6 +74,7 @@ export default function POSVirtualKeyboard({
             <button
               type="button"
               className="pos-kb-key"
+              onMouseDown={e => e.preventDefault()}
               onClick={onOpenView}
               title="Browse Stock Catalog (View)"
               style={{
@@ -104,6 +105,7 @@ export default function POSVirtualKeyboard({
             <button
               type="button"
               className="pos-kb-key"
+              onMouseDown={e => e.preventDefault()}
               onClick={onOpenSecureMode}
               title="Supervisor Secure Mode Lock"
               style={{
@@ -138,6 +140,7 @@ export default function POSVirtualKeyboard({
               key={key}
               type="button"
               className="pos-kb-key"
+              onMouseDown={e => e.preventDefault()}
               onClick={() => handleKeyClick(key)}
               style={blueGlassKeyStyle}
             >
@@ -153,6 +156,7 @@ export default function POSVirtualKeyboard({
               key={key}
               type="button"
               className="pos-kb-key"
+              onMouseDown={e => e.preventDefault()}
               onClick={() => (key === '@' ? onKeyPress('@') : handleKeyClick(key))}
               style={blueGlassKeyStyle}
             >
@@ -168,6 +172,7 @@ export default function POSVirtualKeyboard({
               key={key}
               type="button"
               className="pos-kb-key"
+              onMouseDown={e => e.preventDefault()}
               onClick={() => handleKeyClick(key)}
               style={blueGlassKeyStyle}
             >
@@ -179,6 +184,7 @@ export default function POSVirtualKeyboard({
           <button
             type="button"
             className="pos-kb-key"
+            onMouseDown={e => e.preventDefault()}
             onClick={() => setIsCaps(!isCaps)}
             style={{
               ...blueGlassKeyStyle,
@@ -198,6 +204,7 @@ export default function POSVirtualKeyboard({
           <button
             type="button"
             className="pos-kb-key"
+            onMouseDown={e => e.preventDefault()}
             onClick={() => onKeyPress(' ')}
             style={{
               ...blueGlassKeyStyle,

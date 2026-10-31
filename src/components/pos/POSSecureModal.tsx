@@ -8,6 +8,9 @@ interface POSSecureModalProps {
   onAuthorize: (password: string) => boolean | Promise<boolean>;
   title?: string;
   actionDescription?: string;
+  password?: string;
+  onPasswordChange?: (val: string) => void;
+  inputRef?: React.RefObject<HTMLInputElement>;
 }
 
 export default function POSSecureModal({
@@ -17,11 +20,20 @@ export default function POSSecureModal({
   onAuthorize,
   title = 'Secure Mode',
   actionDescription = 'Supervisor / Cashier Authorization',
+  password: propPassword,
+  onPasswordChange,
+  inputRef: externalInputRef,
 }: POSSecureModalProps) {
-  const [password, setPassword] = useState('');
+  const [internalPassword, setInternalPassword] = useState('');
+  const password = propPassword !== undefined ? propPassword : internalPassword;
+  const setPassword = (val: string) => {
+    if (onPasswordChange) onPasswordChange(val);
+    else setInternalPassword(val);
+  };
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const localInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef || localInputRef;
 
   // Esc key listener: only Esc closes the modal from keyboard
   useEffect(() => {
@@ -97,11 +109,7 @@ export default function POSSecureModal({
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000000,
-      }}
-      // Clicking outside DOES NOT close the modal - it retains focus on password input!
-      onClick={e => {
-        e.stopPropagation();
-        inputRef.current?.focus();
+        pointerEvents: 'none', // Lets touch through to the keyboard & numpad at bottom
       }}
     >
       {/* Modal Box matching exact Posiflex screen poss3 */}
@@ -113,6 +121,7 @@ export default function POSSecureModal({
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0,0,0,0.15)',
           overflow: 'hidden',
           border: '2px solid #1e3a5f',
+          pointerEvents: 'auto', // Modal box itself is fully interactive
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -170,6 +179,7 @@ export default function POSSecureModal({
                 }}
               />
               <button
+                id="pos-secure-submit-btn"
                 type="submit"
                 disabled={loading}
                 style={{
