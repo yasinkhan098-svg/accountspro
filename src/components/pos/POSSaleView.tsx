@@ -477,6 +477,19 @@ export default function POSSaleView({
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
       }}
     >
+      <style>{`
+        .pos-touch-btn {
+          touch-action: manipulation;
+          user-select: none;
+          -webkit-user-select: none;
+          transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease;
+        }
+        .pos-touch-btn:active {
+          transform: translateY(2px) scale(0.97) !important;
+          box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+          filter: brightness(0.95);
+        }
+      `}</style>
       {/* ==================== 1. TOP HEADER BAR (MAROON / BURGUNDY) ==================== */}
       <div
         style={{
@@ -617,17 +630,23 @@ export default function POSSaleView({
 
           {/* Secure Lock Button */}
           <button
+            className="pos-touch-btn"
             onClick={() => setShowSecureModal(true)}
             title="Lock POS Terminal (Secure Mode)"
             style={{
-              background: '#0284c7',
+              background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 60%, #0369a1 100%)',
               color: '#ffffff',
-              border: 'none',
-              borderRadius: 6,
-              padding: '6px 10px',
+              border: '1px solid rgba(255, 255, 255, 0.6)',
+              borderBottom: '2px solid #075985',
+              borderRadius: 8,
+              padding: '8px 14px',
               cursor: 'pointer',
               fontSize: 12,
-              fontWeight: 'bold',
+              fontWeight: 800,
+              boxShadow: '0 4px 10px rgba(2, 132, 199, 0.4), inset 0 1.5px 1px rgba(255, 255, 255, 0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
             }}
           >
             🔒 Lock
@@ -635,6 +654,7 @@ export default function POSSaleView({
 
           {/* Exit POS Button */}
           <button
+            className="pos-touch-btn"
             onClick={() => {
               if (cart.length > 0) {
                 if (confirm('Discard current POS cart and exit to LedgerX?')) onBack();
@@ -644,14 +664,19 @@ export default function POSSaleView({
             }}
             title="Exit POS Terminal (Esc)"
             style={{
-              background: '#dc2626',
+              background: 'linear-gradient(180deg, #f87171 0%, #dc2626 60%, #991b1b 100%)',
               color: '#ffffff',
-              border: 'none',
-              borderRadius: 6,
-              padding: '6px 12px',
+              border: '1px solid rgba(255, 255, 255, 0.6)',
+              borderBottom: '2px solid #7f1d1d',
+              borderRadius: 8,
+              padding: '8px 16px',
               cursor: 'pointer',
               fontSize: 12,
-              fontWeight: 'bold',
+              fontWeight: 800,
+              boxShadow: '0 4px 10px rgba(220, 38, 38, 0.4), inset 0 1.5px 1px rgba(255, 255, 255, 0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
             }}
           >
             ✕ Exit (Esc)
@@ -833,42 +858,50 @@ export default function POSSaleView({
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
+                className="pos-touch-btn"
                 onClick={handleSelectDown}
                 title="Select Next Row Down"
                 style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 6,
-                  background: '#e2e8f0',
-                  border: '1px solid #94a3b8',
-                  fontSize: 16,
-                  fontWeight: 'bold',
+                  width: 44,
+                  height: 44,
+                  borderRadius: 8,
+                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.95)',
+                  borderBottom: '2px solid rgba(148, 163, 184, 0.65)',
+                  fontSize: 18,
+                  fontWeight: 900,
                   color: '#0f172a',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  boxShadow: '0 4px 8px -1px rgba(0, 0, 0, 0.1), inset 0 1.5px 1px #ffffff, inset 0 -2px 0 rgba(0, 0, 0, 0.06)',
+                  touchAction: 'manipulation',
                 }}
               >
                 ⬇
               </button>
               <button
                 type="button"
+                className="pos-touch-btn"
                 onClick={handleSelectUp}
                 title="Select Previous Row Up"
                 style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 6,
-                  background: '#e2e8f0',
-                  border: '1px solid #94a3b8',
-                  fontSize: 16,
-                  fontWeight: 'bold',
+                  width: 44,
+                  height: 44,
+                  borderRadius: 8,
+                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.95)',
+                  borderBottom: '2px solid rgba(148, 163, 184, 0.65)',
+                  fontSize: 18,
+                  fontWeight: 900,
                   color: '#0f172a',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  boxShadow: '0 4px 8px -1px rgba(0, 0, 0, 0.1), inset 0 1.5px 1px #ffffff, inset 0 -2px 0 rgba(0, 0, 0, 0.06)',
+                  touchAction: 'manipulation',
                 }}
               >
                 ⬆
@@ -879,19 +912,21 @@ export default function POSSaleView({
           {/* ==================== HORIZONTAL ACTION RIBBON (MATCHING POSS2 PHOTO) ==================== */}
           <div
             style={{
-              background: '#e2e8f0',
-              padding: '6px 10px',
+              background: 'linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%)',
+              padding: '8px 12px',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              gap: 6,
+              gap: 8,
               borderBottom: '1px solid #cbd5e1',
+              boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.8)',
               overflowX: 'auto',
             }}
           >
             {/* 1. Secure Mode */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={() => setShowSecureModal(true)}
               style={ribbonBtnStyle}
               title="Secure Mode Lock"
@@ -903,6 +938,7 @@ export default function POSSaleView({
             {/* 2. Void */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={handleVoidItemOrBill}
               style={ribbonBtnStyle}
               title="Void Item / Bill"
@@ -914,6 +950,7 @@ export default function POSSaleView({
             {/* 3. RR Coupon */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={handleApplyCoupon}
               style={ribbonBtnStyle}
               title="Apply Promo / Coupon"
@@ -925,6 +962,7 @@ export default function POSSaleView({
             {/* 4. Product Search */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={() => setShowCatalogModal(true)}
               style={ribbonBtnStyle}
               title="Search Products / Catalog"
@@ -936,6 +974,7 @@ export default function POSSaleView({
             {/* 5. Order Pickup */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={() => {
                 const orderId = prompt('Enter Order Pickup ID:');
                 if (orderId) alert(`Pickup Order #${orderId} verified for customer!`);
@@ -950,6 +989,7 @@ export default function POSSaleView({
             {/* 6. Suspend */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={handleHoldBill}
               disabled={cart.length === 0}
               style={ribbonBtnStyle}
@@ -962,6 +1002,7 @@ export default function POSSaleView({
             {/* 7. Balance Enquiry */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={() => {
                 const acc = prompt('Enter Customer Mobile or Account ID for Balance Enquiry:', customerMobile);
                 if (acc) alert(`Account: ${acc}\nLoyalty ROne Balance: ₹138.35\nAvailable Credit: ₹5,000.00`);
@@ -976,6 +1017,7 @@ export default function POSSaleView({
             {/* 8. Keyboard Toggle */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={() => setShowKeyboard(prev => !prev)}
               style={ribbonBtnStyle}
               title="Toggle Virtual Keyboard"
@@ -987,6 +1029,7 @@ export default function POSSaleView({
             {/* 9. Check Out */}
             <button
               type="button"
+              className="pos-touch-btn"
               onClick={() => {
                 if (cart.length === 0) {
                   alert('Cart is empty. Please scan or select an item first.');
@@ -996,13 +1039,16 @@ export default function POSSaleView({
               }}
               style={{
                 ...ribbonBtnStyle,
-                background: '#16a34a',
+                background: 'linear-gradient(180deg, #22c55e 0%, #16a34a 55%, #15803d 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.6)',
+                borderBottom: '3px solid #14532d',
+                boxShadow: '0 6px 16px rgba(22, 163, 74, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.7), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
                 color: '#ffffff',
-                border: 'none',
+                minWidth: 84,
               }}
               title="Check Out & Settle (F12)"
             >
-              <div style={{ ...ribbonIconCircleStyle, background: '#ffffff', color: '#16a34a', fontWeight: 900 }}>
+              <div style={{ ...ribbonIconCircleStyle, background: 'linear-gradient(145deg, #ffffff, #dcfce7)', color: '#16a34a', fontWeight: 900, fontSize: 16 }}>
                 ₹
               </div>
               <span style={{ ...ribbonTextStyle, color: '#ffffff', fontWeight: 900 }}>Check Out</span>
@@ -1044,25 +1090,12 @@ export default function POSSaleView({
                 <button
                   key={item.id}
                   type="button"
+                  className="pos-touch-btn"
                   onClick={() => {
                     playBeep(1046, 0.05);
                     addItemToCart(item, 1);
                   }}
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 16,
-                    padding: '8px 10px',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: '#0f3c64',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                  }}
+                  style={glassQuickPillStyle}
                   title={item.name}
                 >
                   {item.name}
@@ -1070,40 +1103,49 @@ export default function POSSaleView({
               ))}
             </div>
 
-            {/* Selected Item Controls: Circular [-] and [+] Buttons (matching poss2 photo) */}
+            {/* Selected Item Controls: Circular [-] and [+] Buttons (Embossed 3D Glass) */}
             <div
               style={{
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: 8,
-                padding: '8px 12px',
+                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.85) 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.95)',
+                borderBottom: '2px solid rgba(148, 163, 184, 0.5)',
+                borderRadius: 12,
+                padding: '10px 14px',
                 marginTop: 4,
+                boxShadow: '0 4px 10px rgba(0, 0, 0, 0.06), inset 0 1px 2px #ffffff',
+                backdropFilter: 'blur(8px)',
               }}
             >
-              <div style={{ fontSize: 10, fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', marginBottom: 6, textAlign: 'center' }}>
-                Qty Adjuster
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, textAlign: 'center', letterSpacing: 0.5 }}>
+                Quantity Adjuster
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 24 }}>
                 {/* Circular Blue [-] Button */}
                 <button
                   type="button"
+                  className="pos-touch-btn"
                   onClick={handleDecrementSelected}
                   disabled={!selectedCartId}
                   title="Decrease Qty (-)"
                   style={{
-                    width: 46,
-                    height: 46,
+                    width: 52,
+                    height: 52,
                     borderRadius: '50%',
-                    background: selectedCartId ? '#0284c7' : '#94a3b8',
+                    background: selectedCartId 
+                      ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
+                      : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
                     color: '#ffffff',
-                    border: 'none',
-                    fontSize: 26,
-                    fontWeight: 'bold',
+                    border: '2px solid rgba(255, 255, 255, 0.7)',
+                    fontSize: 28,
+                    fontWeight: 900,
                     cursor: selectedCartId ? 'pointer' : 'not-allowed',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 3px 6px rgba(0,0,0,0.2)',
+                    boxShadow: selectedCartId 
+                      ? '0 6px 16px rgba(2, 132, 199, 0.4), inset 0 2.5px 3px rgba(255, 255, 255, 0.7), inset 0 -3px 4px rgba(3, 105, 161, 0.5)' 
+                      : 'none',
+                    touchAction: 'manipulation',
                   }}
                 >
                   −
@@ -1112,23 +1154,29 @@ export default function POSSaleView({
                 {/* Circular Blue [+] Button */}
                 <button
                   type="button"
+                  className="pos-touch-btn"
                   onClick={handleIncrementSelected}
                   disabled={!selectedCartId}
                   title="Increase Qty (+)"
                   style={{
-                    width: 46,
-                    height: 46,
+                    width: 52,
+                    height: 52,
                     borderRadius: '50%',
-                    background: selectedCartId ? '#0284c7' : '#94a3b8',
+                    background: selectedCartId 
+                      ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
+                      : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
                     color: '#ffffff',
-                    border: 'none',
-                    fontSize: 26,
-                    fontWeight: 'bold',
+                    border: '2px solid rgba(255, 255, 255, 0.7)',
+                    fontSize: 28,
+                    fontWeight: 900,
                     cursor: selectedCartId ? 'pointer' : 'not-allowed',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 3px 6px rgba(0,0,0,0.2)',
+                    boxShadow: selectedCartId 
+                      ? '0 6px 16px rgba(2, 132, 199, 0.4), inset 0 2.5px 3px rgba(255, 255, 255, 0.7), inset 0 -3px 4px rgba(3, 105, 161, 0.5)' 
+                      : 'none',
+                    touchAction: 'manipulation',
                   }}
                 >
                   +
@@ -1140,37 +1188,82 @@ export default function POSSaleView({
           {/* Bottom Section: Touch Numpad */}
           <div
             style={{
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: 8,
-              padding: 6,
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.85) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.95)',
+              borderBottom: '2px solid rgba(148, 163, 184, 0.5)',
+              borderRadius: 12,
+              padding: 8,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.06), inset 0 1px 2px #ffffff',
+              backdropFilter: 'blur(8px)',
             }}
           >
             {/* 4 rows x 4 cols layout matching photo */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {/* Row 1: 7 8 9 NG */}
-              <button type="button" onClick={() => handleNumpadDigit('7')} style={numpadBtnStyle}>7</button>
-              <button type="button" onClick={() => handleNumpadDigit('8')} style={numpadBtnStyle}>8</button>
-              <button type="button" onClick={() => handleNumpadDigit('9')} style={numpadBtnStyle}>9</button>
-              <button type="button" onClick={() => handleVirtualClear()} style={{ ...numpadBtnStyle, background: '#f1f5f9', color: '#dc2626' }}>NG</button>
-
-              {/* Row 2: 4 5 6 < */}
-              <button type="button" onClick={() => handleNumpadDigit('4')} style={numpadBtnStyle}>4</button>
-              <button type="button" onClick={() => handleNumpadDigit('5')} style={numpadBtnStyle}>5</button>
-              <button type="button" onClick={() => handleNumpadDigit('6')} style={numpadBtnStyle}>6</button>
-              <button type="button" onClick={() => handleVirtualBackspace()} style={{ ...numpadBtnStyle, background: '#f1f5f9', color: '#d97706' }}>⌫</button>
-
-              {/* Row 3: 1 2 3 - */}
-              <button type="button" onClick={() => handleNumpadDigit('1')} style={numpadBtnStyle}>1</button>
-              <button type="button" onClick={() => handleNumpadDigit('2')} style={numpadBtnStyle}>2</button>
-              <button type="button" onClick={() => handleNumpadDigit('3')} style={numpadBtnStyle}>3</button>
-              <button type="button" onClick={() => handleDecrementSelected()} style={{ ...numpadBtnStyle, background: '#f1f5f9', color: '#0284c7' }}>−</button>
-
-              {/* Row 4: . 0 Enter (span 2) */}
-              <button type="button" onClick={() => handleNumpadDigit('.')} style={numpadBtnStyle}>.</button>
-              <button type="button" onClick={() => handleNumpadDigit('0')} style={numpadBtnStyle}>0</button>
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('7')} style={numpadBtnStyle}>7</button>
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('8')} style={numpadBtnStyle}>8</button>
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('9')} style={numpadBtnStyle}>9</button>
               <button
                 type="button"
+                className="pos-touch-btn"
+                onClick={() => handleVirtualClear()}
+                style={{
+                  ...numpadBtnStyle,
+                  background: 'linear-gradient(180deg, #fee2e2 0%, #fecaca 100%)',
+                  border: '1px solid #f87171',
+                  color: '#dc2626',
+                  fontWeight: 900,
+                }}
+              >
+                NG
+              </button>
+
+              {/* Row 2: 4 5 6 < */}
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('4')} style={numpadBtnStyle}>4</button>
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('5')} style={numpadBtnStyle}>5</button>
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('6')} style={numpadBtnStyle}>6</button>
+              <button
+                type="button"
+                className="pos-touch-btn"
+                onClick={() => handleVirtualBackspace()}
+                style={{
+                  ...numpadBtnStyle,
+                  background: 'linear-gradient(180deg, #fef3c7 0%, #fde68a 100%)',
+                  border: '1px solid #fbbf24',
+                  color: '#d97706',
+                  fontWeight: 900,
+                  fontSize: 20,
+                }}
+              >
+                ⌫
+              </button>
+
+              {/* Row 3: 1 2 3 - */}
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('1')} style={numpadBtnStyle}>1</button>
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('2')} style={numpadBtnStyle}>2</button>
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('3')} style={numpadBtnStyle}>3</button>
+              <button
+                type="button"
+                className="pos-touch-btn"
+                onClick={() => handleDecrementSelected()}
+                style={{
+                  ...numpadBtnStyle,
+                  background: 'linear-gradient(180deg, #e0f2fe 0%, #bae6fd 100%)',
+                  border: '1px solid #38bdf8',
+                  color: '#0284c7',
+                  fontWeight: 900,
+                  fontSize: 20,
+                }}
+              >
+                −
+              </button>
+
+              {/* Row 4: . 0 Enter (span 2) */}
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('.')} style={numpadBtnStyle}>.</button>
+              <button type="button" className="pos-touch-btn" onClick={() => handleNumpadDigit('0')} style={numpadBtnStyle}>0</button>
+              <button
+                type="button"
+                className="pos-touch-btn"
                 onClick={() => {
                   if (barcodeInput.trim()) {
                     handleProcessBarcode(barcodeInput);
@@ -1181,10 +1274,13 @@ export default function POSSaleView({
                 style={{
                   ...numpadBtnStyle,
                   gridColumn: 'span 2',
-                  background: '#0284c7',
+                  background: 'linear-gradient(180deg, #38bdf8 0%, #0284c7 60%, #0369a1 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.7)',
+                  borderBottom: '2px solid #075985',
                   color: '#ffffff',
                   fontWeight: 900,
-                  fontSize: 14,
+                  fontSize: 16,
+                  boxShadow: '0 6px 14px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.2)',
                 }}
               >
                 Enter
@@ -1262,51 +1358,89 @@ export default function POSSaleView({
   );
 }
 
-// Ribbon Styling
+// 3D Glassmorphism & Embossed Button Styles
 const ribbonBtnStyle: React.CSSProperties = {
-  background: '#ffffff',
-  border: '1px solid #cbd5e1',
-  borderRadius: 8,
-  padding: '6px 8px',
+  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.9) 55%, rgba(226, 232, 240, 0.85) 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.95)',
+  borderBottom: '2.5px solid rgba(148, 163, 184, 0.6)',
+  borderRadius: 10,
+  padding: '6px 10px',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
   cursor: 'pointer',
-  minWidth: 70,
-  boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+  minWidth: 76,
+  height: 62,
+  boxShadow: '0 4px 8px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1.5px 1px rgba(255, 255, 255, 1), inset 0 -2px 2px rgba(0, 0, 0, 0.05)',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  touchAction: 'manipulation',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
 };
 
 const ribbonIconCircleStyle: React.CSSProperties = {
-  width: 26,
-  height: 26,
+  width: 30,
+  height: 30,
   borderRadius: '50%',
-  background: '#f1f5f9',
+  background: 'linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.9)',
+  boxShadow: '0 2px 5px rgba(0, 0, 0, 0.12), inset 0 1px 1px #ffffff',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 14,
-  marginBottom: 2,
+  fontSize: 15,
+  marginBottom: 3,
 };
 
 const ribbonTextStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 'bold',
-  color: '#334155',
+  fontSize: 10.5,
+  fontWeight: 800,
+  color: '#1e293b',
   whiteSpace: 'nowrap',
+  letterSpacing: -0.2,
 };
 
 const numpadBtnStyle: React.CSSProperties = {
-  height: 44,
-  background: '#ffffff',
-  border: '1px solid #cbd5e1',
-  borderRadius: 6,
-  fontSize: 16,
-  fontWeight: 'bold',
+  height: 50,
+  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.95)',
+  borderBottom: '2.5px solid rgba(148, 163, 184, 0.65)',
+  borderRadius: 8,
+  fontSize: 18,
+  fontWeight: 800,
   color: '#0f172a',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+  boxShadow: '0 4px 8px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1.5px 1px #ffffff, inset 0 -2px 0 rgba(0, 0, 0, 0.06)',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  touchAction: 'manipulation',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+};
+
+const glassQuickPillStyle: React.CSSProperties = {
+  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.9) 60%, rgba(226, 232, 240, 0.85) 100%)',
+  border: '1px solid rgba(255, 255, 255, 0.95)',
+  borderBottom: '2px solid rgba(148, 163, 184, 0.55)',
+  borderRadius: 20,
+  padding: '10px 14px',
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#0f3c64',
+  cursor: 'pointer',
+  textAlign: 'left',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  boxShadow: '0 3px 8px rgba(0, 0, 0, 0.08), inset 0 1.5px 1px rgba(255, 255, 255, 1), inset 0 -1.5px 2px rgba(0, 0, 0, 0.05)',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  touchAction: 'manipulation',
+  backdropFilter: 'blur(6px)',
+  WebkitBackdropFilter: 'blur(6px)',
 };
