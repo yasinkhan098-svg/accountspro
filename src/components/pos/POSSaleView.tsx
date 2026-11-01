@@ -806,10 +806,21 @@ export default function POSSaleView({
           <button
             className="pos-touch-btn"
             onClick={() => {
+              const handleExitAction = () => {
+                if (permissionGuard.isClientSession()) {
+                  if (onLogoutToLogin) onLogoutToLogin();
+                  else onBack();
+                } else {
+                  onBack();
+                }
+              };
+
               if (cart.length > 0) {
-                if (confirm('Discard current POS cart and exit to LedgerX?')) onBack();
+                if (confirm('Discard current POS cart and switch cashier / exit?')) {
+                  handleExitAction();
+                }
               } else {
-                onBack();
+                handleExitAction();
               }
             }}
             title="Exit POS Terminal (Esc)"

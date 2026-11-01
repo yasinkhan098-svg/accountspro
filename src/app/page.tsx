@@ -661,10 +661,7 @@ const parseDate = (d: string | Date | null | undefined): Date => {
 export default function App() {
   const [screen, setScreen] = useState<ScreenType>(() => {
     if (typeof window !== 'undefined' && permissionGuard.isClientSession()) {
-      const activeRoleUser = permissionGuard.getCurrentUser();
-      if (!activeRoleUser || (!activeRoleUser.isAdmin && activeRoleUser.permissions?.vouchers?.['POS Sale'])) {
-        return 'POS_SALE';
-      }
+      return 'POS_SALE';
     }
     return 'GATEWAY_MAIN';
   });
@@ -837,15 +834,7 @@ export default function App() {
           plan: 'PRO',
         });
       }
-      const activeRoleUser = permissionGuard.getCurrentUser();
-      if (!activeRoleUser) {
-        setScreen('POS_SALE');
-      } else if (!activeRoleUser.isAdmin) {
-        const vPerms = activeRoleUser.permissions?.vouchers;
-        if (vPerms && (vPerms['POS Sale'] || vPerms.Sales) && !vPerms.Purchase && !vPerms.Payment && !vPerms.Contra && !vPerms.Journal) {
-          setScreen('POS_SALE');
-        }
-      }
+      setScreen('POS_SALE');
     }
 
     const handleOfflineEvent = async () => {
@@ -2044,12 +2033,7 @@ export default function App() {
       lanUserManagementService.setActiveCompanyCode(compCode);
 
       if (permissionGuard.isClientSession()) {
-        const activeRoleUser = permissionGuard.getCurrentUser();
-        if (!activeRoleUser || (!activeRoleUser.isAdmin && activeRoleUser.permissions?.vouchers?.['POS Sale'])) {
-          setScreen('POS_SALE');
-        } else {
-          setScreen('GATEWAY_MAIN');
-        }
+        setScreen('POS_SALE');
       } else {
         // Force return to Gateway whenever active company changes (selection, opening, creation)
         setScreen('GATEWAY_MAIN');
@@ -2223,11 +2207,8 @@ export default function App() {
       setScreen(prev);
     } else {
       if (permissionGuard.isClientSession()) {
-        const activeRoleUser = permissionGuard.getCurrentUser();
-        if (!activeRoleUser || (!activeRoleUser.isAdmin && activeRoleUser.permissions?.vouchers?.['POS Sale'])) {
-          setScreen('POS_SALE');
-          return;
-        }
+        setScreen('POS_SALE');
+        return;
       }
       setScreen('GATEWAY_MAIN');
     }

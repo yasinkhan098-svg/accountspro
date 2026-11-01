@@ -53,7 +53,9 @@ export default function POSLoginScreen({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onExit();
+        if (!permissionGuard.isClientSession()) {
+          onExit();
+        }
       } else if (e.key === 'Enter') {
         if (activeField === 'cashierId' && cashierId.trim()) {
           setActiveField('password');
@@ -264,7 +266,15 @@ export default function POSLoginScreen({
             Need Help?
           </span>
           <button
-            onClick={onExit}
+            onClick={() => {
+              if (permissionGuard.isClientSession()) {
+                if (confirm('Close POS terminal window?')) {
+                  try { window.close(); } catch(e) {}
+                }
+              } else {
+                onExit();
+              }
+            }}
             title="Exit POS (Esc)"
             style={{
               background: 'rgba(255,255,255,0.2)',
