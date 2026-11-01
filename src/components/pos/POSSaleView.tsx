@@ -1095,7 +1095,7 @@ export default function POSSaleView({
         {/* ========== LEFT PANEL: ITEM CART TABLE + STATS + RIBBON + TOUCH KEYBOARD ========== */}
         <div
           style={{
-            flex: 6.9,
+            flex: 6.5,
             display: 'flex',
             flexDirection: 'column',
             borderRight: '2px solid #cbd5e1',
@@ -1474,27 +1474,32 @@ export default function POSSaleView({
         {/* ========== RIGHT PANEL: QUICK PILLS + SELECTED ITEM CONTROLS + NUMPAD ========== */}
         <div
           style={{
-            flex: 3.1,
+            flex: 3.5,
+            minWidth: 460,
             background: '#f1f5f9',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'space-between',
+            gap: 6,
             padding: 8,
+            overflow: 'hidden',
+            height: '100%',
           }}
         >
-          {/* Top Section: Quick Item Add + [sale pos] + [rubic pos] */}
+          {/* Top Section: Quick Item Add + [sale pos] + [rubic pos] (Takes all space above Quantity Adjuster) */}
           <div
             style={{
+              flex: 1,
+              minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
-              gap: 6,
+              gap: 4,
               pointerEvents: showSecureModal ? 'none' : 'auto',
               opacity: showSecureModal ? 0.6 : 1,
               transition: 'opacity 0.2s ease',
             }}
           >
             {/* Header: Title + Sale POS + Rubic POS Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, flexShrink: 0 }}>
               <div 
                 onClick={() => setRightViewMode('SCANNED')}
                 style={{ 
@@ -1576,17 +1581,19 @@ export default function POSSaleView({
               </div>
             </div>
 
-            {/* Container Box: Taller height (220px) matching container size */}
+            {/* Container Box: Fills all height down to Quantity Adjuster */}
             <div
               style={{
-                height: 220,
-                maxHeight: 220,
+                flex: 1,
+                minHeight: 0,
                 overflowY: 'auto',
                 background: 'rgba(255, 255, 255, 0.65)',
                 border: '1.5px solid #cbd5e1',
                 borderRadius: 10,
                 padding: 6,
                 boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)',
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
               {/* MODE 1: SCANNED / ACTIVE ITEMS (Empty until scanned/selected) */}
@@ -1791,12 +1798,13 @@ export default function POSSaleView({
                       ✕
                     </button>
                   </div>
-                  <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, padding: 2 }}>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 4, padding: 2 }}>
                     {positiveStockItems
                       .filter((it: any) => !rubicSearchQuery || it.name.toLowerCase().includes(rubicSearchQuery.toLowerCase()))
                       .map((item: any) => {
                         const st = item._calculatedStock;
                         const imgSrc = item.image || aiImagesMap[String(item.id)] || generateAIImageForProduct(item);
+                        const isSelected = selectedCartItem?.itemId === item.id;
                         return (
                           <div
                             key={item.id}
@@ -1806,32 +1814,47 @@ export default function POSSaleView({
                             }}
                             className="pos-touch-btn"
                             style={{
-                              background: '#ffffff',
-                              border: '1px solid #e2e8f0',
-                              borderRadius: 8,
-                              padding: 6,
+                              background: isSelected 
+                                ? 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)' 
+                                : '#ffffff',
+                              border: isSelected ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                              borderRadius: 6,
+                              padding: '4px 3px',
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
                               cursor: 'pointer',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                              position: 'relative'
+                              boxShadow: isSelected ? '0 0 6px rgba(2, 132, 199, 0.4)' : '0 1px 3px rgba(0,0,0,0.05)',
+                              position: 'relative',
+                              minWidth: 0,
+                              overflow: 'hidden',
                             }}
+                            title={`${item.name} | Stock: ${st} | ₹${item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}`}
                           >
                             <img
                               src={imgSrc}
                               alt={item.name}
-                              style={{ width: 44, height: 44, objectFit: 'contain', marginBottom: 4, borderRadius: 4 }}
+                              style={{ width: 32, height: 32, objectFit: 'contain', marginBottom: 2, borderRadius: 3 }}
                             />
-                            <div style={{ fontSize: 10, fontWeight: 700, color: '#0f172a', textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ 
+                              fontSize: 8.5, 
+                              fontWeight: 700, 
+                              color: '#0f172a', 
+                              textAlign: 'center', 
+                              width: '100%', 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis', 
+                              whiteSpace: 'nowrap',
+                              lineHeight: 1.2
+                            }}>
                               {item.name}
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 3 }}>
-                              <span style={{ fontSize: 10, fontWeight: 800, color: '#0284c7' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 2, gap: 1 }}>
+                              <span style={{ fontSize: 8.5, fontWeight: 900, color: '#0284c7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 ₹{item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}
                               </span>
-                              <span style={{ fontSize: 8.5, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: 6 }}>
-                                Stk: {st}
+                              <span style={{ fontSize: 7.5, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1px 3px', borderRadius: 4, flexShrink: 0 }}>
+                                S:{st}
                               </span>
                             </div>
                           </div>
@@ -1841,86 +1864,86 @@ export default function POSSaleView({
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Selected Item Controls: Circular [-] and [+] Buttons (Pushed Downwards) */}
-            <div
-              style={{
-                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.85) 100%)',
-                border: '1px solid rgba(255, 255, 255, 0.95)',
-                borderBottom: '2px solid rgba(148, 163, 184, 0.5)',
-                borderRadius: 12,
-                padding: '8px 14px',
-                marginTop: 8,
-                boxShadow: '0 4px 10px rgba(0, 0, 0, 0.06), inset 0 1px 2px #ffffff',
-                backdropFilter: 'blur(8px)',
-              }}
-            >
-              <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 6, textAlign: 'center', letterSpacing: 0.5 }}>
-                Quantity Adjuster {selectedCartItem ? `(${selectedCartItem.name.slice(0, 14)}..)` : ''}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 24 }}>
-                {/* Circular Blue [-] Button */}
-                <button
-                  type="button"
-                  className="pos-touch-btn"
-                  onClick={handleDecrementSelected}
-                  disabled={!selectedCartId}
-                  title="Decrease Qty (-)"
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '50%',
-                    background: selectedCartId 
-                      ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
-                      : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
-                    color: '#ffffff',
-                    border: '2px solid rgba(255, 255, 255, 0.7)',
-                    fontSize: 26,
-                    fontWeight: 900,
-                    cursor: selectedCartId ? 'pointer' : 'not-allowed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: selectedCartId 
-                      ? '0 6px 16px rgba(2, 132, 199, 0.4), inset 0 2.5px 3px rgba(255, 255, 255, 0.7), inset 0 -3px 4px rgba(3, 105, 161, 0.5)' 
-                      : 'none',
-                    touchAction: 'manipulation',
-                  }}
-                >
-                  −
-                </button>
+          {/* 2. MIDDLE SECTION: QUANTITY ADJUSTER (Positioned snugly right above Number Keypad) */}
+          <div
+            style={{
+              flexShrink: 0,
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.85) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.95)',
+              borderBottom: '2px solid rgba(148, 163, 184, 0.5)',
+              borderRadius: 10,
+              padding: '5px 12px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 2px #ffffff',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 4, textAlign: 'center', letterSpacing: 0.5 }}>
+              Quantity Adjuster {selectedCartItem ? `(${selectedCartItem.name.slice(0, 16)}..)` : ''}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 28 }}>
+              {/* Circular Blue [-] Button */}
+              <button
+                type="button"
+                className="pos-touch-btn"
+                onClick={handleDecrementSelected}
+                disabled={!selectedCartId}
+                title="Decrease Qty (-)"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  background: selectedCartId 
+                    ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
+                    : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
+                  color: '#ffffff',
+                  border: '2px solid rgba(255, 255, 255, 0.7)',
+                  fontSize: 24,
+                  fontWeight: 900,
+                  cursor: selectedCartId ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: selectedCartId 
+                    ? '0 4px 12px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.7), inset 0 -2px 3px rgba(3, 105, 161, 0.5)' 
+                    : 'none',
+                  touchAction: 'manipulation',
+                }}
+              >
+                −
+              </button>
 
-                {/* Circular Blue [+] Button */}
-                <button
-                  type="button"
-                  className="pos-touch-btn"
-                  onClick={handleIncrementSelected}
-                  disabled={!selectedCartId}
-                  title="Increase Qty (+)"
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '50%',
-                    background: selectedCartId 
-                      ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
-                      : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
-                    color: '#ffffff',
-                    border: '2px solid rgba(255, 255, 255, 0.7)',
-                    fontSize: 26,
-                    fontWeight: 900,
-                    cursor: selectedCartId ? 'pointer' : 'not-allowed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: selectedCartId 
-                      ? '0 6px 16px rgba(2, 132, 199, 0.4), inset 0 2.5px 3px rgba(255, 255, 255, 0.7), inset 0 -3px 4px rgba(3, 105, 161, 0.5)' 
-                      : 'none',
-                    touchAction: 'manipulation',
-                  }}
-                >
-                  +
-                </button>
-              </div>
+              {/* Circular Blue [+] Button */}
+              <button
+                type="button"
+                className="pos-touch-btn"
+                onClick={handleIncrementSelected}
+                disabled={!selectedCartId}
+                title="Increase Qty (+)"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  background: selectedCartId 
+                    ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
+                    : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
+                  color: '#ffffff',
+                  border: '2px solid rgba(255, 255, 255, 0.7)',
+                  fontSize: 24,
+                  fontWeight: 900,
+                  cursor: selectedCartId ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: selectedCartId 
+                    ? '0 4px 12px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.7), inset 0 -2px 3px rgba(3, 105, 161, 0.5)' 
+                    : 'none',
+                  touchAction: 'manipulation',
+                }}
+              >
+                +
+              </button>
             </div>
           </div>
 
