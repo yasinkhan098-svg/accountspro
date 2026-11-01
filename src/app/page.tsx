@@ -4101,9 +4101,10 @@ export default function App() {
                 🔄 CHECK UPDATE
               </button>
             )}
-            {/* LAN / Online Role User Session Badge */}
-            <button
-              onClick={() => setShowUserSwitchModal(true)}
+            {/* LAN Role User Session Badge (Desktop App Only) */}
+            {isDesktopApp && (
+              <button
+                onClick={() => setShowUserSwitchModal(true)}
               title={currentLANUser ? `Logged in as ${currentLANUser.fullName} (@${currentLANUser.username}) - Click to Switch User Role` : 'Multi-User Mode - Click to Switch User / Role'}
               style={{
                 background: currentLANUser ? (currentLANUser.isAdmin ? 'linear-gradient(135deg, #4f46e5, #4338ca)' : 'linear-gradient(135deg, #d97706, #b45309)') : 'rgba(255,255,255,0.15)',
@@ -4131,6 +4132,7 @@ export default function App() {
                 </>
               )}
             </button>
+            )}
 
             {!isDesktopApp && !permissionGuard.isClientSession() && (
               <>
