@@ -149,7 +149,7 @@ export class POSService {
       name: item.name,
       barcode: item.barcode,
       hsnCode: item.hsnCode,
-      unit: item.unit || 'NOS',
+      unit: item.unit || '',
       qty,
       mrpRate: mrp,
       rateWithTax: origRateWithTax,
