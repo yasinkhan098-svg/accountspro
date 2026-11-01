@@ -893,6 +893,22 @@ export default function POSSaleView({
           box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.1) !important;
           filter: brightness(0.95);
         }
+        .pos-glass-morph-btn {
+          touch-action: manipulation;
+          user-select: none;
+          -webkit-user-select: none;
+          position: relative;
+          transition: transform 0.08s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.08s cubic-bezier(0.4, 0, 0.2, 1), filter 0.08s ease;
+        }
+        .pos-glass-morph-btn:hover {
+          filter: brightness(1.04);
+          transform: translateY(-1px);
+        }
+        .pos-glass-morph-btn:active {
+          transform: translateY(2.5px) scale(0.96) !important;
+          box-shadow: inset 0 3.5px 7px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+          filter: brightness(0.93);
+        }
       `}</style>
       {/* ==================== 1. TOP HEADER BAR (MAROON / BURGUNDY) ==================== */}
       <div
@@ -1572,60 +1588,80 @@ export default function POSSaleView({
                 )}
               </div>
 
-              {/* Two Action Buttons: sale pos (red) & rubic pos (orange) */}
-              <div style={{ display: 'flex', gap: 6 }}>
-                {/* Red Button: sale pos */}
+              {/* Two Action Buttons: sale pos (Blue Glassmorphism) & rubic pos (Green Glassmorphism) */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {/* Blue Glassmorphism 3D Button: sale pos */}
                 <button
                   type="button"
-                  className="pos-touch-btn"
+                  className="pos-glass-morph-btn"
                   onClick={() => setRightViewMode(prev => prev === 'SALE_POS' ? 'SCANNED' : 'SALE_POS')}
                   style={{
-                    padding: '3px 10px',
-                    fontSize: 11,
-                    fontWeight: 800,
+                    padding: '5px 13px',
+                    fontSize: 11.5,
+                    fontWeight: 900,
                     textTransform: 'lowercase',
-                    borderRadius: 6,
+                    borderRadius: 9,
                     cursor: 'pointer',
+                    backdropFilter: rightViewMode === 'SALE_POS' ? 'blur(12px)' : 'blur(10px)',
+                    WebkitBackdropFilter: rightViewMode === 'SALE_POS' ? 'blur(12px)' : 'blur(10px)',
                     background: rightViewMode === 'SALE_POS'
-                      ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)'
-                      : 'linear-gradient(180deg, #ffffff 0%, #fee2e2 100%)',
-                    color: rightViewMode === 'SALE_POS' ? '#ffffff' : '#b91c1c',
-                    border: '1.5px solid #ef4444',
-                    boxShadow: rightViewMode === 'SALE_POS' ? '0 2px 6px rgba(220, 38, 38, 0.4)' : '0 1px 2px rgba(0,0,0,0.05)',
+                      ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.95) 0%, rgba(2, 132, 199, 0.95) 50%, rgba(3, 105, 161, 0.98) 100%)'
+                      : 'linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(224, 242, 254, 0.82) 50%, rgba(186, 230, 253, 0.72) 100%)',
+                    color: rightViewMode === 'SALE_POS' ? '#ffffff' : '#0369a1',
+                    border: rightViewMode === 'SALE_POS'
+                      ? '1.5px solid rgba(255, 255, 255, 0.85)'
+                      : '1.5px solid rgba(255, 255, 255, 0.95)',
+                    borderBottom: rightViewMode === 'SALE_POS'
+                      ? '3.5px solid #0369a1'
+                      : '3px solid #38bdf8',
+                    boxShadow: rightViewMode === 'SALE_POS'
+                      ? '0 6px 14px rgba(2, 132, 199, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.75), inset 0 -2px 3px rgba(3, 105, 161, 0.6)'
+                      : '0 4px 10px rgba(2, 132, 199, 0.2), inset 0 1.5px 2px #ffffff, inset 0 -1.5px 2px rgba(2, 132, 199, 0.15)',
+                    textShadow: rightViewMode === 'SALE_POS' ? '0 1px 2px rgba(0, 0, 0, 0.35)' : 'none',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 3,
+                    gap: 4,
                   }}
                   title="Open Sale POS Item Stock List"
                 >
-                  <span>📋</span> sale pos
+                  <span style={{ fontSize: 13 }}>📋</span> sale pos
                 </button>
 
-                {/* Orange Button: rubic pos */}
+                {/* Green Glassmorphism 3D Button: rubic pos */}
                 <button
                   type="button"
-                  className="pos-touch-btn"
+                  className="pos-glass-morph-btn"
                   onClick={() => setRightViewMode(prev => prev === 'RUBIC_POS' ? 'SCANNED' : 'RUBIC_POS')}
                   style={{
-                    padding: '3px 10px',
-                    fontSize: 11,
-                    fontWeight: 800,
+                    padding: '5px 13px',
+                    fontSize: 11.5,
+                    fontWeight: 900,
                     textTransform: 'lowercase',
-                    borderRadius: 6,
+                    borderRadius: 9,
                     cursor: 'pointer',
+                    backdropFilter: rightViewMode === 'RUBIC_POS' ? 'blur(12px)' : 'blur(10px)',
+                    WebkitBackdropFilter: rightViewMode === 'RUBIC_POS' ? 'blur(12px)' : 'blur(10px)',
                     background: rightViewMode === 'RUBIC_POS'
-                      ? 'linear-gradient(180deg, #ea580c 0%, #c2410c 100%)'
-                      : 'linear-gradient(180deg, #ffffff 0%, #ffedd5 100%)',
-                    color: rightViewMode === 'RUBIC_POS' ? '#ffffff' : '#c2410c',
-                    border: '1.5px solid #f97316',
-                    boxShadow: rightViewMode === 'RUBIC_POS' ? '0 2px 6px rgba(234, 88, 12, 0.4)' : '0 1px 2px rgba(0,0,0,0.05)',
+                      ? 'linear-gradient(135deg, rgba(52, 211, 153, 0.95) 0%, rgba(16, 185, 129, 0.95) 50%, rgba(5, 150, 105, 0.98) 100%)'
+                      : 'linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(209, 250, 229, 0.82) 50%, rgba(167, 243, 208, 0.72) 100%)',
+                    color: rightViewMode === 'RUBIC_POS' ? '#ffffff' : '#047857',
+                    border: rightViewMode === 'RUBIC_POS'
+                      ? '1.5px solid rgba(255, 255, 255, 0.85)'
+                      : '1.5px solid rgba(255, 255, 255, 0.95)',
+                    borderBottom: rightViewMode === 'RUBIC_POS'
+                      ? '3.5px solid #064e3b'
+                      : '3px solid #34d399',
+                    boxShadow: rightViewMode === 'RUBIC_POS'
+                      ? '0 6px 14px rgba(16, 185, 129, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.75), inset 0 -2px 3px rgba(5, 150, 105, 0.6)'
+                      : '0 4px 10px rgba(16, 185, 129, 0.2), inset 0 1.5px 2px #ffffff, inset 0 -1.5px 2px rgba(16, 185, 129, 0.15)',
+                    textShadow: rightViewMode === 'RUBIC_POS' ? '0 1px 2px rgba(0, 0, 0, 0.35)' : 'none',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 3,
+                    gap: 4,
                   }}
                   title="Open Rubic Visual Catalog with AI Images"
                 >
-                  <span>🎨</span> rubic pos
+                  <span style={{ fontSize: 13 }}>🎨</span> rubic pos
                 </button>
               </div>
             </div>
