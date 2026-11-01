@@ -234,10 +234,16 @@ class PermissionGuardService {
 
   public isClientSession(): boolean {
     if (typeof window === 'undefined') return false;
-    return window.location.search.includes('lan_client=1') || 
-           window.location.search.includes('online_client=1') ||
-           window.location.search.includes('client_mode=1') ||
-           Boolean(sessionStorage.getItem('ledgerx_is_lan_client')) ||
+    const search = window.location.search;
+    if (search.includes('lan_client=1') || search.includes('online_client=1') || search.includes('client_mode=1')) {
+      try {
+        sessionStorage.setItem('ledgerx_is_client_mode', '1');
+        if (search.includes('online_client=1')) sessionStorage.setItem('ledgerx_is_online_client', '1');
+        if (search.includes('lan_client=1')) sessionStorage.setItem('ledgerx_is_lan_client', '1');
+      } catch (e) {}
+      return true;
+    }
+    return Boolean(sessionStorage.getItem('ledgerx_is_lan_client')) ||
            Boolean(sessionStorage.getItem('ledgerx_is_online_client')) ||
            Boolean(sessionStorage.getItem('ledgerx_is_client_mode'));
   }
@@ -250,7 +256,8 @@ class PermissionGuardService {
     if (!isClient) {
       return false;
     }
-    if (!this.currentUser) return false;
+    // If this is a client session and no user is signed in yet, it is strictly restricted!
+    if (!this.currentUser) return true;
     if (this.currentUser.isAdmin) return false;
     return true;
   }
@@ -266,7 +273,9 @@ class PermissionGuardService {
    */
   public canAccessVoucher(voucherType: string): boolean {
     if (!this.isRestrictedSession()) return true;
-    if (!this.currentUser) return true; // Standalone single-user admin by default
+    if (!this.currentUser) {
+      return voucherType === 'POS Sale' || voucherType === 'Sales';
+    }
     if (this.currentUser.isAdmin) return true;
 
     const vKey = voucherType as keyof VoucherPermissions;
@@ -278,7 +287,9 @@ class PermissionGuardService {
    */
   public canAccessScreen(screen: string): boolean {
     if (!this.isRestrictedSession()) return true;
-    if (!this.currentUser) return true;
+    if (!this.currentUser) {
+      return screen === 'POS_SALE';
+    }
     if (this.currentUser.isAdmin) return true;
 
     const perms = this.currentUser.permissions;
@@ -348,7 +359,7 @@ class PermissionGuardService {
    */
   public canDelete(type: 'master' | 'voucher' = 'voucher'): boolean {
     if (!this.isRestrictedSession()) return true;
-    if (!this.currentUser) return true;
+    if (!this.currentUser) return false;
     if (this.currentUser.isAdmin) return true;
     if (type === 'master') return !!this.currentUser.permissions?.masters?.deleteMaster;
     return !!this.currentUser.permissions?.masters?.deleteVoucher;
@@ -371,13 +382,17 @@ class PermissionGuardService {
    */
   public canAccessMenuItem(label: string): boolean {
     if (!this.isRestrictedSession()) return true;
-    if (!this.currentUser) return true;
+    const lower = label.toLowerCase().trim();
+    if (lower === 'quit' || lower === '') return true;
+
+    if (!this.currentUser) {
+      // In restricted client session without a signed-in LAN role:
+      // Only POS Sale and Quit are accessible
+      return lower.includes('pos');
+    }
     if (this.currentUser.isAdmin) return true;
     const perms = this.currentUser.permissions;
     if (!perms) return true;
-
-    const lower = label.toLowerCase().trim();
-    if (lower === 'quit' || lower === '') return true;
 
     // Reports
     if (lower.includes('balance sheet')) return !!perms.reports?.BalanceSheet;

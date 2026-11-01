@@ -62,6 +62,26 @@ class LANUserManagementService {
   }
 
   /**
+   * Generates default starter users (Admin + Cashier) for a company
+   */
+  public getDefaultCompanyUsers(companyCode: string, companyName?: string): LANUser[] {
+    const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
+    const admin = this.getDefaultCompanyAdmin(code, companyName);
+    const cashier: LANUser = {
+      id: `usr_cashier_${code}`,
+      username: 'cashier',
+      fullName: companyName ? `Cashier (${companyName})` : `Counter Cashier`,
+      password: '',
+      assignedCompanyCodes: [code],
+      isAdmin: false,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      permissions: DEFAULT_OPERATOR_PERMISSIONS,
+    };
+    return [admin, cashier];
+  }
+
+  /**
    * Fetches the host PC's LAN IP, port, and status
    */
   public async getHostLANInfo(): Promise<HostLANInfo> {
@@ -107,9 +127,14 @@ class LANUserManagementService {
     if (typeof window === 'undefined') return [];
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
 
-    // 1. Try local C# bridge for company-specific users.json
+    // 1. Try local C# bridge or cloud API for company-specific users.json
     try {
-      const res = await fetch(`${getBridgeBaseUrl()}/api/lan/users?code=${encodeURIComponent(code)}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${getBridgeBaseUrl()}/api/lan/users?code=${encodeURIComponent(code)}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json.users) && json.users.length > 0) {
@@ -132,13 +157,12 @@ class LANUserManagementService {
       return this.companyUsersCache.get(code)!;
     }
 
-    // 4. Default starter admin user for this company
-    const defaultAdmin = this.getDefaultCompanyAdmin(code, companyName);
-    const initial = [defaultAdmin];
-    this.companyUsersCache.set(code, initial);
-    this.saveToLocalStorage(code, initial);
-    this.saveUsers(initial, code).catch(() => {});
-    return initial;
+    // 4. Default starter admin + cashier user for this company
+    const defaultUsers = this.getDefaultCompanyUsers(code, companyName);
+    this.companyUsersCache.set(code, defaultUsers);
+    this.saveToLocalStorage(code, defaultUsers);
+    this.saveUsers(defaultUsers, code).catch(() => {});
+    return defaultUsers;
   }
 
   /**

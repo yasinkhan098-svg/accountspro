@@ -186,7 +186,7 @@ export default function UserSwitchModal({
                 Active Profile:
               </span>
               <div style={{ fontSize: 14, fontWeight: 'bold', color: '#0f172a' }}>
-                {currentUser ? `${currentUser.fullName} (@${currentUser.username})` : 'System Administrator (Master)'}
+                {currentUser ? `${currentUser.fullName} (@${currentUser.username})` : (permissionGuard.isClientSession() ? 'Terminal Client / Cashier' : 'System Administrator (Master)')}
               </div>
             </div>
             <span
@@ -195,11 +195,11 @@ export default function UserSwitchModal({
                 padding: '3px 10px',
                 borderRadius: 12,
                 fontWeight: 'bold',
-                background: currentUser && !currentUser.isAdmin ? '#10b981' : '#0284c7',
+                background: currentUser && !currentUser.isAdmin ? '#10b981' : (permissionGuard.isClientSession() && !currentUser ? '#f59e0b' : '#0284c7'),
                 color: 'white',
               }}
             >
-              {currentUser && !currentUser.isAdmin ? 'Restricted Operator' : 'Admin'}
+              {currentUser && !currentUser.isAdmin ? 'Restricted Operator' : (permissionGuard.isClientSession() && !currentUser ? 'Counter Client' : 'Admin')}
             </span>
           </div>
 
@@ -211,30 +211,32 @@ export default function UserSwitchModal({
             <div style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>Loading LAN users...</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 250, overflowY: 'auto' }}>
-              {/* Default Master Admin Option */}
-              <div
-                onClick={() => handleSelectUser(null)}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: 6,
-                  border: `2px solid ${selectedUser === null ? '#0284c7' : '#e2e8f0'}`,
-                  background: selectedUser === null ? '#f0f9ff' : '#ffffff',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 'bold', color: '#0f172a', fontSize: 13 }}>
-                    🛡️ Master Administrator (No Restrictions)
+              {/* Default Master Admin Option (Only on Host / Primary Admin PC) */}
+              {!permissionGuard.isClientSession() && (
+                <div
+                  onClick={() => handleSelectUser(null)}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 6,
+                    border: `2px solid ${selectedUser === null ? '#0284c7' : '#e2e8f0'}`,
+                    background: selectedUser === null ? '#f0f9ff' : '#ffffff',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 'bold', color: '#0f172a', fontSize: 13 }}>
+                      🛡️ Master Administrator (No Restrictions)
+                    </div>
+                    <span style={{ fontSize: 10, background: '#0284c7', color: 'white', padding: '2px 8px', borderRadius: 10 }}>
+                      Admin
+                    </span>
                   </div>
-                  <span style={{ fontSize: 10, background: '#0284c7', color: 'white', padding: '2px 8px', borderRadius: 10 }}>
-                    Admin
-                  </span>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                    Full permissions across all vouchers, reports, registers, and companies.
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                  Full permissions across all vouchers, reports, registers, and companies.
-                </div>
-              </div>
+              )}
 
               {/* User options */}
               {users.map(u => {

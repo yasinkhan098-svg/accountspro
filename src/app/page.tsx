@@ -659,7 +659,15 @@ const parseDate = (d: string | Date | null | undefined): Date => {
 };
 
 export default function App() {
-  const [screen, setScreen] = useState<ScreenType>('GATEWAY_MAIN');
+  const [screen, setScreen] = useState<ScreenType>(() => {
+    if (typeof window !== 'undefined' && permissionGuard.isClientSession()) {
+      const activeRoleUser = permissionGuard.getCurrentUser();
+      if (!activeRoleUser || (!activeRoleUser.isAdmin && activeRoleUser.permissions?.vouchers?.['POS Sale'])) {
+        return 'POS_SALE';
+      }
+    }
+    return 'GATEWAY_MAIN';
+  });
   const [history, setHistory] = useState<ScreenType[]>([]);
   const [altCReturnContext, setAltCReturnContext] = useState<{screen: ScreenType, field: string, rowIdx?: number, newItem?: any} | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(1);
@@ -2031,8 +2039,21 @@ export default function App() {
   const prevCompanyIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (activeCompany && activeCompany.id !== prevCompanyIdRef.current) {
-      // Force return to Gateway whenever active company changes (selection, opening, creation)
-      setScreen('GATEWAY_MAIN');
+      prevCompanyIdRef.current = activeCompany.id;
+      const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
+      lanUserManagementService.setActiveCompanyCode(compCode);
+
+      if (permissionGuard.isClientSession()) {
+        const activeRoleUser = permissionGuard.getCurrentUser();
+        if (!activeRoleUser || (!activeRoleUser.isAdmin && activeRoleUser.permissions?.vouchers?.['POS Sale'])) {
+          setScreen('POS_SALE');
+        } else {
+          setScreen('GATEWAY_MAIN');
+        }
+      } else {
+        // Force return to Gateway whenever active company changes (selection, opening, creation)
+        setScreen('GATEWAY_MAIN');
+      }
       setHistory([]);
       setAlterItem(null);
       setAlterListType('');
@@ -2041,9 +2062,6 @@ export default function App() {
       setShowCompanySelect(false);
       setPwdPrompt(null);
       setSelectedIdx(1); 
-      prevCompanyIdRef.current = activeCompany.id;
-      const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
-      lanUserManagementService.setActiveCompanyCode(compCode);
     }
   }, [activeCompany?.id]);
 
@@ -2204,6 +2222,13 @@ export default function App() {
       setHistory(h => h.slice(0, -1));
       setScreen(prev);
     } else {
+      if (permissionGuard.isClientSession()) {
+        const activeRoleUser = permissionGuard.getCurrentUser();
+        if (!activeRoleUser || (!activeRoleUser.isAdmin && activeRoleUser.permissions?.vouchers?.['POS Sale'])) {
+          setScreen('POS_SALE');
+          return;
+        }
+      }
       setScreen('GATEWAY_MAIN');
     }
     setAlterItem(null);
@@ -4067,7 +4092,7 @@ export default function App() {
                 )}
              </div>
            </div>
-           {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && (
+           {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && !permissionGuard.isClientSession() && (
              <button
                onClick={() => setShowUpgradeModal(true)}
                style={{
@@ -4126,7 +4151,7 @@ export default function App() {
               )}
             </button>
 
-            {!isDesktopApp && (
+            {!isDesktopApp && !permissionGuard.isClientSession() && (
               <>
            <button
              onClick={() => setShowDesktopDownloadModal(true)}
