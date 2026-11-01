@@ -36,8 +36,45 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, companyCode: code, users: cloudUsersCache.get(code) });
     }
 
-    // 3. Return empty or default
-    return NextResponse.json({ success: true, companyCode: code, users: [] });
+    // 3. Return starter company admin and cashier users
+    const defaultUsers = [
+      {
+        id: `usr_admin_${code}`,
+        username: 'admin',
+        fullName: 'Company Administrator',
+        password: '',
+        assignedCompanyCodes: [code],
+        isAdmin: true,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        permissions: {
+          vouchers: { Purchase: true, Sales: true, Payment: true, Receipt: true, Contra: true, Journal: true, 'Debit Note': true, 'Credit Note': true, 'Sales Quotation': true, 'POS Sale': true },
+          registers: { 'Purchase Register': true, 'Sales Register': true, 'Day Book': true, 'Payment Register': true, 'Receipt Register': true, 'Journal Register': true, 'Contra Register': true, 'Debit Note Register': true, 'Credit Note Register': true, 'Quotation Register': true },
+          modules: { BOM: true, Manufacturing: true, BankStatement: true, PurchaseOrder: true },
+          reports: { BalanceSheet: true, ProfitLoss: true, TrialBalance: true, StockSummary: true, GSTReports: true, AuditTrail: true },
+          masters: { createLedger: true, alterLedger: true, createStockItem: true, alterStockItem: true, deleteMaster: true, deleteVoucher: true }
+        }
+      },
+      {
+        id: `usr_cashier_${code}`,
+        username: 'cashier',
+        fullName: 'Counter Cashier',
+        password: '',
+        assignedCompanyCodes: [code],
+        isAdmin: false,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        permissions: {
+          vouchers: { Purchase: false, Sales: true, Payment: false, Receipt: true, Contra: false, Journal: false, 'Debit Note': false, 'Credit Note': false, 'Sales Quotation': true, 'POS Sale': true },
+          registers: { 'Purchase Register': false, 'Sales Register': true, 'Day Book': true, 'Payment Register': false, 'Receipt Register': true, 'Journal Register': false, 'Contra Register': false, 'Debit Note Register': false, 'Credit Note Register': false, 'Quotation Register': true },
+          modules: { BOM: false, Manufacturing: false, BankStatement: false, PurchaseOrder: false },
+          reports: { BalanceSheet: false, ProfitLoss: false, TrialBalance: false, StockSummary: true, GSTReports: false, AuditTrail: false },
+          masters: { createLedger: false, alterLedger: false, createStockItem: true, alterStockItem: false, deleteMaster: false, deleteVoucher: false }
+        }
+      }
+    ];
+    cloudUsersCache.set(code, defaultUsers);
+    return NextResponse.json({ success: true, companyCode: code, users: defaultUsers });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

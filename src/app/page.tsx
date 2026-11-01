@@ -821,9 +821,17 @@ export default function App() {
     // Handle Client Mode (LAN Client or Online Cloud Client)
     if (permissionGuard.isClientSession()) {
       setIsAuthenticated(true);
+      if (!currentUser) {
+        setCurrentUser({
+          id: -1,
+          name: 'Terminal Client',
+          email: 'client@ledgerxerp.com',
+          plan: 'PRO',
+        });
+      }
       const activeRoleUser = permissionGuard.getCurrentUser();
       if (!activeRoleUser) {
-        setShowUserSwitchModal(true);
+        setScreen('POS_SALE');
       } else if (!activeRoleUser.isAdmin) {
         const vPerms = activeRoleUser.permissions?.vouchers;
         if (vPerms && (vPerms['POS Sale'] || vPerms.Sales) && !vPerms.Purchase && !vPerms.Payment && !vPerms.Contra && !vPerms.Journal) {
@@ -861,6 +869,11 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    if (permissionGuard.isClientSession()) {
+      permissionGuard.setCurrentUser(null);
+      setScreen('POS_SALE');
+      return;
+    }
     authClient.logout();
     setIsAuthenticated(false);
     setCurrentUser(null);
@@ -1894,7 +1907,7 @@ export default function App() {
 
   // Periodically Check Session (Single Session Enforcement - Online Only)
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || permissionGuard.isClientSession()) return;
 
     const checkSession = async () => {
       // While offline, never attempt network session check to prevent false logouts
@@ -1952,14 +1965,15 @@ export default function App() {
         }
         // Online: fetch from server
         try {
-          const res = await fetch('/api/companies', {
+          const clientQuery = permissionGuard.isClientSession() ? '?client_mode=1' : '';
+          const res = await fetch(`/api/companies${clientQuery}`, {
             headers: {
-              'Authorization': `Bearer ${authClient.getToken()}`
+              'Authorization': `Bearer ${authClient.getToken() || 'client_session'}`
             }
           });
           
           if (res.status === 401) {
-            if (!offlineSyncService.isDesktopEnvironment()) {
+            if (!offlineSyncService.isDesktopEnvironment() && !permissionGuard.isClientSession()) {
               handleLogout();
               return;
             }

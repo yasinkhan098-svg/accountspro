@@ -43,12 +43,17 @@ export default function UserSwitchModal({
     setLoading(true);
     setErrorMsg('');
     setPasswordInput('');
-    const uList = await lanUserManagementService.getUsers(activeCompanyCode, activeCompanyName);
-    setUsers(uList);
-    const active = permissionGuard.getCurrentUser();
-    setCurrentUser(active);
-    setSelectedUser(active);
-    setLoading(false);
+    try {
+      const uList = await lanUserManagementService.getUsers(activeCompanyCode, activeCompanyName);
+      setUsers(Array.isArray(uList) ? uList : []);
+      const active = permissionGuard.getCurrentUser();
+      setCurrentUser(active);
+      setSelectedUser(active);
+    } catch (e) {
+      console.warn("Failed to load users:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;

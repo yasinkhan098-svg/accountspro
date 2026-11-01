@@ -206,6 +206,15 @@ export async function DELETE(req: Request) {
 export async function GET(req: Request) {
   try {
     await ensureDashboardColumns();
+    const { searchParams } = new URL(req.url);
+    const isClient = searchParams.get('client_mode') === '1' || searchParams.get('lan_client') === '1' || searchParams.get('online_client') === '1';
+
+    // In client / role mode, allow fetching available companies for role-based terminal
+    if (isClient) {
+      const companies = await prisma.company.findMany();
+      return NextResponse.json({ companies });
+    }
+
     const user = await getAuthenticatedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
