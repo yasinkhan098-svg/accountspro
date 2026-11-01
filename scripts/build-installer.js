@@ -23,6 +23,8 @@ const launcherExePath = path.join(downloadsDir, 'LedgerX.exe');
 const setupExePath = path.join(downloadsDir, 'LedgerX-Setup.exe');
 const clientCsPath = path.join(electronDir, 'LedgerXClient.cs');
 const clientExePath = path.join(downloadsDir, 'LedgerX-Client.exe');
+const onlineClientCsPath = path.join(electronDir, 'LedgerXOnlineClient.cs');
+const onlineClientExePath = path.join(downloadsDir, 'LedgerX-Online-Client.exe');
 
 if (!fs.existsSync(icoPath)) {
   throw new Error('Icon file electron/app.ico does not exist. Run scripts/generate-icons.py first!');
@@ -48,6 +50,13 @@ console.log('Executing:', clientCmd);
 execSync(clientCmd, { stdio: 'inherit' });
 const clientBuffer = fs.readFileSync(clientExePath);
 console.log('Compiled LedgerX-Client.exe size:', clientBuffer.length, 'bytes');
+
+console.log('\n=== Step 2C: Compiling LedgerX-Online-Client.exe with embedded Win32 Icon & Manifest ===');
+const onlineClientCmd = `"${cscPath}" /target:winexe /optimize+ /win32icon:"${icoPath}" /win32manifest:"${manifestPath}" /out:"${onlineClientExePath}" "${onlineClientCsPath}"`;
+console.log('Executing:', onlineClientCmd);
+execSync(onlineClientCmd, { stdio: 'inherit' });
+const onlineClientBuffer = fs.readFileSync(onlineClientExePath);
+console.log('Compiled LedgerX-Online-Client.exe size:', onlineClientBuffer.length, 'bytes');
 
 console.log('\n=== Step 3: Generating clean electron/Installer.cs (Using Manifest Resources, No Base64) ===');
 const installerContent = `using System;
@@ -731,6 +740,7 @@ if (-not $cert) {
 Set-AuthenticodeSignature -FilePath "${launcherExePath}" -Certificate $cert | Out-Null
 Set-AuthenticodeSignature -FilePath "${setupExePath}" -Certificate $cert | Out-Null
 Set-AuthenticodeSignature -FilePath "${clientExePath}" -Certificate $cert | Out-Null
+Set-AuthenticodeSignature -FilePath "${onlineClientExePath}" -Certificate $cert | Out-Null
 Write-Output "Successfully signed binaries with certificate: $($cert.Thumbprint)"
 `;
   fs.writeFileSync(signPs1, signScript, 'utf-8');

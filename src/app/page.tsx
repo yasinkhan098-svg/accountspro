@@ -818,6 +818,20 @@ export default function App() {
     };
     checkOfflineGuard();
 
+    // Handle Client Mode (LAN Client or Online Cloud Client)
+    if (permissionGuard.isClientSession()) {
+      setIsAuthenticated(true);
+      const activeRoleUser = permissionGuard.getCurrentUser();
+      if (!activeRoleUser) {
+        setShowUserSwitchModal(true);
+      } else if (!activeRoleUser.isAdmin) {
+        const vPerms = activeRoleUser.permissions?.vouchers;
+        if (vPerms && (vPerms['POS Sale'] || vPerms.Sales) && !vPerms.Purchase && !vPerms.Payment && !vPerms.Contra && !vPerms.Journal) {
+          setScreen('POS_SALE');
+        }
+      }
+    }
+
     const handleOfflineEvent = async () => {
       const guardResult = await offlineSyncService.verifyOfflineGuard();
       if (!guardResult.allowed) {
@@ -4067,6 +4081,37 @@ export default function App() {
                 🔄 CHECK UPDATE
               </button>
             )}
+            {/* LAN / Online Role User Session Badge */}
+            <button
+              onClick={() => setShowUserSwitchModal(true)}
+              title={currentLANUser ? `Logged in as ${currentLANUser.fullName} (@${currentLANUser.username}) - Click to Switch User Role` : 'Multi-User Mode - Click to Switch User / Role'}
+              style={{
+                background: currentLANUser ? (currentLANUser.isAdmin ? 'linear-gradient(135deg, #4f46e5, #4338ca)' : 'linear-gradient(135deg, #d97706, #b45309)') : 'rgba(255,255,255,0.15)',
+                color: 'white',
+                border: currentLANUser ? 'none' : '1px solid rgba(255,255,255,0.3)',
+                padding: '4px 10px',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                borderRadius: '3px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              {currentLANUser ? (
+                <>
+                  <span>{currentLANUser.isAdmin ? '👑' : '👤'}</span>
+                  <span>{currentLANUser.username.toUpperCase()}</span>
+                </>
+              ) : (
+                <>
+                  <span>👤</span>
+                  <span>USER ROLE</span>
+                </>
+              )}
+            </button>
+
             {!isDesktopApp && (
               <>
            <button

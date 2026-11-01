@@ -1,6 +1,6 @@
 /**
  * Permission Guard & Role-Based Access Control (RBAC) System
- * For 100% Offline Multi-User Operation across Local Area Network (LAN)
+ * For 100% Offline LAN and Online Cloud Multi-User Operation
  */
 
 export type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note' | 'Sales Quotation';
@@ -186,6 +186,17 @@ class PermissionGuardService {
 
   private loadSavedSession() {
     try {
+      if (typeof window !== 'undefined') {
+        const search = window.location.search;
+        if (search.includes('lan_client=1')) {
+          sessionStorage.setItem('ledgerx_is_lan_client', '1');
+          sessionStorage.setItem('ledgerx_is_client_mode', '1');
+        }
+        if (search.includes('online_client=1') || search.includes('client_mode=1')) {
+          sessionStorage.setItem('ledgerx_is_online_client', '1');
+          sessionStorage.setItem('ledgerx_is_client_mode', '1');
+        }
+      }
       const raw = localStorage.getItem('ledgerx_active_lan_user');
       if (raw) {
         this.currentUser = JSON.parse(raw);
@@ -221,13 +232,22 @@ class PermissionGuardService {
     };
   }
 
+  public isClientSession(): boolean {
+    if (typeof window === 'undefined') return false;
+    return window.location.search.includes('lan_client=1') || 
+           window.location.search.includes('online_client=1') ||
+           window.location.search.includes('client_mode=1') ||
+           Boolean(sessionStorage.getItem('ledgerx_is_lan_client')) ||
+           Boolean(sessionStorage.getItem('ledgerx_is_online_client')) ||
+           Boolean(sessionStorage.getItem('ledgerx_is_client_mode'));
+  }
+
   public isRestrictedSession(): boolean {
     if (typeof window === 'undefined') return false;
-    // Host PC / Main Desktop App / Online Admin is NEVER restricted!
-    // Restrictions ONLY apply to a connected LAN Client PC
-    const isLanClient = window.location.search.includes('lan_client=1') || 
-                        Boolean(sessionStorage.getItem('ledgerx_is_lan_client'));
-    if (!isLanClient) {
+    // Host PC / Main Desktop App / Primary Admin is NEVER restricted!
+    // Restrictions ONLY apply to a connected LAN Client PC or Online Client PC
+    const isClient = this.isClientSession();
+    if (!isClient) {
       return false;
     }
     if (!this.currentUser) return false;

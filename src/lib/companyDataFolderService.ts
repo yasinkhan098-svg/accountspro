@@ -32,6 +32,10 @@ export interface CompanyFolderData {
 
 export function getBridgeBaseUrl(): string {
   if (typeof window !== 'undefined') {
+    // If hosted over HTTPS (e.g. Vercel, cloud domain) or cloud production, route to cloud API directly
+    if (window.location.protocol === 'https:' || (window.location.hostname && window.location.hostname.includes('vercel.app'))) {
+      return window.location.origin;
+    }
     try {
       const params = new URLSearchParams(window.location.search);
       const hostParam = params.get('host');

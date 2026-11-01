@@ -30,6 +30,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
   const [activeTab, setActiveTab] = useState<'vouchers' | 'reports' | 'modules' | 'registers' | 'masters'>('vouchers');
   const [toast, setToast] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedOnline, setCopiedOnline] = useState(false);
 
   // Form state
   const [formUsername, setFormUsername] = useState('');
@@ -135,6 +136,17 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       showToastMsg('LAN Access Link copied to clipboard!');
+    }
+  };
+
+  const copyOnlineLink = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ledgerx-tawny.vercel.app';
+    const url = `${origin}/?client_mode=1&online_client=1`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+      setCopiedOnline(true);
+      setTimeout(() => setCopiedOnline(false), 2000);
+      showToastMsg('Online Cloud Client Link copied to clipboard!');
     }
   };
 
@@ -333,37 +345,35 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
       {/* Scrollable Container */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         
-        {/* LAN Server Control Panel Banner */}
-        <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: 16, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 8, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-                🌐
-              </div>
-              <div>
+        {/* Multi-User Connectivity Hub (Dual: LAN + Online Cloud) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 14, marginBottom: 20 }}>
+          
+          {/* 1. Offline LAN Client Card */}
+          <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontWeight: 'bold', fontSize: 15, color: '#0f3c64' }}>Offline LAN Multi-User Server:</span>
-                  <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
-                    ONLINE & LISTENING (Port 45454)
-                  </span>
+                  <span style={{ fontSize: 20 }}>🏢</span>
+                  <span style={{ fontWeight: 'bold', fontSize: 14, color: '#0f3c64' }}>Offline LAN Client (Zero Internet)</span>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
-                  Other computers on this same Wi-Fi / LAN router can connect directly to this Host PC without internet!
-                </div>
+                <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
+                  PORT 45454 ACTIVE
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.4 }}>
+                For cash counters & billing PCs on this same Wi-Fi / LAN router. Works 100% offline with zero internet required.
+              </div>
+              <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0f3c64', marginTop: 10 }}>
+                LAN URL: {hostInfo?.lanUrl || 'http://127.0.0.1:45454'}
               </div>
             </div>
 
-            {/* Quick Actions for LAN Access */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontFamily: 'monospace', fontWeight: 600, color: '#0f3c64' }}>
-                LAN Address: {hostInfo?.lanUrl || 'http://127.0.0.1:45454'}
-              </div>
-              
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
               <button 
                 onClick={copyLANLink}
-                style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                title="Copy URL to paste into client computer's browser"
+                style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
+                title="Copy LAN URL to paste into client computer's browser"
               >
                 {copied ? '✓ Copied!' : '📋 Copy LAN Link'}
               </button>
@@ -371,13 +381,55 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
               <a 
                 href="/downloads/LedgerX-Client.exe"
                 download="LedgerX-Client.exe"
-                style={{ background: '#4f46e5', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                title="Download 120KB client app to copy to other computers on LAN"
+                style={{ background: '#4f46e5', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flex: 1.3, justifyContent: 'center' }}
+                title="Download 138KB portable LAN client app for offline PC"
               >
-                📥 Download LAN Client App (.exe)
+                📥 Download LAN Client (.exe)
               </a>
             </div>
           </div>
+
+          {/* 2. Online Cloud Client Card */}
+          <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>🌐</span>
+                  <span style={{ fontWeight: 'bold', fontSize: 14, color: '#0369a1' }}>Online Cloud Client (Remote Access)</span>
+                </div>
+                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0284c7', display: 'inline-block' }}></span>
+                  CLOUD AUTO-SYNC
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.4 }}>
+                For remote branches, home users, traveling executives & internet billing counters. Roles, POS sales & sync operate live!
+              </div>
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0369a1', marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Cloud URL: {(typeof window !== 'undefined' ? window.location.origin : 'https://ledgerx-tawny.vercel.app') + '/?client_mode=1'}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+              <button 
+                onClick={copyOnlineLink}
+                style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
+                title="Copy Web Client URL to paste into remote browser"
+              >
+                {copiedOnline ? '✓ Copied!' : '📋 Copy Web Link'}
+              </button>
+
+              <a 
+                href="/downloads/LedgerX-Online-Client.exe"
+                download="LedgerX-Online-Client.exe"
+                style={{ background: '#0891b2', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flex: 1.3, justifyContent: 'center' }}
+                title="Download 136KB Online Cloud Client software (.exe)"
+              >
+                📥 Download Online Client (.exe)
+              </a>
+            </div>
+          </div>
+
         </div>
 
         {/* Current Active LAN Session Indicator */}
