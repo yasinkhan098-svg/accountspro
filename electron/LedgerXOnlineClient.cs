@@ -17,7 +17,7 @@ namespace LedgerXOnlineClient
 {
     public class Program
     {
-        public const string DEFAULT_CLOUD_URL = "https://ledgerx-tawny.vercel.app/?client_mode=1&online_client=1";
+        public const string DEFAULT_CLOUD_URL = "https://www.ledgerxerp.com/?client_mode=1&online_client=1";
 
         [STAThread]
         public static void Main(string[] args)

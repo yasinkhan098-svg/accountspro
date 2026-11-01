@@ -51,7 +51,7 @@ export async function GET(req: Request) {
     const explicitServerUrl = searchParams.get('serverUrl');
     const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
     const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
-    const resolvedServerUrl = explicitServerUrl || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : 'https://ledgerx-tawny.vercel.app');
+    const resolvedServerUrl = explicitServerUrl || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : 'https://www.ledgerxerp.com');
 
     const baseBuffer = fs.readFileSync(filePath);
     const marker = Buffer.from(`\n---LX_CONFIG_BEGIN---\nSERVER_URL=${resolvedServerUrl}\n---LX_CONFIG_END---\n`, 'utf-8');

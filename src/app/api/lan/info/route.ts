@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET(req: Request) {
   try {
     const proto = req.headers.get('x-forwarded-proto') || 'https';
-    const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'ledgerx-tawny.vercel.app';
+    const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'www.ledgerxerp.com';
     const fullUrl = `${proto}://${host}`;
 
     return NextResponse.json({
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
       localIps: ['127.0.0.1'],
       port: 443,
       dataDir: 'Cloud Storage',
-      lanUrl: 'https://ledgerx-tawny.vercel.app',
+      lanUrl: 'https://www.ledgerxerp.com',
     });
   }
 }

@@ -140,7 +140,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
   };
 
   const copyOnlineLink = () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ledgerx-tawny.vercel.app';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.ledgerxerp.com';
     const url = `${origin}/?client_mode=1&online_client=1`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url);
@@ -406,7 +406,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                 For remote branches, home users, traveling executives & internet billing counters. Roles, POS sales & sync operate live!
               </div>
               <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0369a1', marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Cloud URL: {(typeof window !== 'undefined' ? window.location.origin : 'https://ledgerx-tawny.vercel.app') + '/?client_mode=1'}
+                Cloud URL: {(typeof window !== 'undefined' ? window.location.origin : 'https://www.ledgerxerp.com') + '/?client_mode=1'}
               </div>
             </div>
 

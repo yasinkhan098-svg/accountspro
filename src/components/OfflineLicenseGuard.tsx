@@ -233,7 +233,7 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
                 <div style={{ marginTop: 4, color: '#dc2626' }}><strong>Expired On:</strong> {guardResult.expiryDate ? guardResult.expiryDate.toLocaleDateString('en-GB') : 'Expired'}</div>
               </div>
               <a
-                href="https://ledgerx-tawny.vercel.app"
+                href="https://www.ledgerxerp.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{

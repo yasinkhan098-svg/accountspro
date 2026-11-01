@@ -332,7 +332,7 @@ namespace LedgerXSetup
                     }
                     else if (!File.Exists(conf))
                     {
-                        File.WriteAllText(conf, "https://ledgerx-tawny.vercel.app");
+                        File.WriteAllText(conf, "https://www.ledgerxerp.com");
                     }
                 }
             }

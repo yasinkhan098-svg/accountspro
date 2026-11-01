@@ -69,7 +69,7 @@ namespace LedgerXLauncher
                 }
 
                 // Default target URL
-                string targetUrl = "https://ledgerx-tawny.vercel.app";
+                string targetUrl = "https://www.ledgerxerp.com";
 
                 if (File.Exists(configFile))
                 {
@@ -87,7 +87,7 @@ namespace LedgerXLauncher
                 // If target URL is localhost but local dev server is not running, fallback to live cloud server
                 if (targetUrl.Contains("localhost") && !IsServerAlive("localhost", 3000))
                 {
-                    targetUrl = "https://ledgerx-tawny.vercel.app";
+                    targetUrl = "https://www.ledgerxerp.com";
                     try { File.WriteAllText(configFile, targetUrl); } catch { }
                 }
 

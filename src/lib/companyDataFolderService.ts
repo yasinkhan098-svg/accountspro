@@ -33,7 +33,7 @@ export interface CompanyFolderData {
 export function getBridgeBaseUrl(): string {
   if (typeof window !== 'undefined') {
     // If hosted over HTTPS (e.g. Vercel, cloud domain) or cloud production, route to cloud API directly
-    if (window.location.protocol === 'https:' || (window.location.hostname && window.location.hostname.includes('vercel.app'))) {
+    if (window.location.protocol === 'https:' || (window.location.hostname && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('ledgerxerp.com')))) {
       return window.location.origin;
     }
     try {
@@ -50,7 +50,7 @@ export function getBridgeBaseUrl(): string {
         return `http://${savedHost}:45454`;
       }
     } catch (e) {}
-    if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && !window.location.hostname.includes('vercel.app')) {
+    if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && !window.location.hostname.includes('vercel.app') && !window.location.hostname.includes('ledgerxerp.com')) {
       return `http://${window.location.hostname}:45454`;
     }
   }
