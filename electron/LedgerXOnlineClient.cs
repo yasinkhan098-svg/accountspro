@@ -132,7 +132,7 @@ namespace LedgerXOnlineClient
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = browser;
-                psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run", targetUrl, profileDir);
+                psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --start-fullscreen --no-default-browser-check --no-first-run", targetUrl, profileDir);
                 psi.WindowStyle = ProcessWindowStyle.Maximized;
                 psi.UseShellExecute = false;
                 Process.Start(psi);

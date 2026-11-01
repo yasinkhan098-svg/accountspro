@@ -138,6 +138,11 @@ export default function POSLoginScreen({
           return;
         }
         // Match found!
+        try {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen?.().catch(() => {});
+          }
+        } catch (e) {}
         permissionGuard.setCurrentUser(matched);
         onLoginSuccess({
           id: matched.id,
@@ -265,6 +270,31 @@ export default function POSLoginScreen({
           >
             Need Help?
           </span>
+          <button
+            onClick={() => {
+              try {
+                if (!document.fullscreenElement) {
+                  document.documentElement.requestFullscreen?.().catch(() => {});
+                } else {
+                  document.exitFullscreen?.().catch(() => {});
+                }
+              } catch (e) {}
+            }}
+            title="Toggle Fullscreen Mode (F11)"
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 4,
+              padding: '4px 10px',
+              fontSize: 12,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              marginLeft: 4,
+            }}
+          >
+            ⛶ Fullscreen
+          </button>
           <button
             onClick={() => {
               if (permissionGuard.isClientSession()) {

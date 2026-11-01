@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   posService, 
   POSCartItem, 
@@ -29,6 +29,98 @@ interface POSSaleViewProps {
   onVouchersUpdated?: (updatedVouchers: any[]) => void;
 }
 
+// AI Realistic Product Mockup Generator
+function generateAIImageForProduct(item: any): string {
+  const name = String(item.name || '').trim().toUpperCase();
+
+  let primaryColor = '#0284c7';
+  let secondaryColor = '#0369a1';
+  let accentColor = '#38bdf8';
+
+  if (name.includes('RED') || name.includes('RLD') || name.includes('ROSE')) {
+    primaryColor = '#dc2626';
+    secondaryColor = '#991b1b';
+    accentColor = '#f87171';
+  } else if (name.includes('GREEN') || name.includes('GRN') || name.includes('EMERALD')) {
+    primaryColor = '#16a34a';
+    secondaryColor = '#14532d';
+    accentColor = '#4ade80';
+  } else if (name.includes('YELLOW') || name.includes('YLW') || name.includes('GOLD')) {
+    primaryColor = '#eab308';
+    secondaryColor = '#854d0e';
+    accentColor = '#fde047';
+  } else if (name.includes('BLUE') || name.includes('SKY') || name.includes('INDIGO')) {
+    primaryColor = '#2563eb';
+    secondaryColor = '#1e3a8a';
+    accentColor = '#60a5fa';
+  } else if (name.includes('ORANGE') || name.includes('SUNRISE')) {
+    primaryColor = '#ea580c';
+    secondaryColor = '#9a3412';
+    accentColor = '#fb923c';
+  } else if (name.includes('BLACK') || name.includes('CARBON')) {
+    primaryColor = '#1e293b';
+    secondaryColor = '#0f172a';
+    accentColor = '#64748b';
+  } else if (name.includes('WHITE') || name.includes('SILVER')) {
+    primaryColor = '#64748b';
+    secondaryColor = '#334155';
+    accentColor = '#cbd5e1';
+  }
+
+  let capacityText = '';
+  if (name.includes('1LT') || name.includes('1 LT') || name.includes('1LTR')) capacityText = '1 LTR';
+  else if (name.includes('4LT') || name.includes('4 LT') || name.includes('4LTR')) capacityText = '4 LTR';
+  else if (name.includes('10LT') || name.includes('10 LT')) capacityText = '10 LTR';
+  else if (name.includes('20LT') || name.includes('20 LT')) capacityText = '20 LTR';
+  else if (name.includes('500ML') || name.includes('500 ML')) capacityText = '500 ML';
+  else if (name.includes('50KG') || name.includes('50 KG')) capacityText = '50 KG';
+  else if (name.includes('25KG') || name.includes('25 KG')) capacityText = '25 KG';
+  else capacityText = item.unit || 'PACK';
+
+  const cleanTitle = name.slice(0, 16);
+  const idStr = String(item.id || Math.random()).replace(/[^a-zA-Z0-9]/g, '');
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bodyGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${secondaryColor}" />
+      <stop offset="40%" stop-color="${primaryColor}" />
+      <stop offset="70%" stop-color="${accentColor}" />
+      <stop offset="100%" stop-color="${secondaryColor}" />
+    </linearGradient>
+    <linearGradient id="lidGrad_${idStr}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#cbd5e1" stop-opacity="0.8" />
+    </linearGradient>
+    <filter id="shadow_${idStr}" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.3" />
+    </filter>
+  </defs>
+  <ellipse cx="80" cy="142" rx="46" ry="9" fill="#94a3b8" opacity="0.35" />
+  <g filter="url(#shadow_${idStr})">
+    <path d="M 40 46 L 46 128 C 46 136, 114 136, 114 128 L 120 46 Z" fill="url(#bodyGrad_${idStr})" />
+    <ellipse cx="80" cy="46" rx="40" ry="8" fill="url(#lidGrad_${idStr})" stroke="#94a3b8" stroke-width="0.75" />
+    <ellipse cx="80" cy="43" rx="34" ry="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.75" />
+    <path d="M 37 49 C 37 20, 123 20, 123 49" fill="none" stroke="#e2e8f0" stroke-width="2.5" stroke-linecap="round" />
+    <path d="M 37 49 C 37 20, 123 20, 123 49" fill="none" stroke="#64748b" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
+    <rect x="48" y="66" width="64" height="46" rx="5" fill="#ffffff" opacity="0.95" />
+    <rect x="50" y="68" width="60" height="42" rx="4" fill="none" stroke="${primaryColor}" stroke-width="1.2" />
+    <circle cx="80" cy="79" r="6.5" fill="${primaryColor}" />
+    <text x="80" y="82" font-size="6.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">★</text>
+    <text x="80" y="94" font-size="6.5" font-weight="800" fill="#0f172a" text-anchor="middle" font-family="sans-serif">
+      ${cleanTitle.length > 12 ? cleanTitle.slice(0, 12) + '..' : cleanTitle}
+    </text>
+    <rect x="62" y="99" width="36" height="8" rx="4" fill="${secondaryColor}" />
+    <text x="80" y="105.5" font-size="5.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">
+      ${capacityText}
+    </text>
+  </g>
+  <path d="M 47 52 Q 52 90 51 124" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.45" />
+</svg>`;
+
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
 export default function POSSaleView({
   company,
   availableCompanies = [],
@@ -52,6 +144,7 @@ export default function POSSaleView({
   // POS Core State
   const [cart, setCart] = useState<POSCartItem[]>([]);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
+  const selectedCartItem = cart.find(c => c.cartId === selectedCartId);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [billNo, setBillNo] = useState(() => posService.generateBillNo(vouchers, companyCode));
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
@@ -87,6 +180,128 @@ export default function POSSaleView({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [rightViewMode, setRightViewMode] = useState<'SCANNED' | 'SALE_POS' | 'RUBIC_POS'>('SCANNED');
+  const [scannedActiveItems, setScannedActiveItems] = useState<any[]>([]);
+  const [posSearchQuery, setPosSearchQuery] = useState('');
+  const [rubicSearchQuery, setRubicSearchQuery] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiImagesMap, setAiImagesMap] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('ledgerx_stock_item_ai_images');
+        if (stored) return JSON.parse(stored);
+      } catch (e) {}
+    }
+    return {};
+  });
+
+  // Track Fullscreen status & attempt fullscreen on first touch
+  useEffect(() => {
+    const checkFs = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', checkFs);
+    const triggerFs = () => {
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('click', triggerFs, { once: true });
+    window.addEventListener('keydown', triggerFs, { once: true });
+    return () => {
+      document.removeEventListener('fullscreenchange', checkFs);
+      window.removeEventListener('click', triggerFs);
+      window.removeEventListener('keydown', triggerFs);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    } catch (e) {}
+  };
+
+  // Live stock calculator per item (Vouchers + Opening Qty)
+  const getItemStock = useCallback((item: any): number => {
+    let stock = Number(item.openingQty) || 0;
+    if (Array.isArray(vouchers)) {
+      for (const v of vouchers) {
+        if (!v.inventoryEntries) continue;
+        for (const ie of v.inventoryEntries) {
+          const isMatch = ie.itemId === item.id || 
+                          (ie.stockItemId && ie.stockItemId === item.id) ||
+                          (ie.itemName && item.name && ie.itemName.trim().toLowerCase() === item.name.trim().toLowerCase());
+          if (isMatch) {
+            const q = Number(ie.qty) || 0;
+            if (v.type === 'Purchase' || v.type === 'Credit Note') {
+              stock += q;
+            } else if (v.type === 'Sales' || v.type === 'Debit Note' || v.type === 'POS Sale') {
+              stock -= q;
+            } else if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') {
+              const isMfgProd = ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production'));
+              if (isMfgProd) stock += q;
+              else stock -= q;
+            }
+          }
+        }
+      }
+    }
+    return Math.round(stock * 100) / 100;
+  }, [vouchers]);
+
+  // Filter items: Only positive stock (> 0) shown in both Sale POS and Rubic POS
+  const positiveStockItems = useMemo(() => {
+    return stockItems
+      .map(item => ({
+        ...item,
+        _calculatedStock: getItemStock(item)
+      }))
+      .filter(item => item._calculatedStock > 0);
+  }, [stockItems, getItemStock]);
+
+  // AI Product Image Generator Trigger
+  const handleGenerateAIImages = () => {
+    setIsGeneratingAI(true);
+    try {
+      const updatedMap = { ...aiImagesMap };
+      let generatedCount = 0;
+      for (const it of stockItems) {
+        const key = String(it.id);
+        if (!updatedMap[key] && !it.image) {
+          updatedMap[key] = generateAIImageForProduct(it);
+          generatedCount++;
+        }
+      }
+      setAiImagesMap(updatedMap);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
+      }
+      alert(`✨ AI Image Generation Complete!\nGenerated realistic product imagery for ${generatedCount} items.`);
+    } catch (err: any) {
+      alert('AI image generation error: ' + err.message);
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // Add & register in scannedActiveItems
+  const handleSelectOrScanItem = (item: any, quantity = 1) => {
+    addItemToCart(item, quantity);
+    setScannedActiveItems(prev => {
+      const exists = prev.find(p => p.id === item.id);
+      if (exists) return prev;
+      return [item, ...prev];
+    });
+  };
   const [lastCompletedBill, setLastCompletedBill] = useState<{
     billNo: string;
     items: POSCartItem[];
@@ -222,7 +437,7 @@ export default function POSSaleView({
     const matched = posService.matchStockItem(cleanQ, stockItems);
     if (matched) {
       playBeep(1046, 0.08); // Success high beep
-      addItemToCart(matched);
+      handleSelectOrScanItem(matched);
       setBarcodeInput('');
     } else {
       playBeep(330, 0.2); // Error low buzz
@@ -345,7 +560,11 @@ export default function POSSaleView({
   const handleVoidItemOrBill = () => {
     if (selectedCartId) {
       if (confirm('Void selected item from cart?')) {
+        const itemToVoid = cart.find(c => c.cartId === selectedCartId);
         setCart(prev => prev.filter(c => c.cartId !== selectedCartId));
+        if (itemToVoid) {
+          setScannedActiveItems(prev => prev.filter(it => it.id !== itemToVoid.itemId));
+        }
         setSelectedCartId(null);
       }
     } else if (cart.length > 0) {
@@ -543,6 +762,7 @@ export default function POSSaleView({
     setSelectedCartId(null);
     setBarcodeInput('');
     setPromoDiscountAmt(0);
+    setScannedActiveItems([]);
     setBillNo(posService.generateBillNo(vouchers, companyCode));
   };
 
@@ -777,6 +997,30 @@ export default function POSSaleView({
               🔍
             </span>
           </div>
+
+          {/* Fullscreen Kiosk Mode Button */}
+          <button
+            className="pos-touch-btn"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen (F11)" : "Enter 100% Fullscreen Software Mode (F11)"}
+            style={{
+              background: 'linear-gradient(180deg, #10b981 0%, #059669 60%, #047857 100%)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.6)',
+              borderBottom: '2px solid #065f46',
+              borderRadius: 8,
+              padding: '8px 14px',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 800,
+              boxShadow: '0 4px 10px rgba(5, 150, 105, 0.4), inset 0 1.5px 1px rgba(255, 255, 255, 0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            {isFullscreen ? '🗗 Window' : '⛶ Fullscreen'}
+          </button>
 
           {/* Secure Lock Button */}
           <button
@@ -1238,7 +1482,7 @@ export default function POSSaleView({
             padding: 8,
           }}
         >
-          {/* Top Section: Quick Pill Buttons (2 columns x 4 rows) */}
+          {/* Top Section: Quick Item Add + [sale pos] + [rubic pos] */}
           <div
             style={{
               display: 'flex',
@@ -1249,43 +1493,370 @@ export default function POSSaleView({
               transition: 'opacity 0.2s ease',
             }}
           >
-            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>
-              Quick Item Add
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-              {quickItems.map(item => (
+            {/* Header: Title + Sale POS + Rubic POS Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <div 
+                onClick={() => setRightViewMode('SCANNED')}
+                style={{ 
+                  fontSize: 11, 
+                  fontWeight: 800, 
+                  color: rightViewMode === 'SCANNED' ? '#0284c7' : '#64748b', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: 0.5,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+                title="View Scanned / Active Cart Items"
+              >
+                <span>⚡ QUICK ITEM ADD</span>
+                {scannedActiveItems.length > 0 && (
+                  <span style={{ fontSize: 9, background: '#0284c7', color: 'white', padding: '1px 6px', borderRadius: 10, fontWeight: 900 }}>
+                    {scannedActiveItems.length}
+                  </span>
+                )}
+              </div>
+
+              {/* Two Action Buttons: sale pos (red) & rubic pos (orange) */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                {/* Red Button: sale pos */}
                 <button
-                  key={item.id}
                   type="button"
                   className="pos-touch-btn"
-                  onClick={() => {
-                    playBeep(1046, 0.05);
-                    addItemToCart(item, 1);
+                  onClick={() => setRightViewMode(prev => prev === 'SALE_POS' ? 'SCANNED' : 'SALE_POS')}
+                  style={{
+                    padding: '3px 10px',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    textTransform: 'lowercase',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    background: rightViewMode === 'SALE_POS'
+                      ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)'
+                      : 'linear-gradient(180deg, #ffffff 0%, #fee2e2 100%)',
+                    color: rightViewMode === 'SALE_POS' ? '#ffffff' : '#b91c1c',
+                    border: '1.5px solid #ef4444',
+                    boxShadow: rightViewMode === 'SALE_POS' ? '0 2px 6px rgba(220, 38, 38, 0.4)' : '0 1px 2px rgba(0,0,0,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
                   }}
-                  style={glassQuickPillStyle}
-                  title={item.name}
+                  title="Open Sale POS Item Stock List"
                 >
-                  <span style={{ fontSize: 13, flexShrink: 0 }}>🏷️</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                  <span>📋</span> sale pos
                 </button>
-              ))}
+
+                {/* Orange Button: rubic pos */}
+                <button
+                  type="button"
+                  className="pos-touch-btn"
+                  onClick={() => setRightViewMode(prev => prev === 'RUBIC_POS' ? 'SCANNED' : 'RUBIC_POS')}
+                  style={{
+                    padding: '3px 10px',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    textTransform: 'lowercase',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    background: rightViewMode === 'RUBIC_POS'
+                      ? 'linear-gradient(180deg, #ea580c 0%, #c2410c 100%)'
+                      : 'linear-gradient(180deg, #ffffff 0%, #ffedd5 100%)',
+                    color: rightViewMode === 'RUBIC_POS' ? '#ffffff' : '#c2410c',
+                    border: '1.5px solid #f97316',
+                    boxShadow: rightViewMode === 'RUBIC_POS' ? '0 2px 6px rgba(234, 88, 12, 0.4)' : '0 1px 2px rgba(0,0,0,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
+                  }}
+                  title="Open Rubic Visual Catalog with AI Images"
+                >
+                  <span>🎨</span> rubic pos
+                </button>
+              </div>
             </div>
 
-            {/* Selected Item Controls: Circular [-] and [+] Buttons (Embossed 3D Glass) */}
+            {/* Container Box: Taller height (220px) matching container size */}
+            <div
+              style={{
+                height: 220,
+                maxHeight: 220,
+                overflowY: 'auto',
+                background: 'rgba(255, 255, 255, 0.65)',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: 10,
+                padding: 6,
+                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)',
+              }}
+            >
+              {/* MODE 1: SCANNED / ACTIVE ITEMS (Empty until scanned/selected) */}
+              {rightViewMode === 'SCANNED' && (
+                <>
+                  {scannedActiveItems.length === 0 ? (
+                    <div style={{
+                      height: '100%',
+                      minHeight: 180,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1.5px dashed #cbd5e1',
+                      borderRadius: 8,
+                      padding: 14,
+                      textAlign: 'center',
+                      color: '#64748b',
+                      background: 'rgba(248, 250, 252, 0.7)'
+                    }}>
+                      <span style={{ fontSize: 26, marginBottom: 4 }}>📦</span>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#334155' }}>No Scanned Items</div>
+                      <div style={{ fontSize: 9.5, color: '#94a3b8', marginTop: 3, lineHeight: 1.3 }}>
+                        Scan barcode/QR code or tap <b>sale pos</b> / <b>rubic pos</b> above to add & quick-adjust items here
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                      {scannedActiveItems.map(item => {
+                        const inCart = cart.find(c => c.itemId === item.id);
+                        const isSelected = selectedCartItem?.itemId === item.id;
+                        const qty = inCart?.qty || 0;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="pos-touch-btn"
+                            onClick={() => {
+                              playBeep(1046, 0.05);
+                              if (inCart) {
+                                setSelectedCartId(inCart.cartId);
+                              } else {
+                                handleSelectOrScanItem(item, 1);
+                              }
+                            }}
+                            style={{
+                              ...glassQuickPillStyle,
+                              border: isSelected ? '2px solid #0284c7' : '1px solid rgba(255, 255, 255, 0.65)',
+                              background: isSelected 
+                                ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.85) 0%, rgba(30, 58, 138, 0.9) 100%)' 
+                                : glassQuickPillStyle.background,
+                              color: isSelected ? '#ffffff' : '#0f172a',
+                              boxShadow: isSelected ? '0 0 10px rgba(2, 132, 199, 0.5)' : glassQuickPillStyle.boxShadow,
+                            }}
+                            title={item.name}
+                          >
+                            <span style={{ fontSize: 12, flexShrink: 0 }}>🏷️</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
+                              {item.name}
+                            </span>
+                            {qty > 0 && (
+                              <span style={{
+                                fontSize: 9,
+                                fontWeight: 900,
+                                background: isSelected ? '#ffffff' : '#0284c7',
+                                color: isSelected ? '#0284c7' : '#ffffff',
+                                padding: '1px 5px',
+                                borderRadius: 8,
+                                flexShrink: 0
+                              }}>
+                                x{qty}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* MODE 2: SALE POS (Complete List with Positive Stock > 0) */}
+              {rightViewMode === 'SALE_POS' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
+                  <div style={{ display: 'flex', gap: 4, marginBottom: 2 }}>
+                    <input
+                      type="text"
+                      placeholder="🔍 Search item in stock..."
+                      value={posSearchQuery}
+                      onChange={e => setPosSearchQuery(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        borderRadius: 6,
+                        border: '1px solid #cbd5e1',
+                        outline: 'none',
+                        background: '#ffffff'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRightViewMode('SCANNED')}
+                      style={{ padding: '2px 8px', fontSize: 10, background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}
+                      title="Back to Scanned Items"
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {positiveStockItems
+                      .filter((it: any) => !posSearchQuery || it.name.toLowerCase().includes(posSearchQuery.toLowerCase()))
+                      .map((item: any) => {
+                        const st = item._calculatedStock;
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              playBeep(1046, 0.05);
+                              handleSelectOrScanItem(item, 1);
+                            }}
+                            className="pos-touch-btn"
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: 6,
+                              background: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              cursor: 'pointer',
+                              fontSize: 11,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                            }}
+                          >
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '58%' }}>
+                              <span style={{ fontWeight: 700, color: '#0f172a' }}>{item.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                              <span style={{ fontWeight: 800, color: '#0284c7' }}>
+                                ₹{item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}
+                              </span>
+                              <span style={{ fontSize: 9, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: 8 }}>
+                                Stock: {st}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {/* MODE 3: RUBIC POS (Visual Catalog with AI Images & Stock > 0) */}
+              {rightViewMode === 'RUBIC_POS' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
+                  <div style={{ display: 'flex', gap: 4, marginBottom: 2, alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="🔍 Search visual items..."
+                      value={rubicSearchQuery}
+                      onChange={e => setRubicSearchQuery(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        borderRadius: 6,
+                        border: '1px solid #cbd5e1',
+                        outline: 'none',
+                        background: '#ffffff'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateAIImages}
+                      disabled={isGeneratingAI}
+                      title="AI Auto-Generate Images for all items missing photos"
+                      style={{
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '3px 8px',
+                        fontSize: 10,
+                        fontWeight: 800,
+                        cursor: isGeneratingAI ? 'wait' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        flexShrink: 0,
+                        boxShadow: '0 2px 5px rgba(109, 40, 217, 0.35)'
+                      }}
+                    >
+                      {isGeneratingAI ? '⏳ AI...' : '✨ AI Images'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRightViewMode('SCANNED')}
+                      style={{ padding: '2px 8px', fontSize: 10, background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}
+                      title="Back to Scanned Items"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, padding: 2 }}>
+                    {positiveStockItems
+                      .filter((it: any) => !rubicSearchQuery || it.name.toLowerCase().includes(rubicSearchQuery.toLowerCase()))
+                      .map((item: any) => {
+                        const st = item._calculatedStock;
+                        const imgSrc = item.image || aiImagesMap[String(item.id)] || generateAIImageForProduct(item);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              playBeep(1046, 0.05);
+                              handleSelectOrScanItem(item, 1);
+                            }}
+                            className="pos-touch-btn"
+                            style={{
+                              background: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: 8,
+                              padding: 6,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                              position: 'relative'
+                            }}
+                          >
+                            <img
+                              src={imgSrc}
+                              alt={item.name}
+                              style={{ width: 44, height: 44, objectFit: 'contain', marginBottom: 4, borderRadius: 4 }}
+                            />
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#0f172a', textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.name}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 3 }}>
+                              <span style={{ fontSize: 10, fontWeight: 800, color: '#0284c7' }}>
+                                ₹{item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}
+                              </span>
+                              <span style={{ fontSize: 8.5, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: 6 }}>
+                                Stk: {st}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Selected Item Controls: Circular [-] and [+] Buttons (Pushed Downwards) */}
             <div
               style={{
                 background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.85) 100%)',
                 border: '1px solid rgba(255, 255, 255, 0.95)',
                 borderBottom: '2px solid rgba(148, 163, 184, 0.5)',
                 borderRadius: 12,
-                padding: '10px 14px',
-                marginTop: 4,
+                padding: '8px 14px',
+                marginTop: 8,
                 boxShadow: '0 4px 10px rgba(0, 0, 0, 0.06), inset 0 1px 2px #ffffff',
                 backdropFilter: 'blur(8px)',
               }}
             >
-              <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, textAlign: 'center', letterSpacing: 0.5 }}>
-                Quantity Adjuster
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 6, textAlign: 'center', letterSpacing: 0.5 }}>
+                Quantity Adjuster {selectedCartItem ? `(${selectedCartItem.name.slice(0, 14)}..)` : ''}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 24 }}>
                 {/* Circular Blue [-] Button */}
@@ -1296,15 +1867,15 @@ export default function POSSaleView({
                   disabled={!selectedCartId}
                   title="Decrease Qty (-)"
                   style={{
-                    width: 52,
-                    height: 52,
+                    width: 48,
+                    height: 48,
                     borderRadius: '50%',
                     background: selectedCartId 
                       ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
                       : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
                     color: '#ffffff',
                     border: '2px solid rgba(255, 255, 255, 0.7)',
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: 900,
                     cursor: selectedCartId ? 'pointer' : 'not-allowed',
                     display: 'flex',
@@ -1327,15 +1898,15 @@ export default function POSSaleView({
                   disabled={!selectedCartId}
                   title="Increase Qty (+)"
                   style={{
-                    width: 52,
-                    height: 52,
+                    width: 48,
+                    height: 48,
                     borderRadius: '50%',
                     background: selectedCartId 
                       ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
                       : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
                     color: '#ffffff',
                     border: '2px solid rgba(255, 255, 255, 0.7)',
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: 900,
                     cursor: selectedCartId ? 'pointer' : 'not-allowed',
                     display: 'flex',
