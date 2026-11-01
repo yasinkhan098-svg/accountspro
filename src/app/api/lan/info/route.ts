@@ -4,13 +4,13 @@ export async function GET(req: Request) {
   try {
     const proto = req.headers.get('x-forwarded-proto') || 'https';
     const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'www.ledgerxerp.com';
-    const fullUrl = `${proto}://${host}`;
+    const fullUrl = 'https://www.ledgerxerp.com';
 
     return NextResponse.json({
       isHostRunning: true,
       hostName: 'LedgerX Cloud Gateway',
-      localIps: [host],
-      port: proto === 'https' ? 443 : 80,
+      localIps: ['www.ledgerxerp.com'],
+      port: 443,
       dataDir: 'Cloud Storage & Database',
       lanUrl: fullUrl,
     });

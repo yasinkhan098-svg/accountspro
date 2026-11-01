@@ -130,23 +130,24 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
   };
 
   const copyLANLink = () => {
-    const url = hostInfo?.lanUrl || `http://127.0.0.1:45454`;
+    // If local LAN IP available (e.g. 192.168.x.x), use it; otherwise use official ledgerxerp.com domain
+    const isLocalLan = hostInfo?.localIps?.some(ip => ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.'));
+    const url = isLocalLan && hostInfo?.lanUrl ? `${hostInfo.lanUrl}/?lan_client=1` : 'https://www.ledgerxerp.com/?lan_client=1';
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      showToastMsg('LAN Access Link copied to clipboard!');
+      showToastMsg(`Copied LAN Link: ${url}`);
     }
   };
 
   const copyOnlineLink = () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.ledgerxerp.com';
-    const url = `${origin}/?client_mode=1&online_client=1`;
+    const url = 'https://www.ledgerxerp.com/?client_mode=1&online_client=1';
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url);
       setCopiedOnline(true);
       setTimeout(() => setCopiedOnline(false), 2000);
-      showToastMsg('Online Cloud Client Link copied to clipboard!');
+      showToastMsg('Copied Cloud Link: https://www.ledgerxerp.com/?client_mode=1&online_client=1');
     }
   };
 
@@ -364,8 +365,8 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
               <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.4 }}>
                 For cash counters & billing PCs on this same Wi-Fi / LAN router. Works 100% offline with zero internet required.
               </div>
-              <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0f3c64', marginTop: 10 }}>
-                LAN URL: {hostInfo?.lanUrl || 'http://127.0.0.1:45454'}
+              <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0f3c64', marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                LAN URL: {hostInfo?.localIps?.some(ip => ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) ? `${hostInfo.lanUrl}/?lan_client=1` : 'https://www.ledgerxerp.com/?lan_client=1'}
               </div>
             </div>
 
@@ -406,7 +407,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                 For remote branches, home users, traveling executives & internet billing counters. Roles, POS sales & sync operate live!
               </div>
               <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0369a1', marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Cloud URL: {(typeof window !== 'undefined' ? window.location.origin : 'https://www.ledgerxerp.com') + '/?client_mode=1'}
+                Cloud URL: https://www.ledgerxerp.com/?client_mode=1&online_client=1
               </div>
             </div>
 
