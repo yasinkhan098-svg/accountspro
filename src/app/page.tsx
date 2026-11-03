@@ -2559,7 +2559,8 @@ export default function App() {
       }
       else if (type === 'company') {
         const normName = (data.name || '').trim().toLowerCase();
-        if (normName && companies.some(c => c.name.trim().toLowerCase() === normName && c.id !== targetItem.id)) {
+        const origName = (targetItem?.name || '').trim().toLowerCase();
+        if (normName && normName !== origName && companies.some(c => c.name.trim().toLowerCase() === normName && String(c.id) !== String(targetItem.id) && Number(c.id) !== Number(targetItem.id))) {
           alert(`Company "${data.name}" already exists!`);
           return false;
         }
@@ -3472,7 +3473,8 @@ export default function App() {
           };
         } else if (screen === 'COMPANY_CREATION') {
           const name = fv('c-name'); if (!name) { alert('Company Name is required!'); return; }
-          if (companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Company "${name}" already exists!`); return; }
+          const origName = (alterItem?.name || '').trim().toLowerCase();
+          if (name.trim().toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!alterItem || (String(c.id) !== String(alterItem.id) && Number(c.id) !== Number(alterItem.id))))) { alert(`Company "${name}" already exists!`); return; }
           const logoEl = document.querySelector('img[alt="Preview"]') as HTMLImageElement;
           type = 'company'; data = { 
             name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
@@ -3725,7 +3727,10 @@ export default function App() {
           if (activeId === 'gd-name' && godowns.some(g => g.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || g.id !== alterItem.id))) { alert(`Godown "${activeVal}" already exists!`); return; }
           if (activeId === 'cur-sym' && currencies.some(c => c.symbol.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Currency "${activeVal}" already exists!`); return; }
           if (activeId === 'vt-name' && voucherTypes.some(v => v.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || v.id !== alterItem.id))) { alert(`Voucher Type "${activeVal}" already exists!`); return; }
-          if (activeId === 'c-name' && companies.some(c => c.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || c.id !== alterItem.id))) { alert(`Company "${activeVal}" already exists!`); return; }
+          if (activeId === 'c-name') {
+            const origName = (alterItem?.name || '').trim().toLowerCase();
+            if (activeVal.trim().toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === activeVal.toLowerCase() && (!alterItem || (String(c.id) !== String(alterItem.id) && Number(c.id) !== Number(alterItem.id))))) { alert(`Company "${activeVal}" already exists!`); return; }
+          }
 
           const dropdowns = ['l-under','g-under','c-state','c-country','l-state','l-country','item-under','item-units','item-cat','sg-under','sc-under','vt-parent','gd-under'];
           if (dropdowns.includes(activeId)) return;
@@ -6520,7 +6525,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               onKeyDown={e=>{
                 if (e.key === 'Enter' && id === 'c-name') {
                   const val = e.currentTarget.value.trim();
-                  if (companies.some(c => c.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || c.id !== activeAlterItem.id))) {
+                  const origName = (activeAlterItem?.name || '').trim().toLowerCase();
+                  if (val && val.toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === val.toLowerCase() && (!activeAlterItem || (String(c.id) !== String(activeAlterItem.id) && Number(c.id) !== Number(activeAlterItem.id))))) {
                     alert(`Company "${val}" already exists!`); e.preventDefault(); return;
                   }
                 }
@@ -6723,7 +6729,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
             onClick={() => {
               const name = ((document.getElementById('c-name') as HTMLInputElement)?.value || '').trim();
               if (!name) { alert('Company Name is required!'); document.getElementById('c-name')?.focus(); return; }
-              if (companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || c.id !== activeAlterItem.id))) {
+              const origName = (activeAlterItem?.name || '').trim().toLowerCase();
+              if (name.toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || (String(c.id) !== String(activeAlterItem.id) && Number(c.id) !== Number(activeAlterItem.id))))) {
                 alert(`Company "${name}" already exists!`); document.getElementById('c-name')?.focus(); return;
               }
               const d = {

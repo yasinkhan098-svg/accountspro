@@ -146,7 +146,12 @@ export async function PUT(req: Request) {
 
     // Admin ke liye direct update (ownership check skip)
     if (user.id !== -1) {
-      const existingCompany = await prisma.company.findFirst({ where: { id: data.id, userId: user.id } });
+      const existingCompany = await prisma.company.findFirst({
+        where: {
+          id: data.id,
+          OR: [{ userId: user.id }, { userId: null }]
+        }
+      });
       if (!existingCompany) return NextResponse.json({ error: "Company not found or unauthorized" }, { status: 404 });
     }
 
