@@ -3758,7 +3758,7 @@ export default function App() {
       const t = e.target as HTMLInputElement;
       if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return;
       if (t.type !== 'text' && t.tagName !== 'TEXTAREA') return;
-      if (t.id?.toLowerCase().includes('email') || t.id?.toLowerCase().includes('web') || t.id?.toLowerCase().includes('ifsc') || t.id?.toLowerCase().includes('gstin') || t.id?.toLowerCase().includes('pan')) return;
+      if (t.id?.toLowerCase().includes('email') || t.id?.toLowerCase().includes('web') || t.id?.toLowerCase().includes('ifsc') || t.id?.toLowerCase().includes('gstin') || t.id?.toLowerCase().includes('pan') || t.id?.toLowerCase().includes('upi') || t.dataset.nouppercase === '1') return;
       const start = t.selectionStart; const end = t.selectionEnd;
       const v = t.value.split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : '').join(' ');
       if (t.value !== v) { t.value = v; t.setSelectionRange(start,end); }
@@ -6639,6 +6639,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
             style={{width:240,fontWeight:'bold'}} 
             placeholder="e.g. store@okicici or 9876543210@paytm" 
             defaultValue={activeAlterItem?.upiId||''}
+            data-nouppercase="1"
             autoCapitalize="none"
             autoCorrect="off"
             autoComplete="off"

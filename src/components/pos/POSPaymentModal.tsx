@@ -347,8 +347,10 @@ export default function POSPaymentModal({
                   ⚠️ <b>Company UPI ID not configured!</b> Enter your merchant UPI ID below to generate the payment QR code:
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                     <input
+                      id="pos-upi"
                       type="text"
                       inputMode="email"
+                      data-nouppercase="1"
                       placeholder="e.g. yourstore@okicici or 9876543210@paytm"
                       value={activeUpiVpa}
                       autoCapitalize="none"
@@ -465,8 +467,10 @@ export default function POSPaymentModal({
                 <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '6px 10px', borderRadius: 4, fontSize: 11, marginBottom: 10 }}>
                   ⚠️ UPI ID missing. Enter UPI ID: 
                   <input
+                    id="pos-split-upi"
                     type="text"
                     inputMode="email"
+                    data-nouppercase="1"
                     placeholder="merchant@upi"
                     value={activeUpiVpa}
                     autoCapitalize="none"
