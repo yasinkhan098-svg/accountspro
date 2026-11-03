@@ -128,7 +128,7 @@ interface CurrencyData { id: number; companyId: number; name: string; symbol: st
 interface Company { 
   id: number; name: string; mailingName?: string; address?: string; state?: string; country?: string; gstin?: string; 
   telephone?: string; mobile?: string; email?: string; website?: string; 
-  registrationType?: string; bankName?: string; bankHolderName?: string; accountNo?: string; branch?: string; ifsc?: string; swiftCode?: string; 
+  registrationType?: string; bankName?: string; bankHolderName?: string; accountNo?: string; branch?: string; ifsc?: string; swiftCode?: string; upiId?: string; 
   financialYearStart?: string; booksBeginFrom?: string; securityControl?: boolean; password?: string;
   showMobile?: boolean; showEmail?: boolean; showWebsite?: boolean;
   logo?: string; showLogo?: boolean; pinCode?: string;
@@ -2482,6 +2482,12 @@ export default function App() {
         if (activeCompany && activeCompany.id === targetItem.id) {
           setActiveCompany({ ...activeCompany, ...data });
         }
+        try {
+          const compCode = companyDataFolderService.getCompanyFolderCode(updated, companies);
+          companyDataFolderService.saveCompanyFolder({ companyCode: compCode, company: { ...updated, companyCode: compCode } });
+        } catch (e) {
+          console.warn("Error updating local company folder:", e);
+        }
         if (navigator.onLine) {
           try {
             const res = await fetch('/api/companies', {
@@ -3375,7 +3381,7 @@ export default function App() {
           const logoEl = document.querySelector('img[alt="Preview"]') as HTMLImageElement;
           type = 'company'; data = { 
             name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
-            registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'),
+            registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'), upiId: fv('c-upi'),
             financialYearStart: fv('c-fy-start'), booksBeginFrom: fv('c-books-start'),
             securityControl: fsv('c-sec-ctrl') === 'Yes', password: fv('c-pwd'),
             showMobile: (document.getElementById('chk-print-mob') as HTMLInputElement)?.checked ?? true,
@@ -6505,6 +6511,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         <div className="form-row"><label style={{width:220}}>A/C No.</label><span className="colon">:</span><input id="c-acc-no" type="text" className="form-input" style={{width:160}} defaultValue={activeAlterItem?.accountNo||''}/></div>
         <div className="form-row"><label style={{width:220}}>IFSC Code</label><span className="colon">:</span><input id="c-ifsc" type="text" className="form-input" style={{width:120}} defaultValue={activeAlterItem?.ifsc||''}/></div>
         <div className="form-row"><label style={{width:220}}>SWIFT Code</label><span className="colon">:</span><input id="c-swift" type="text" className="form-input" style={{width:120}} defaultValue={activeAlterItem?.swiftCode||''}/></div>
+        <div className="form-row"><label style={{width:220,fontWeight:'bold',color:'#1c5282'}}>UPI ID (For QR Payment)</label><span className="colon">:</span><input id="c-upi" type="text" className="form-input" style={{width:240,fontWeight:'bold'}} placeholder="e.g. store@okicici or 9876543210@paytm" defaultValue={activeAlterItem?.upiId||''}/></div>
         <div className="form-section-title">Security Control</div>
         <div className="form-row"><label style={{width:220}}>Use Security Control</label><span className="colon">:</span><select id="c-sec-ctrl" className="form-input" style={{width:80}} value={secCtrl} onChange={e=>setSecCtrl(e.target.value)}><option>No</option><option>Yes</option></select></div>
         {secCtrl === 'Yes' && (
@@ -6568,6 +6575,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
                 accountNo: (document.getElementById('c-acc-no') as HTMLInputElement).value,
                 ifsc: (document.getElementById('c-ifsc') as HTMLInputElement).value,
                 swiftCode: (document.getElementById('c-swift') as HTMLInputElement).value,
+                upiId: (document.getElementById('c-upi') as HTMLInputElement)?.value?.trim() || '',
                 currencySymbol: (document.getElementById('c-currency') as HTMLInputElement).value,
                 currencyName: (document.getElementById('c-formal') as HTMLInputElement).value,
                 securityControl: (document.getElementById('c-sec-ctrl') as HTMLSelectElement)?.value === 'Yes',

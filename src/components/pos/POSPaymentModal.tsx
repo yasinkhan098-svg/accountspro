@@ -18,7 +18,7 @@ export default function POSPaymentModal({
   onClose,
   totals,
   companyName,
-  upiVpa = 'retail@upi',
+  upiVpa = '',
   billNo = '0001',
   ledgers = [],
   onConfirmPayment,
@@ -33,13 +33,17 @@ export default function POSPaymentModal({
   const [upiRef, setUpiRef] = useState('');
   const [cardRef, setCardRef] = useState('');
   const [selectedLedgerId, setSelectedLedgerId] = useState<number | undefined>(undefined);
+  const [activeUpiVpa, setActiveUpiVpa] = useState<string>(upiVpa || '');
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    setActiveUpiVpa(upiVpa || '');
+  }, [upiVpa]);
 
   useEffect(() => {
     setCashTendered(totals.grandTotal);
     setSplitCash(Math.floor(totals.grandTotal / 2));
   }, [totals.grandTotal]);
-
-  if (!isOpen) return null;
 
   const changeDue = Math.max(0, Math.round((cashTendered - totals.grandTotal) * 100) / 100);
   const splitUpi = Math.max(0, Math.round((totals.grandTotal - splitCash) * 100) / 100);
@@ -54,13 +58,29 @@ export default function POSPaymentModal({
 
   // UPI payment URI & QR code image
   const effectiveUpiAmount = payMode === 'Split' ? splitUpi : totals.grandTotal;
-  const upiPayUrl = posService.getUpiUri({
-    vpa: upiVpa || 'retail@upi',
+  const currentVpa = activeUpiVpa.trim();
+  const upiPayUrl = currentVpa ? posService.getUpiUri({
+    vpa: currentVpa,
     companyName: companyName || 'LedgerX Retail',
     amount: effectiveUpiAmount,
     billNo,
-  });
-  const qrApiUrl = posService.getQrImageUrl(upiPayUrl, 180);
+  }) : '';
+
+  useEffect(() => {
+    let active = true;
+    if (upiPayUrl) {
+      posService.generateQrDataUrl(upiPayUrl, 200).then(url => {
+        if (active) setQrCodeDataUrl(url);
+      }).catch(() => {
+        if (active) setQrCodeDataUrl(posService.getQrImageUrl(upiPayUrl, 200));
+      });
+    } else {
+      setQrCodeDataUrl('');
+    }
+    return () => { active = false; };
+  }, [upiPayUrl]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -320,55 +340,86 @@ export default function POSPaymentModal({
                 borderRadius: 8,
                 padding: 16,
                 marginBottom: 14,
-                display: 'flex',
-                gap: 20,
-                alignItems: 'center',
               }}
             >
-              <div
-                style={{
-                  background: '#ffffff',
-                  padding: 8,
-                  borderRadius: 8,
-                  border: '1px solid #cbd5e1',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  textAlign: 'center',
-                }}
-              >
-                <img
-                  src={qrApiUrl}
-                  alt="UPI Payment QR Code"
-                  style={{ width: 160, height: 160, display: 'block' }}
-                />
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, fontWeight: 'bold' }}>
-                  Scan to Pay ₹{totals.grandTotal.toFixed(2)}
+              {!activeUpiVpa && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 12 }}>
+                  ⚠️ <b>Company UPI ID not configured!</b> Enter your merchant UPI ID below to generate the payment QR code:
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. yourstore@okicici or 9876543210@paytm"
+                      value={activeUpiVpa}
+                      onChange={e => setActiveUpiVpa(e.target.value)}
+                      style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #d97706', borderRadius: 4, fontWeight: 'bold' }}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontSize: 14, fontWeight: 'bold', color: '#0f3c64' }}>
-                  📱 Customer UPI QR Code
+              <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+                <div
+                  style={{
+                    background: '#ffffff',
+                    padding: 8,
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    textAlign: 'center',
+                    minWidth: 176,
+                  }}
+                >
+                  {qrCodeDataUrl ? (
+                    <img
+                      src={qrCodeDataUrl}
+                      alt="UPI Payment QR Code"
+                      style={{ width: 160, height: 160, display: 'block', imageRendering: 'pixelated' }}
+                    />
+                  ) : (
+                    <div style={{ width: 160, height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#64748b', fontSize: 11, padding: 8, textAlign: 'center' }}>
+                      {activeUpiVpa ? 'Generating QR...' : 'Enter UPI ID to generate QR'}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: '#0f3c64', marginTop: 4, fontWeight: 'bold' }}>
+                    Scan to Pay ₹{totals.grandTotal.toFixed(2)}
+                  </div>
+                  {activeUpiVpa && (
+                    <div style={{ fontSize: 9, color: '#059669', fontWeight: 600, marginTop: 2, wordBreak: 'break-all', maxWidth: 160 }}>
+                      ✓ {activeUpiVpa}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 12, color: '#475569' }}>
-                  Ask the customer to scan the QR code with <b>Google Pay</b>, <b>PhonePe</b>, <b>Paytm</b>, or any BHIM UPI app.
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#334155', marginBottom: 2 }}>
-                    UPI Reference / Txn ID (Optional):
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 30492630xxxx"
-                    value={upiRef}
-                    onChange={e => setUpiRef(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 10px',
-                      fontSize: 13,
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 4,
-                    }}
-                  />
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontSize: 14, fontWeight: 'bold', color: '#0f3c64', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>📱 Customer UPI QR Code</span>
+                    <span style={{ fontSize: 10, background: '#e0f2fe', color: '#0284c7', padding: '2px 6px', borderRadius: 4 }}>100% Offline QR</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#475569' }}>
+                    Payee: <b>{companyName}</b>
+                    {activeUpiVpa && <span style={{ marginLeft: 6, color: '#059669' }}>({activeUpiVpa})</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#475569' }}>
+                    Ask customer to scan with <b>Google Pay</b>, <b>PhonePe</b>, <b>Paytm</b>, or any BHIM UPI app.
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 'bold', color: '#334155', marginBottom: 2 }}>
+                      UPI Reference / Txn ID (Optional):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 30492630xxxx"
+                      value={upiRef}
+                      onChange={e => setUpiRef(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 10px',
+                        fontSize: 13,
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 4,
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -380,6 +431,19 @@ export default function POSPaymentModal({
               <div style={{ fontSize: 13, fontWeight: 'bold', color: '#0369a1', marginBottom: 10 }}>
                 ⚖️ Split Payment: Cash + Dynamic UPI QR
               </div>
+
+              {!activeUpiVpa && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '6px 10px', borderRadius: 4, fontSize: 11, marginBottom: 10 }}>
+                  ⚠️ UPI ID missing. Enter UPI ID: 
+                  <input
+                    type="text"
+                    placeholder="merchant@upi"
+                    value={activeUpiVpa}
+                    onChange={e => setActiveUpiVpa(e.target.value)}
+                    style={{ marginLeft: 6, padding: '2px 6px', fontSize: 11, border: '1px solid #d97706', borderRadius: 3 }}
+                  />
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 12 }}>
                 <div>
@@ -428,13 +492,24 @@ export default function POSPaymentModal({
 
               {/* Dynamic QR for Remaining Balance */}
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', background: '#ffffff', padding: 10, borderRadius: 6, border: '1px solid #cbd5e1' }}>
-                <img
-                  src={qrApiUrl}
-                  alt="Split UPI QR"
-                  style={{ width: 100, height: 100, display: 'block' }}
-                />
+                {qrCodeDataUrl ? (
+                  <img
+                    src={qrCodeDataUrl}
+                    alt="Split UPI QR"
+                    style={{ width: 100, height: 100, display: 'block', imageRendering: 'pixelated' }}
+                  />
+                ) : (
+                  <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#64748b', fontSize: 10, textAlign: 'center' }}>
+                    {activeUpiVpa ? 'Generating...' : 'No UPI ID'}
+                  </div>
+                )}
                 <div style={{ fontSize: 12, color: '#334155' }}>
-                  <div>Dynamic QR updated for remaining: <b>₹{splitUpi.toFixed(2)}</b></div>
+                  <div>Dynamic QR for remaining: <b>₹{splitUpi.toFixed(2)}</b></div>
+                  {activeUpiVpa && (
+                    <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, marginTop: 2 }}>
+                      Pay to: {activeUpiVpa}
+                    </div>
+                  )}
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
                     Customer scans to pay balance while giving ₹{splitCash.toFixed(2)} in cash.
                   </div>

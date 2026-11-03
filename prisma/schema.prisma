@@ -68,6 +68,7 @@ model Company {
   accountNo       String?
   ifsc            String?
   swiftCode       String?
+  upiId           String?
   financialYearStart DateTime
   booksBeginFrom     DateTime
   securityControl    Boolean  @default(false)

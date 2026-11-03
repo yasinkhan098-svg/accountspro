@@ -56,6 +56,7 @@ export async function POST(req: Request) {
         booksBeginFrom: new Date(data.booksBeginFrom || '2026-04-01'),
         registrationType: data.registrationType || 'Regular',
         pan: data.pan || '',
+        upiId: data.upiId || '',
         securityControl: data.securityControl || false,
         password: data.password || null
       }
@@ -170,6 +171,7 @@ export async function PUT(req: Request) {
         booksBeginFrom: new Date(data.booksBeginFrom || '2026-04-01'),
         registrationType: data.registrationType || 'Regular',
         pan: data.pan || '',
+        upiId: data.upiId || '',
         securityControl: data.securityControl || false,
         password: data.password || null
       }

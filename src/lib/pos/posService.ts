@@ -278,9 +278,32 @@ export class POSService {
    * Construct dynamic UPI payment URI
    */
   public getUpiUri(params: { vpa: string; companyName: string; amount: number; billNo: string }): string {
-    const vpa = params.vpa || 'retail@upi';
-    const cleanName = params.companyName.replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'Store';
-    return `upi://pay?pa=${encodeURIComponent(vpa)}&pn=${encodeURIComponent(cleanName)}&am=${params.amount.toFixed(2)}&cu=INR&tn=POS-${params.billNo}`;
+    const vpa = (params.vpa || '').trim();
+    const cleanName = (params.companyName || 'Store').replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'Store';
+    const amountStr = params.amount > 0 ? `&am=${params.amount.toFixed(2)}` : '';
+    return `upi://pay?pa=${encodeURIComponent(vpa)}&pn=${encodeURIComponent(cleanName)}${amountStr}&cu=INR&tn=POS-${encodeURIComponent(params.billNo)}`;
+  }
+
+  /**
+   * Generate QR Code Image Base64 Data URL (100% offline, zero network latency)
+   */
+  public async generateQrDataUrl(data: string, size = 180): Promise<string> {
+    if (!data) return '';
+    try {
+      const QRCode = (await import('qrcode')).default;
+      return await QRCode.toDataURL(data, {
+        width: size,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+    } catch (e) {
+      console.warn('Local QRCode generator fallback:', e);
+      return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
+    }
   }
 
   /**

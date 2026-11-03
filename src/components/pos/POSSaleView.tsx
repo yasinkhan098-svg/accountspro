@@ -2268,7 +2268,7 @@ export default function POSSaleView({
         onClose={() => setShowPaymentModal(false)}
         totals={totals}
         companyName={company?.name || 'LedgerX Retail Store'}
-        upiVpa={company?.email || 'retail@upi'}
+        upiVpa={company?.upiId || ''}
         billNo={billNo}
         ledgers={ledgers}
         onConfirmPayment={handleConfirmPayment}

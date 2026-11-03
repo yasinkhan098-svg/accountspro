@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { POSCartItem, POSCartTotals, POSCustomer, POSPaymentDetails, posService } from '@/lib/pos/posService';
 
 interface POSReceiptModalProps {
@@ -30,33 +30,51 @@ export default function POSReceiptModal({
   autoPrint = true,
 }: POSReceiptModalProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
-
-  // Auto-print effect as requested by user
-  useEffect(() => {
-    if (isOpen && autoPrint) {
-      const timer = setTimeout(() => {
-        try {
-          window.print();
-        } catch (e) {}
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, autoPrint]);
-
-  if (!isOpen) return null;
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
+  // Build dynamic UPI payment QR code for receipt
+  const storeName = company?.name || 'LedgerX Retail Limited';
+  const hasUpi = Boolean(company?.upiId && company.upiId.trim());
+  const upiPayUrl = hasUpi
+    ? posService.getUpiUri({
+        vpa: company.upiId.trim(),
+        companyName: storeName,
+        amount: totals.grandTotal,
+        billNo,
+      })
+    : `UPI-INV:${billNo}|AMT:${totals.grandTotal}|GSTIN:${company?.gstin || ''}|DT:${dateStr}`;
+
+  useEffect(() => {
+    let active = true;
+    posService.generateQrDataUrl(upiPayUrl, 160).then(url => {
+      if (active) setQrCodeDataUrl(url);
+    }).catch(() => {
+      if (active) setQrCodeDataUrl(posService.getQrImageUrl(upiPayUrl, 160));
+    });
+    return () => { active = false; };
+  }, [upiPayUrl]);
+
+  // Auto-print effect as requested by user (triggers once QR is ready)
+  useEffect(() => {
+    if (isOpen && autoPrint && qrCodeDataUrl) {
+      const timer = setTimeout(() => {
+        try {
+          window.print();
+        } catch (e) {}
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, autoPrint, qrCodeDataUrl]);
+
+  if (!isOpen) return null;
+
   const handlePrint = () => {
     window.print();
   };
-
-  // Build UPI verification QR code for receipt
-  const storeName = company?.name || 'LedgerX Retail Limited';
-  const qrData = `UPI-INV:${billNo}|AMT:${totals.grandTotal}|GSTIN:${company?.gstin || '05AABCR1718E1ZU'}|DT:${dateStr}`;
-  const qrUrl = posService.getQrImageUrl(qrData, 140);
 
   // Group items by GST rate for the Breakup Details Table
   const gstGroups: Record<number, { taxable: number; cgst: number; sgst: number; total: number }> = {};
@@ -445,13 +463,47 @@ export default function POSReceiptModal({
               <div style={{ letterSpacing: 2, margin: '4px 0' }}>304U1FX1410037000001</div>
             </div>
 
-            {/* 8. CENTERED DYNAMIC QR CODE */}
-            <div style={{ textAlign: 'center', margin: '8px 0' }}>
-              <img
-                src={qrUrl}
-                alt="Receipt Verification QR"
-                style={{ width: 110, height: 110, display: 'inline-block' }}
-              />
+            {/* 8. CENTERED DYNAMIC UPI QR CODE & PAYMENT DETAILS BOX */}
+            <div
+              style={{
+                margin: '8px 0',
+                padding: '6px 4px',
+                border: '1px solid #000',
+                borderRadius: 4,
+                textAlign: 'center',
+                background: '#fff',
+              }}
+            >
+              <div style={{ fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 2 }}>
+                [ 📲 SCAN & PAY WITH ANY UPI APP ]
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '4px 0' }}>
+                {qrCodeDataUrl ? (
+                  <img
+                    src={qrCodeDataUrl}
+                    alt="UPI Payment QR Code"
+                    style={{ width: 120, height: 120, display: 'block', imageRendering: 'pixelated' }}
+                  />
+                ) : (
+                  <div style={{ width: 120, height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #999', fontSize: 8 }}>
+                    Generating QR...
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: 8, lineHeight: 1.4, marginTop: 2 }}>
+                <div><b>Payee:</b> {storeName}</div>
+                {hasUpi && <div><b>UPI ID:</b> {company.upiId}</div>}
+                <div><b>Bill Amount:</b> ₹{totals.grandTotal.toFixed(2)}</div>
+                <div><b>Bill No:</b> {billNo}</div>
+                {payment && (payment.mode === 'UPI_QR' || payment.mode === 'Split') && (
+                  <div style={{ fontWeight: 'bold', color: '#000', marginTop: 2, fontSize: 8 }}>
+                    ✓ PAID VIA UPI {payment.upiRef ? `(Ref: ${payment.upiRef})` : ''}
+                  </div>
+                )}
+                <div style={{ fontSize: 7, color: '#333', marginTop: 3, letterSpacing: 0.2 }}>
+                  Google Pay • PhonePe • Paytm • BHIM • Cred • Any UPI
+                </div>
+              </div>
             </div>
 
             {/* 9. COMPLIANCE & FOOTER */}

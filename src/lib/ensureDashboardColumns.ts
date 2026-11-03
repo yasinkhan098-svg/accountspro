@@ -24,6 +24,12 @@ export async function ensureDashboardColumns() {
   }
 
   try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Company" ADD COLUMN "upiId" TEXT;`);
+  } catch (e) {
+    // Column already exists - ignore
+  }
+
+  try {
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Company_dashboardToken_key" ON "Company"("dashboardToken");`);
   } catch (e) {
     // Index already exists - ignore
