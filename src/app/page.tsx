@@ -6634,6 +6634,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
           <input 
             id="c-upi" 
             type="text" 
+            inputMode="email"
             className="form-input" 
             style={{width:240,fontWeight:'bold'}} 
             placeholder="e.g. store@okicici or 9876543210@paytm" 

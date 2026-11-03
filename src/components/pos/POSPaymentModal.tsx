@@ -348,6 +348,7 @@ export default function POSPaymentModal({
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                     <input
                       type="text"
+                      inputMode="email"
                       placeholder="e.g. yourstore@okicici or 9876543210@paytm"
                       value={activeUpiVpa}
                       autoCapitalize="none"
@@ -465,6 +466,7 @@ export default function POSPaymentModal({
                   ⚠️ UPI ID missing. Enter UPI ID: 
                   <input
                     type="text"
+                    inputMode="email"
                     placeholder="merchant@upi"
                     value={activeUpiVpa}
                     autoCapitalize="none"

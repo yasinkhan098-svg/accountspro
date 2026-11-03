@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ledgerx-offline-v3';
+const CACHE_NAME = 'ledgerx-offline-v4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
