@@ -107,8 +107,8 @@ interface StockGroup { id: number; companyId: number; name: string; alias?: stri
 interface StockCategory { id: number; companyId: number; name: string; alias?: string; under: string; }
 interface StockItem {
   id: number; companyId: number; name: string; alias?: string; under: string; category?: string;
-  unit: any; altUnit?: any; gstRate: number; hsnCode?: string;
-  openingQty: number; openingRate: number; openingVal?: number; groupName?: string;
+  unit: any; unitName?: string; altUnit?: any; gstRate: number; hsnCode?: string;
+  openingQty: number; openingRate: number; openingVal?: number; groupName?: string; categoryName?: string;
   showInclTax?: boolean;
   showAmtInclTax?: boolean;
   gstApplicable?: string;
@@ -1610,7 +1610,22 @@ export default function App() {
     } else {
       setAllUnits(storedUnits.length > 0 ? storedUnits : INIT_UNITS);
     }
-    if (allStockItems.length === 0) setAllStockItems(getUStored('allStockItems', []));
+    if (allStockItems.length === 0) {
+      const stored = getUStored('allStockItems', []);
+      const normalizedStored = stored.map((si: any) => {
+        const u = si.unit || si.unitName || 'Nos';
+        return {
+          ...si,
+          unit: u,
+          unitName: u,
+          under: si.under || si.groupName || 'Primary',
+          groupName: si.groupName || si.under || 'Primary',
+          category: si.category || si.categoryName || 'Not Applicable',
+          categoryName: si.categoryName || si.category || 'Not Applicable',
+        };
+      });
+      setAllStockItems(normalizedStored);
+    }
     if (allGroups.length === 0) setAllGroups(getUStored('allGroups', TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: -1, name: g, under: 'Primary' }))));
 
     // Fetch from backend and scan local data folder
@@ -1768,7 +1783,19 @@ export default function App() {
       const siRes = await fetch(`/api/stock-items?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const siData = await siRes.json();
       if (siRes.ok && siData.items) {
-        setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...siData.items]);
+        const normalizedItems = siData.items.map((si: any) => {
+          const u = si.unit || si.unitName || 'Nos';
+          return {
+            ...si,
+            unit: u,
+            unitName: u,
+            under: si.under || si.groupName || 'Primary',
+            groupName: si.groupName || si.under || 'Primary',
+            category: si.category || si.categoryName || 'Not Applicable',
+            categoryName: si.categoryName || si.category || 'Not Applicable',
+          };
+        });
+        setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...normalizedItems]);
       }
 
       // 4. Fetch Units
@@ -1819,7 +1846,24 @@ export default function App() {
         setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...pull.ledgers]);
       }
       if (Array.isArray(pull.stockItems) && pull.stockItems.length > 0) {
-        setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...pull.stockItems]);
+        const normalizedPulled = pull.stockItems.map((si: any) => {
+          const u = (
+            (typeof si.unit === 'string' && si.unit.trim()) ? si.unit.trim() :
+            (typeof si.unitName === 'string' && si.unitName.trim()) ? si.unitName.trim() :
+            (si.unit && typeof si.unit === 'object') ? (si.unit.symbol || si.unit.name || '') :
+            'Nos'
+          ) || 'Nos';
+          return {
+            ...si,
+            unit: u,
+            unitName: u,
+            under: si.under || si.groupName || 'Primary',
+            groupName: si.groupName || si.under || 'Primary',
+            category: si.category || si.categoryName || 'Not Applicable',
+            categoryName: si.categoryName || si.category || 'Not Applicable',
+          };
+        });
+        setAllStockItems(prev => [...prev.filter(si => Number(si.companyId) !== Number(cid)), ...normalizedPulled]);
       }
       if (Array.isArray(pull.units) && pull.units.length > 0) {
         setAllUnits(prev => [...prev.filter(u => Number(u.companyId) !== Number(cid)), ...pull.units]);
@@ -1884,7 +1928,20 @@ export default function App() {
       const code = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
       const cLedgers = allLedgers.filter(l => Number(l.companyId) === Number(activeCompany.id));
       const cVouchers = allVouchers.filter(v => Number(v.companyId) === Number(activeCompany.id));
-      const cItems = allStockItems.filter(si => Number(si.companyId) === Number(activeCompany.id));
+      const cItems = allStockItems
+        .filter(si => Number(si.companyId) === Number(activeCompany.id))
+        .map(it => {
+          const u = it.unit || it.unitName || 'Nos';
+          return {
+            ...it,
+            unit: u,
+            unitName: u,
+            under: it.under || it.groupName || 'Primary',
+            groupName: it.groupName || it.under || 'Primary',
+            category: it.category || it.categoryName || 'Not Applicable',
+            categoryName: it.categoryName || it.category || 'Not Applicable',
+          };
+        });
       const cGroups = allStockGroups.filter(sg => Number(sg.companyId) === Number(activeCompany.id));
       const cUnits = allUnits.filter(u => Number(u.companyId) === Number(activeCompany.id) || Number(u.companyId) === -1);
 
@@ -2010,17 +2067,35 @@ export default function App() {
   const stockCategories = useMemo(() => activeCompany ? allStockCategories.filter(sc => Number(sc.companyId) === Number(activeCompany.id)) : [], [allStockCategories, activeCompany]);
   const stockItems     = useMemo(() => activeCompany ? allStockItems.filter(si => Number(si.companyId) === Number(activeCompany.id)) : [], [allStockItems, activeCompany]);
   const units          = useMemo(() => {
-    if (!activeCompany) return [];
-    const defaults = allUnits.filter(u => Number(u.companyId) === 1 || Number(u.companyId) === -1);
-    const companyUnits = allUnits.filter(u => Number(u.companyId) === Number(activeCompany.id));
-    const merged = [...defaults];
-    companyUnits.forEach(cu => {
-      const cuSym = (cu.symbol || cu.name || '').toLowerCase();
-      if (!merged.find(du => (du.symbol || du.name || '').toLowerCase() === cuSym)) {
-        merged.push(cu);
+    const list: UnitData[] = [];
+    const seen = new Set<string>();
+
+    const addUnit = (u: any) => {
+      if (!u) return;
+      const sym = (u.symbol || u.name || '').trim();
+      if (!sym) return;
+      const key = sym.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push({
+          id: u.id || -1,
+          companyId: u.companyId ?? (activeCompany?.id || -1),
+          name: sym,
+          symbol: sym,
+          formalName: u.formalName || sym,
+          decimalPlaces: u.decimalPlaces ?? 0,
+          uqc: u.uqc || sym.toUpperCase()
+        });
       }
-    });
-    return merged;
+    };
+
+    if (activeCompany) {
+      allUnits.filter(u => Number(u.companyId) === Number(activeCompany.id)).forEach(addUnit);
+    }
+    allUnits.filter(u => Number(u.companyId) === 1 || Number(u.companyId) === -1).forEach(addUnit);
+    INIT_UNITS.forEach(addUnit);
+
+    return list;
   }, [allUnits, activeCompany]);
   const godowns        = useMemo(() => activeCompany ? allGodowns.filter(g => Number(g.companyId) === Number(activeCompany.id)) : [], [allGodowns, activeCompany]);
   const voucherTypes   = useMemo(() => activeCompany ? allVoucherTypes.filter(vt => Number(vt.companyId) === Number(activeCompany.id)) : [], [allVoucherTypes, activeCompany]);
@@ -2278,10 +2353,20 @@ export default function App() {
           return null;
         }
 
+        const resolvedUnit = (
+          (typeof data.unit === 'string' && data.unit.trim()) ? data.unit.trim() :
+          (typeof data.unitName === 'string' && data.unitName.trim()) ? data.unitName.trim() :
+          (typeof targetItem.unit === 'string' && targetItem.unit.trim()) ? targetItem.unit.trim() :
+          (typeof targetItem.unitName === 'string' && targetItem.unitName.trim()) ? targetItem.unitName.trim() :
+          'Nos'
+        );
+
         let updated = {
           ...targetItem,
           companyId: cid || targetItem.companyId,
           ...data,
+          unit: resolvedUnit,
+          unitName: resolvedUnit,
           id: targetItem.id,
         };
 
@@ -2290,11 +2375,15 @@ export default function App() {
             const res = await fetch('/api/stock-items', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ id: targetItem.id, companyId: cid, ...data })
+              body: JSON.stringify({ id: targetItem.id, companyId: cid, ...data, unit: resolvedUnit, unitName: resolvedUnit })
             });
             if (res.ok) {
               const resData = await res.json();
-              const finalItem = resData.item || updated;
+              const finalItem = {
+                ...(resData.item || updated),
+                unit: resData.item?.unit || resData.item?.unitName || resolvedUnit,
+                unitName: resData.item?.unitName || resData.item?.unit || resolvedUnit,
+              };
               setAllStockItems(p => p.map(x => x.id === targetItem.id ? finalItem : x));
               return finalItem;
             } else {
@@ -2461,17 +2550,28 @@ export default function App() {
           return null;
         }
 
+        const resolvedUnit = (
+          (typeof data.unit === 'string' && data.unit.trim()) ? data.unit.trim() :
+          (typeof data.unitName === 'string' && data.unitName.trim()) ? data.unitName.trim() :
+          'Nos'
+        );
+
         if (navigator.onLine) {
           try {
             const res = await fetch('/api/stock-items', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ companyId: cid, ...data })
+              body: JSON.stringify({ companyId: cid, ...data, unit: resolvedUnit, unitName: resolvedUnit })
             });
             if (res.ok) {
               const resData = await res.json();
-              setAllStockItems(p => [...p, resData.item]);
-              return resData.item;
+              const finalItem = {
+                ...(resData.item || {}),
+                unit: resData.item?.unit || resData.item?.unitName || resolvedUnit,
+                unitName: resData.item?.unitName || resData.item?.unit || resolvedUnit,
+              };
+              setAllStockItems(p => [...p, finalItem]);
+              return finalItem;
             } else {
               const errData = await res.json().catch(() => ({}));
               const errMsg = errData.error || `Failed to create stock item on server`;
@@ -2482,7 +2582,7 @@ export default function App() {
             console.warn("Online stock item save failed, saving offline locally:", e);
           }
         }
-        const localItem = { id, companyId: cid, ...data };
+        const localItem = { id, companyId: cid, ...data, unit: resolvedUnit, unitName: resolvedUnit };
         setAllStockItems(p => [...p, localItem]);
         offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
         if (!isInitializingRef.current) {
@@ -3210,20 +3310,26 @@ export default function App() {
           if (stockItems.some(it => it.name.toLowerCase() === name.toLowerCase() && (!alterItem || it.id !== alterItem.id))) {
             alert(`Stock Item "${name}" already exists!`); return;
           }
-          const unitName = fv('item-units');
+          const rawUnitVal = fv('item-units') || 'Nos';
+          const unitName = rawUnitVal.trim();
           if (!unitName) { alert('Unit is required!'); document.getElementById('item-units')?.focus(); return; }
-          const matchedUnit = allUnits.find(u => (u.symbol || u.name || '').toLowerCase() === unitName.toLowerCase());
-          if (!matchedUnit) {
-            alert(`Unit "${unitName}" not found in master list. Please create it first using Alt+C or select from list.`);
-            document.getElementById('item-units')?.focus();
-            return;
-          }
+          const matchedUnit = (units || []).find(u => 
+            (u.symbol || u.name || '').trim().toLowerCase() === unitName.toLowerCase() ||
+            (u.formalName || '').trim().toLowerCase() === unitName.toLowerCase()
+          ) || (allUnits || []).find(u => 
+            (u.symbol || u.name || '').trim().toLowerCase() === unitName.toLowerCase() ||
+            (u.formalName || '').trim().toLowerCase() === unitName.toLowerCase()
+          );
+          const selectedUnitSymbol = matchedUnit ? (matchedUnit.symbol || matchedUnit.name) : unitName;
+          const selectedUnitId = matchedUnit && matchedUnit.id > 0 ? matchedUnit.id : undefined;
+
           type = 'stockItem'; data = { 
             name, alias: fv('item-alias'), 
             under: fv('item-under') || 'Primary', 
             category: fv('item-cat') || 'Not Applicable', 
-            unit: matchedUnit.symbol || matchedUnit.name, 
-            unitId: matchedUnit.id,
+            unit: selectedUnitSymbol, 
+            unitName: selectedUnitSymbol,
+            unitId: selectedUnitId,
             altUnit: fv('item-altunit') || 'Not Applicable',
             showInclTax: (document.getElementById('item-show-incl-tax') as HTMLSelectElement)?.value === 'Yes',
             showAmtInclTax: (document.getElementById('item-show-amt-incl-tax') as HTMLSelectElement)?.value === 'Yes',
@@ -3874,7 +3980,23 @@ export default function App() {
             if (folderData) {
               if (folderData.ledgers?.length) setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...folderData.ledgers]);
               if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers.map((fv: any) => ({ ...fv, partyDetails: safeParseJSON(fv.partyDetails), dispatchDetails: safeParseJSON(fv.dispatchDetails) }))]);
-              if (folderData.stockItems?.length) setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(c.id)), ...folderData.stockItems]);
+              if (folderData.stockItems?.length) {
+                const normalized = folderData.stockItems.map((si: any) => {
+                  const u = si.unit || si.unitName || 'Nos';
+                  return {
+                    ...si,
+                    unit: u,
+                    unitName: u,
+                    under: si.under || si.groupName || 'Primary',
+                    groupName: si.groupName || si.under || 'Primary',
+                    category: si.category || si.categoryName || 'Not Applicable',
+                    categoryName: si.categoryName || si.category || 'Not Applicable',
+                  };
+                });
+                setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(c.id)), ...normalized]);
+              }
+              if (folderData.units?.length) setAllUnits(p => [...p.filter(u => Number(u.companyId) !== Number(c.id)), ...(folderData.units || [])]);
+              if (folderData.stockGroups?.length) setAllStockGroups(p => [...p.filter(sg => Number(sg.companyId) !== Number(c.id)), ...(folderData.stockGroups || [])]);
             }
             if (c.securityControl && c.password) {
               setPwdPrompt({ company: c, action: 'open' });
@@ -4659,7 +4781,23 @@ export default function App() {
                       if (folderData) {
                         if (folderData.ledgers?.length) setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...folderData.ledgers]);
                         if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers.map((fv: any) => ({ ...fv, partyDetails: safeParseJSON(fv.partyDetails), dispatchDetails: safeParseJSON(fv.dispatchDetails) }))]);
-                        if (folderData.stockItems?.length) setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(c.id)), ...folderData.stockItems]);
+                        if (folderData.stockItems?.length) {
+                          const normalized = folderData.stockItems.map((si: any) => {
+                            const u = si.unit || si.unitName || 'Nos';
+                            return {
+                              ...si,
+                              unit: u,
+                              unitName: u,
+                              under: si.under || si.groupName || 'Primary',
+                              groupName: si.groupName || si.under || 'Primary',
+                              category: si.category || si.categoryName || 'Not Applicable',
+                              categoryName: si.categoryName || si.category || 'Not Applicable',
+                            };
+                          });
+                          setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(c.id)), ...normalized]);
+                        }
+                        if (folderData.units?.length) setAllUnits(p => [...p.filter(u => Number(u.companyId) !== Number(c.id)), ...(folderData.units || [])]);
+                        if (folderData.stockGroups?.length) setAllStockGroups(p => [...p.filter(sg => Number(sg.companyId) !== Number(c.id)), ...(folderData.stockGroups || [])]);
                       }
                       if (c.securityControl && c.password) {
                         setPwdPrompt({ company: c, action: 'open' });
@@ -7244,7 +7382,11 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   }, [nameSel, sel, focus]);
 
   // Local state for reactive display
-  const [currentUnit, setCurrentUnit] = useState(activeAlterItem?.unit || 'Nos');
+  const [currentUnit, setCurrentUnit] = useState(
+    (typeof activeAlterItem?.unit === 'string' && activeAlterItem.unit.trim()) ? activeAlterItem.unit.trim() :
+    (typeof activeAlterItem?.unitName === 'string' && activeAlterItem.unitName.trim()) ? activeAlterItem.unitName.trim() :
+    (activeAlterItem?.unit as any)?.symbol || (activeAlterItem?.unit as any)?.name || 'Nos'
+  );
 
   useEffect(() => {
     if (!focus) return;
@@ -7293,6 +7435,14 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     if (activeAlterItem) {
       const idx = filteredStockItems.findIndex(it => it.id === activeAlterItem.id);
       if (idx >= 0) setNameSel(idx);
+      const u = (
+        (typeof activeAlterItem.unit === 'string' && activeAlterItem.unit.trim()) ? activeAlterItem.unit.trim() :
+        (typeof activeAlterItem.unitName === 'string' && activeAlterItem.unitName.trim()) ? activeAlterItem.unitName.trim() :
+        (activeAlterItem.unit as any)?.symbol || (activeAlterItem.unit as any)?.name || 'Nos'
+      );
+      setCurrentUnit(u);
+      const unitsInp = document.getElementById('item-units') as HTMLInputElement;
+      if (unitsInp) unitsInp.value = u;
       setShowInclTax(activeAlterItem.showInclTax ?? false);
       setShowAmtInclTax(activeAlterItem.showAmtInclTax ?? false);
       setEnableDescription(activeAlterItem.enableDescription ?? false);
@@ -7315,7 +7465,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
     if(underEl) underEl.value=it.under || 'Primary';
     if(catEl) catEl.value=it.category || 'Not Applicable';
     if(unitsEl) {
-      const u = typeof it.unit === 'string' ? it.unit : (it.unit as any)?.name || (it.unit as any)?.symbol || 'Nos';
+      const u = (typeof it.unit === 'string' && it.unit.trim()) ? it.unit.trim() : (typeof it.unitName === 'string' && it.unitName.trim()) ? it.unitName.trim() : (it.unit as any)?.symbol || (it.unit as any)?.name || 'Nos';
       unitsEl.value = u;
       setCurrentUnit(u);
     }
@@ -7389,7 +7539,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
       else if(onCancel) onCancel();
       return;
     }
-    if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[field]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[field]) as HTMLInputElement;if(inp)inp.value=n;}});return;}
+    if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[field]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[field]) as HTMLInputElement;const uVal = typeof n === 'string' ? n : (n?.symbol || n?.name || 'Nos');if(inp)inp.value=uVal;if(field==='units')setCurrentUnit(uVal);}});return;}
     if(e.key==='ArrowDown'){e.preventDefault();setSel(p=>(p+1)%Math.max(1,list.length));}
     else if(e.key==='ArrowUp'){e.preventDefault();setSel(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
     else if(e.key==='Enter'&&list.length>0){e.preventDefault();e.stopPropagation();const item=list[sel]; pick(typeof item === 'string' ? item : (item as any).symbol || (item as any).name);}
@@ -7492,7 +7642,11 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                 }}
                 onKeyDown={handleKey('units')}
                 onBlur={()=>setTimeout(()=>setFocus(p=>p==='units'?null:p),200)}
-                defaultValue={typeof activeAlterItem?.unit === 'string' ? activeAlterItem.unit : (activeAlterItem?.unit as any)?.name || (activeAlterItem?.unit as any)?.symbol || 'Nos'} autoComplete="off"/>
+                defaultValue={
+                  (typeof activeAlterItem?.unit === 'string' && activeAlterItem.unit.trim()) ? activeAlterItem.unit.trim() :
+                  (typeof activeAlterItem?.unitName === 'string' && activeAlterItem.unitName.trim()) ? activeAlterItem.unitName.trim() :
+                  (activeAlterItem?.unit as any)?.symbol || (activeAlterItem?.unit as any)?.name || 'Nos'
+                } autoComplete="off"/>
               <span style={{marginLeft:6,fontSize:11,color:'#888'}}>Alt+C</span>
             </div>
             {/* Alternate Unit */}
@@ -7629,7 +7783,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
                     onMouseEnter={()=>setNameSel(i)}
                   >
                     <span>{it?.name || 'Unknown Item'}</span>
-                    <span style={{opacity:0.5,fontSize:11}}>{typeof it?.unit === 'string' ? it.unit : (it?.unit as any)?.name || (it?.unit as any)?.symbol || 'Nos'}</span>
+                    <span style={{opacity:0.5,fontSize:11}}>{(typeof it?.unit === 'string' && it.unit.trim()) ? it.unit.trim() : (typeof it?.unitName === 'string' && it.unitName.trim()) ? it.unitName.trim() : (it?.unit as any)?.symbol || (it?.unit as any)?.name || 'Nos'}</span>
                   </div>
                 ))
             ) : (
@@ -7659,7 +7813,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
           </div>
           {(focus==='under'||focus==='units'||focus==='altunit') && (
             <div style={{padding:'6px 10px',borderTop:'1px solid #ccd',fontSize:11,color:'#8B4000',background:'#fffbe6',cursor:'pointer'}}
-              onMouseDown={e=>{e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[focus]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[focus]) as HTMLInputElement;if(inp){inp.value=n;if(focus==='units')setCurrentUnit(n);}}});}}>
+              onMouseDown={e=>{e.preventDefault();const ft:any={under:'stockGroup',units:'unit',altunit:'unit'};onAltC({fieldType:ft[focus]||'stockGroup',onCreated:n=>{const ids:any={under:'item-under',units:'item-units',altunit:'item-altunit'};const inp=document.getElementById(ids[focus]) as HTMLInputElement;const uVal = typeof n === 'string' ? n : (n?.symbol || n?.name || 'Nos');if(inp){inp.value=uVal;if(focus==='units')setCurrentUnit(uVal);}}});}}>
               ⚡ Alt+C: Create New
             </div>
           )}
@@ -7680,20 +7834,23 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
             if (stockItems.some(it => it.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || it.id !== activeAlterItem.id))) {
               alert(`Stock Item "${name}" already exists!`); return;
             }
-            const unitName = fv('item-units');
+            const rawUnitVal = fv('item-units') || currentUnit || 'Nos';
+            const unitName = rawUnitVal.trim();
             if (!unitName) { alert('Unit is required!'); document.getElementById('item-units')?.focus(); return; }
-            const matchedUnit = units.find(u => (u.symbol || u.name || '').toLowerCase() === unitName.toLowerCase());
-            if (!matchedUnit) {
-              alert(`Unit "${unitName}" not found in master list. Please create it first using Alt+C or select from list.`);
-              document.getElementById('item-units')?.focus();
-              return;
-            }
+            const matchedUnit = (units || []).find(u => 
+              (u.symbol || u.name || '').trim().toLowerCase() === unitName.toLowerCase() ||
+              (u.formalName || '').trim().toLowerCase() === unitName.toLowerCase()
+            );
+            const selectedUnitSymbol = matchedUnit ? (matchedUnit.symbol || matchedUnit.name) : unitName;
+            const selectedUnitId = matchedUnit && matchedUnit.id > 0 ? matchedUnit.id : undefined;
+
             const data = { 
               name, alias: fv('item-alias'), 
               under: fv('item-under') || 'Primary', 
               category: fv('item-cat') || 'Not Applicable', 
-              unit: matchedUnit.symbol || matchedUnit.name, 
-              unitId: matchedUnit.id,
+              unit: selectedUnitSymbol, 
+              unitName: selectedUnitSymbol,
+              unitId: selectedUnitId,
               altUnit: fv('item-altunit') || 'Not Applicable',
               showInclTax,
               showAmtInclTax,

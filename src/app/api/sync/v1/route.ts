@@ -289,6 +289,15 @@ export async function POST(req: Request) {
         try {
           const siName = String(si.name || '').trim();
           if (!siName) continue;
+
+          // Extract unit string reliably
+          const uStr = (
+            (typeof si.unit === 'string' && si.unit.trim()) ? si.unit.trim() :
+            (typeof si.unitName === 'string' && si.unitName.trim()) ? si.unitName.trim() :
+            (si.unit && typeof si.unit === 'object') ? (si.unit.symbol || si.unit.name || '') :
+            'Nos'
+          ) || 'Nos';
+
           const existingSI = await prisma.stockItem.findFirst({
             where: { companyId: cId, name: siName },
           });
@@ -300,9 +309,9 @@ export async function POST(req: Request) {
                 openingQty: parseFloat(String(si.openingQty || 0)) || 0,
                 openingVal: parseFloat(String(si.openingVal || 0)) || 0,
                 openingRate: parseFloat(String(si.openingRate || 0)) || 0,
-                groupName: si.groupName || null,
-                categoryName: si.categoryName || null,
-                unitName: si.unitName || null,
+                groupName: si.groupName || si.under || 'Primary',
+                categoryName: si.categoryName || si.category || 'Not Applicable',
+                unitName: uStr,
                 gstApplicable: si.gstApplicable || 'Applicable',
                 gstRate: parseFloat(String(si.gstRate || 18)) || 18,
                 hsnCode: si.hsnCode || null,
@@ -313,15 +322,16 @@ export async function POST(req: Request) {
             });
             pushedStockItemsCount++;
           } else {
+            const finalUnit = (uStr && uStr !== 'Nos') ? uStr : (existingSI.unitName || uStr || 'Nos');
             await prisma.stockItem.update({
               where: { id: existingSI.id },
               data: {
                 openingQty: si.openingQty !== undefined ? parseFloat(String(si.openingQty)) : existingSI.openingQty,
                 openingVal: si.openingVal !== undefined ? parseFloat(String(si.openingVal)) : existingSI.openingVal,
                 openingRate: si.openingRate !== undefined ? parseFloat(String(si.openingRate)) : existingSI.openingRate,
-                groupName: si.groupName !== undefined ? (si.groupName || null) : existingSI.groupName,
-                categoryName: si.categoryName !== undefined ? (si.categoryName || null) : existingSI.categoryName,
-                unitName: si.unitName !== undefined ? (si.unitName || null) : existingSI.unitName,
+                groupName: si.groupName !== undefined ? (si.groupName || null) : (si.under !== undefined ? si.under : existingSI.groupName),
+                categoryName: si.categoryName !== undefined ? (si.categoryName || null) : (si.category !== undefined ? si.category : existingSI.categoryName),
+                unitName: finalUnit,
                 gstApplicable: si.gstApplicable || existingSI.gstApplicable,
                 gstRate: si.gstRate !== undefined ? parseFloat(String(si.gstRate)) : existingSI.gstRate,
                 hsnCode: si.hsnCode !== undefined ? (si.hsnCode || null) : existingSI.hsnCode,
@@ -505,13 +515,25 @@ export async function POST(req: Request) {
       orderBy: { name: 'asc' },
     });
 
-    const cloudStockItems = await prisma.stockItem.findMany({
+    const rawCloudStockItems = await prisma.stockItem.findMany({
       where: { companyId: cId },
       include: {
         unit: true,
         group: true,
       },
       orderBy: { name: 'asc' },
+    });
+    const cloudStockItems = rawCloudStockItems.map(it => {
+      const u = it.unitName || it.unit?.name || (it as any).unit?.symbol || 'Nos';
+      return {
+        ...it,
+        unit: u,
+        unitName: u,
+        under: it.groupName || 'Primary',
+        groupName: it.groupName || 'Primary',
+        category: it.categoryName || 'Not Applicable',
+        categoryName: it.categoryName || 'Not Applicable'
+      };
     });
 
     const cloudStockGroups = await prisma.stockGroup.findMany({
