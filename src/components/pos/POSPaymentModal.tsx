@@ -350,7 +350,35 @@ export default function POSPaymentModal({
                       type="text"
                       placeholder="e.g. yourstore@okicici or 9876543210@paytm"
                       value={activeUpiVpa}
-                      onChange={e => setActiveUpiVpa(e.target.value)}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      autoComplete="off"
+                      spellCheck={false}
+                      onKeyDown={e => {
+                        const isCaps = Boolean(e.getModifierState && e.getModifierState('CapsLock'));
+                        (e.currentTarget as any)._capsLock = isCaps;
+                        if (!isCaps && e.key && e.key.length === 1 && /[A-Z]/.test(e.key)) {
+                          e.preventDefault();
+                          const lower = e.key.toLowerCase();
+                          const input = e.currentTarget;
+                          const start = input.selectionStart ?? activeUpiVpa.length;
+                          const end = input.selectionEnd ?? activeUpiVpa.length;
+                          const newVal = activeUpiVpa.slice(0, start) + lower + activeUpiVpa.slice(end);
+                          setActiveUpiVpa(newVal);
+                        }
+                      }}
+                      onChange={e => {
+                        const isCaps = Boolean((e.currentTarget as any)._capsLock);
+                        setActiveUpiVpa(isCaps ? e.target.value : e.target.value.toLowerCase());
+                      }}
+                      onPaste={e => {
+                        const isCaps = Boolean((e.currentTarget as any)._capsLock);
+                        if (!isCaps) {
+                          e.preventDefault();
+                          const text = e.clipboardData.getData('text').toLowerCase().trim();
+                          document.execCommand('insertText', false, text);
+                        }
+                      }}
                       style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #d97706', borderRadius: 4, fontWeight: 'bold' }}
                     />
                   </div>
@@ -439,7 +467,35 @@ export default function POSPaymentModal({
                     type="text"
                     placeholder="merchant@upi"
                     value={activeUpiVpa}
-                    onChange={e => setActiveUpiVpa(e.target.value)}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    autoComplete="off"
+                    spellCheck={false}
+                    onKeyDown={e => {
+                      const isCaps = Boolean(e.getModifierState && e.getModifierState('CapsLock'));
+                      (e.currentTarget as any)._capsLock = isCaps;
+                      if (!isCaps && e.key && e.key.length === 1 && /[A-Z]/.test(e.key)) {
+                        e.preventDefault();
+                        const lower = e.key.toLowerCase();
+                        const input = e.currentTarget;
+                        const start = input.selectionStart ?? activeUpiVpa.length;
+                        const end = input.selectionEnd ?? activeUpiVpa.length;
+                        const newVal = activeUpiVpa.slice(0, start) + lower + activeUpiVpa.slice(end);
+                        setActiveUpiVpa(newVal);
+                      }
+                    }}
+                    onChange={e => {
+                      const isCaps = Boolean((e.currentTarget as any)._capsLock);
+                      setActiveUpiVpa(isCaps ? e.target.value : e.target.value.toLowerCase());
+                    }}
+                    onPaste={e => {
+                      const isCaps = Boolean((e.currentTarget as any)._capsLock);
+                      if (!isCaps) {
+                        e.preventDefault();
+                        const text = e.clipboardData.getData('text').toLowerCase().trim();
+                        document.execCommand('insertText', false, text);
+                      }
+                    }}
                     style={{ marginLeft: 6, padding: '2px 6px', fontSize: 11, border: '1px solid #d97706', borderRadius: 3 }}
                   />
                 </div>

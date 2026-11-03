@@ -130,15 +130,15 @@ export async function POST(req: Request) {
                 currencyName: co.currencyName || 'INR',
                 gstin: co.gstin || '',
                 pan: co.pan || '',
-                upiId: co.upiId || '',
+                upiId: (co.upiId || '').trim().toLowerCase(),
                 financialYearStart: new Date(co.financialYearStart || '2026-04-01'),
                 booksBeginFrom: new Date(co.booksBeginFrom || '2026-04-01'),
               },
             });
-          } else if (co.upiId && co.upiId !== existingCo.upiId) {
+          } else if (co.upiId && co.upiId.trim().toLowerCase() !== existingCo.upiId) {
             await prisma.company.update({
               where: { id: existingCo.id },
-              data: { upiId: co.upiId }
+              data: { upiId: co.upiId.trim().toLowerCase() }
             });
           }
         } catch (coErr) {

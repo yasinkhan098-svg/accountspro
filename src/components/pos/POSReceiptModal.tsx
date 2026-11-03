@@ -492,7 +492,7 @@ export default function POSReceiptModal({
               </div>
               <div style={{ fontSize: 8, lineHeight: 1.4, marginTop: 2 }}>
                 <div><b>Payee:</b> {storeName}</div>
-                {hasUpi && <div><b>UPI ID:</b> {company.upiId}</div>}
+                {hasUpi && <div><b>UPI ID:</b> {company.upiId.trim().toLowerCase()}</div>}
                 <div><b>Bill Amount:</b> ₹{totals.grandTotal.toFixed(2)}</div>
                 <div><b>Bill No:</b> {billNo}</div>
                 {payment && (payment.mode === 'UPI_QR' || payment.mode === 'Split') && (

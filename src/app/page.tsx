@@ -3476,7 +3476,7 @@ export default function App() {
           const logoEl = document.querySelector('img[alt="Preview"]') as HTMLImageElement;
           type = 'company'; data = { 
             name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
-            registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'), upiId: fv('c-upi'),
+            registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'), upiId: (fv('c-upi') || '').trim().toLowerCase(),
             financialYearStart: fv('c-fy-start'), booksBeginFrom: fv('c-books-start'),
             securityControl: fsv('c-sec-ctrl') === 'Yes', password: fv('c-pwd'),
             showMobile: (document.getElementById('chk-print-mob') as HTMLInputElement)?.checked ?? true,
@@ -6628,7 +6628,60 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         <div className="form-row"><label style={{width:220}}>A/C No.</label><span className="colon">:</span><input id="c-acc-no" type="text" className="form-input" style={{width:160}} defaultValue={activeAlterItem?.accountNo||''}/></div>
         <div className="form-row"><label style={{width:220}}>IFSC Code</label><span className="colon">:</span><input id="c-ifsc" type="text" className="form-input" style={{width:120}} defaultValue={activeAlterItem?.ifsc||''}/></div>
         <div className="form-row"><label style={{width:220}}>SWIFT Code</label><span className="colon">:</span><input id="c-swift" type="text" className="form-input" style={{width:120}} defaultValue={activeAlterItem?.swiftCode||''}/></div>
-        <div className="form-row"><label style={{width:220,fontWeight:'bold',color:'#1c5282'}}>UPI ID (For QR Payment)</label><span className="colon">:</span><input id="c-upi" type="text" className="form-input" style={{width:240,fontWeight:'bold'}} placeholder="e.g. store@okicici or 9876543210@paytm" defaultValue={activeAlterItem?.upiId||''}/></div>
+        <div className="form-row">
+          <label style={{width:220,fontWeight:'bold',color:'#1c5282'}}>UPI ID (For QR Payment)</label>
+          <span className="colon">:</span>
+          <input 
+            id="c-upi" 
+            type="text" 
+            className="form-input" 
+            style={{width:240,fontWeight:'bold'}} 
+            placeholder="e.g. store@okicici or 9876543210@paytm" 
+            defaultValue={activeAlterItem?.upiId||''}
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
+            onKeyDown={e => {
+              const isCaps = Boolean(e.getModifierState && e.getModifierState('CapsLock'));
+              (e.currentTarget as any)._capsLock = isCaps;
+              if (!isCaps && e.key && e.key.length === 1 && /[A-Z]/.test(e.key)) {
+                e.preventDefault();
+                const input = e.currentTarget;
+                const start = input.selectionStart ?? input.value.length;
+                const end = input.selectionEnd ?? input.value.length;
+                const lowerChar = e.key.toLowerCase();
+                const val = input.value;
+                input.value = val.substring(0, start) + lowerChar + val.substring(end);
+                input.setSelectionRange(start + 1, start + 1);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            }}
+            onInput={e => {
+              const input = e.currentTarget;
+              const isCaps = Boolean((input as any)._capsLock);
+              if (!isCaps) {
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                const lower = input.value.toLowerCase();
+                if (input.value !== lower) {
+                  input.value = lower;
+                  if (start !== null && end !== null) {
+                    input.setSelectionRange(start, end);
+                  }
+                }
+              }
+            }}
+            onPaste={e => {
+              const isCaps = Boolean((e.currentTarget as any)._capsLock);
+              if (!isCaps) {
+                e.preventDefault();
+                const text = e.clipboardData.getData('text').toLowerCase().trim();
+                document.execCommand('insertText', false, text);
+              }
+            }}
+          />
+        </div>
         <div className="form-section-title">Security Control</div>
         <div className="form-row"><label style={{width:220}}>Use Security Control</label><span className="colon">:</span><select id="c-sec-ctrl" className="form-input" style={{width:80}} value={secCtrl} onChange={e=>setSecCtrl(e.target.value)}><option>No</option><option>Yes</option></select></div>
         {secCtrl === 'Yes' && (
@@ -6692,7 +6745,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
                 accountNo: (document.getElementById('c-acc-no') as HTMLInputElement).value,
                 ifsc: (document.getElementById('c-ifsc') as HTMLInputElement).value,
                 swiftCode: (document.getElementById('c-swift') as HTMLInputElement).value,
-                upiId: (document.getElementById('c-upi') as HTMLInputElement)?.value?.trim() || '',
+                upiId: ((document.getElementById('c-upi') as HTMLInputElement)?.value || '').trim().toLowerCase(),
                 currencySymbol: (document.getElementById('c-currency') as HTMLInputElement).value,
                 currencyName: (document.getElementById('c-formal') as HTMLInputElement).value,
                 securityControl: (document.getElementById('c-sec-ctrl') as HTMLSelectElement)?.value === 'Yes',

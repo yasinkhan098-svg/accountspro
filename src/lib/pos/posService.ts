@@ -275,13 +275,32 @@ export class POSService {
   }
 
   /**
-   * Construct dynamic UPI payment URI
+   * Construct dynamic UPI payment URI adhering strictly to NPCI UPI Specifications.
+   * - pa: Payee VPA address (MUST keep literal '@', NOT %40, and strictly lowercase)
+   * - pn: Payee Name (alphanumeric and spaces, max 25 chars)
+   * - am: Amount formatted to 2 decimal places (only if > 0)
+   * - cu: INR
+   * - tn: Transaction note (alphanumeric without special chars)
    */
   public getUpiUri(params: { vpa: string; companyName: string; amount: number; billNo: string }): string {
-    const vpa = (params.vpa || '').trim();
-    const cleanName = (params.companyName || 'Store').replace(/[^a-zA-Z0-9 ]/g, '').trim() || 'Store';
-    const amountStr = params.amount > 0 ? `&am=${params.amount.toFixed(2)}` : '';
-    return `upi://pay?pa=${encodeURIComponent(vpa)}&pn=${encodeURIComponent(cleanName)}${amountStr}&cu=INR&tn=POS-${encodeURIComponent(params.billNo)}`;
+    const cleanVpa = (params.vpa || '').trim().toLowerCase().replace(/\s+/g, '');
+    if (!cleanVpa) return '';
+
+    // NPCI Payee Name: alphanumeric and single spaces, max 25 chars
+    const cleanName = (params.companyName || 'Merchant')
+      .replace(/[^a-zA-Z0-9 ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 25) || 'Merchant';
+
+    const cleanBill = (params.billNo || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 15);
+    const note = cleanBill ? `Bill${cleanBill}` : 'POS';
+
+    const amt = Number(params.amount) || 0;
+    const amountStr = amt > 0 ? `&am=${amt.toFixed(2)}` : '';
+
+    // Literal '@' in pa is strictly required by NPCI parsers (encodeURIComponent converts @ to %40 which breaks bank name resolution)
+    return `upi://pay?pa=${cleanVpa}&pn=${encodeURIComponent(cleanName)}${amountStr}&cu=INR&tn=${encodeURIComponent(note)}`;
   }
 
   /**
@@ -293,7 +312,7 @@ export class POSService {
       const QRCode = (await import('qrcode')).default;
       return await QRCode.toDataURL(data, {
         width: size,
-        margin: 1,
+        margin: 2, // 2 quiet modules ensures rapid scan by phone camera lenses
         errorCorrectionLevel: 'M',
         color: {
           dark: '#000000',

@@ -89,6 +89,7 @@ export async function POST(req: Request) {
     const cleanCompany = {
       ...company,
       companyCode: code,
+      upiId: company?.upiId ? String(company.upiId).trim().toLowerCase() : (company?.upiId || ''),
       updatedAt: new Date().toISOString(),
     };
 
