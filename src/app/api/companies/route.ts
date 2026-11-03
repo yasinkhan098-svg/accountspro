@@ -121,7 +121,15 @@ export async function POST(req: Request) {
       }))
     });
 
-    return NextResponse.json({ success: true, company });
+    const createdLedgers = await prisma.ledger.findMany({ where: { companyId: company.id } });
+    const normalizedCreatedLedgers = createdLedgers.map((l: any) => ({
+      ...l,
+      openingBalance: l.openingBal ?? 0,
+      balanceType: l.balanceType || 'Dr',
+      pan: l.panItNo || '',
+    }));
+
+    return NextResponse.json({ success: true, company, ledgers: normalizedCreatedLedgers });
   } catch (error: any) {
     console.error("Company Creation Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -176,7 +184,15 @@ export async function PUT(req: Request) {
         password: data.password || null
       }
     });
-    return NextResponse.json({ success: true, company });
+    const createdLedgers = await prisma.ledger.findMany({ where: { companyId: company.id } });
+    const normalizedCreatedLedgers = createdLedgers.map((l: any) => ({
+      ...l,
+      openingBalance: l.openingBal ?? 0,
+      balanceType: l.balanceType || 'Dr',
+      pan: l.panItNo || '',
+    }));
+
+    return NextResponse.json({ success: true, company, ledgers: normalizedCreatedLedgers });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

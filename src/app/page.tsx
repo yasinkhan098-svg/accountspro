@@ -416,6 +416,44 @@ const ALL_COUNTRIES = Object.keys(COUNTRY_DATA).sort();
 const VOUCHER_TYPES_DEFAULT = ['Contra','Payment','Receipt','Journal','Sales','Purchase','Credit Note','Debit Note','Sales Quotation','Reversing Journal','Memorandum'];
 
 // ==================== INITIAL DUMMY DATA ====================
+const STANDARD_DEFAULT_LEDGERS = [
+  { name: 'Cash', groupName: 'Cash-in-hand', openingBalance: 0, balanceType: 'Dr' as const },
+  { name: 'Profit & Loss A/c', groupName: 'Primary', openingBalance: 0, balanceType: 'Cr' as const },
+  { name: 'Round Off', groupName: 'Indirect Expenses', openingBalance: 0, balanceType: 'Dr' as const },
+  { name: 'Discount Given', groupName: 'Indirect Expenses', openingBalance: 0, balanceType: 'Dr' as const },
+  { name: 'Discount Received', groupName: 'Indirect Incomes', openingBalance: 0, balanceType: 'Cr' as const },
+  { name: 'Transportation Charges', groupName: 'Direct Expenses', openingBalance: 0, balanceType: 'Dr' as const },
+  { name: 'Freight Charges', groupName: 'Direct Expenses', openingBalance: 0, balanceType: 'Dr' as const },
+  { name: 'CGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' as const },
+  { name: 'SGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' as const },
+  { name: 'IGST Payable', groupName: 'Duties & Taxes', openingBalance: 0, balanceType: 'Cr' as const },
+  { name: 'Sales A/c', groupName: 'Sales Accounts', openingBalance: 0, balanceType: 'Cr' as const },
+  { name: 'Purchase A/c', groupName: 'Purchase Accounts', openingBalance: 0, balanceType: 'Dr' as const },
+];
+
+const ensureStandardLedgersList = (existing: any[], companyId: number): { ledgers: any[]; newlyCreated: any[] } => {
+  const current = [...(existing || [])];
+  const existingNames = new Set(current.map(l => (l.name || '').trim().toLowerCase()));
+  const missing = STANDARD_DEFAULT_LEDGERS.filter(sl => !existingNames.has(sl.name.trim().toLowerCase()));
+  const newlyCreated: any[] = [];
+  if (missing.length > 0) {
+    missing.forEach((sl, idx) => {
+      const nLedger = {
+        id: Date.now() + 300 + idx,
+        companyId,
+        name: sl.name,
+        groupName: sl.groupName,
+        openingBalance: sl.openingBalance,
+        balanceType: sl.balanceType,
+        isAutoInit: true,
+      };
+      current.push(nLedger);
+      newlyCreated.push(nLedger);
+    });
+  }
+  return { ledgers: current, newlyCreated };
+};
+
 const INIT_LEDGERS: Ledger[] = [];
 
 const INIT_STOCK_ITEMS: StockItem[] = [];
@@ -707,6 +745,7 @@ export default function App() {
   const [exportDirPath, setExportDirPath] = useState('C:\\Downloads');
   const lastFocusRef = useRef<HTMLElement|null>(null);
   const isInitializingRef = useRef(false);
+  const initializedCompaniesRef = useRef<Set<number>>(new Set());
   const [isMounted, setIsMounted] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{type:string, id:number, name:string}|null>(null);
   const [pwdPrompt, setPwdPrompt] = useState<{company: Company, action: 'open' | 'alter'} | null>(null);
@@ -1712,7 +1751,9 @@ export default function App() {
       const lRes = await fetch(`/api/ledgers?companyId=${cid}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const lData = await lRes.json();
       if (lRes.ok && lData.ledgers) {
-        setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...lData.ledgers]);
+        const { ledgers: completeLedgers } = ensureStandardLedgersList(lData.ledgers, cid);
+        setAllLedgers(prev => [...prev.filter(l => Number(l.companyId) !== Number(cid)), ...completeLedgers]);
+        initializedCompaniesRef.current.add(Number(cid));
       }
 
       // 2. Fetch Vouchers
@@ -2124,7 +2165,7 @@ export default function App() {
     }
   }, [activeCompany?.id]);
 
-  // Ensure all standard ledgers exist for the active company
+  // Ensure all standard ledgers exist for the active company (Runs ONCE per company, 100% silent, permanently saved)
   useEffect(() => {
     if (!isAuthenticated || !activeCompany) return;
     const cid = activeCompany.id;
@@ -2147,7 +2188,14 @@ export default function App() {
     ];
 
     const companyLedgers = allLedgers.filter(l => Number(l.companyId) === Number(cid));
-    const missingLedgers = standardLedgers.filter(sl => !companyLedgers.some(cl => cl.name === sl.name));
+    if (initializedCompaniesRef.current.has(Number(cid))) return;
+    const existingNames = new Set(companyLedgers.map(l => (l.name || '').trim().toLowerCase()));
+    const missingLedgers = STANDARD_DEFAULT_LEDGERS.filter(sl => !existingNames.has(sl.name.trim().toLowerCase()));
+
+    if (missingLedgers.length === 0) {
+      initializedCompaniesRef.current.add(Number(cid));
+      return;
+    }
 
     if (missingLedgers.length > 0) {
       isInitializingRef.current = true;
@@ -2160,9 +2208,48 @@ export default function App() {
               openingBalance: l.openingBalance,
               balanceType: l.balanceType
             };
-            await saveMaster('ledger', newLedger);
+            (newLedger as any).companyId = Number(cid);
+            (newLedger as any).isAutoInit = true;
+            (newLedger as any).id = Date.now() + Math.floor(Math.random() * 1000);
+            offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: newLedger, companyId: Number(cid) });
+            setAllLedgers(prev => [...prev, newLedger as any]);
+
+            if (navigator.onLine) {
+              try {
+                const token = authClient.getToken();
+                await fetch('/api/ledgers', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify({ companyId: Number(cid), ...newLedger, isAutoInit: true }),
+                });
+              } catch (e) {
+                console.warn("Silent background ledger init error:", e);
+              }
+            }
           }
         } finally {
+          try {
+            const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
+            const folderData = await companyDataFolderService.loadCompanyFolder(compCode);
+            if (folderData) {
+              const currentFolderLedgers = folderData.ledgers || [];
+              const combined = [...currentFolderLedgers];
+              for (const ml of missingLedgers) {
+                if (!combined.some(cl => (cl.name || '').trim().toLowerCase() === ml.name.trim().toLowerCase())) {
+                  combined.push({ ...ml, id: Date.now() + Math.floor(Math.random() * 1000), companyId: Number(cid) });
+                }
+              }
+              await companyDataFolderService.saveCompanyFolder({
+                ...folderData,
+                companyCode: compCode,
+                company: folderData.company || activeCompany,
+                ledgers: combined,
+              });
+            }
+          } catch (e) {
+            console.warn("Error updating local company folder with standard ledgers:", e);
+          }
+          initializedCompaniesRef.current.add(Number(cid));
           isInitializingRef.current = false;
         }
       };
@@ -2515,6 +2602,9 @@ export default function App() {
       if (type === 'ledger') {
         const normName = (data.name || '').trim().toLowerCase();
         if (normName && ledgers.some(l => l.name.trim().toLowerCase() === normName)) {
+          if (isInitializingRef.current || data.isAutoInit) {
+            return ledgers.find(l => l.name.trim().toLowerCase() === normName) || null;
+          }
           alert(`Ledger "${data.name}" already exists!`);
           return null;
         }
@@ -2533,7 +2623,7 @@ export default function App() {
             } else {
               const errData = await res.json().catch(() => ({}));
               const errMsg = errData.error || `Failed to create ledger on server`;
-              alert(errMsg);
+              if (!isInitializingRef.current && !data.isAutoInit) alert(errMsg);
               return null;
             }
           } catch (e: any) {
@@ -2693,7 +2783,9 @@ export default function App() {
               setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' }))]);
               setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
               setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
-              setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
+              const initialLedgers = (resData.ledgers && resData.ledgers.length > 0) ? resData.ledgers : ensureStandardLedgersList([], newCo.id).ledgers;
+              setAllLedgers(p => [...p, ...initialLedgers]);
+              initializedCompaniesRef.current.add(Number(newCo.id));
               setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id }))]);
               setActiveCompany(newCo);
 
@@ -2701,7 +2793,7 @@ export default function App() {
               await companyDataFolderService.saveCompanyFolder({
                 companyCode: newCo.companyCode,
                 company: newCo,
-                ledgers: [{ id: Date.now() + 300, companyId: newCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }],
+                ledgers: initialLedgers,
                 vouchers: [],
                 stockItems: [],
                 stockGroups: [],
@@ -2727,7 +2819,10 @@ export default function App() {
         setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: localCo.id, name: g, under: 'Primary' }))]);
         setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: localCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
         setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: localCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
-        setAllLedgers(p => [...p, { id: Date.now() + 300, companyId: localCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }]);
+        const localLedgers = ensureStandardLedgersList([], localCo.id).ledgers;
+        setAllLedgers(p => [...p, ...localLedgers]);
+        initializedCompaniesRef.current.add(Number(localCo.id));
+        localLedgers.forEach(l => offlineSyncService.enqueue({ type: "LEDGER", action: "CREATE", data: l, companyId: localCo.id }));
         setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: localCo.id }))]);
         setActiveCompany(localCo);
         offlineSyncService.enqueue({ type: 'COMPANY', action: 'CREATE', data: localCo, companyId: localCo.id });
@@ -2736,7 +2831,7 @@ export default function App() {
         await companyDataFolderService.saveCompanyFolder({
           companyCode: nextCode,
           company: localCo,
-          ledgers: [{ id: Date.now() + 300, companyId: localCo.id, name: "Cash", groupName: "Cash-in-hand", openingBalance: 0, balanceType: "Dr" }],
+          ledgers: localLedgers,
           vouchers: [],
           stockItems: [],
           stockGroups: [],
@@ -3984,7 +4079,18 @@ export default function App() {
             setShowCompanySelect(false);
             const folderData = await companyDataFolderService.loadCompanyFolder(code);
             if (folderData) {
-              if (folderData.ledgers?.length) setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...folderData.ledgers]);
+              const { ledgers: completeLedgers, newlyCreated } = ensureStandardLedgersList(folderData.ledgers || [], c.id);
+              if (newlyCreated.length > 0) {
+                newlyCreated.forEach(l => offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: l, companyId: c.id }));
+                await companyDataFolderService.saveCompanyFolder({
+                  ...folderData,
+                  companyCode: code,
+                  company: folderData.company || c,
+                  ledgers: completeLedgers,
+                });
+              }
+              setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...completeLedgers]);
+              initializedCompaniesRef.current.add(Number(c.id));
               if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers.map((fv: any) => ({ ...fv, partyDetails: safeParseJSON(fv.partyDetails), dispatchDetails: safeParseJSON(fv.dispatchDetails) }))]);
               if (folderData.stockItems?.length) {
                 const normalized = folderData.stockItems.map((si: any) => {
@@ -4785,7 +4891,18 @@ export default function App() {
                       // Load from local numbered folder (e.g. data/10001/) if available
                       const folderData = await companyDataFolderService.loadCompanyFolder(code);
                       if (folderData) {
-                        if (folderData.ledgers?.length) setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...folderData.ledgers]);
+                        const { ledgers: completeLedgers, newlyCreated } = ensureStandardLedgersList(folderData.ledgers || [], c.id);
+                        if (newlyCreated.length > 0) {
+                          newlyCreated.forEach(l => offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: l, companyId: c.id }));
+                          await companyDataFolderService.saveCompanyFolder({
+                            ...folderData,
+                            companyCode: code,
+                            company: folderData.company || c,
+                            ledgers: completeLedgers,
+                          });
+                        }
+                        setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(c.id)), ...completeLedgers]);
+                        initializedCompaniesRef.current.add(Number(c.id));
                         if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers.map((fv: any) => ({ ...fv, partyDetails: safeParseJSON(fv.partyDetails), dispatchDetails: safeParseJSON(fv.dispatchDetails) }))]);
                         if (folderData.stockItems?.length) {
                           const normalized = folderData.stockItems.map((si: any) => {

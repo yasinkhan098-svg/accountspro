@@ -11,6 +11,23 @@ const normalizeLedger = (l: any) => ({
   odLimit: l.odLimit ?? null,
 });
 
+const STANDARD_DEFAULT_LEDGERS = [
+  { name: 'Cash', groupName: 'Cash-in-hand', openingBal: 0, balanceType: 'Dr' },
+  { name: 'Profit & Loss A/c', groupName: 'Primary', openingBal: 0, balanceType: 'Cr' },
+  { name: 'Round Off', groupName: 'Indirect Expenses', openingBal: 0, balanceType: 'Dr' },
+  { name: 'Discount Given', groupName: 'Indirect Expenses', openingBal: 0, balanceType: 'Dr' },
+  { name: 'Discount Received', groupName: 'Indirect Incomes', openingBal: 0, balanceType: 'Cr' },
+  { name: 'Transportation Charges', groupName: 'Direct Expenses', openingBal: 0, balanceType: 'Dr' },
+  { name: 'Freight Charges', groupName: 'Direct Expenses', openingBal: 0, balanceType: 'Dr' },
+  { name: 'CGST Payable', groupName: 'Duties & Taxes', openingBal: 0, balanceType: 'Cr' },
+  { name: 'SGST Payable', groupName: 'Duties & Taxes', openingBal: 0, balanceType: 'Cr' },
+  { name: 'IGST Payable', groupName: 'Duties & Taxes', openingBal: 0, balanceType: 'Cr' },
+  { name: 'Sales A/c', groupName: 'Sales Accounts', openingBal: 0, balanceType: 'Cr' },
+  { name: 'Purchase A/c', groupName: 'Purchase Accounts', openingBal: 0, balanceType: 'Dr' },
+];
+
+const STANDARD_NAMES = new Set(STANDARD_DEFAULT_LEDGERS.map(l => l.name.trim().toLowerCase()));
+
 export async function POST(req: Request) {
   try {
     const data = await req.json();
@@ -27,6 +44,10 @@ export async function POST(req: Request) {
     const nameLower = data.name.trim().toLowerCase();
     const isDuplicate = existingLedgers.some(l => l.name.trim().toLowerCase() === nameLower);
     if (isDuplicate) {
+      const existingLedger = existingLedgers.find(l => l.name.trim().toLowerCase() === nameLower);
+      if (data.isAutoInit || STANDARD_NAMES.has(nameLower)) {
+        return NextResponse.json({ success: true, ledger: normalizeLedger(existingLedger), alreadyExisted: true });
+      }
       return NextResponse.json({ success: false, error: `Ledger "${data.name}" already exists!` }, { status: 400 });
     }
 
@@ -143,9 +164,30 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const companyId = searchParams.get('companyId');
-    const rawLedgers = await prisma.ledger.findMany({
-      where: companyId ? { companyId: parseInt(companyId) } : undefined
+    const cid = companyId ? parseInt(companyId) : 0;
+
+    let rawLedgers = await prisma.ledger.findMany({
+      where: cid ? { companyId: cid } : undefined
     });
+
+    // Auto-ensure standard ledgers exist in DB for this company once and for all!
+    if (cid && rawLedgers.length > 0) {
+      const existingNames = new Set(rawLedgers.map((l: any) => l.name.trim().toLowerCase()));
+      const missing = STANDARD_DEFAULT_LEDGERS.filter(sl => !existingNames.has(sl.name.trim().toLowerCase()));
+      if (missing.length > 0) {
+        await prisma.ledger.createMany({
+          data: missing.map(m => ({
+            companyId: cid,
+            name: m.name,
+            groupName: m.groupName,
+            openingBal: m.openingBal || 0,
+            balanceType: m.balanceType
+          }))
+        });
+        rawLedgers = await prisma.ledger.findMany({ where: { companyId: cid } });
+      }
+    }
+
     // Normalize DB field names to frontend interface field names
     const ledgers = rawLedgers.map((l: any) => ({
       ...l,
