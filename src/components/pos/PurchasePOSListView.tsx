@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { generateBarcodeSvg, generateNextUniqueBarcode, printBarcodeLabels, BarcodeLabelData } from '@/lib/pos/barcodeGenerator';
+import { generateBarcodeSvg, generateNextUniqueBarcode, printBarcodeLabels, BarcodeLabelData, BarcodePrintLayout } from '@/lib/pos/barcodeGenerator';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
 
 export interface POSPurchaseItem {
@@ -48,9 +48,9 @@ export default function PurchasePOSListView({
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty' | ''>('');
   const [printModalItem, setPrintModalItem] = useState<POSPurchaseItem | null>(null);
   const [printCount, setPrintCount] = useState<number>(1);
-  const [printLayout, setPrintLayout] = useState<'roll_50x25' | 'a4_sheet'>('roll_50x25');
+  const [printLayout, setPrintLayout] = useState<BarcodePrintLayout>('a4_40_up');
   const [showBulkPrintModal, setShowBulkPrintModal] = useState(false);
-  const [bulkPrintLayout, setBulkPrintLayout] = useState<'roll_50x25' | 'a4_sheet'>('roll_50x25');
+  const [bulkPrintLayout, setBulkPrintLayout] = useState<BarcodePrintLayout>('a4_40_up');
 
   const isInitializedRef = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1233,15 +1233,23 @@ export default function PurchasePOSListView({
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>Label Paper Format:</label>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>Label Paper Format / Printer Type:</label>
                 <select
                   value={printLayout}
                   onChange={e => setPrintLayout(e.target.value as any)}
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1.5px solid #0284c7', fontSize: 12, fontWeight: 600, background: '#f0f9ff' }}
                 >
-                  <option value="roll_50x25">Thermal Barcode Roll (50mm × 25mm / Continuous Roll)</option>
-                  <option value="a4_sheet">A4 Sticker Sheet (24-up / 3 Columns × 8 Rows)</option>
+                  <option value="a4_40_up">📄 A4 Sticker Sheet (40 Stickers per sheet / 4 Cols × 10 Rows - 50mm × 25mm)</option>
+                  <option value="a4_24_up">📄 A4 Sticker Sheet (24 Stickers per sheet / 3 Cols × 8 Rows - 65mm × 34mm)</option>
+                  <option value="roll_50x25">🏷️ Thermal Barcode Roll Printer (50mm × 25mm / 2" × 1" Single Sticker Roll)</option>
+                  <option value="roll_38x25">🏷️ Thermal Barcode Roll Printer (38mm × 25mm / 1.5" × 1" Single Sticker Roll)</option>
                 </select>
+                <div style={{ fontSize: 11, color: '#0369a1', marginTop: 4, fontWeight: 600 }}>
+                  {printLayout === 'a4_40_up' && `💡 A4 sheet par 40 stickers aate hain. Aapke ${printCount} stickers 1 hi A4 page par fit honge.`}
+                  {printLayout === 'a4_24_up' && `💡 A4 sheet par 24 bade stickers aate hain. Aapke ${printCount} stickers 1 hi A4 page par fit honge.`}
+                  {printLayout === 'roll_50x25' && `💡 Barcode roll printer par exact 50mm × 25mm sticker feed hoga (No blank margins).`}
+                  {printLayout === 'roll_38x25' && `💡 Barcode roll printer par exact 38mm × 25mm sticker feed hoga (No blank margins).`}
+                </div>
               </div>
             </div>
 
@@ -1288,15 +1296,23 @@ export default function PurchasePOSListView({
             </p>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', marginBottom: 6 }}>Select Label Format:</label>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', marginBottom: 6 }}>Select Label Format / Printer Type:</label>
               <select
                 value={bulkPrintLayout}
                 onChange={e => setBulkPrintLayout(e.target.value as any)}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1.5px solid #7c3aed', fontSize: 13, fontWeight: 600, background: '#faf5ff' }}
               >
-                <option value="roll_50x25">Thermal Barcode Roll (50mm × 25mm / 1 label per page)</option>
-                <option value="a4_sheet">A4 Sticker Sheet (24 labels per page / 3 columns)</option>
+                <option value="a4_40_up">📄 A4 Sticker Sheet (40 Stickers per sheet / 4 Cols × 10 Rows - 50mm × 25mm)</option>
+                <option value="a4_24_up">📄 A4 Sticker Sheet (24 Stickers per sheet / 3 Cols × 8 Rows - 65mm × 34mm)</option>
+                <option value="roll_50x25">🏷️ Thermal Barcode Roll Printer (50mm × 25mm / 2" × 1" Single Sticker Roll)</option>
+                <option value="roll_38x25">🏷️ Thermal Barcode Roll Printer (38mm × 25mm / 1.5" × 1" Single Sticker Roll)</option>
               </select>
+              <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 4, fontWeight: 600 }}>
+                {bulkPrintLayout === 'a4_40_up' && `💡 A4 sheet par 40 stickers aate hain. ${items.length} products ke liye ~${Math.ceil(items.length / 40)} sheet(s) use hongi.`}
+                {bulkPrintLayout === 'a4_24_up' && `💡 A4 sheet par 24 stickers aate hain. ${items.length} products ke liye ~${Math.ceil(items.length / 24)} sheet(s) use hongi.`}
+                {bulkPrintLayout === 'roll_50x25' && `💡 Dedicated barcode printer par continuous 50mm × 25mm roll stickers print honge.`}
+                {bulkPrintLayout === 'roll_38x25' && `💡 Dedicated barcode printer par continuous 38mm × 25mm roll stickers print honge.`}
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
