@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import POSLoginScreen from './POSLoginScreen';
 import POSSaleView from './POSSaleView';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
+import { permissionGuard } from '@/lib/permissionGuard';
 
 interface POSWorkflowContainerProps {
   company: any;
@@ -50,8 +51,17 @@ export default function POSWorkflowContainer({
   };
 
   const handleLogoutToLogin = () => {
+    permissionGuard.setCurrentUser(null);
     setCashierUser(null);
     setWorkflowState('LOGIN');
+  };
+
+  const handleOpenPOSList = () => {
+    if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') && permissionGuard.canAccessVoucher('Purchase POS List')) {
+      if (onOpenPurchasePOSList) onOpenPurchasePOSList();
+    } else {
+      alert('Access Denied: You do not have permission to access Purchase POS List.');
+    }
   };
 
   if (workflowState === 'LOGIN') {
@@ -77,7 +87,7 @@ export default function POSWorkflowContainer({
       onLogoutToLogin={handleLogoutToLogin}
       onStockUpdated={onStockUpdated}
       onVouchersUpdated={onVouchersUpdated}
-      onOpenPurchasePOSList={onOpenPurchasePOSList}
+      onOpenPurchasePOSList={handleOpenPOSList}
     />
   );
 }

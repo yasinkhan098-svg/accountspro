@@ -1402,7 +1402,7 @@ export default function POSSaleView({
             </button>
 
             {/* 1B. Purchase POS List (Stock, MRP, Barcodes & Labels) - Protected by Role Permission */}
-            {permissionGuard.canAccessMenuItem('Purchase POS List') && onOpenPurchasePOSList && (
+            {(currentUser?.isAdmin || (permissionGuard.canAccessMenuItem('Purchase POS List') && permissionGuard.canAccessVoucher('Purchase POS List') && permissionGuard.canAccessScreen('PURCHASE_POS_LIST'))) && onOpenPurchasePOSList && (
               <button
                 type="button"
                 className="pos-touch-btn"

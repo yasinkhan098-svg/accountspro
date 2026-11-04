@@ -4711,13 +4711,26 @@ export default function App() {
             {screen==='PURCHASE_ORDER_REGISTER' && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="register" onBack={goBack}/>}
             {screen==='BOM_MODULE'              && <BOMModule company={activeCompany} stockItems={stockItems} ledgers={ledgers} initialTab="journal" onBack={goBack} onAltC={handleOpenAltC} onStockUpdated={syncData} onSaveManufacturingJournal={handleSaveManufacturingJournal} onDeleteManufacturingJournal={handleDeleteManufacturingJournal}/>}
             {screen==='PURCHASE_POS_LIST' && (
-              <PurchasePOSListView
-                company={activeCompany}
-                stockItems={allStockItems}
-                vouchers={allVouchers}
-                onBack={goBack}
-                onStockUpdated={updated => setAllStockItems(updated)}
-              />
+              permissionGuard.canAccessScreen('PURCHASE_POS_LIST') ? (
+                <PurchasePOSListView
+                  company={activeCompany}
+                  stockItems={allStockItems}
+                  vouchers={allVouchers}
+                  onBack={goBack}
+                  onStockUpdated={updated => setAllStockItems(updated)}
+                />
+              ) : (
+                <div style={{ padding: '60px 20px', textAlign: 'center', color: '#dc2626', background: '#ffffff', minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+                  <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8, color: '#991b1b' }}>Access Denied</h2>
+                  <p style={{ fontSize: 14, color: '#4b5563', maxWidth: 450, marginBottom: 24 }}>
+                    You do not have permission to view or manage the Purchase POS List. Please contact your Company Administrator.
+                  </p>
+                  <button onClick={goBack} style={{ padding: '8px 24px', background: '#0f3c64', color: '#ffffff', border: 'none', borderRadius: 6, fontWeight: 700, cursor: 'pointer' }}>
+                    Go Back
+                  </button>
+                </div>
+              )
             )}
             {screen==='POS_SALE'                && (
               <POSWorkflowContainer
@@ -4729,7 +4742,13 @@ export default function App() {
                 onBack={goBack}
                 onStockUpdated={updated => setAllStockItems(updated)}
                 onVouchersUpdated={updated => setAllVouchers(updated)}
-                onOpenPurchasePOSList={() => nav('PURCHASE_POS_LIST')}
+                onOpenPurchasePOSList={() => {
+                  if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') && permissionGuard.canAccessVoucher('Purchase POS List')) {
+                    nav('PURCHASE_POS_LIST');
+                  } else {
+                    alert('Access Denied: You do not have permission to view Purchase POS List.');
+                  }
+                }}
               />
             )}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
