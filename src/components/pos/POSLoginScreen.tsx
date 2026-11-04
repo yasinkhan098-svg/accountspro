@@ -6,7 +6,7 @@ import { permissionGuard, LANUser, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_OPERATOR_P
 interface POSLoginScreenProps {
   company: any;
   companyCode: string;
-  onLoginSuccess: (user: { id: string; username: string; fullName: string; isTrainingMode: boolean }) => void;
+  onLoginSuccess: (user: any) => void;
   onExit: () => void;
 }
 
@@ -186,9 +186,12 @@ export default function POSLoginScreen({
         } catch (e) {}
         permissionGuard.setCurrentUser(matched);
         onLoginSuccess({
+          ...matched,
           id: matched.id,
           username: matched.username,
           fullName: matched.fullName || matched.username,
+          isAdmin: matched.isAdmin,
+          permissions: matched.permissions,
           isTrainingMode,
         });
         return;
@@ -208,9 +211,12 @@ export default function POSLoginScreen({
         };
         permissionGuard.setCurrentUser(fallbackUser);
         onLoginSuccess({
+          ...fallbackUser,
           id: fallbackUser.id,
           username: fallbackUser.username,
           fullName: fallbackUser.fullName,
+          isAdmin: fallbackUser.isAdmin,
+          permissions: fallbackUser.permissions,
           isTrainingMode,
         });
         return;

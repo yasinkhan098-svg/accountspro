@@ -23,7 +23,7 @@ interface POSSaleViewProps {
   stockItems: any[];
   ledgers: any[];
   vouchers: any[];
-  cashierUser?: { id: string; username: string; fullName: string; isTrainingMode?: boolean };
+  cashierUser?: any;
   onBack: () => void;
   onLogoutToLogin?: () => void;
   onStockUpdated?: (updatedStock: any[]) => void;
@@ -143,6 +143,16 @@ export default function POSSaleView({
   const currentUser = permissionGuard.getCurrentUser();
   const cashierName = cashierUser?.fullName || currentUser?.fullName || currentUser?.username || 'Cashier-01';
   const isTrainingMode = Boolean(cashierUser?.isTrainingMode);
+
+  // Cashier role permission helper for Purchase POS List
+  const hasPurchasePOSListPermission = (): boolean => {
+    if (cashierUser?.isAdmin || (cashierUser as any)?.isAdmin || currentUser?.isAdmin) return true;
+    const perms = (cashierUser as any)?.permissions || currentUser?.permissions;
+    if (perms && perms.vouchers) {
+      return !!perms.vouchers['Purchase POS List'];
+    }
+    return false;
+  };
 
   // POS Core State
   const [cart, setCart] = useState<POSCartItem[]>([]);
@@ -1402,7 +1412,7 @@ export default function POSSaleView({
             </button>
 
             {/* 1B. Purchase POS List (Stock, MRP, Barcodes & Labels) - Protected by Role Permission */}
-            {(currentUser?.isAdmin || (permissionGuard.canAccessMenuItem('Purchase POS List') && permissionGuard.canAccessVoucher('Purchase POS List') && permissionGuard.canAccessScreen('PURCHASE_POS_LIST'))) && onOpenPurchasePOSList && (
+            {hasPurchasePOSListPermission() && onOpenPurchasePOSList && (
               <button
                 type="button"
                 className="pos-touch-btn"

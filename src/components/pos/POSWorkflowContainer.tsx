@@ -33,25 +33,30 @@ export default function POSWorkflowContainer({
     : '10000';
 
   const [workflowState, setWorkflowState] = useState<'LOGIN' | 'SALES'>('LOGIN');
-  const [cashierUser, setCashierUser] = useState<{
-    id: string;
-    username: string;
-    fullName: string;
-    isTrainingMode?: boolean;
-  } | null>(null);
+  const [cashierUser, setCashierUser] = useState<any | null>(null);
 
-  const handleLoginSuccess = (user: {
-    id: string;
-    username: string;
-    fullName: string;
-    isTrainingMode: boolean;
-  }) => {
+  const handleLoginSuccess = (user: any) => {
     setCashierUser(user);
     setWorkflowState('SALES');
   };
 
+  const handleExit = () => {
+    if (!permissionGuard.isClientSession()) {
+      permissionGuard.setCurrentUser(null);
+      if (typeof window !== 'undefined') {
+        try { localStorage.removeItem('ledgerx_active_lan_user'); } catch (_) {}
+      }
+    }
+    onBack();
+  };
+
   const handleLogoutToLogin = () => {
-    permissionGuard.setCurrentUser(null);
+    if (!permissionGuard.isClientSession()) {
+      permissionGuard.setCurrentUser(null);
+      if (typeof window !== 'undefined') {
+        try { localStorage.removeItem('ledgerx_active_lan_user'); } catch (_) {}
+      }
+    }
     setCashierUser(null);
     setWorkflowState('LOGIN');
   };
@@ -70,7 +75,7 @@ export default function POSWorkflowContainer({
         company={company}
         companyCode={companyCode}
         onLoginSuccess={handleLoginSuccess}
-        onExit={onBack}
+        onExit={handleExit}
       />
     );
   }
@@ -83,7 +88,7 @@ export default function POSWorkflowContainer({
       ledgers={ledgers}
       vouchers={vouchers}
       cashierUser={cashierUser || undefined}
-      onBack={onBack}
+      onBack={handleExit}
       onLogoutToLogin={handleLogoutToLogin}
       onStockUpdated={onStockUpdated}
       onVouchersUpdated={onVouchersUpdated}

@@ -253,13 +253,14 @@ class PermissionGuardService {
 
   public isRestrictedSession(): boolean {
     if (typeof window === 'undefined') return false;
-    // 1. If any user is logged in, non-admins are ALWAYS restricted to their assigned role permissions!
-    if (this.currentUser) {
-      return !this.currentUser.isAdmin;
+    // Host PC / Main Desktop App / Primary Admin workstation is NEVER restricted!
+    // Restrictions ONLY apply to a connected LAN Client PC or Online Client PC (e.g. ?lan_client=1 or ?client_mode=1)
+    if (!this.isClientSession()) {
+      return false;
     }
-    // 2. If no user is logged in yet:
-    // Restricted on client terminal (login only), host PC is unrestricted
-    return this.isClientSession();
+    // On a LAN / Online Client PC:
+    if (!this.currentUser) return true;
+    return !this.currentUser.isAdmin;
   }
 
   private notifyListeners() {
@@ -272,82 +273,79 @@ class PermissionGuardService {
    * Checks if current user has permission for a specific Voucher Type (e.g. 'Purchase', 'Sales')
    */
   public canAccessVoucher(voucherType: string): boolean {
-    if (this.currentUser) {
-      if (this.currentUser.isAdmin) return true;
-      const vKey = voucherType as keyof VoucherPermissions;
-      return !!this.currentUser.permissions?.vouchers?.[vKey];
-    }
     if (!this.isRestrictedSession()) return true;
-    return voucherType === 'POS Sale' || voucherType === 'Sales';
+    if (!this.currentUser) return voucherType === 'POS Sale' || voucherType === 'Sales';
+    if (this.currentUser.isAdmin) return true;
+
+    const vKey = voucherType as keyof VoucherPermissions;
+    return !!this.currentUser.permissions?.vouchers?.[vKey];
   }
 
   /**
    * Checks if current user has permission for a specific screen or report
    */
   public canAccessScreen(screen: string): boolean {
-    if (this.currentUser) {
-      if (this.currentUser.isAdmin) return true;
-      const perms = this.currentUser.permissions;
-      if (!perms) return false;
-
-      switch (screen) {
-        case 'PURCHASE_POS_LIST':
-          return !!perms.vouchers?.['Purchase POS List'];
-        case 'POS_SALE':
-          return !!perms.vouchers?.['POS Sale'] || !!perms.vouchers?.Sales;
-        case 'BALANCE_SHEET':
-          return !!perms.reports?.BalanceSheet;
-        case 'PROFIT_LOSS':
-          return !!perms.reports?.ProfitLoss;
-        case 'TRIAL_BALANCE':
-          return !!perms.reports?.TrialBalance;
-        case 'STOCK_SUMMARY':
-          return !!perms.reports?.StockSummary;
-        case 'GSTR1_REPORT':
-        case 'GSTR3B_REPORT':
-          return !!perms.reports?.GSTReports;
-        case 'AUDIT_TRAIL':
-          return !!perms.reports?.AuditTrail;
-        case 'BOM_MODULE':
-          return !!perms.modules?.BOM || !!perms.modules?.Manufacturing;
-        case 'BANK_STATEMENT_ENTRY':
-          return !!perms.modules?.BankStatement;
-        case 'PURCHASE_ORDER_ENTRY':
-        case 'PURCHASE_ORDER_REGISTER':
-          return !!perms.modules?.PurchaseOrder;
-        case 'SALES_REGISTER':
-          return !!perms.registers?.['Sales Register'];
-        case 'PURCHASE_REGISTER':
-          return !!perms.registers?.['Purchase Register'];
-        case 'DAY_BOOK':
-          return !!perms.registers?.['Day Book'];
-        case 'PAYMENT_REGISTER':
-          return !!perms.registers?.['Payment Register'];
-        case 'RECEIPT_REGISTER':
-          return !!perms.registers?.['Receipt Register'];
-        case 'JOURNAL_REGISTER':
-          return !!perms.registers?.['Journal Register'];
-        case 'CONTRA_REGISTER':
-          return !!perms.registers?.['Contra Register'];
-        case 'DEBIT_NOTE_REGISTER':
-          return !!perms.registers?.['Debit Note Register'];
-        case 'CREDIT_NOTE_REGISTER':
-          return !!perms.registers?.['Credit Note Register'];
-        case 'QUOTATION_REGISTER':
-          return !!perms.registers?.['Quotation Register'];
-        case 'USER_ROLES':
-          return false;
-        case 'LEDGER_CREATION':
-          return !!perms.masters?.createLedger;
-        case 'STOCK_ITEM_CREATION':
-          return !!perms.masters?.createStockItem;
-        default:
-          return true;
-      }
-    }
-
     if (!this.isRestrictedSession()) return true;
-    return screen === 'POS_SALE';
+    if (!this.currentUser) return screen === 'POS_SALE';
+    if (this.currentUser.isAdmin) return true;
+
+    const perms = this.currentUser.permissions;
+    if (!perms) return false;
+
+    switch (screen) {
+      case 'PURCHASE_POS_LIST':
+        return !!perms.vouchers?.['Purchase POS List'];
+      case 'POS_SALE':
+        return !!perms.vouchers?.['POS Sale'] || !!perms.vouchers?.Sales;
+      case 'BALANCE_SHEET':
+        return !!perms.reports?.BalanceSheet;
+      case 'PROFIT_LOSS':
+        return !!perms.reports?.ProfitLoss;
+      case 'TRIAL_BALANCE':
+        return !!perms.reports?.TrialBalance;
+      case 'STOCK_SUMMARY':
+        return !!perms.reports?.StockSummary;
+      case 'GSTR1_REPORT':
+      case 'GSTR3B_REPORT':
+        return !!perms.reports?.GSTReports;
+      case 'AUDIT_TRAIL':
+        return !!perms.reports?.AuditTrail;
+      case 'BOM_MODULE':
+        return !!perms.modules?.BOM || !!perms.modules?.Manufacturing;
+      case 'BANK_STATEMENT_ENTRY':
+        return !!perms.modules?.BankStatement;
+      case 'PURCHASE_ORDER_ENTRY':
+      case 'PURCHASE_ORDER_REGISTER':
+        return !!perms.modules?.PurchaseOrder;
+      case 'SALES_REGISTER':
+        return !!perms.registers?.['Sales Register'];
+      case 'PURCHASE_REGISTER':
+        return !!perms.registers?.['Purchase Register'];
+      case 'DAY_BOOK':
+        return !!perms.registers?.['Day Book'];
+      case 'PAYMENT_REGISTER':
+        return !!perms.registers?.['Payment Register'];
+      case 'RECEIPT_REGISTER':
+        return !!perms.registers?.['Receipt Register'];
+      case 'JOURNAL_REGISTER':
+        return !!perms.registers?.['Journal Register'];
+      case 'CONTRA_REGISTER':
+        return !!perms.registers?.['Contra Register'];
+      case 'DEBIT_NOTE_REGISTER':
+        return !!perms.registers?.['Debit Note Register'];
+      case 'CREDIT_NOTE_REGISTER':
+        return !!perms.registers?.['Credit Note Register'];
+      case 'QUOTATION_REGISTER':
+        return !!perms.registers?.['Quotation Register'];
+      case 'USER_ROLES':
+        return false;
+      case 'LEDGER_CREATION':
+        return !!perms.masters?.createLedger;
+      case 'STOCK_ITEM_CREATION':
+        return !!perms.masters?.createStockItem;
+      default:
+        return true;
+    }
   }
 
   /**
@@ -381,6 +379,7 @@ class PermissionGuardService {
    * Checks if current user can access a menu item by label
    */
   public canAccessMenuItem(label: string): boolean {
+    if (!this.isRestrictedSession()) return true;
     const lower = label.toLowerCase().trim();
     if (lower === 'quit' || lower === '') return true;
 
