@@ -28,6 +28,7 @@ export interface CompanyFolderData {
   boms?: any[];            // BOM templates offline storage
   manufacturingJournals?: any[]; // Manufacturing Journals offline storage
   users?: any[];           // Company-specific LAN users and roles
+  posPurchaseList?: any[]; // Purchase POS List offline storage
 }
 
 export function getBridgeBaseUrl(): string {
@@ -273,6 +274,7 @@ class CompanyDataFolderService {
       boms: data.boms !== undefined ? data.boms : (existing?.boms || []),
       manufacturingJournals: data.manufacturingJournals !== undefined ? data.manufacturingJournals : (existing?.manufacturingJournals || []),
       users: data.users !== undefined ? data.users : (existing?.users || []),
+      posPurchaseList: data.posPurchaseList !== undefined ? data.posPurchaseList : (existing?.posPurchaseList || []),
     };
 
     // 1. Electron bridge
@@ -308,6 +310,7 @@ class CompanyDataFolderService {
           ['boms.json', cleanData.boms],
           ['manufacturing_journals.json', cleanData.manufacturingJournals],
           ['users.json', cleanData.users],
+          ['pos_purchase_list.json', cleanData.posPurchaseList],
         ];
 
         for (const [fName, fVal] of filesToStream) {

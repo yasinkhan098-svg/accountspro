@@ -1,8 +1,7 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { generateBarcodeSvg, generateNextUniqueBarcode, printBarcodeLabels, BarcodeLabelData } from '@/lib/pos/barcodeGenerator';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
-import { offlineSyncService } from '@/lib/offlineSyncService';
 
 export interface POSPurchaseItem {
   id: number;
@@ -31,6 +30,10 @@ interface PurchasePOSListViewProps {
   onStockUpdated?: (updatedStock: any[]) => void;
 }
 
+// Editable column sequence for Enter key navigation:
+// 0: name, 1: expiryDate, 2: cessPerc, 3: barcode, 4: mrp, 5: discountPerc, 6: discountAmt, 7: retailSalePrice
+const EDITABLE_COLS_COUNT = 8;
+
 export default function PurchasePOSListView({
   company,
   stockItems = [],
@@ -42,17 +45,24 @@ export default function PurchasePOSListView({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveToast, setSaveToast] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty' | ''>('');
   const [printModalItem, setPrintModalItem] = useState<POSPurchaseItem | null>(null);
   const [printCount, setPrintCount] = useState<number>(1);
   const [printLayout, setPrintLayout] = useState<'roll_50x25' | 'a4_sheet'>('roll_50x25');
   const [showBulkPrintModal, setShowBulkPrintModal] = useState(false);
   const [bulkPrintLayout, setBulkPrintLayout] = useState<'roll_50x25' | 'a4_sheet'>('roll_50x25');
 
-  const barcodeInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
+  const isInitializedRef = useRef(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const itemsRef = useRef<POSPurchaseItem[]>([]);
+  itemsRef.current = items;
+
+  const companyCode = (company?.companyCode || '10000').toUpperCase().trim();
+  const companyId = company?.id || 0;
+  const storageKey = `ledgerx_pos_purchase_list_${companyCode}`;
 
   // 1. Calculate live stock from vouchers
-  const calculateLiveStock = (item: any): number => {
+  const calculateLiveStock = useCallback((item: any): number => {
     let stock = Number(item.openingQty) || 0;
     const targetId = Number(item.id);
     const targetName = (item.name || '').trim().toLowerCase();
@@ -77,10 +87,10 @@ export default function PurchasePOSListView({
       }
     }
     return Math.round(stock * 100) / 100;
-  };
+  }, [vouchers]);
 
   // 2. Resolve initial and latest purchase prices (with tax)
-  const resolvePurchasePrices = (item: any): { purchasePrice: number; newPurchasePrice: number } => {
+  const resolvePurchasePrices = useCallback((item: any): { purchasePrice: number; newPurchasePrice: number } => {
     const gstRate = Number(item.gstRate) || 0;
     const baseOpeningRate = Number(item.openingRate) || 0;
     
@@ -114,7 +124,6 @@ export default function PurchasePOSListView({
       }
     }
 
-    // If latest purchase rate exists and differs from initial, report as newPurchasePrice
     const newPrice = (latestRateWithTax > 0 && latestRateWithTax !== initialPriceWithTax)
       ? latestRateWithTax
       : (latestRateWithTax > 0 ? latestRateWithTax : 0);
@@ -123,39 +132,138 @@ export default function PurchasePOSListView({
       purchasePrice: initialPriceWithTax,
       newPurchasePrice: newPrice,
     };
-  };
+  }, [vouchers]);
 
-  // 3. Initialize list from stockItems and saved configuration
-  useEffect(() => {
-    const savedKey = `ledgerx_pos_purchase_list_${company?.id || 1}`;
-    let savedList: any[] = [];
+  // 3. PERSISTENCE ENGINE: Save immediately to Database, Local Disk & Company Folder
+  const persistChanges = useCallback(async (currentItems: POSPurchaseItem[]) => {
+    if (!currentItems || currentItems.length === 0) return;
+    setSaveStatus('saving');
     try {
-      const raw = localStorage.getItem(savedKey);
-      if (raw) savedList = JSON.parse(raw);
-    } catch (e) {}
+      // A. Save to LocalStorage immediately
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(storageKey, JSON.stringify(currentItems));
+      }
 
+      // B. Save to Database API /api/pos/purchase-list (both online Turso DB + offline JSON)
+      try {
+        await fetch('/api/pos/purchase-list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: companyId,
+            companyCode: companyCode,
+            items: currentItems,
+          }),
+        });
+      } catch (err) {
+        console.warn("API save error:", err);
+      }
+
+      // C. Save to C# Launcher Bridge and Local Company Folder
+      try {
+        await companyDataFolderService.saveCompanyFolder({
+          companyCode,
+          posPurchaseList: currentItems,
+        });
+      } catch (err) {
+        console.warn("Folder service save error:", err);
+      }
+
+      // D. Merge updated fields back into stockItems for POS Sale
+      if (onStockUpdated) {
+        const updatedStockItems = (stockItems || []).map(si => {
+          const found = currentItems.find(it => it.id === si.id || it.name.trim().toLowerCase() === (si.name || '').trim().toLowerCase());
+          if (found) {
+            return {
+              ...si,
+              barcode: found.barcode,
+              mrp: found.mrp,
+              discountPerc: found.discountPerc,
+              discountAmt: found.discountAmt,
+              retailSalePrice: found.retailSalePrice,
+              expiryDate: found.expiryDate,
+              cessPerc: found.cessPerc,
+            };
+          }
+          return si;
+        });
+        onStockUpdated(updatedStockItems);
+      }
+
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch (e) {
+      console.error("Persist error:", e);
+      setSaveStatus('dirty');
+    }
+  }, [storageKey, companyId, companyCode, stockItems, onStockUpdated]);
+
+  // Debounced auto-save on change
+  const triggerAutoSave = useCallback((updatedItems: POSPurchaseItem[]) => {
+    setSaveStatus('dirty');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      persistChanges(updatedItems);
+    }, 400);
+  }, [persistChanges]);
+
+  // Helper to build list by combining stock items with saved data
+  const buildItemsList = useCallback((savedData: any[]): POSPurchaseItem[] => {
     const assignedBarcodes: string[] = [];
+    const savedMap = new Map<string, any>();
 
+    // Index saved items by ID and by lowercased name
+    (savedData || []).forEach(s => {
+      if (!s) return;
+      if (s.id !== undefined) savedMap.set(String(s.id), s);
+      if (s.name) savedMap.set(String(s.name).trim().toLowerCase(), s);
+    });
+
+    // 1. Process items from stockItems
     const built: POSPurchaseItem[] = (stockItems || []).map((si, idx) => {
-      const saved = savedList.find((s: any) => s.id === si.id || s.name === si.name) || {};
+      const saved = savedMap.get(String(si.id)) || savedMap.get((si.name || '').trim().toLowerCase()) || {};
       const { purchasePrice, newPurchasePrice } = resolvePurchasePrices(si);
       const liveStock = calculateLiveStock(si);
 
-      // Barcode resolution: saved barcode > si.barcode > generated unique barcode
-      let barcode = String(saved.barcode || si.barcode || '').trim();
+      let barcode = String(saved.barcode !== undefined ? saved.barcode : (si.barcode || '')).trim();
       if (!barcode) {
         barcode = generateNextUniqueBarcode(assignedBarcodes);
       }
       assignedBarcodes.push(barcode);
 
-      // MRP and discount resolution
-      const mrp = Number(saved.mrp !== undefined ? saved.mrp : (si.mrp || purchasePrice * 1.2 || 0));
-      let discountPerc = Number(saved.discountPerc !== undefined ? saved.discountPerc : (si.defaultDiscount || 0));
-      let discountAmt = Number(saved.discountAmt !== undefined ? saved.discountAmt : (mrp > 0 && discountPerc > 0 ? (mrp * discountPerc) / 100 : 0));
-      let retailSalePrice = Number(saved.retailSalePrice !== undefined ? saved.retailSalePrice : (si.retailSalePrice || Math.max(0, mrp - discountAmt)));
+      // MRP resolution: Saved value takes first priority!
+      let mrp = 0;
+      if (saved.mrp !== undefined && saved.mrp !== null && saved.mrp !== '') {
+        mrp = Number(saved.mrp) || 0;
+      } else if (si.mrp !== undefined && si.mrp !== null && si.mrp > 0) {
+        mrp = Number(si.mrp) || 0;
+      } else if (purchasePrice > 0) {
+        mrp = Math.round(purchasePrice * 1.2 * 100) / 100;
+      }
 
-      // If retail price wasn't set, default to MRP - discount
-      if (!retailSalePrice || retailSalePrice <= 0) {
+      // Discount %
+      let discountPerc = 0;
+      if (saved.discountPerc !== undefined && saved.discountPerc !== null && saved.discountPerc !== '') {
+        discountPerc = Number(saved.discountPerc) || 0;
+      } else if (si.defaultDiscount !== undefined && si.defaultDiscount > 0) {
+        discountPerc = Number(si.defaultDiscount) || 0;
+      }
+
+      // Discount Amount
+      let discountAmt = 0;
+      if (saved.discountAmt !== undefined && saved.discountAmt !== null && saved.discountAmt !== '') {
+        discountAmt = Number(saved.discountAmt) || 0;
+      } else if (mrp > 0 && discountPerc > 0) {
+        discountAmt = Math.round((mrp * discountPerc / 100) * 100) / 100;
+      }
+
+      // Retail Sale Price: Saved value takes first priority!
+      let retailSalePrice = 0;
+      if (saved.retailSalePrice !== undefined && saved.retailSalePrice !== null && saved.retailSalePrice !== '') {
+        retailSalePrice = Number(saved.retailSalePrice) || 0;
+      } else if (si.retailSalePrice !== undefined && si.retailSalePrice > 0) {
+        retailSalePrice = Number(si.retailSalePrice) || 0;
+      } else {
         retailSalePrice = Math.max(0, mrp - discountAmt);
       }
 
@@ -165,7 +273,7 @@ export default function PurchasePOSListView({
         name: si.name,
         purchasePrice,
         newPurchasePrice,
-        expiryDate: saved.expiryDate || si.expiryDate || '',
+        expiryDate: saved.expiryDate !== undefined ? saved.expiryDate : (si.expiryDate || ''),
         cessPerc: Number(saved.cessPerc !== undefined ? saved.cessPerc : (si.cessPerc || 0)),
         openingStock: liveStock,
         barcode,
@@ -174,57 +282,178 @@ export default function PurchasePOSListView({
         discountAmt: Math.round(discountAmt * 100) / 100,
         retailSalePrice: Math.round(retailSalePrice * 100) / 100,
         unit: si.unitName || si.unit?.name || 'NOS',
-        gstRate: Number(si.gstRate) || 0,
+        gstRate: Number(si.gstRate) || 18,
         variants: saved.variants || si.variants || [],
       };
     });
 
-    setItems(built);
-  }, [stockItems, vouchers, company]);
+    // 2. Also preserve any custom inserted items that were in savedData but not in stockItems
+    (savedData || []).forEach(s => {
+      if (!s) return;
+      const alreadyIncluded = built.some(b => b.id === s.id || b.name.trim().toLowerCase() === (s.name || '').trim().toLowerCase());
+      if (!alreadyIncluded && s.name) {
+        built.push({
+          id: s.id || Date.now(),
+          sNo: built.length + 1,
+          name: s.name,
+          purchasePrice: Number(s.purchasePrice) || 0,
+          newPurchasePrice: Number(s.newPurchasePrice) || 0,
+          expiryDate: s.expiryDate || '',
+          cessPerc: Number(s.cessPerc) || 0,
+          openingStock: Number(s.openingStock) || 0,
+          barcode: s.barcode || generateNextUniqueBarcode(assignedBarcodes),
+          mrp: Number(s.mrp) || 0,
+          discountPerc: Number(s.discountPerc) || 0,
+          discountAmt: Number(s.discountAmt) || 0,
+          retailSalePrice: Number(s.retailSalePrice) || 0,
+          unit: s.unit || 'NOS',
+          gstRate: Number(s.gstRate) || 18,
+          variants: s.variants || [],
+        });
+      }
+    });
 
-  // 4. Two-way discount & retail price calculation handlers
+    return built;
+  }, [stockItems, calculateLiveStock, resolvePurchasePrices]);
+
+  // 4. Initial load from LocalStorage and Database API
+  useEffect(() => {
+    if (isInitializedRef.current) return;
+
+    // A. Read LocalStorage cache first
+    let cachedList: any[] = [];
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          cachedList = parsed;
+        }
+      }
+    } catch (e) {}
+
+    // Initialize with cached list or stock items
+    const initialBuilt = buildItemsList(cachedList);
+    setItems(initialBuilt);
+    isInitializedRef.current = true;
+
+    // B. Fetch fresh data from Database & Local API
+    const fetchApiUrl = `/api/pos/purchase-list?companyCode=${encodeURIComponent(companyCode)}&companyId=${companyId}`;
+    fetch(fetchApiUrl)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.items) && data.items.length > 0) {
+          const freshBuilt = buildItemsList(data.items);
+          setItems(freshBuilt);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(storageKey, JSON.stringify(freshBuilt));
+          }
+        }
+      })
+      .catch(err => {
+        console.warn("Could not fetch remote purchase list:", err);
+      });
+  }, [storageKey, companyCode, companyId, buildItemsList]);
+
+  // 5. Reactive Item Updating with Auto-Save
   const handleUpdateItem = (id: number, field: keyof POSPurchaseItem, value: any) => {
-    setItems(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      const updated = { ...item, [field]: value };
+    setItems(prev => {
+      const updated = prev.map(item => {
+        if (item.id !== id) return item;
+        const cur = { ...item, [field]: value };
 
-      if (field === 'mrp') {
-        const mrp = Math.max(0, Number(value) || 0);
-        updated.mrp = mrp;
-        if (updated.discountPerc > 0) {
-          updated.discountAmt = Math.round((mrp * updated.discountPerc / 100) * 100) / 100;
+        if (field === 'mrp') {
+          const mrp = Math.max(0, Number(value) || 0);
+          cur.mrp = mrp;
+          if (cur.discountPerc > 0) {
+            cur.discountAmt = Math.round((mrp * cur.discountPerc / 100) * 100) / 100;
+          }
+          cur.retailSalePrice = Math.round(Math.max(0, mrp - cur.discountAmt) * 100) / 100;
+        } 
+        else if (field === 'discountPerc') {
+          const perc = Math.max(0, Math.min(100, Number(value) || 0));
+          cur.discountPerc = perc;
+          cur.discountAmt = Math.round((cur.mrp * perc / 100) * 100) / 100;
+          cur.retailSalePrice = Math.round(Math.max(0, cur.mrp - cur.discountAmt) * 100) / 100;
+        } 
+        else if (field === 'discountAmt') {
+          const amt = Math.max(0, Number(value) || 0);
+          cur.discountAmt = amt;
+          cur.discountPerc = cur.mrp > 0 ? Math.round((amt / cur.mrp * 100) * 100) / 100 : 0;
+          cur.retailSalePrice = Math.round(Math.max(0, cur.mrp - amt) * 100) / 100;
         }
-        updated.retailSalePrice = Math.round(Math.max(0, mrp - updated.discountAmt) * 100) / 100;
-      } 
-      else if (field === 'discountPerc') {
-        const perc = Math.max(0, Math.min(100, Number(value) || 0));
-        updated.discountPerc = perc;
-        updated.discountAmt = Math.round((updated.mrp * perc / 100) * 100) / 100;
-        updated.retailSalePrice = Math.round(Math.max(0, updated.mrp - updated.discountAmt) * 100) / 100;
-      } 
-      else if (field === 'discountAmt') {
-        const amt = Math.max(0, Number(value) || 0);
-        updated.discountAmt = amt;
-        updated.discountPerc = updated.mrp > 0 ? Math.round((amt / updated.mrp * 100) * 100) / 100 : 0;
-        updated.retailSalePrice = Math.round(Math.max(0, updated.mrp - amt) * 100) / 100;
-      }
-      else if (field === 'retailSalePrice') {
-        const rsp = Math.max(0, Number(value) || 0);
-        updated.retailSalePrice = rsp;
-        if (updated.mrp > rsp) {
-          updated.discountAmt = Math.round((updated.mrp - rsp) * 100) / 100;
-          updated.discountPerc = Math.round((updated.discountAmt / updated.mrp * 100) * 100) / 100;
-        } else {
-          updated.discountAmt = 0;
-          updated.discountPerc = 0;
+        else if (field === 'retailSalePrice') {
+          const rsp = Math.max(0, Number(value) || 0);
+          cur.retailSalePrice = rsp;
+          if (cur.mrp > rsp) {
+            cur.discountAmt = Math.round((cur.mrp - rsp) * 100) / 100;
+            cur.discountPerc = Math.round((cur.discountAmt / cur.mrp * 100) * 100) / 100;
+          } else {
+            cur.discountAmt = 0;
+            cur.discountPerc = 0;
+          }
         }
-      }
 
+        return cur;
+      });
+
+      triggerAutoSave(updated);
       return updated;
-    }));
+    });
   };
 
-  // 5. Insert new product row directly
+  // Immediate save on blur
+  const handleCellBlur = () => {
+    persistChanges(itemsRef.current);
+  };
+
+  // 6. Keyboard & Enter-key Navigation between Cells (Excel Workflow)
+  const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, colIdx: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Flush current value immediately
+      persistChanges(itemsRef.current);
+
+      // If last editable column in row (Retail Sale Price), jump to next row
+      if (colIdx >= EDITABLE_COLS_COUNT - 1) {
+        const nextRowIdx = rowIdx + 1;
+        if (nextRowIdx < items.length) {
+          const nextEl = document.getElementById(`pos-cell-${nextRowIdx}-1`); // focus expiryDate of next row
+          if (nextEl) nextEl.focus();
+        } else {
+          // If on the very last row, insert a new row automatically
+          handleInsertRow();
+          setTimeout(() => {
+            const el = document.getElementById(`pos-cell-${nextRowIdx}-0`);
+            if (el) el.focus();
+          }, 80);
+        }
+      } else {
+        // Move to next cell in current row
+        const nextCol = colIdx + 1;
+        const nextEl = document.getElementById(`pos-cell-${rowIdx}-${nextCol}`);
+        if (nextEl) nextEl.focus();
+      }
+    } else if (e.key === 'ArrowDown') {
+      const nextRow = rowIdx + 1;
+      if (nextRow < items.length) {
+        e.preventDefault();
+        const el = document.getElementById(`pos-cell-${nextRow}-${colIdx}`);
+        if (el) el.focus();
+      }
+    } else if (e.key === 'ArrowUp') {
+      const prevRow = rowIdx - 1;
+      if (prevRow >= 0) {
+        e.preventDefault();
+        const el = document.getElementById(`pos-cell-${prevRow}-${colIdx}`);
+        if (el) el.focus();
+      }
+    }
+  };
+
+  // 7. Insert new product row
   const handleInsertRow = () => {
     const newId = Date.now();
     const existingBarcodes = items.map(i => i.barcode);
@@ -249,95 +478,66 @@ export default function PurchasePOSListView({
       variants: [],
     };
 
-    setItems(prev => [...prev, newItem]);
+    setItems(prev => {
+      const updated = [...prev, newItem];
+      persistChanges(updated);
+      return updated;
+    });
   };
 
-  // 6. Delete row from list
+  // 8. Delete row
   const handleDeleteRow = (id: number) => {
     if (confirm('Are you sure you want to remove this item from the Purchase POS List?')) {
-      setItems(prev => prev.filter(i => i.id !== id).map((it, idx) => ({ ...it, sNo: idx + 1 })));
+      setItems(prev => {
+        const updated = prev.filter(i => i.id !== id).map((it, idx) => ({ ...it, sNo: idx + 1 }));
+        persistChanges(updated);
+        return updated;
+      });
     }
   };
 
-  // 7. Auto-generate missing unique barcodes
+  // 9. Auto-generate missing unique barcodes
   const handleAutoGenerateMissingBarcodes = () => {
     const existing = items.map(i => i.barcode).filter(Boolean);
     let count = 0;
-    setItems(prev => prev.map(item => {
-      if (!item.barcode || !item.barcode.trim()) {
-        const nextCode = generateNextUniqueBarcode(existing);
-        existing.push(nextCode);
-        count++;
-        return { ...item, barcode: nextCode };
-      }
-      return item;
-    }));
+    setItems(prev => {
+      const updated = prev.map(item => {
+        if (!item.barcode || !item.barcode.trim()) {
+          const nextCode = generateNextUniqueBarcode(existing);
+          existing.push(nextCode);
+          count++;
+          return { ...item, barcode: nextCode };
+        }
+        return item;
+      });
+      persistChanges(updated);
+      return updated;
+    });
     alert(`Assigned unique barcodes for ${count} items!`);
   };
 
-  // 8. Save all changes to local disk & sync with stockItems
-  const handleSaveAll = async () => {
+  // 10. Manual Save button trigger
+  const handleManualSave = async () => {
     setIsSaving(true);
-    setSaveToast('');
-    try {
-      const savedKey = `ledgerx_pos_purchase_list_${company?.id || 1}`;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(savedKey, JSON.stringify(items));
-      }
-
-      // Merge updated fields back into stockItems
-      const updatedStockItems = (stockItems || []).map(si => {
-        const found = items.find(it => it.id === si.id || it.name === si.name);
-        if (found) {
-          return {
-            ...si,
-            barcode: found.barcode,
-            mrp: found.mrp,
-            discountPerc: found.discountPerc,
-            discountAmt: found.discountAmt,
-            retailSalePrice: found.retailSalePrice,
-            expiryDate: found.expiryDate,
-            cessPerc: found.cessPerc,
-          };
-        }
-        return si;
-      });
-
-      // Save to local company folder
-      const folderCode = companyDataFolderService.getCompanyFolderCode(company);
-      await companyDataFolderService.saveCompanyFolder({
-        companyCode: folderCode,
-        stockItems: updatedStockItems,
-      });
-
-      if (onStockUpdated) {
-        onStockUpdated(updatedStockItems);
-      }
-
-      setSaveToast('✓ Purchase POS List saved successfully!');
-      setTimeout(() => setSaveToast(''), 3000);
-    } catch (e: any) {
-      alert('Save failed: ' + e.message);
-    } finally {
-      setIsSaving(false);
-    }
+    await persistChanges(items);
+    setIsSaving(false);
   };
 
-  // Keyboard shortcut Ctrl+S
+  // Global keyboard shortcuts (Ctrl+S & Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        handleSaveAll();
+        handleManualSave();
       } else if (e.key === 'Escape' && !printModalItem && !showBulkPrintModal) {
         onBack();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, printModalItem, showBulkPrintModal]);
+  }, [items, printModalItem, showBulkPrintModal, onBack]);
 
-  // Filter items based on search query
+  // Filter items
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return items;
@@ -348,25 +548,85 @@ export default function PurchasePOSListView({
   }, [items, searchQuery]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc', color: '#0f172a', fontFamily: 'Segoe UI, Arial, sans-serif' }}>
-      
-      {/* Top Header & Ribbon */}
-      <div style={{ background: 'linear-gradient(180deg, #1e3a5f 0%, #152942 100%)', color: '#ffffff', padding: '10px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0284c7', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100%',
+        height: '100%',
+        margin: 0,
+        padding: 0,
+        background: '#f8fafc',
+        zIndex: 999999,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+      }}
+    >
+      <style>{`
+        .pos-touch-btn {
+          touch-action: manipulation;
+          user-select: none;
+          -webkit-user-select: none;
+          transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+        }
+        .pos-touch-btn:active {
+          transform: translateY(2px) scale(0.97) !important;
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25) !important;
+          filter: brightness(0.93);
+        }
+        .pos-grid-input {
+          touch-action: manipulation;
+          transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+          box-sizing: border-box;
+          height: 36px;
+        }
+        .pos-grid-input:focus {
+          border-color: #0284c7 !important;
+          background: #ffffff !important;
+          box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.3) !important;
+          outline: none !important;
+        }
+      `}</style>
+
+      {/* ==================== 1. TOP HEADER & TOOLBAR ==================== */}
+      <div
+        style={{
+          background: 'linear-gradient(180deg, #1e3a5f 0%, #152942 100%)',
+          color: '#ffffff',
+          padding: '8px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '2.5px solid #0284c7',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          minHeight: 54,
+          flexShrink: 0,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
             onClick={onBack}
+            className="pos-touch-btn"
             style={{
               background: '#334155',
               color: '#ffffff',
               border: '1px solid #475569',
               borderRadius: 6,
-              padding: '6px 14px',
+              padding: '8px 16px',
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
+              minHeight: 38,
             }}
           >
             ← Back (Esc)
@@ -375,8 +635,9 @@ export default function PurchasePOSListView({
             <h1 style={{ margin: 0, fontSize: 18, fontWeight: 900, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>📋</span> Purchase POS List & Barcode Master
             </h1>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>
-              Company: <b style={{ color: '#38bdf8' }}>{company?.name || 'Aiman Polymers'}</b> | Code: <b>{company?.companyCode || '10000'}</b> | Live Auto-sync with POS Sale & Sales Register
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+              Company: <b style={{ color: '#38bdf8' }}>{company?.name || 'Aiman Polymers'}</b> | Code: <b>{companyCode}</b> | 
+              Status: {saveStatus === 'saved' ? <b style={{ color: '#4ade80' }}>✓ Saved (DB & Local Storage)</b> : (saveStatus === 'saving' ? <b style={{ color: '#facc15' }}>Saving...</b> : <span style={{ color: '#cbd5e1' }}>Online & Offline Synced</span>)}
             </div>
           </div>
         </div>
@@ -389,33 +650,37 @@ export default function PurchasePOSListView({
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             style={{
-              padding: '7px 12px',
+              padding: '8px 14px',
               borderRadius: 6,
-              border: '1px solid #0284c7',
+              border: '1.5px solid #0284c7',
               background: '#ffffff',
               color: '#0f172a',
               fontSize: 13,
-              width: 240,
+              width: 250,
+              minHeight: 38,
               outline: 'none',
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
             }}
           />
 
           <button
             onClick={handleAutoGenerateMissingBarcodes}
+            className="pos-touch-btn"
             title="Generate unique barcodes for items without barcode"
             style={{
               background: '#0284c7',
               color: '#ffffff',
-              border: 'none',
+              border: '1px solid rgba(255,255,255,0.3)',
               borderRadius: 6,
-              padding: '7px 14px',
+              padding: '8px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+              minHeight: 38,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
             }}
           >
             ⚡ Auto Barcodes
@@ -423,20 +688,22 @@ export default function PurchasePOSListView({
 
           <button
             onClick={() => setShowBulkPrintModal(true)}
+            className="pos-touch-btn"
             title="Print barcode labels for all items"
             style={{
               background: '#7c3aed',
               color: '#ffffff',
-              border: 'none',
+              border: '1px solid rgba(255,255,255,0.3)',
               borderRadius: 6,
-              padding: '7px 14px',
+              padding: '8px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+              minHeight: 38,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
             }}
           >
             🖨️ Print All Barcodes
@@ -444,40 +711,44 @@ export default function PurchasePOSListView({
 
           <button
             onClick={handleInsertRow}
+            className="pos-touch-btn"
             style={{
               background: '#16a34a',
               color: '#ffffff',
-              border: 'none',
+              border: '1px solid rgba(255,255,255,0.3)',
               borderRadius: 6,
-              padding: '7px 14px',
+              padding: '8px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+              minHeight: 38,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
             }}
           >
             ➕ Insert Item
           </button>
 
           <button
-            onClick={handleSaveAll}
+            onClick={handleManualSave}
             disabled={isSaving}
+            className="pos-touch-btn"
             style={{
               background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
               color: '#ffffff',
-              border: 'none',
+              border: '1.5px solid rgba(255,255,255,0.4)',
               borderRadius: 6,
-              padding: '7px 18px',
+              padding: '8px 18px',
               fontSize: 13,
               fontWeight: 900,
               cursor: isSaving ? 'wait' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              boxShadow: '0 2px 6px rgba(217, 119, 6, 0.4)',
+              minHeight: 38,
+              boxShadow: '0 2px 6px rgba(217, 119, 6, 0.45)',
             }}
           >
             {isSaving ? 'Saving...' : '💾 Save (Ctrl+S)'}
@@ -485,48 +756,53 @@ export default function PurchasePOSListView({
         </div>
       </div>
 
-      {saveToast && (
-        <div style={{ background: '#16a34a', color: '#ffffff', padding: '6px 16px', textAlign: 'center', fontSize: 13, fontWeight: 'bold' }}>
-          {saveToast}
-        </div>
-      )}
-
-      {/* Main Excel-Style Grid Table */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px' }}>
-        <div style={{ border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden', background: '#ffffff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
-            <thead>
+      {/* ==================== 2. MAIN EXCEL-STYLE GRID TABLE ==================== */}
+      {/* Scrollable area with 60px bottom padding so row 69, 70, etc. never get hidden */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'auto',
+          padding: '8px 12px 60px 12px',
+          WebkitOverflowScrolling: 'touch',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden', background: '#ffffff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left', minWidth: 1250 }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#eab308' }}>
               {/* Golden Yellow Header matching uploaded screenshot */}
-              <tr style={{ background: '#eab308', color: '#000000', fontWeight: 900, textTransform: 'capitalize', borderBottom: '2px solid #ca8a04', whiteSpace: 'nowrap' }}>
-                <th style={{ padding: '9px 8px', borderRight: '1px solid #d4a373', width: 45, textAlign: 'center' }}>S.no</th>
-                <th style={{ padding: '9px 12px', borderRight: '1px solid #d4a373', minWidth: 160 }}>Product Name</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 100 }}>Purchase Price</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 120 }}>New Purchase Price</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', textAlign: 'center', minWidth: 105 }}>Expiry Date</th>
-                <th style={{ padding: '9px 8px', borderRight: '1px solid #d4a373', textAlign: 'right', width: 65 }}>CESS%</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 95 }}>Openning Stock</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', minWidth: 135 }}>Barcode</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 80 }}>MRP</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 140 }}>Discount% in percentage</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 125 }}>Discount in Amount</th>
-                <th style={{ padding: '9px 12px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 110, background: '#f59e0b', color: '#000000', fontWeight: 900 }}>Retail Sale Price</th>
-                <th style={{ padding: '9px 8px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 60 }}>insert</th>
-                <th style={{ padding: '9px 8px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 60 }}>delete</th>
-                <th style={{ padding: '9px 10px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 100 }}>print Barcode</th>
-                <th style={{ padding: '9px 8px', textAlign: 'center', width: 70 }}>Variant</th>
+              <tr style={{ background: '#eab308', color: '#000000', fontWeight: 900, textTransform: 'capitalize', borderBottom: '2.5px solid #ca8a04', whiteSpace: 'nowrap', height: 44 }}>
+                <th style={{ padding: '10px 8px', borderRight: '1px solid #d4a373', width: 50, textAlign: 'center' }}>S.no</th>
+                <th style={{ padding: '10px 12px', borderRight: '1px solid #d4a373', minWidth: 190 }}>Product Name</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 110 }}>Purchase Price</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 135 }}>New Purchase Price</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'center', minWidth: 115 }}>Expiry Date</th>
+                <th style={{ padding: '10px 8px', borderRight: '1px solid #d4a373', textAlign: 'right', width: 75 }}>CESS%</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 110 }}>Openning Stock</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', minWidth: 145 }}>Barcode</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 95 }}>MRP</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 155 }}>Discount% in percentage</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 140 }}>Discount in Amount</th>
+                <th style={{ padding: '10px 14px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 125, background: '#f59e0b', color: '#000000', fontWeight: 900 }}>Retail Sale Price</th>
+                <th style={{ padding: '10px 8px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 70 }}>insert</th>
+                <th style={{ padding: '10px 8px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 70 }}>delete</th>
+                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 115 }}>print Barcode</th>
+                <th style={{ padding: '10px 8px', textAlign: 'center', width: 85 }}>Variant</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={16} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                    No stock items found. Click <b>➕ Insert Item</b> to add your first product.
+                  <td colSpan={16} style={{ textAlign: 'center', padding: '50px 20px', color: '#64748b' }}>
+                    No stock items found. Click <b>➕ Insert Item</b> above to add your first product.
                   </td>
                 </tr>
               ) : (
                 filteredItems.map((item, idx) => {
                   const isSelected = selectedItemId === item.id;
-                  const rowBg = isSelected ? '#eff6ff' : (idx % 2 === 0 ? '#ffffff' : '#fcfcfc');
+                  const rowBg = isSelected ? '#eff6ff' : (idx % 2 === 0 ? '#ffffff' : '#fafafa');
 
                   return (
                     <tr
@@ -535,7 +811,7 @@ export default function PurchasePOSListView({
                       style={{
                         background: rowBg,
                         borderBottom: '1px solid #e2e8f0',
-                        transition: 'background 0.15s ease',
+                        height: 50, // Comfortable touch row height
                       }}
                     >
                       {/* 1. S.no */}
@@ -543,24 +819,26 @@ export default function PurchasePOSListView({
                         {item.sNo}
                       </td>
 
-                      {/* 2. Product Name */}
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #e2e8f0' }}>
+                      {/* 2. Product Name (Col 0) */}
+                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0' }}>
                         <input
+                          id={`pos-cell-${idx}-0`}
                           type="text"
+                          className="pos-grid-input"
                           value={item.name}
                           onChange={e => handleUpdateItem(item.id, 'name', e.target.value)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={e => handleCellKeyDown(e, idx, 0)}
                           style={{
                             width: '100%',
-                            border: '1px solid transparent',
-                            background: 'transparent',
-                            padding: '4px 6px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            padding: '6px 8px',
                             fontWeight: 700,
                             color: '#0f172a',
                             borderRadius: 4,
-                            outline: 'none',
+                            fontSize: 13,
                           }}
-                          onFocus={e => (e.target.style.border = '1px solid #0284c7')}
-                          onBlur={e => (e.target.style.border = '1px solid transparent')}
                         />
                       </td>
 
@@ -570,64 +848,73 @@ export default function PurchasePOSListView({
                       </td>
 
                       {/* 4. New Purchase Price (Latest with tax from F9) */}
-                      <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: item.newPurchasePrice > 0 ? (item.newPurchasePrice > item.purchasePrice ? '#dc2626' : '#16a34a') : '#64748b' }}>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: item.newPurchasePrice > 0 ? (item.newPurchasePrice > item.purchasePrice ? '#dc2626' : '#16a34a') : '#94a3b8' }}>
                         {item.newPurchasePrice > 0 ? `₹${item.newPurchasePrice.toFixed(2)}` : '0'}
                       </td>
 
-                      {/* 5. Expiry Date */}
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>
+                      {/* 5. Expiry Date (Col 1) */}
+                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>
                         <input
+                          id={`pos-cell-${idx}-1`}
                           type="text"
+                          className="pos-grid-input"
                           placeholder="DD/MM/YYYY"
                           value={item.expiryDate}
                           onChange={e => handleUpdateItem(item.id, 'expiryDate', e.target.value)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={e => handleCellKeyDown(e, idx, 1)}
                           style={{
-                            width: 95,
+                            width: 105,
                             textAlign: 'center',
                             border: '1px solid #cbd5e1',
                             background: '#ffffff',
                             borderRadius: 4,
-                            padding: '3px 4px',
-                            fontSize: 11,
-                            outline: 'none',
+                            padding: '6px 6px',
+                            fontSize: 12,
                           }}
                         />
                       </td>
 
-                      {/* 6. CESS% */}
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
+                      {/* 6. CESS% (Col 2) */}
+                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
                         <input
+                          id={`pos-cell-${idx}-2`}
                           type="number"
                           step="0.5"
                           min="0"
+                          className="pos-grid-input"
                           value={item.cessPerc || ''}
                           onChange={e => handleUpdateItem(item.id, 'cessPerc', parseFloat(e.target.value) || 0)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={e => handleCellKeyDown(e, idx, 2)}
                           style={{
-                            width: 50,
+                            width: 65,
                             textAlign: 'right',
                             border: '1px solid #cbd5e1',
                             background: '#ffffff',
                             borderRadius: 4,
-                            padding: '3px 4px',
-                            fontSize: 11,
-                            outline: 'none',
+                            padding: '6px 6px',
+                            fontSize: 12,
                           }}
                         />
                       </td>
 
                       {/* 7. Opening Stock (Live real-time quantity) */}
                       <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, color: item.openingStock > 0 ? '#16a34a' : '#dc2626' }}>
-                        {item.openingStock} <span style={{ fontSize: 10, color: '#64748b' }}>{item.unit}</span>
+                        {item.openingStock} <span style={{ fontSize: 11, color: '#64748b' }}>{item.unit}</span>
                       </td>
 
-                      {/* 8. Barcode (Auto-generated or hardware scanned) */}
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #e2e8f0' }}>
+                      {/* 8. Barcode (Col 3) */}
+                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0' }}>
                         <input
-                          ref={el => { barcodeInputRefs.current[item.id] = el; }}
+                          id={`pos-cell-${idx}-3`}
                           type="text"
+                          className="pos-grid-input"
                           value={item.barcode}
                           placeholder="Scan / Type Code"
                           onChange={e => handleUpdateItem(item.id, 'barcode', e.target.value)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={e => handleCellKeyDown(e, idx, 3)}
                           style={{
                             width: '100%',
                             border: '1.5px solid #0284c7',
@@ -635,100 +922,133 @@ export default function PurchasePOSListView({
                             color: '#0369a1',
                             fontWeight: 800,
                             borderRadius: 4,
-                            padding: '3px 6px',
-                            fontSize: 11,
+                            padding: '6px 8px',
+                            fontSize: 13,
                             letterSpacing: 0.5,
-                            outline: 'none',
                           }}
                         />
                       </td>
 
-                      {/* 9. MRP */}
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
+                      {/* 9. MRP (Col 4) */}
+                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
                         <input
+                          id={`pos-cell-${idx}-4`}
                           type="number"
                           step="0.5"
                           min="0"
+                          className="pos-grid-input"
                           value={item.mrp || ''}
+                          placeholder="0"
                           onChange={e => handleUpdateItem(item.id, 'mrp', parseFloat(e.target.value) || 0)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={e => handleCellKeyDown(e, idx, 4)}
                           style={{
-                            width: 70,
+                            width: 85,
                             textAlign: 'right',
                             border: '1px solid #cbd5e1',
                             background: '#ffffff',
                             borderRadius: 4,
-                            padding: '3px 4px',
-                            fontSize: 11,
+                            padding: '6px 6px',
+                            fontSize: 13,
                             fontWeight: 'bold',
-                            outline: 'none',
                           }}
                         />
                       </td>
 
-                      {/* 10. Discount% in percentage */}
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
+                      {/* 10. Discount% in percentage (Col 5) */}
+                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
                         <input
+                          id={`pos-cell-${idx}-5`}
                           type="number"
                           step="0.5"
                           min="0"
                           max="100"
+                          className="pos-grid-input"
                           value={item.discountPerc || ''}
                           placeholder="0%"
                           onChange={e => handleUpdateItem(item.id, 'discountPerc', parseFloat(e.target.value) || 0)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={e => handleCellKeyDown(e, idx, 5)}
                           style={{
-                            width: 65,
+                            width: 80,
                             textAlign: 'right',
                             border: '1px solid #cbd5e1',
                             background: '#ffffff',
                             borderRadius: 4,
-                            padding: '3px 4px',
-                            fontSize: 11,
-                            outline: 'none',
+                            padding: '6px 6px',
+                            fontSize: 12,
                           }}
                         />
                       </td>
 
-                      {/* 11. Discount in Amount */}
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
+                      {/* 11. Discount in Amount (Col 6) */}
+                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
                         <input
+                          id={`pos-cell-${idx}-6`}
                           type="number"
                           step="0.5"
                           min="0"
+                          className="pos-grid-input"
                           value={item.discountAmt || ''}
                           placeholder="₹0"
                           onChange={e => handleUpdateItem(item.id, 'discountAmt', parseFloat(e.target.value) || 0)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={e => handleCellKeyDown(e, idx, 6)}
                           style={{
-                            width: 65,
+                            width: 80,
                             textAlign: 'right',
                             border: '1px solid #cbd5e1',
                             background: '#ffffff',
                             borderRadius: 4,
-                            padding: '3px 4px',
-                            fontSize: 11,
-                            outline: 'none',
+                            padding: '6px 6px',
+                            fontSize: 12,
                           }}
                         />
                       </td>
 
-                      {/* 12. Retail Sale Price (MRP - Discount) */}
-                      <td style={{ padding: '6px 12px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, fontSize: 13, color: '#0369a1', background: '#fef3c7' }}>
-                        ₹{item.retailSalePrice.toFixed(2)}
+                      {/* 12. Retail Sale Price (Col 7) */}
+                      <td style={{ padding: '5px 8px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, fontSize: 13, color: '#0369a1', background: '#fef3c7' }}>
+                        <input
+                          id={`pos-cell-${idx}-7`}
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          className="pos-grid-input"
+                          value={item.retailSalePrice || ''}
+                          placeholder="0"
+                          onChange={e => handleUpdateItem(item.id, 'retailSalePrice', parseFloat(e.target.value) || 0)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={e => handleCellKeyDown(e, idx, 7)}
+                          style={{
+                            width: 90,
+                            textAlign: 'right',
+                            border: '1px solid #f59e0b',
+                            background: '#fffbeb',
+                            borderRadius: 4,
+                            padding: '6px 8px',
+                            fontSize: 13,
+                            fontWeight: 900,
+                            color: '#0369a1',
+                          }}
+                        />
                       </td>
 
                       {/* 13. Action: insert */}
-                      <td style={{ padding: '4px 6px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
                         <button
                           onClick={handleInsertRow}
-                          title="Insert row"
+                          className="pos-touch-btn"
+                          title="Insert new row"
                           style={{
-                            background: '#e0f2fe',
-                            color: '#0284c7',
-                            border: '1px solid #bae6fd',
-                            borderRadius: 4,
-                            padding: '2px 8px',
-                            fontSize: 11,
-                            fontWeight: 700,
+                            background: '#dcfce7',
+                            color: '#15803d',
+                            border: '1.5px solid #86efac',
+                            borderRadius: 6,
+                            padding: '6px 14px',
+                            fontSize: 12,
+                            fontWeight: 800,
                             cursor: 'pointer',
+                            minHeight: 34,
                           }}
                         >
                           insert
@@ -736,19 +1056,21 @@ export default function PurchasePOSListView({
                       </td>
 
                       {/* 14. Action: delete */}
-                      <td style={{ padding: '4px 6px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
                         <button
                           onClick={() => handleDeleteRow(item.id)}
+                          className="pos-touch-btn"
                           title="Delete row"
                           style={{
                             background: '#fee2e2',
-                            color: '#dc2626',
-                            border: '1px solid #fecaca',
-                            borderRadius: 4,
-                            padding: '2px 8px',
-                            fontSize: 11,
-                            fontWeight: 700,
+                            color: '#b91c1c',
+                            border: '1.5px solid #fca5a5',
+                            borderRadius: 6,
+                            padding: '6px 14px',
+                            fontSize: 12,
+                            fontWeight: 800,
                             cursor: 'pointer',
+                            minHeight: 34,
                           }}
                         >
                           delete
@@ -756,22 +1078,25 @@ export default function PurchasePOSListView({
                       </td>
 
                       {/* 15. Action: print Barcode */}
-                      <td style={{ padding: '4px 6px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
                         <button
                           onClick={() => {
                             setPrintModalItem(item);
                             setPrintCount(Math.max(1, Math.min(50, Math.round(item.openingStock) || 1)));
                           }}
+                          className="pos-touch-btn"
                           title="Print Barcode sticker"
                           style={{
                             background: '#f3e8ff',
-                            color: '#7c3aed',
-                            border: '1px solid #e9d5ff',
-                            borderRadius: 4,
-                            padding: '2px 8px',
-                            fontSize: 11,
-                            fontWeight: 700,
+                            color: '#6b21a8',
+                            border: '1.5px solid #d8b4fe',
+                            borderRadius: 6,
+                            padding: '6px 12px',
+                            fontSize: 12,
+                            fontWeight: 800,
                             cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            minHeight: 34,
                           }}
                         >
                           print Barcode
@@ -779,7 +1104,7 @@ export default function PurchasePOSListView({
                       </td>
 
                       {/* 16. Action: Variant */}
-                      <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                      <td style={{ padding: '5px 8px', textAlign: 'center' }}>
                         <button
                           onClick={() => {
                             const vStr = prompt('Enter variants (comma separated, e.g. Red, Blue, 1kg):', (item.variants || []).join(', '));
@@ -788,16 +1113,18 @@ export default function PurchasePOSListView({
                               handleUpdateItem(item.id, 'variants', vars);
                             }
                           }}
+                          className="pos-touch-btn"
                           title="Configure item variants"
                           style={{
                             background: '#f1f5f9',
-                            color: '#475569',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: 4,
-                            padding: '2px 8px',
-                            fontSize: 11,
-                            fontWeight: 700,
+                            color: '#334155',
+                            border: '1.5px solid #cbd5e1',
+                            borderRadius: 6,
+                            padding: '6px 12px',
+                            fontSize: 12,
+                            fontWeight: 800,
                             cursor: 'pointer',
+                            minHeight: 34,
                           }}
                         >
                           Variant {item.variants && item.variants.length > 0 ? `(${item.variants.length})` : ''}
@@ -812,20 +1139,40 @@ export default function PurchasePOSListView({
         </div>
       </div>
 
-      {/* Footer Info & Instructions */}
-      <div style={{ background: '#ffffff', borderTop: '1px solid #e2e8f0', padding: '8px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#64748b' }}>
+      {/* ==================== 3. FIXED BOTTOM STATUS FOOTER ==================== */}
+      <div
+        style={{
+          position: 'relative',
+          height: 44,
+          background: '#ffffff',
+          borderTop: '2px solid #cbd5e1',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 18px',
+          fontSize: 12,
+          color: '#334155',
+          boxShadow: '0 -2px 6px rgba(0,0,0,0.06)',
+          flexShrink: 0,
+          zIndex: 15,
+          boxSizing: 'border-box',
+        }}
+      >
         <div>
-          💡 <b>Tip:</b> Click into the <b>Barcode</b> column and scan any product with your barcode gun to auto-save its code. Edit <b>MRP</b> or <b>Discount</b> to automatically recalculate <b>Retail Sale Price</b> for Sale POS and Rubic POS.
+          💡 <b>Keyboard Tip:</b> Press <b>Enter</b> to navigate cell-to-cell across the row. Values <b>auto-save immediately</b> to offline and online database!
         </div>
-        <div>
-          Total Products: <b style={{ color: '#0f172a' }}>{items.length}</b> | In Stock: <b style={{ color: '#16a34a' }}>{items.filter(i => i.openingStock > 0).length}</b>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span>Total Products: <b style={{ color: '#0f172a' }}>{items.length}</b></span>
+          <span>In Stock: <b style={{ color: '#16a34a' }}>{items.filter(i => i.openingStock > 0).length}</b></span>
+          {saveStatus === 'saved' && <span style={{ color: '#16a34a', fontWeight: 900 }}>✓ All changes saved</span>}
+          {saveStatus === 'saving' && <span style={{ color: '#d97706', fontWeight: 900 }}>Saving changes...</span>}
         </div>
       </div>
 
       {/* ================= MODAL: Single Item Barcode Label Print ================= */}
       {printModalItem && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
-          <div style={{ background: '#ffffff', borderRadius: 8, padding: 20, width: 420, maxWidth: '90vw', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)', border: '2px solid #0284c7' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000 }}>
+          <div style={{ background: '#ffffff', borderRadius: 8, padding: 22, width: 440, maxWidth: '90vw', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)', border: '2px solid #0284c7' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 900, color: '#1e3a5f', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>🏷️</span> Print Barcode Sticker: {printModalItem.name}
             </h3>
@@ -859,6 +1206,7 @@ export default function PurchasePOSListView({
                       key={cnt}
                       type="button"
                       onClick={() => setPrintCount(cnt)}
+                      className="pos-touch-btn"
                       style={{
                         flex: 1,
                         padding: '6px 0',
@@ -900,6 +1248,7 @@ export default function PurchasePOSListView({
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
                 onClick={() => setPrintModalItem(null)}
+                className="pos-touch-btn"
                 style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#f8fafc', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
               >
                 Cancel
@@ -917,6 +1266,7 @@ export default function PurchasePOSListView({
                   }], printLayout);
                   setPrintModalItem(null);
                 }}
+                className="pos-touch-btn"
                 style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#7c3aed', color: '#ffffff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
               >
                 🖨️ Print {printCount} Label(s)
@@ -928,7 +1278,7 @@ export default function PurchasePOSListView({
 
       {/* ================= MODAL: Bulk All Items Barcode Label Print ================= */}
       {showBulkPrintModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000 }}>
           <div style={{ background: '#ffffff', borderRadius: 8, padding: 22, width: 440, maxWidth: '90vw', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)', border: '2px solid #7c3aed' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: 16, fontWeight: 900, color: '#1e3a5f', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>🖨️</span> Bulk Print All Barcodes
@@ -952,6 +1302,7 @@ export default function PurchasePOSListView({
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
                 onClick={() => setShowBulkPrintModal(false)}
+                className="pos-touch-btn"
                 style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#f8fafc', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
               >
                 Cancel
@@ -970,6 +1321,7 @@ export default function PurchasePOSListView({
                   printBarcodeLabels(bulkData, bulkPrintLayout);
                   setShowBulkPrintModal(false);
                 }}
+                className="pos-touch-btn"
                 style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#7c3aed', color: '#ffffff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
               >
                 🖨️ Generate & Print ({items.length} Labels)

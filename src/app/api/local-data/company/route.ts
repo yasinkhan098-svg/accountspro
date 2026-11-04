@@ -51,6 +51,7 @@ export async function GET(req: Request) {
     const units = readJson('units.json', []);
     const groups = readJson('groups.json', []);
     const voucherTypes = readJson('voucher_types.json', []);
+    const posPurchaseList = readJson('pos_purchase_list.json', []);
 
     return NextResponse.json({
       success: true,
@@ -63,6 +64,7 @@ export async function GET(req: Request) {
       units,
       groups,
       voucherTypes,
+      posPurchaseList,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -72,7 +74,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { companyCode, company, ledgers, vouchers, stockItems, stockGroups, units, groups, voucherTypes } = body;
+    const { companyCode, company, ledgers, vouchers, stockItems, stockGroups, units, groups, voucherTypes, posPurchaseList } = body;
 
     const code = (companyCode || company?.companyCode || '10001').toUpperCase().trim();
     const dataDir = getDataDir();
@@ -101,6 +103,7 @@ export async function POST(req: Request) {
     if (units !== undefined) writeJson('units.json', units);
     if (groups !== undefined) writeJson('groups.json', groups);
     if (voucherTypes !== undefined) writeJson('voucher_types.json', voucherTypes);
+    if (posPurchaseList !== undefined) writeJson('pos_purchase_list.json', posPurchaseList);
 
     return NextResponse.json({
       success: true,

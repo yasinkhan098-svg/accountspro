@@ -628,10 +628,11 @@ namespace LedgerXLauncher
                     string bomJson = File.Exists(Path.Combine(cDir, "boms.json")) ? File.ReadAllText(Path.Combine(cDir, "boms.json")) : "[]";
                     string mjJson = File.Exists(Path.Combine(cDir, "manufacturing_journals.json")) ? File.ReadAllText(Path.Combine(cDir, "manufacturing_journals.json")) : "[]";
                     string usrJson = File.Exists(Path.Combine(cDir, "users.json")) ? File.ReadAllText(Path.Combine(cDir, "users.json")) : "[]";
+                    string posListJson = File.Exists(Path.Combine(cDir, "pos_purchase_list.json")) ? File.ReadAllText(Path.Combine(cDir, "pos_purchase_list.json")) : "[]";
 
                     string jsonOut = string.Format(
-                        "{{\"success\":true,\"companyCode\":\"{0}\",\"company\":{1},\"ledgers\":{2},\"vouchers\":{3},\"stockItems\":{4},\"stockGroups\":{5},\"units\":{6},\"groups\":{7},\"voucherTypes\":{8},\"purchaseOrders\":{9},\"boms\":{10},\"manufacturingJournals\":{11},\"users\":{12}}}",
-                        code, cJson, lJson, vJson, sJson, sgJson, uJson, gJson, vtJson, poJson, bomJson, mjJson, usrJson
+                        "{{\"success\":true,\"companyCode\":\"{0}\",\"company\":{1},\"ledgers\":{2},\"vouchers\":{3},\"stockItems\":{4},\"stockGroups\":{5},\"units\":{6},\"groups\":{7},\"voucherTypes\":{8},\"purchaseOrders\":{9},\"boms\":{10},\"manufacturingJournals\":{11},\"users\":{12},\"posPurchaseList\":{13}}}",
+                        code, cJson, lJson, vJson, sJson, sgJson, uJson, gJson, vtJson, poJson, bomJson, mjJson, usrJson, posListJson
                     );
                     WriteJsonResponse(res, jsonOut);
                     return;
@@ -671,9 +672,50 @@ namespace LedgerXLauncher
                             ExtractAndWrite(body, "boms", Path.Combine(cDir, "boms.json"), "[]");
                             ExtractAndWrite(body, "manufacturingJournals", Path.Combine(cDir, "manufacturing_journals.json"), "[]");
                             ExtractAndWrite(body, "users", Path.Combine(cDir, "users.json"), "[]");
+                            ExtractAndWrite(body, "posPurchaseList", Path.Combine(cDir, "pos_purchase_list.json"), "[]");
                         }
 
                         WriteJsonResponse(res, "{\"success\":true,\"companyCode\":\"" + code + "\"}");
+                        return;
+                    }
+                }
+
+                if (path == "/api/pos/purchase-list" && req.HttpMethod == "GET")
+                {
+                    string code = req.QueryString["companyCode"];
+                    if (string.IsNullOrEmpty(code)) code = req.QueryString["code"];
+                    if (string.IsNullOrEmpty(code)) code = "10000";
+                    code = code.ToUpper().Trim();
+                    string cDir = Path.Combine(dataDir, code);
+                    string targetFile = Path.Combine(cDir, "pos_purchase_list.json");
+                    string json = File.Exists(targetFile) ? File.ReadAllText(targetFile) : "[]";
+                    WriteJsonResponse(res, "{\"success\":true,\"companyCode\":\"" + code + "\",\"items\":" + json + "}");
+                    return;
+                }
+
+                if (path == "/api/pos/purchase-list" && req.HttpMethod == "POST")
+                {
+                    using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
+                    {
+                        string body = reader.ReadToEnd();
+                        string code = "10000";
+                        int idx = body.IndexOf("\"companyCode\":");
+                        if (idx >= 0)
+                        {
+                            int q1 = body.IndexOf("\"", idx + 14);
+                            int q2 = q1 >= 0 ? body.IndexOf("\"", q1 + 1) : -1;
+                            if (q1 >= 0 && q2 > q1)
+                            {
+                                code = body.Substring(q1 + 1, q2 - (q1 + 1)).Trim().ToUpper();
+                            }
+                        }
+                        string cDir = Path.Combine(dataDir, code);
+                        if (!Directory.Exists(cDir)) Directory.CreateDirectory(cDir);
+                        lock (_fileLock)
+                        {
+                            ExtractAndWrite(body, "items", Path.Combine(cDir, "pos_purchase_list.json"), "[]");
+                        }
+                        WriteJsonResponse(res, "{\"success\":true,\"message\":\"POS Purchase List saved\",\"companyCode\":\"" + code + "\"}");
                         return;
                     }
                 }
