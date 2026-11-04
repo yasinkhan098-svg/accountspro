@@ -122,51 +122,137 @@ class LANUserManagementService {
 
   /**
    * Retrieves LAN users for a specific company (from data/<companyCode>/users.json)
+   * Intelligently merges Server API, C# Desktop Bridge, and LocalStorage so custom users are never lost!
    */
   public async getUsers(companyCode?: string, companyName?: string): Promise<LANUser[]> {
     if (typeof window === 'undefined') return [];
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
 
-    // 1. Try local C# bridge or cloud API for company-specific users.json
+    const collectedUsers: LANUser[] = [];
+
+    // 1. Load from local cache / localStorage first (immediate responsiveness)
+    const local = this.loadFromLocalStorage(code);
+    if (local.length > 0) {
+      collectedUsers.push(...local);
+    }
+    const mem = this.companyUsersCache.get(code);
+    if (mem && mem.length > 0) {
+      collectedUsers.push(...mem);
+    }
+
+    // 2. Query relative Next.js Server API (/api/lan/users)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`${getBridgeBaseUrl()}/api/lan/users?code=${encodeURIComponent(code)}`, {
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json.users) && json.users.length > 0) {
-          this.companyUsersCache.set(code, json.users);
-          this.saveToLocalStorage(code, json.users);
-          return json.users;
+          collectedUsers.push(...json.users);
         }
       }
-    } catch (e) {}
+    } catch (_) {}
 
-    // 2. Fallback: LocalStorage company cache
-    const local = this.loadFromLocalStorage(code);
-    if (local.length > 0) {
-      this.companyUsersCache.set(code, local);
-      return local;
+    // 3. Query local C# bridge if running on desktop port 45454
+    try {
+      const bridgeUrl = getBridgeBaseUrl();
+      if (bridgeUrl && bridgeUrl !== window.location.origin) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json.users) && json.users.length > 0) {
+            collectedUsers.push(...json.users);
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 4. Also scan global users across all companies (e.g. Amir001)
+    const globalUsers = this.getAllUsersAcrossCompanies();
+    for (const gu of globalUsers) {
+      if (
+        !gu.assignedCompanyCodes ||
+        gu.assignedCompanyCodes.length === 0 ||
+        gu.assignedCompanyCodes.includes(code)
+      ) {
+        collectedUsers.push(gu);
+      }
     }
 
-    // 3. In-memory cache
-    if (this.companyUsersCache.has(code)) {
-      return this.companyUsersCache.get(code)!;
+    // 5. Intelligent Merge: unique by username.toLowerCase()
+    const mergedMap = new Map<string, LANUser>();
+    for (const u of collectedUsers) {
+      if (u && u.username) {
+        const key = u.username.trim().toLowerCase();
+        // If already present, preserve the one with full properties
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, u);
+        } else {
+          mergedMap.set(key, { ...mergedMap.get(key)!, ...u });
+        }
+      }
     }
 
-    // 4. Default starter admin + cashier user for this company
-    const defaultUsers = this.getDefaultCompanyUsers(code, companyName);
-    this.companyUsersCache.set(code, defaultUsers);
-    this.saveToLocalStorage(code, defaultUsers);
-    this.saveUsers(defaultUsers, code).catch(() => {});
-    return defaultUsers;
+    // 6. Ensure default Administrator and Cashier exist if not present
+    if (!mergedMap.has('admin')) {
+      const defaultAdmin = this.getDefaultCompanyAdmin(code, companyName);
+      mergedMap.set('admin', defaultAdmin);
+    }
+    if (!mergedMap.has('cashier')) {
+      const defaultUsers = this.getDefaultCompanyUsers(code, companyName);
+      const defCashier = defaultUsers.find(u => u.username === 'cashier');
+      if (defCashier) mergedMap.set('cashier', defCashier);
+    }
+
+    const finalList = Array.from(mergedMap.values());
+    this.companyUsersCache.set(code, finalList);
+    this.saveToLocalStorage(code, finalList);
+
+    // Background push to server & bridge so persistence is guaranteed
+    this.syncToServer(code, finalList).catch(() => {});
+
+    return finalList;
   }
 
   /**
-   * Saves the users array to Host PC's data/<companyCode>/users.json
+   * Background sync to server API and local C# bridge
+   */
+  private async syncToServer(companyCode: string, users: LANUser[]) {
+    if (typeof window === 'undefined') return;
+    const code = companyCode.toUpperCase().trim();
+
+    // 1. Next.js API
+    try {
+      await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyCode: code, users }),
+      });
+    } catch (_) {}
+
+    // 2. C# Bridge
+    try {
+      const bridgeUrl = getBridgeBaseUrl();
+      if (bridgeUrl && bridgeUrl !== window.location.origin) {
+        await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companyCode: code, users }),
+        });
+      }
+    } catch (_) {}
+  }
+
+  /**
+   * Saves the users array to Host PC's data/<companyCode>/users.json and Server DB
    */
   public async saveUsers(users: LANUser[], companyCode?: string): Promise<boolean> {
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
@@ -175,25 +261,35 @@ class LANUserManagementService {
 
     if (typeof window === 'undefined') return true;
 
-    // Send to local C# bridge
+    // 1. Send to local Next.js Server API
     try {
-      const res = await fetch(`${getBridgeBaseUrl()}/api/lan/users?code=${encodeURIComponent(code)}`, {
+      await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyCode: code, users }),
       });
-      if (res.ok) return true;
-    } catch (e) {}
+    } catch (_) {}
 
-    // Fallback: direct save-file endpoint
+    // 2. Send to local C# bridge
     try {
-      await fetch(`${getBridgeBaseUrl()}/api/save-file?code=${encodeURIComponent(code)}&file=users.json`, {
+      const bridgeUrl = getBridgeBaseUrl();
+      if (bridgeUrl && bridgeUrl !== window.location.origin) {
+        await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companyCode: code, users }),
+        });
+      }
+    } catch (_) {}
+
+    // 3. Fallback: direct save-file endpoint
+    try {
+      await fetch(`/api/save-file?code=${encodeURIComponent(code)}&file=users.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(users, null, 2),
       });
-      return true;
-    } catch (e) {}
+    } catch (_) {}
 
     return true;
   }
@@ -204,7 +300,8 @@ class LANUserManagementService {
   public async saveUser(user: LANUser, companyCode?: string): Promise<boolean> {
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
     const users = await this.getUsers(code);
-    const idx = users.findIndex(u => u.id === user.id || u.username.toLowerCase() === user.username.toLowerCase());
+    const cleanUName = user.username.trim().toLowerCase();
+    const idx = users.findIndex(u => u.id === user.id || u.username.toLowerCase() === cleanUName);
     if (idx >= 0) {
       users[idx] = { ...users[idx], ...user };
     } else {
@@ -230,7 +327,7 @@ class LANUserManagementService {
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
     const users = await this.getUsers(code);
     const cleanUser = username.trim().toLowerCase();
-    const found = users.find(u => u.username.toLowerCase() === cleanUser);
+    const found = users.find(u => u.username.toLowerCase() === cleanUser || u.id.toLowerCase() === cleanUser);
 
     if (!found) {
       return { success: false, error: 'User does not exist in this company.' };
@@ -249,13 +346,70 @@ class LANUserManagementService {
     return { success: true, user: found };
   }
 
+  /**
+   * Collects all users across companies and caches (for POS operator switch & fast lookups)
+   */
+  public getAllUsersAcrossCompanies(): LANUser[] {
+    if (typeof window === 'undefined') return [];
+    const allMap = new Map<string, LANUser>();
+    try {
+      // 1. From memory cache
+      this.companyUsersCache.forEach(list => {
+        if (Array.isArray(list)) {
+          list.forEach(u => {
+            if (u && u.username) allMap.set(u.username.toLowerCase(), u);
+          });
+        }
+      });
+      // 2. From ledgerx_all_users
+      const allRaw = localStorage.getItem('ledgerx_all_users');
+      if (allRaw) {
+        const parsed = JSON.parse(allRaw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(u => {
+            if (u && u.username) allMap.set(u.username.toLowerCase(), u);
+          });
+        }
+      }
+      // 3. From all localStorage keys matching ledgerx_lan_users_
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('ledgerx_lan_users_')) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                list.forEach(u => {
+                  if (u && u.username) allMap.set(u.username.toLowerCase(), u);
+                });
+              }
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+    return Array.from(allMap.values());
+  }
+
   // ==================== LOCAL STORAGE HELPERS ====================
 
   private saveToLocalStorage(companyCode: string, users: LANUser[]) {
     try {
       localStorage.setItem(`ledgerx_lan_users_${companyCode}`, JSON.stringify(users));
       localStorage.setItem('ledgerx_lan_users_cache', JSON.stringify(users));
-    } catch (e) {}
+
+      // Also upsert into global ledgerx_all_users registry
+      let allUsers: LANUser[] = [];
+      try {
+        const raw = localStorage.getItem('ledgerx_all_users');
+        if (raw) allUsers = JSON.parse(raw);
+      } catch (_) {}
+      const userMap = new Map<string, LANUser>();
+      allUsers.forEach(u => { if (u && u.username) userMap.set(u.username.toLowerCase(), u); });
+      users.forEach(u => { if (u && u.username) userMap.set(u.username.toLowerCase(), u); });
+      localStorage.setItem('ledgerx_all_users', JSON.stringify(Array.from(userMap.values())));
+    } catch (_) {}
   }
 
   private loadFromLocalStorage(companyCode: string): LANUser[] {

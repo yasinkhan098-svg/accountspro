@@ -32,10 +32,21 @@ export default function POSLoginScreen({
     (async () => {
       try {
         const uList = await lanUserManagementService.getUsers(companyCode, company?.name);
-        if (mounted && Array.isArray(uList)) {
-          setRegisteredUsers(uList);
+        const allGlobal = lanUserManagementService.getAllUsersAcrossCompanies();
+        const combinedMap = new Map<string, LANUser>();
+        if (Array.isArray(uList)) {
+          uList.forEach(u => { if (u && u.username) combinedMap.set(u.username.toLowerCase(), u); });
+        }
+        allGlobal.forEach(u => {
+          if (u && u.username && !combinedMap.has(u.username.toLowerCase())) {
+            combinedMap.set(u.username.toLowerCase(), u);
+          }
+        });
+        const combinedList = Array.from(combinedMap.values());
+        if (mounted && combinedList.length > 0) {
+          setRegisteredUsers(combinedList);
           // Auto-fill first cashier or admin username if available
-          const first = uList[0];
+          const first = combinedList[0];
           if (first && !cashierId) {
             setCashierId(first.username);
             setActiveField('password');
@@ -126,16 +137,46 @@ export default function POSLoginScreen({
     setErrorMsg('');
 
     try {
-      // 1. Check in registered users for this company
-      const matched = registeredUsers.find(
-        u => u.username.toLowerCase() === cleanId || u.id.toLowerCase() === cleanId
+      // 1. Check in loaded registered users
+      let matched = registeredUsers.find(
+        u => u.username.toLowerCase() === cleanId || 
+             u.id.toLowerCase() === cleanId ||
+             (u.fullName && u.fullName.toLowerCase() === cleanId)
       );
 
+      // 1.5 Deep live lookup across all sources if not matched in state
+      if (!matched) {
+        const freshUsers = await lanUserManagementService.getUsers(companyCode, company?.name);
+        const allGlobal = lanUserManagementService.getAllUsersAcrossCompanies();
+        const candidateUsers = [...freshUsers, ...allGlobal];
+        matched = candidateUsers.find(
+          u => u && (
+            u.username.toLowerCase() === cleanId ||
+            u.id.toLowerCase() === cleanId ||
+            (u.fullName && u.fullName.toLowerCase() === cleanId)
+          )
+        );
+        if (matched) {
+          setRegisteredUsers(prev => {
+            const m = new Map(prev.map(p => [p.username.toLowerCase(), p]));
+            m.set(matched!.username.toLowerCase(), matched!);
+            return Array.from(m.values());
+          });
+        }
+      }
+
       if (matched) {
-        if (matched.password && matched.password !== cleanPwd) {
-          setErrorMsg('Invalid Password!');
+        if (!matched.isActive) {
+          setErrorMsg(`User account "${matched.username}" is deactivated by the Administrator.`);
           setLoading(false);
           return;
+        }
+        if (matched.password && matched.password.trim()) {
+          if (matched.password.trim() !== cleanPwd) {
+            setErrorMsg('Invalid Password!');
+            setLoading(false);
+            return;
+          }
         }
         // Match found!
         try {
@@ -452,35 +493,41 @@ export default function POSLoginScreen({
 
             {/* Quick User Picker Helper if users exist */}
             {registeredUsers.length > 0 && (
-              <div style={{ marginTop: 18, width: 280, textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>
+              <div style={{ marginTop: 16, width: 320, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Quick Cashier Switch:
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                  {registeredUsers.slice(0, 4).map(u => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        setCashierId(u.username);
-                        setPassword('');
-                        setActiveField('password');
-                        passwordInputRef.current?.focus();
-                      }}
-                      style={{
-                        padding: '4px 10px',
-                        background: cashierId.toLowerCase() === u.username.toLowerCase() ? '#0f3c64' : '#ffffff',
-                        color: cashierId.toLowerCase() === u.username.toLowerCase() ? '#ffffff' : '#0f3c64',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: 14,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {u.fullName || u.username}
-                    </button>
-                  ))}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 110, overflowY: 'auto', padding: '2px 4px' }}>
+                  {registeredUsers.map(u => {
+                    const isSelected = cashierId.toLowerCase() === u.username.toLowerCase();
+                    return (
+                      <button
+                        key={u.id || u.username}
+                        type="button"
+                        onClick={() => {
+                          setCashierId(u.username);
+                          setPassword('');
+                          setActiveField('password');
+                          passwordInputRef.current?.focus();
+                        }}
+                        style={{
+                          padding: '5px 12px',
+                          background: isSelected ? 'linear-gradient(180deg, #0f3c64 0%, #09233a 100%)' : '#ffffff',
+                          color: isSelected ? '#ffffff' : '#0f3c64',
+                          border: isSelected ? '1.5px solid #0f3c64' : '1px solid #cbd5e1',
+                          borderRadius: 14,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: isSelected ? '0 2px 6px rgba(15, 60, 100, 0.25)' : '0 1px 2px rgba(0,0,0,0.05)',
+                          transition: 'all 0.15s ease-in-out',
+                        }}
+                        title={`Select ${u.fullName || u.username}`}
+                      >
+                        {u.username === 'admin' ? (u.fullName || 'Admin') : (u.fullName ? `${u.fullName} (${u.username})` : u.username)}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
