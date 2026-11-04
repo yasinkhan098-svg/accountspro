@@ -235,8 +235,8 @@ export class POSService {
     // 2. Direct alias / partNo / SKU match
     const byAlias = stockItems.find(
       s => (s.alias && String(s.alias).trim().toLowerCase() === q) ||
-           (s.sku && String(s.sku).trim().toLowerCase() === q) ||
-           (s.partNo && String(s.partNo).trim().toLowerCase() === q)
+        (s.sku && String(s.sku).trim().toLowerCase() === q) ||
+        (s.partNo && String(s.partNo).trim().toLowerCase() === q)
     );
     if (byAlias) return byAlias;
 
@@ -266,12 +266,15 @@ export class POSService {
    * Starting with CASH0001 per retail POS sales register standard
    */
   public generateBillNo(vouchers: any[], companyCode = '10000'): string {
-    const prefix = 'CASH';
-    const cashVouchers = (vouchers || []).filter(
-      v => (v.voucherNo && (v.voucherNo.startsWith('CASH') || v.voucherNo.startsWith('POS'))) ||
-           (v.refNo && (v.refNo.startsWith('CASH') || v.refNo.startsWith('POS')))
+    const isTraining = companyCode === 'TRAINING';
+    const prefix = isTraining ? 'TRN-' : 'CASH';
+    const matchingVouchers = (vouchers || []).filter(
+      v => isTraining
+        ? (v.voucherNumber && String(v.voucherNumber).startsWith('TRN')) || (v.voucherNo && String(v.voucherNo).startsWith('TRN')) || (v.refNo && String(v.refNo).startsWith('TRN'))
+        : (v.voucherNo && (String(v.voucherNo).startsWith('CASH') || String(v.voucherNo).startsWith('POS'))) ||
+        (v.refNo && (String(v.refNo).startsWith('CASH') || String(v.refNo).startsWith('POS')))
     );
-    const nextSeq = cashVouchers.length + 1;
+    const nextSeq = matchingVouchers.length + 1;
     const padded = String(nextSeq).padStart(4, '0');
     return `${prefix}${padded}`;
   }
@@ -342,7 +345,7 @@ export class POSService {
     try {
       const raw = localStorage.getItem(`ledgerx_pos_held_${companyCode}`);
       if (raw) return JSON.parse(raw);
-    } catch (e) {}
+    } catch (e) { }
     return [];
   }
 

@@ -1,0 +1,21 @@
+{
+  "id": "TRAINING",
+  "companyCode": "TRAINING",
+  "name": "LEDGERX RETAIL STORE (TRAINING DEMO)",
+  "mailingName": "LEDGERX RETAIL STORE (DEMO)",
+  "address": "Plot 42, Demo Market, Retail Zone, Training City - 110001",
+  "state": "Delhi",
+  "country": "India",
+  "pincode": "110001",
+  "telephone": "011-98765432",
+  "mobile": "9876543210",
+  "email": "training@ledgerxretail.demo",
+  "currencySymbol": "₹",
+  "formalName": "INR",
+  "financialYearFrom": "2025-04-01",
+  "booksBeginningFrom": "2025-04-01",
+  "gstApplicable": true,
+  "gstin": "07AAAAA0000A1Z5",
+  "upiId": "ledgerxtraining@okhdfcbank",
+  "isTraining": true
+}

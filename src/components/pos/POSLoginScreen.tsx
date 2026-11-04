@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
 import { permissionGuard, LANUser, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_OPERATOR_PERMISSIONS } from '@/lib/permissionGuard';
+import { TRAINING_COMPANY, TRAINING_USERS, TRAINING_COMPANY_CODE, posTrainingService } from '@/lib/pos/posTrainingService';
 
 interface POSLoginScreenProps {
   company: any;
@@ -16,6 +17,7 @@ export default function POSLoginScreen({
   onLoginSuccess,
   onExit,
 }: POSLoginScreenProps) {
+  const [isTrainingMode, setIsTrainingMode] = useState(false);
   const [cashierId, setCashierId] = useState('');
   const [password, setPassword] = useState('');
   const [activeField, setActiveField] = useState<'cashierId' | 'password'>('cashierId');
@@ -121,8 +123,24 @@ export default function POSLoginScreen({
     }
   };
 
+  const handleModeSwitch = (training: boolean) => {
+    setIsTrainingMode(training);
+    setErrorMsg('');
+    if (training) {
+      setCashierId('trainee1');
+      setPassword('');
+      setActiveField('cashierId');
+    } else {
+      const first = registeredUsers[0];
+      setCashierId(first?.username || 'admin');
+      setPassword('');
+      setActiveField('password');
+    }
+  };
+
   // Authenticate user
-  const handleSignIn = async (isTrainingMode = false) => {
+  const handleSignIn = async (asTrainingMode = false) => {
+    const activeTraining = isTrainingMode || asTrainingMode;
     const cleanId = cashierId.trim().toLowerCase();
     const cleanPwd = password.trim();
 
@@ -137,7 +155,38 @@ export default function POSLoginScreen({
     setErrorMsg('');
 
     try {
-      // 1. Check in loaded registered users
+      // 0. Isolated Training Mode Authentication (ZERO real company data)
+      if (activeTraining) {
+        const matchedTrn = TRAINING_USERS.find(
+          u => u.username.toLowerCase() === cleanId ||
+               u.id.toLowerCase() === cleanId ||
+               (u.fullName && u.fullName.toLowerCase() === cleanId)
+        ) || {
+          id: `train_${cleanId || 'cashier1'}`,
+          username: cleanId || 'trainee1',
+          fullName: cleanId === 'trainer' ? 'Supervisor Demo (Admin)' : `Trainee Cashier (${cleanId || 'trainee1'})`,
+          isAdmin: cleanId === 'trainer',
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          assignedCompanyCodes: [TRAINING_COMPANY_CODE],
+          permissions: cleanId === 'trainer' ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_OPERATOR_PERMISSIONS,
+        };
+
+        try {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen?.().catch(() => {});
+          }
+        } catch (e) {}
+
+        permissionGuard.setCurrentUser(matchedTrn);
+        onLoginSuccess({
+          ...matchedTrn,
+          isTrainingMode: true,
+        });
+        return;
+      }
+
+      // 1. Live Store Authentication: Check in loaded registered users
       let matched = registeredUsers.find(
         u => u.username.toLowerCase() === cleanId || 
              u.id.toLowerCase() === cleanId ||
@@ -192,7 +241,7 @@ export default function POSLoginScreen({
           fullName: matched.fullName || matched.username,
           isAdmin: matched.isAdmin,
           permissions: matched.permissions,
-          isTrainingMode,
+          isTrainingMode: false,
         });
         return;
       }
@@ -217,18 +266,7 @@ export default function POSLoginScreen({
           fullName: fallbackUser.fullName,
           isAdmin: fallbackUser.isAdmin,
           permissions: fallbackUser.permissions,
-          isTrainingMode,
-        });
-        return;
-      }
-
-      // 3. In Training Mode, allow any cashier name
-      if (isTrainingMode) {
-        onLoginSuccess({
-          id: `train_${cleanId}`,
-          username: cleanId,
-          fullName: `Training: ${cashierId}`,
-          isTrainingMode: true,
+          isTrainingMode: false,
         });
         return;
       }
@@ -297,10 +335,66 @@ export default function POSLoginScreen({
           </div>
 
           <div style={{ fontSize: 12, color: '#fef3c7', display: 'flex', gap: 14 }}>
-            <span>Store: <b>{company?.name || 'Main Retail'}</b> [{companyCode}]</span>
+            <span>Store: <b>{isTrainingMode ? TRAINING_COMPANY.name : (company?.name || 'Main Retail')}</b> [{isTrainingMode ? 'TRAINING' : companyCode}]</span>
             <span>Device ID: <b>01 POS</b></span>
             <span>Counter: <b>R141</b></span>
           </div>
+        </div>
+
+        {/* CENTER: MODE SELECTOR PILL (LIVE COUNTER vs TRAINING DEMO SANDBOX) */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'rgba(0, 0, 0, 0.45)',
+            padding: '3px 4px',
+            borderRadius: 24,
+            border: '1px solid rgba(255, 255, 255, 0.25)',
+            gap: 4,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleModeSwitch(false)}
+            style={{
+              padding: '4px 14px',
+              borderRadius: 20,
+              border: 'none',
+              background: !isTrainingMode ? '#16a34a' : 'transparent',
+              color: '#ffffff',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              boxShadow: !isTrainingMode ? '0 2px 6px rgba(0,0,0,0.4)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>🟢 Live Store</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleModeSwitch(true)}
+            style={{
+              padding: '4px 14px',
+              borderRadius: 20,
+              border: 'none',
+              background: isTrainingMode ? '#2563eb' : 'transparent',
+              color: '#ffffff',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              boxShadow: isTrainingMode ? '0 0 12px rgba(37,99,235,0.9)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>🎓 Training Sandbox</span>
+          </button>
         </div>
 
         {/* Top Right Links (Forgot Password? / Need Help?) */}
@@ -487,56 +581,86 @@ export default function POSLoginScreen({
                   style={{
                     fontSize: 10,
                     fontWeight: 700,
-                    color: '#f59e0b',
+                    color: isTrainingMode ? '#60a5fa' : '#f59e0b',
                     letterSpacing: 1.5,
                     textTransform: 'uppercase',
                   }}
                 >
-                  Retail POS Terminal
+                  {isTrainingMode ? '🎓 Training Sandbox Terminal' : 'Retail POS Terminal'}
                 </div>
               </div>
             </div>
 
-            {/* Quick User Picker Helper if users exist */}
-            {registeredUsers.length > 0 && (
-              <div style={{ marginTop: 16, width: 320, textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Quick Cashier Switch:
+            {/* Quick User Picker Helper (Live Users or Training Users) */}
+            {(() => {
+              const displayedUsers = isTrainingMode ? TRAINING_USERS : registeredUsers;
+              if (displayedUsers.length === 0) return null;
+              return (
+                <div style={{ marginTop: 16, width: 320, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: isTrainingMode ? '#2563eb' : '#64748b', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {isTrainingMode ? '🎓 Training Cashiers (Demo Only):' : 'Quick Cashier Switch:'}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 110, overflowY: 'auto', padding: '2px 4px' }}>
+                    {displayedUsers.map(u => {
+                      const isSelected = cashierId.toLowerCase() === u.username.toLowerCase();
+                      return (
+                        <button
+                          key={u.id || u.username}
+                          type="button"
+                          onClick={() => {
+                            setCashierId(u.username);
+                            setPassword('');
+                            setActiveField('password');
+                            passwordInputRef.current?.focus();
+                          }}
+                          style={{
+                            padding: '5px 12px',
+                            background: isSelected 
+                              ? (isTrainingMode ? 'linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%)' : 'linear-gradient(180deg, #0f3c64 0%, #09233a 100%)')
+                              : '#ffffff',
+                            color: isSelected ? '#ffffff' : (isTrainingMode ? '#1d4ed8' : '#0f3c64'),
+                            border: isSelected ? (isTrainingMode ? '1.5px solid #1d4ed8' : '1.5px solid #0f3c64') : '1px solid #cbd5e1',
+                            borderRadius: 14,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: isSelected ? '0 2px 6px rgba(15, 60, 100, 0.25)' : '0 1px 2px rgba(0,0,0,0.05)',
+                            transition: 'all 0.15s ease-in-out',
+                          }}
+                          title={`Select ${u.fullName || u.username}`}
+                        >
+                          {u.username === 'admin' ? (u.fullName || 'Admin') : (u.fullName ? `${u.fullName} (${u.username})` : u.username)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isTrainingMode && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm('Reset Training Demo Data back to fresh default state (stock = 50, test sales cleared)?')) {
+                          await posTrainingService.resetTrainingData();
+                          alert('Training Demo Data has been restored to default state.');
+                        }
+                      }}
+                      style={{
+                        marginTop: 10,
+                        padding: '4px 12px',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        border: '1px dashed #3b82f6',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🔄 Reset Training Demo Data
+                    </button>
+                  )}
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 110, overflowY: 'auto', padding: '2px 4px' }}>
-                  {registeredUsers.map(u => {
-                    const isSelected = cashierId.toLowerCase() === u.username.toLowerCase();
-                    return (
-                      <button
-                        key={u.id || u.username}
-                        type="button"
-                        onClick={() => {
-                          setCashierId(u.username);
-                          setPassword('');
-                          setActiveField('password');
-                          passwordInputRef.current?.focus();
-                        }}
-                        style={{
-                          padding: '5px 12px',
-                          background: isSelected ? 'linear-gradient(180deg, #0f3c64 0%, #09233a 100%)' : '#ffffff',
-                          color: isSelected ? '#ffffff' : '#0f3c64',
-                          border: isSelected ? '1.5px solid #0f3c64' : '1px solid #cbd5e1',
-                          borderRadius: 14,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          boxShadow: isSelected ? '0 2px 6px rgba(15, 60, 100, 0.25)' : '0 1px 2px rgba(0,0,0,0.05)',
-                          transition: 'all 0.15s ease-in-out',
-                        }}
-                        title={`Select ${u.fullName || u.username}`}
-                      >
-                        {u.username === 'admin' ? (u.fullName || 'Admin') : (u.fullName ? `${u.fullName} (${u.username})` : u.username)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* RIGHT HALF: LOGIN INPUTS + TOUCH NUMPAD (MATCHING POSS1 PHOTO) */}
@@ -656,34 +780,45 @@ export default function POSLoginScreen({
             {/* ACTION BUTTON 1: GREEN SIGN IN BUTTON */}
             <button
               type="button"
-              onClick={() => handleSignIn(false)}
+              onClick={() => handleSignIn(isTrainingMode)}
               disabled={loading}
               style={{
                 width: '100%',
                 padding: '11px',
-                background: 'linear-gradient(180deg, #2e7d32 0%, #1b5e20 100%)',
+                background: isTrainingMode 
+                  ? 'linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%)' 
+                  : 'linear-gradient(180deg, #2e7d32 0%, #1b5e20 100%)',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 6,
                 fontSize: 15,
                 fontWeight: 'bold',
                 cursor: loading ? 'wait' : 'pointer',
-                boxShadow: '0 3px 6px rgba(27,94,32,0.3)',
+                boxShadow: isTrainingMode ? '0 3px 6px rgba(29,78,216,0.4)' : '0 3px 6px rgba(27,94,32,0.3)',
                 letterSpacing: 0.5,
               }}
             >
-              {loading ? 'Authenticating...' : 'Sign In'}
+              {loading ? 'Authenticating...' : (isTrainingMode ? 'Start Training Mode' : 'Sign In')}
             </button>
 
             {/* ACTION BUTTON 2: BLUE TRAINING MODE BUTTON */}
             <button
               type="button"
-              onClick={() => handleSignIn(true)}
+              onClick={() => {
+                if (!isTrainingMode) {
+                  handleModeSwitch(true);
+                  handleSignIn(true);
+                } else {
+                  handleSignIn(true);
+                }
+              }}
               disabled={loading}
               style={{
                 width: '100%',
                 padding: '10px',
-                background: 'linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%)',
+                background: isTrainingMode 
+                  ? 'linear-gradient(180deg, #0284c7 0%, #0369a1 100%)' 
+                  : 'linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%)',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 6,
@@ -694,7 +829,7 @@ export default function POSLoginScreen({
                 letterSpacing: 0.5,
               }}
             >
-              Training Mode
+              {isTrainingMode ? '🎓 Launch Training Counter' : 'Training Mode'}
             </button>
 
             {/* TOUCH NUMERIC KEYPAD (MATCHING EXACT POSS1 KEYPAD: 7 8 9 NO / 4 5 6 < / 1 2 3 C / . 0 Enter) */}

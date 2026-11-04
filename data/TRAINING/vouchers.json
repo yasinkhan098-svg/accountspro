@@ -1,0 +1,29 @@
+[
+  {
+    "id": 9001,
+    "voucherNumber": "TRN-0001",
+    "type": "Sales",
+    "date": "2026-11-04",
+    "partyLedgerName": "Cash",
+    "amount": 140,
+    "narration": "Training Demo Sale - Parle-G & Milk",
+    "inventoryEntries": [
+      {
+        "itemId": 1001,
+        "itemName": "Parle-G Gold Biscuit (250g)",
+        "qty": 2,
+        "rate": 28,
+        "amount": 56,
+        "gstRate": 5
+      },
+      {
+        "itemId": 1002,
+        "itemName": "Amul Taaza Milk Pouch (500ml)",
+        "qty": 3,
+        "rate": 28,
+        "amount": 84,
+        "gstRate": 0
+      }
+    ]
+  }
+]

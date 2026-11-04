@@ -1,0 +1,58 @@
+[
+  {
+    "id": 101,
+    "name": "Cash",
+    "group": "Cash-in-Hand",
+    "openingBalance": 10000,
+    "type": "Cash"
+  },
+  {
+    "id": 102,
+    "name": "Demo Bank Account (HDFC)",
+    "group": "Bank Accounts",
+    "openingBalance": 50000,
+    "type": "Bank"
+  },
+  {
+    "id": 103,
+    "name": "Retail Sales A/c",
+    "group": "Sales Accounts",
+    "openingBalance": 0
+  },
+  {
+    "id": 104,
+    "name": "Output CGST",
+    "group": "Duties & Taxes",
+    "openingBalance": 0
+  },
+  {
+    "id": 105,
+    "name": "Output SGST",
+    "group": "Duties & Taxes",
+    "openingBalance": 0
+  },
+  {
+    "id": 106,
+    "name": "Output IGST",
+    "group": "Duties & Taxes",
+    "openingBalance": 0
+  },
+  {
+    "id": 107,
+    "name": "Discount Allowed",
+    "group": "Indirect Expenses",
+    "openingBalance": 0
+  },
+  {
+    "id": 108,
+    "name": "Round Off",
+    "group": "Indirect Expenses",
+    "openingBalance": 0
+  },
+  {
+    "id": 109,
+    "name": "Walk-in Customer",
+    "group": "Sundry Debtors",
+    "openingBalance": 0
+  }
+]

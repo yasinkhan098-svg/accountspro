@@ -16,6 +16,7 @@ import POSItemSearchModal from './POSItemSearchModal';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
 import { permissionGuard } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
+import { posTrainingService } from '@/lib/pos/posTrainingService';
 
 interface POSSaleViewProps {
   company: any;
@@ -146,6 +147,7 @@ export default function POSSaleView({
 
   // Cashier role permission helper for Purchase POS List
   const hasPurchasePOSListPermission = (): boolean => {
+    if (isTrainingMode) return true;
     if (cashierUser?.isAdmin || (cashierUser as any)?.isAdmin || currentUser?.isAdmin) return true;
     const perms = (cashierUser as any)?.permissions || currentUser?.permissions;
     if (perms && perms.vouchers) {
@@ -829,15 +831,29 @@ export default function POSSaleView({
   const handleConfirmPayment = async (payment: POSPaymentDetails, customer: POSCustomer) => {
     setShowPaymentModal(false);
 
-    // If in Training Mode, skip persisting to accounting/stock database
+    // If in Training Mode, persist strictly into isolated TRAINING folder ONLY
     if (isTrainingMode) {
       playBeep(1200, 0.15);
+      const trnResult = await posTrainingService.recordTrainingSale({
+        billNo,
+        items: cart,
+        totals,
+        payment,
+        customer: { name: customerName, mobile: customerMobile, walkInDelivery },
+        cashierName,
+      });
+
+      if (trnResult.success) {
+        if (onStockUpdated) onStockUpdated(trnResult.updatedStock);
+        if (onVouchersUpdated) onVouchersUpdated([...vouchers, trnResult.voucher]);
+      }
+
       setLastCompletedBill({
         billNo,
         items: cart,
         totals,
         payment,
-        customer,
+        customer: { name: customerName, mobile: customerMobile, walkInDelivery },
       });
       setShowReceiptModal(true);
       return;
@@ -993,19 +1009,46 @@ export default function POSSaleView({
               POS
             </span>
             {isTrainingMode && (
-              <span
-                style={{
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  fontSize: 10,
-                  fontWeight: 'bold',
-                  letterSpacing: 0.5,
-                }}
-              >
-                TRAINING MODE
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span
+                  style={{
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  🎓 TRAINING MODE (DEMO SANDBOX)
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm('Reset Training Demo Data to fresh default state (stock = 50, demo sales cleared)?')) {
+                      const fresh = await posTrainingService.resetTrainingData();
+                      if (onStockUpdated) onStockUpdated(fresh.stockItems);
+                      if (onVouchersUpdated) onVouchersUpdated(fresh.vouchers);
+                      resetNewSale();
+                      alert('Training Demo Data has been restored to default state.');
+                    }
+                  }}
+                  title="Reset Demo Data"
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255,255,255,0.4)',
+                    borderRadius: 4,
+                    padding: '2px 8px',
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔄 Reset Demo Stock
+                </button>
+              </div>
             )}
           </div>
         </div>

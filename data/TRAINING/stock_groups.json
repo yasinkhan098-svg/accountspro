@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "name": "Packaged Foods"
+  },
+  {
+    "id": 2,
+    "name": "Dairy & Bakery"
+  },
+  {
+    "id": 3,
+    "name": "Grocery"
+  },
+  {
+    "id": 4,
+    "name": "Beverages"
+  },
+  {
+    "id": 5,
+    "name": "Personal Care"
+  },
+  {
+    "id": 6,
+    "name": "Household"
+  },
+  {
+    "id": 7,
+    "name": "Confectionery"
+  }
+]

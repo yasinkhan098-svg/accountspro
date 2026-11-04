@@ -222,6 +222,25 @@ export default function POSReceiptModal({
             }}
           >
             {/* 1. TOP LOGO EMBLEM */}
+            {Boolean(company?.isTraining || billNo.startsWith('TRN') || company?.companyCode === 'TRAINING') && (
+              <div
+                style={{
+                  border: '2px dashed #000000',
+                  padding: '6px 4px',
+                  margin: '0 0 10px 0',
+                  textAlign: 'center',
+                  fontWeight: 900,
+                  fontSize: 12,
+                  letterSpacing: 1,
+                  background: '#f8fafc',
+                }}
+              >
+                *** TRAINING MODE DEMO RECEIPT ***
+                <div style={{ fontSize: 9, fontWeight: 'bold', marginTop: 2 }}>
+                  NOT A TAX INVOICE • DEMO PRACTICE ONLY
+                </div>
+              </div>
+            )}
             <div style={{ textAlign: 'center', marginBottom: 8 }}>
               <div
                 style={{

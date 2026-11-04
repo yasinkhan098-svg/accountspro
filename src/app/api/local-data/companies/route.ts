@@ -21,6 +21,7 @@ export async function GET() {
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
+        if (entry.name.toUpperCase() === 'TRAINING') continue; // Training sandbox is isolated to POS Training Mode
         const companyFolder = path.join(dataDir, entry.name);
         const companyJsonPath = path.join(companyFolder, 'company.json');
         if (fs.existsSync(companyJsonPath)) {

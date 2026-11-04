@@ -584,6 +584,7 @@ namespace LedgerXLauncher
                         foreach (string dir in Directory.GetDirectories(dataDir))
                         {
                             string folderName = Path.GetFileName(dir).ToUpper();
+                            if (folderName == "TRAINING") continue; // Keep training sandbox isolated to POS Training Mode
                             string cJson = Path.Combine(dir, "company.json");
                             if (File.Exists(cJson))
                             {

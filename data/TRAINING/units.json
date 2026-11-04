@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "name": "PKT",
+    "formalName": "Packets"
+  },
+  {
+    "id": 2,
+    "name": "BTL",
+    "formalName": "Bottles"
+  },
+  {
+    "id": 3,
+    "name": "PCS",
+    "formalName": "Pieces"
+  },
+  {
+    "id": 4,
+    "name": "BAG",
+    "formalName": "Bags"
+  },
+  {
+    "id": 5,
+    "name": "KG",
+    "formalName": "Kilograms"
+  }
+]
