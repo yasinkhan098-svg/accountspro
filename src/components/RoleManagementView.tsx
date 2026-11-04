@@ -174,6 +174,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
           Journal: false,
           'Sales Quotation': false,
           'POS Sale': false,
+          'Purchase POS List': true,
         },
         registers: {
           'Purchase Register': true,
@@ -224,6 +225,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
           Journal: false,
           'Sales Quotation': true,
           'POS Sale': true,
+          'Purchase POS List': false,
         },
         registers: {
           'Purchase Register': false,
@@ -728,6 +730,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                           { key: 'Credit Note', label: 'Credit Note (Sales Return)', highlight: '#0891b2' },
                           { key: 'Sales Quotation', label: 'Sales Quotation / Estimate', highlight: '#0d9488' },
                           { key: 'POS Sale', label: '🛒 POS Sale (Retail Touch Counter)', highlight: '#059669' },
+                          { key: 'Purchase POS List', label: '📋 Purchase POS List (Stock, MRP, Barcode & Labels)', highlight: '#d97706' },
                         ].map(v => (
                           <label 
                             key={v.key}

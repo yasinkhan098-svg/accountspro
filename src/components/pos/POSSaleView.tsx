@@ -28,6 +28,7 @@ interface POSSaleViewProps {
   onLogoutToLogin?: () => void;
   onStockUpdated?: (updatedStock: any[]) => void;
   onVouchersUpdated?: (updatedVouchers: any[]) => void;
+  onOpenPurchasePOSList?: () => void;
 }
 
 // AI Realistic Product Mockup Generator
@@ -133,6 +134,7 @@ export default function POSSaleView({
   onLogoutToLogin,
   onStockUpdated,
   onVouchersUpdated,
+  onOpenPurchasePOSList,
 }: POSSaleViewProps) {
   const companyCode = company 
     ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies) 
@@ -489,11 +491,15 @@ export default function POSSaleView({
   const addItemToCart = (item: any, quantity = 1) => {
     const baseRate = Number(item.openingRate) || 0;
     const gstRate = Number(item.gstRate) || 0;
-    const rateWithTax = item.showInclTax || item.rateInclTax 
-      ? Number(item.rateInclTax || item.openingRate) 
-      : Math.round(baseRate * (1 + gstRate / 100) * 100) / 100;
+    const retailPrice = Number(item.retailSalePrice);
+    const rateWithTax = retailPrice > 0 
+      ? retailPrice
+      : (item.showInclTax || item.rateInclTax 
+          ? Number(item.rateInclTax || item.openingRate) 
+          : Math.round(baseRate * (1 + gstRate / 100) * 100) / 100);
 
-    const availableStock = Number(item.openingQty) || 0;
+    const mrpRate = Number(item.mrp) > 0 ? Number(item.mrp) : rateWithTax;
+    const availableStock = item._calculatedStock !== undefined ? item._calculatedStock : (Number(item.openingQty) || 0);
     const itemUnit = resolveItemUnit(item);
 
     // Check if already in cart
@@ -508,6 +514,7 @@ export default function POSSaleView({
         hsnCode: existing.hsnCode,
         unit: itemUnit || existing.unit || '',
         qty: newQty,
+        mrpRate: existing.mrpRate || mrpRate,
         rateWithTax: existing.rateWithTax,
         gstRate: existing.gstRate,
         discountPerc: existing.discountPerc,
@@ -524,9 +531,10 @@ export default function POSSaleView({
         hsnCode: item.hsnCode,
         unit: itemUnit,
         qty: quantity,
+        mrpRate,
         rateWithTax,
         gstRate,
-        discountPerc: 0,
+        discountPerc: Number(item.discountPerc) || 0,
         stockAvailable: availableStock,
       });
 
@@ -1001,7 +1009,7 @@ export default function POSSaleView({
             Store: <b style={{ color: '#ffffff' }}>{company?.name || 'Main Retail'}</b> [{companyCode}]
           </div>
           <div>
-            Txn: <b style={{ color: '#ffffff' }}>{billNo.replace('POS-', '')}</b>
+            Txn: <b style={{ color: '#ffffff' }}>{billNo}</b>
           </div>
           <div>
             {dateStr} <b style={{ color: '#ffffff', marginLeft: 4 }}>{clock}</b>
@@ -1315,7 +1323,7 @@ export default function POSSaleView({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 200 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
                 <span style={{ color: '#475569' }}>Txn:</span>
-                <span style={{ fontWeight: 'bold' }}>{billNo.replace('POS-', '')}</span>
+                <span style={{ fontWeight: 'bold' }}>{billNo}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
                 <span style={{ color: '#475569' }}>Item Count:</span>
@@ -1392,6 +1400,24 @@ export default function POSSaleView({
               <div style={ribbonIconCircleStyle}>🔒</div>
               <span style={ribbonTextStyle}>Secure Mode</span>
             </button>
+
+            {/* 1B. Purchase POS List (Stock, MRP, Barcodes & Labels) - Protected by Role Permission */}
+            {permissionGuard.canAccessMenuItem('Purchase POS List') && onOpenPurchasePOSList && (
+              <button
+                type="button"
+                className="pos-touch-btn"
+                onClick={onOpenPurchasePOSList}
+                style={{
+                  ...ribbonBtnStyle,
+                  background: 'linear-gradient(180deg, #fef3c7 0%, #fde68a 100%)',
+                  border: '1.5px solid #d97706',
+                }}
+                title="Purchase POS List (Stock, MRP, Barcodes & Labels)"
+              >
+                <div style={{ ...ribbonIconCircleStyle, color: '#b45309' }}>📋</div>
+                <span style={{ ...ribbonTextStyle, color: '#92400e', fontWeight: 900 }}>POS List</span>
+              </button>
+            )}
 
             {/* 2. Void */}
             <button

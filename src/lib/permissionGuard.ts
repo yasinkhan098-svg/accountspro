@@ -16,6 +16,7 @@ export interface VoucherPermissions {
   'Credit Note': boolean;
   'Sales Quotation': boolean;
   'POS Sale': boolean;
+  'Purchase POS List': boolean;
 }
 
 export interface RegisterPermissions {
@@ -88,6 +89,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
     'Credit Note': true,
     'Sales Quotation': true,
     'POS Sale': true,
+    'Purchase POS List': true,
   },
   registers: {
     'Purchase Register': true,
@@ -137,6 +139,7 @@ export const DEFAULT_OPERATOR_PERMISSIONS: UserPermissions = {
     'Credit Note': false,
     'Sales Quotation': true,
     'POS Sale': true,
+    'Purchase POS List': false,
   },
   registers: {
     'Purchase Register': false,
@@ -311,6 +314,8 @@ class PermissionGuardService {
         return !!perms.reports?.AuditTrail;
       case 'POS_SALE':
         return !!perms.vouchers?.['POS Sale'] || !!perms.vouchers?.Sales;
+      case 'PURCHASE_POS_LIST':
+        return !!perms.vouchers?.['Purchase POS List'];
 
       case 'BOM_MODULE':
         return !!perms.modules?.BOM || !!perms.modules?.Manufacturing;
@@ -388,7 +393,7 @@ class PermissionGuardService {
     if (!this.currentUser) {
       // In restricted client session without a signed-in LAN role:
       // Only POS Sale and Quit are accessible
-      return lower.includes('pos');
+      return lower.includes('pos sale') || lower.includes('pos (counter)');
     }
     if (this.currentUser.isAdmin) return true;
     const perms = this.currentUser.permissions;
@@ -405,7 +410,10 @@ class PermissionGuardService {
     // User Roles (Admin only)
     if (lower.includes('user roles') || lower.includes('role management')) return !!this.currentUser.isAdmin;
 
-    // Vouchers
+    // Specific Purchase POS List permission
+    if (lower.includes('purchase pos list')) return !!perms.vouchers?.['Purchase POS List'];
+
+    // Vouchers / POS Sale
     if (lower.includes('pos')) return !!perms.vouchers?.['POS Sale'] || !!perms.vouchers?.Sales;
     if (lower === 'vouchers') {
       const v = perms.vouchers;

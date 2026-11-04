@@ -13,6 +13,7 @@ interface POSWorkflowContainerProps {
   onBack: () => void;
   onStockUpdated?: (updatedStock: any[]) => void;
   onVouchersUpdated?: (updatedVouchers: any[]) => void;
+  onOpenPurchasePOSList?: () => void;
 }
 
 export default function POSWorkflowContainer({
@@ -24,6 +25,7 @@ export default function POSWorkflowContainer({
   onBack,
   onStockUpdated,
   onVouchersUpdated,
+  onOpenPurchasePOSList,
 }: POSWorkflowContainerProps) {
   const companyCode = company 
     ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies) 
@@ -75,6 +77,7 @@ export default function POSWorkflowContainer({
       onLogoutToLogin={handleLogoutToLogin}
       onStockUpdated={onStockUpdated}
       onVouchersUpdated={onVouchersUpdated}
+      onOpenPurchasePOSList={onOpenPurchasePOSList}
     />
   );
 }

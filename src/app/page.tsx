@@ -22,6 +22,7 @@ import SyncStatusBadge from '@/components/SyncStatusBadge';
 import AutoUpdateManager from '@/components/AutoUpdateManager';
 import RoleManagementView from '@/components/RoleManagementView';
 import POSWorkflowContainer from '@/components/pos/POSWorkflowContainer';
+import PurchasePOSListView from '@/components/pos/PurchasePOSListView';
 import UserSwitchModal from '@/components/UserSwitchModal';
 import { permissionGuard, LANUser } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
@@ -89,7 +90,7 @@ type ScreenType =
   | 'LEDGER_REPORT' | 'GROUP_SUMMARY' | 'STOCK_SUMMARY'
   | 'OUTSTANDING_REPORT' | 'CHART_OF_ACCOUNTS' | 'PRINT_PREVIEW'
   | 'GSTR1_REPORT' | 'GSTR3B_REPORT' | 'USER_ROLES' | 'DATA_EXCHANGE' | 'BANK_STATEMENT_ENTRY' | 'AUDIT_TRAIL'
-  | 'BOM_MODULE' | 'POS_SALE';
+  | 'BOM_MODULE' | 'POS_SALE' | 'PURCHASE_POS_LIST';
 
 type VoucherTypeKey = 'Contra' | 'Payment' | 'Receipt' | 'Journal' | 'Sales' | 'Purchase' | 'Credit Note' | 'Debit Note' | 'Sales Quotation';
 
@@ -3327,6 +3328,7 @@ export default function App() {
     { label:'TRANSACTIONS',       highlight:'', action:()=>{}, category:'header' },
     { label:'Vouchers',           highlight:'V', action:()=>nav('VOUCHER_ENTRY') },
     { label:'POS Sale (Counter)', highlight:'O', action:()=>nav('POS_SALE') },
+    { label:'Purchase POS List',  highlight:'L', action:()=>nav('PURCHASE_POS_LIST') },
     { label:'Day Book',           highlight:'K', action:()=>nav('DAY_BOOK') },
     { label:'Data Exchange',      highlight:'E', action:()=>nav('DATA_EXCHANGE') },
     { label:'REPORTS',            highlight:'', action:()=>{}, category:'header' },
@@ -3531,8 +3533,8 @@ export default function App() {
         if (showPeriod) { setShowPeriod(false); return; }
         // GATEWAY_MAIN = topmost screen, nothing to go back to
         if (screen === 'GATEWAY_MAIN') return;
-        // BOM_MODULE handles its own ESC step-by-step internally
-        if (screen === 'BOM_MODULE' || screen === 'POS_SALE') return;
+        // BOM_MODULE and POS modules handle their own ESC step-by-step internally
+        if (screen === 'BOM_MODULE' || screen === 'POS_SALE' || screen === 'PURCHASE_POS_LIST') return;
         // All other screens: step-by-step back through history
         goBack();
       }
@@ -3587,6 +3589,9 @@ export default function App() {
       }
       if (e.ctrlKey && e.key.toLowerCase() === 'p') { 
         if (permissionGuard.canAccessScreen('POS_SALE')) { e.preventDefault(); nav('POS_SALE'); }
+      }
+      if (e.altKey && e.key.toLowerCase() === 'u') { 
+        if (permissionGuard.canAccessMenuItem('Purchase POS List')) { e.preventDefault(); nav('PURCHASE_POS_LIST'); }
       }
       // Global Function Keys for Vouchers (Contra, Payment, Receipt, Journal, Sales, Purchase, Pur. Order, Quotation, Credit Note, Debit Note)
       if (e.key === 'F4') { 
@@ -4705,6 +4710,15 @@ export default function App() {
             {screen==='PURCHASE_ORDER_ENTRY'    && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="form" onBack={goBack}/>}
             {screen==='PURCHASE_ORDER_REGISTER' && <PurchaseOrderModule company={activeCompany} ledgers={ledgers} stockItems={stockItems} initialTab="register" onBack={goBack}/>}
             {screen==='BOM_MODULE'              && <BOMModule company={activeCompany} stockItems={stockItems} ledgers={ledgers} initialTab="journal" onBack={goBack} onAltC={handleOpenAltC} onStockUpdated={syncData} onSaveManufacturingJournal={handleSaveManufacturingJournal} onDeleteManufacturingJournal={handleDeleteManufacturingJournal}/>}
+            {screen==='PURCHASE_POS_LIST' && (
+              <PurchasePOSListView
+                company={activeCompany}
+                stockItems={allStockItems}
+                vouchers={allVouchers}
+                onBack={goBack}
+                onStockUpdated={updated => setAllStockItems(updated)}
+              />
+            )}
             {screen==='POS_SALE'                && (
               <POSWorkflowContainer
                 company={activeCompany}
@@ -4715,6 +4729,7 @@ export default function App() {
                 onBack={goBack}
                 onStockUpdated={updated => setAllStockItems(updated)}
                 onVouchersUpdated={updated => setAllVouchers(updated)}
+                onOpenPurchasePOSList={() => nav('PURCHASE_POS_LIST')}
               />
             )}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}
@@ -4807,6 +4822,7 @@ export default function App() {
           {permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY') && <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>}
           {permissionGuard.canAccessScreen('BOM_MODULE') && <div className="sidebar-btn" onClick={()=>nav('BOM_MODULE')} style={{color:'#a78bfa',fontWeight:'bold'}}>Alt+B: BOM / Mfg</div>}
           {permissionGuard.canAccessScreen('POS_SALE') && <div className="sidebar-btn" onClick={()=>nav('POS_SALE')} style={{background:'#059669',color:'#ffffff',fontWeight:'bold',margin:'2px 0'}}>Ctrl+P: POS Sale</div>}
+          {permissionGuard.canAccessMenuItem('Purchase POS List') && <div className="sidebar-btn" onClick={()=>nav('PURCHASE_POS_LIST')} style={{background:'#d97706',color:'#ffffff',fontWeight:'bold',margin:'2px 0'}}>Alt+U: POS List</div>}
           <div className="sidebar-btn-spacer"/>
           <div className="sidebar-btn" onClick={()=>setShowFeatures(true)}>F11: Features</div>
           <div className="sidebar-btn">F12: Configure</div>

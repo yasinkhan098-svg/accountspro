@@ -262,16 +262,18 @@ export class POSService {
   }
 
   /**
-   * Generates sequential POS bill number e.g. POS-0037
+   * Generates sequential POS bill number e.g. CASH0001, CASH0002...
+   * Starting with CASH0001 per retail POS sales register standard
    */
   public generateBillNo(vouchers: any[], companyCode = '10000'): string {
-    const prefix = 'POS';
-    const posVouchers = (vouchers || []).filter(
-      v => (v.voucherNo && v.voucherNo.startsWith(prefix)) || v.refNo?.startsWith(prefix)
+    const prefix = 'CASH';
+    const cashVouchers = (vouchers || []).filter(
+      v => (v.voucherNo && (v.voucherNo.startsWith('CASH') || v.voucherNo.startsWith('POS'))) ||
+           (v.refNo && (v.refNo.startsWith('CASH') || v.refNo.startsWith('POS')))
     );
-    const nextSeq = posVouchers.length + 1;
+    const nextSeq = cashVouchers.length + 1;
     const padded = String(nextSeq).padStart(4, '0');
-    return `${prefix}-${padded}`;
+    return `${prefix}${padded}`;
   }
 
   /**
