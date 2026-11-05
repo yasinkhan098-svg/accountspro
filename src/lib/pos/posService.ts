@@ -128,20 +128,28 @@ export class POSService {
       rateWithTax: number;
       gstRate: number;
       discountPerc?: number;
+      discountAmt?: number;
       stockAvailable: number;
     },
     isInterState = false,
     existingCartId?: string
   ): POSCartItem {
     const qty = Math.max(0.001, Number(item.qty) || 1);
-    const origRateWithTax = Number(item.rateWithTax) || 0;
-    const mrp = Number(item.mrpRate || origRateWithTax);
-    const discPerc = Number(item.discountPerc) || 0;
-    const discAmt = discPerc > 0 ? (origRateWithTax * discPerc) / 100 : 0;
-    const netRateWithTax = Math.max(0, origRateWithTax - discAmt);
+    // rateWithTax is the Retail Sale Price (already tax-inclusive and discounted from Purchase POS List)
+    const rateWithTax = Number(item.rateWithTax) || 0;
+    const mrp = Number(item.mrpRate || rateWithTax);
+    
+    // Amount is strictly Price (Include Tax) * Qty (no double discounting)
+    const lineTotal = Math.round(rateWithTax * qty * 100) / 100;
 
-    const taxInfo = this.calcTaxInclusive(netRateWithTax, item.gstRate, isInterState);
-    const lineTotal = Math.round(netRateWithTax * qty * 100) / 100;
+    // Item Discount calculation (difference between MRP and Retail Sale Price)
+    const mrpTotal = Math.round(mrp * qty * 100) / 100;
+    const totalSavings = Math.max(0, Math.round((mrpTotal - lineTotal) * 100) / 100);
+    const discPerc = item.discountPerc !== undefined && item.discountPerc > 0 
+      ? Number(item.discountPerc) 
+      : (mrpTotal > 0 ? Math.round(((mrpTotal - lineTotal) / mrpTotal) * 10000) / 100 : 0);
+
+    const taxInfo = this.calcTaxInclusive(rateWithTax, item.gstRate, isInterState);
 
     return {
       cartId: existingCartId || `pos_item_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -149,10 +157,10 @@ export class POSService {
       name: item.name,
       barcode: item.barcode,
       hsnCode: item.hsnCode,
-      unit: item.unit || '',
+      unit: item.unit || 'Nos',
       qty,
       mrpRate: mrp,
-      rateWithTax: origRateWithTax,
+      rateWithTax,
       taxableRate: taxInfo.taxableRate,
       gstRate: item.gstRate || 0,
       taxAmount: Math.round(taxInfo.taxAmount * qty * 100) / 100,
@@ -160,7 +168,7 @@ export class POSService {
       sgstAmount: Math.round(taxInfo.sgstAmount * qty * 100) / 100,
       igstAmount: Math.round(taxInfo.igstAmount * qty * 100) / 100,
       discountPerc: discPerc,
-      discountAmt: Math.round(discAmt * qty * 100) / 100,
+      discountAmt: totalSavings,
       lineTotal,
       stockAvailable: item.stockAvailable,
     };
@@ -437,7 +445,7 @@ export class POSService {
       stockItemId: it.itemId,
       itemName: it.name,
       qty: it.qty,
-      unit: it.unit || 'NOS',
+      unit: it.unit || 'Nos',
       rate: it.taxableRate,
       rateInclTax: it.rateWithTax,
       amountInclTax: it.lineTotal,

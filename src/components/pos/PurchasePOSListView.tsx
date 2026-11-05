@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { generateBarcodeSvg, generateNextUniqueBarcode, printBarcodeLabels, BarcodeLabelData, BarcodePrintLayout } from '@/lib/pos/barcodeGenerator';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
+import { resolveUnitString } from '@/lib/unitResolver';
 
 export interface POSPurchaseItem {
   id: number;
@@ -281,7 +282,7 @@ export default function PurchasePOSListView({
         discountPerc: Math.round(discountPerc * 100) / 100,
         discountAmt: Math.round(discountAmt * 100) / 100,
         retailSalePrice: Math.round(retailSalePrice * 100) / 100,
-        unit: si.unitName || si.unit?.name || 'NOS',
+        unit: resolveUnitString(saved.unit ? saved : si),
         gstRate: Number(si.gstRate) || 18,
         variants: saved.variants || si.variants || [],
       };
@@ -306,7 +307,7 @@ export default function PurchasePOSListView({
           discountPerc: Number(s.discountPerc) || 0,
           discountAmt: Number(s.discountAmt) || 0,
           retailSalePrice: Number(s.retailSalePrice) || 0,
-          unit: s.unit || 'NOS',
+          unit: resolveUnitString(s),
           gstRate: Number(s.gstRate) || 18,
           variants: s.variants || [],
         });

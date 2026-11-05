@@ -573,3 +573,4 @@ for (const dir of [appDataTraining, projectTraining]) {
 }
 
 console.log('Successfully seeded TRAINING dummy dataset in both:', appDataTraining, 'and', projectTraining);
+

@@ -346,12 +346,17 @@ export default function POSReceiptModal({
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ width: '48%', wordBreak: 'break-word', fontWeight: 'bold' }}>
                       {it.hsnCode || '732393'} {it.name}
+                      {it.mrpRate > it.rateWithTax && (
+                        <div style={{ fontSize: 7.5, color: '#16a34a', fontWeight: 'normal' }}>
+                          MRP: ₹{it.mrpRate.toFixed(2)} (Save ₹{((it.mrpRate - it.rateWithTax) * it.qty).toFixed(2)})
+                        </div>
+                      )}
                     </span>
                     <span style={{ width: '18%', textAlign: 'right' }}>
                       {it.rateWithTax.toFixed(2)}
                     </span>
                     <span style={{ width: '14%', textAlign: 'center' }}>
-                      {it.qty}
+                      {it.qty} {it.unit || ''}
                     </span>
                     <span style={{ width: '20%', textAlign: 'right', fontWeight: 'bold' }}>
                       {it.lineTotal.toFixed(2)}

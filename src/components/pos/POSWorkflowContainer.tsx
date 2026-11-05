@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import POSLoginScreen from './POSLoginScreen';
 import POSSaleView from './POSSaleView';
 import PurchasePOSListView from './PurchasePOSListView';
@@ -38,6 +38,44 @@ export default function POSWorkflowContainer({
   const [cashierUser, setCashierUser] = useState<any | null>(null);
   const [isTrainingMode, setIsTrainingMode] = useState(false);
   const [trainingPkg, setTrainingPkg] = useState<TrainingDataPackage | null>(null);
+  const [posPurchaseList, setPosPurchaseList] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const loadList = async () => {
+      if (isTrainingMode) {
+        if (trainingPkg?.posPurchaseList) {
+          setPosPurchaseList(trainingPkg.posPurchaseList);
+        } else {
+          const pkg = await posTrainingService.getTrainingData();
+          if (!isCancelled && pkg?.posPurchaseList) setPosPurchaseList(pkg.posPurchaseList);
+        }
+        return;
+      }
+
+      // Live mode: check localStorage first
+      try {
+        const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            if (!isCancelled) setPosPurchaseList(parsed);
+          }
+        }
+      } catch (_) {}
+
+      // Check company folder service
+      try {
+        const folder = await companyDataFolderService.loadCompanyFolder(companyCode);
+        if (folder?.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
+          if (!isCancelled) setPosPurchaseList(folder.posPurchaseList);
+        }
+      } catch (_) {}
+    };
+
+    loadList();
+    return () => { isCancelled = true; };
+  }, [companyCode, isTrainingMode, trainingPkg]);
 
   const handleLoginSuccess = async (user: any) => {
     setCashierUser(user);
@@ -131,6 +169,7 @@ export default function POSWorkflowContainer({
       company={isTrainingMode ? (trainingPkg?.company || TRAINING_COMPANY) : company}
       availableCompanies={isTrainingMode ? [] : availableCompanies}
       stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : stockItems}
+      posPurchaseList={posPurchaseList}
       ledgers={isTrainingMode ? (trainingPkg?.ledgers || []) : ledgers}
       vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : vouchers}
       cashierUser={cashierUser || undefined}

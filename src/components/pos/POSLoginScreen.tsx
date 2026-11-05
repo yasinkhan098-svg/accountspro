@@ -178,11 +178,21 @@ export default function POSLoginScreen({
           }
         } catch (e) {}
 
-        permissionGuard.setCurrentUser(matchedTrn);
-        onLoginSuccess({
+        const userObj = {
           ...matchedTrn,
+          password: cleanPwd || matchedTrn?.password || '',
+          sessionLoginPassword: cleanPwd,
           isTrainingMode: true,
-        });
+        };
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('ledgerx_pos_session_password', cleanPwd);
+            sessionStorage.setItem('ledgerx_pos_session_user', JSON.stringify(userObj));
+          }
+        } catch (_) {}
+
+        permissionGuard.setCurrentUser(userObj);
+        onLoginSuccess(userObj);
         return;
       }
 
@@ -233,16 +243,27 @@ export default function POSLoginScreen({
             document.documentElement.requestFullscreen?.().catch(() => {});
           }
         } catch (e) {}
-        permissionGuard.setCurrentUser(matched);
-        onLoginSuccess({
+
+        const userObj = {
           ...matched,
           id: matched.id,
           username: matched.username,
           fullName: matched.fullName || matched.username,
           isAdmin: matched.isAdmin,
           permissions: matched.permissions,
+          password: cleanPwd || matched.password || '',
+          sessionLoginPassword: cleanPwd,
           isTrainingMode: false,
-        });
+        };
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('ledgerx_pos_session_password', cleanPwd);
+            sessionStorage.setItem('ledgerx_pos_session_user', JSON.stringify(userObj));
+          }
+        } catch (_) {}
+
+        permissionGuard.setCurrentUser(userObj);
+        onLoginSuccess(userObj);
         return;
       }
 
@@ -257,17 +278,29 @@ export default function POSLoginScreen({
           createdAt: new Date().toISOString(),
           assignedCompanyCodes: [companyCode],
           permissions: cleanId === 'admin' ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_OPERATOR_PERMISSIONS,
+          password: cleanPwd || 'admin',
         };
-        permissionGuard.setCurrentUser(fallbackUser);
-        onLoginSuccess({
+
+        const userObj = {
           ...fallbackUser,
           id: fallbackUser.id,
           username: fallbackUser.username,
           fullName: fallbackUser.fullName,
           isAdmin: fallbackUser.isAdmin,
           permissions: fallbackUser.permissions,
+          password: cleanPwd || 'admin',
+          sessionLoginPassword: cleanPwd,
           isTrainingMode: false,
-        });
+        };
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('ledgerx_pos_session_password', cleanPwd);
+            sessionStorage.setItem('ledgerx_pos_session_user', JSON.stringify(userObj));
+          }
+        } catch (_) {}
+
+        permissionGuard.setCurrentUser(userObj);
+        onLoginSuccess(userObj);
         return;
       }
 

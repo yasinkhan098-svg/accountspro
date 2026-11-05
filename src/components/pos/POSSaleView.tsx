@@ -17,11 +17,13 @@ import { companyDataFolderService } from '@/lib/companyDataFolderService';
 import { permissionGuard } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
 import { posTrainingService } from '@/lib/pos/posTrainingService';
+import { resolveUnitString } from '@/lib/unitResolver';
 
 interface POSSaleViewProps {
   company: any;
   availableCompanies?: any[];
   stockItems: any[];
+  posPurchaseList?: any[];
   ledgers: any[];
   vouchers: any[];
   cashierUser?: any;
@@ -128,6 +130,7 @@ export default function POSSaleView({
   company,
   availableCompanies = [],
   stockItems = [],
+  posPurchaseList = [],
   ledgers = [],
   vouchers = [],
   cashierUser,
@@ -273,15 +276,112 @@ export default function POSSaleView({
     return Math.round(stock * 100) / 100;
   }, [vouchers]);
 
+  // Active Purchase POS List (Stock, MRP, Barcodes, Retail Prices, Expiry & Discounts)
+  const [activePOSPurchaseList, setActivePOSPurchaseList] = useState<any[]>(posPurchaseList || []);
+
+  useEffect(() => {
+    if (Array.isArray(posPurchaseList) && posPurchaseList.length > 0) {
+      setActivePOSPurchaseList(posPurchaseList);
+      return;
+    }
+    // Fallback load from LocalStorage and disk
+    try {
+      const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setActivePOSPurchaseList(parsed);
+          return;
+        }
+      }
+    } catch (_) {}
+    companyDataFolderService.loadCompanyFolder(companyCode).then(f => {
+      if (f?.posPurchaseList && Array.isArray(f.posPurchaseList) && f.posPurchaseList.length > 0) {
+        setActivePOSPurchaseList(f.posPurchaseList);
+      }
+    }).catch(() => {});
+  }, [posPurchaseList, companyCode]);
+
+  // Unified Catalog: Stock items merged with Purchase POS List
+  // Guarantees that every item in POS Sale (and barcode scanning) uses Retail Sale Price, MRP & Discount from Purchase POS List
+  const catalogItems = useMemo(() => {
+    const list = Array.isArray(stockItems) ? [...stockItems] : [];
+    const posList = Array.isArray(activePOSPurchaseList) ? activePOSPurchaseList : [];
+
+    const merged = list.map(si => {
+      const targetId = Number(si.id);
+      const targetName = (si.name || '').trim().toLowerCase();
+      const posMatch = posList.find(p => 
+        (targetId && Number(p.id) === targetId) || 
+        ((p.barcode || '').trim() && (p.barcode || '').trim() === (si.barcode || '').trim()) ||
+        ((p.name || '').trim().toLowerCase() === targetName)
+      );
+
+      const resolvedUnit = resolveUnitString(posMatch?.unit ? posMatch : si);
+      const mrp = Number(posMatch?.mrp) > 0 ? Number(posMatch.mrp) : (Number(si.mrp) > 0 ? Number(si.mrp) : 0);
+      const discountPerc = Number(posMatch?.discountPerc) || 0;
+      const discountAmt = Number(posMatch?.discountAmt) || 0;
+
+      let retailSalePrice = Number(posMatch?.retailSalePrice);
+      if (isNaN(retailSalePrice) || retailSalePrice <= 0) {
+        if (mrp > 0 && discountAmt > 0) retailSalePrice = Math.max(0, mrp - discountAmt);
+        else if (mrp > 0 && discountPerc > 0) retailSalePrice = Math.max(0, mrp - (mrp * discountPerc / 100));
+        else if (mrp > 0) retailSalePrice = mrp;
+        else retailSalePrice = Number(si.rateInclTax || si.openingRate) || 0;
+      }
+
+      return {
+        ...si,
+        unit: resolvedUnit,
+        barcode: (posMatch?.barcode || '').trim() || (si.barcode || '').trim() || (si.partNumber || '').trim(),
+        mrp: mrp > 0 ? mrp : retailSalePrice,
+        discountPerc,
+        discountAmt,
+        retailSalePrice,
+        expiryDate: posMatch?.expiryDate || si.expiryDate || '',
+      };
+    });
+
+    posList.forEach(p => {
+      if (!p || !p.name) return;
+      const exists = merged.some(m => m.id === p.id || m.name.trim().toLowerCase() === p.name.trim().toLowerCase());
+      if (!exists) {
+        const mrp = Number(p.mrp) || 0;
+        const discountPerc = Number(p.discountPerc) || 0;
+        const discountAmt = Number(p.discountAmt) || 0;
+        let retailSalePrice = Number(p.retailSalePrice);
+        if (isNaN(retailSalePrice) || retailSalePrice <= 0) {
+          retailSalePrice = mrp > 0 ? Math.max(0, mrp - (discountAmt || (mrp * discountPerc / 100))) : 0;
+        }
+        merged.push({
+          id: p.id || Date.now() + Math.floor(Math.random() * 1000),
+          name: p.name,
+          unit: resolveUnitString(p),
+          barcode: (p.barcode || '').trim(),
+          mrp: mrp > 0 ? mrp : retailSalePrice,
+          discountPerc,
+          discountAmt,
+          retailSalePrice,
+          openingQty: Number(p.openingStock) || 0,
+          gstRate: Number(p.gstRate) || 18,
+          hsnCode: p.hsnCode || '',
+          expiryDate: p.expiryDate || '',
+        });
+      }
+    });
+
+    return merged;
+  }, [stockItems, activePOSPurchaseList]);
+
   // Filter items: Only positive stock (> 0) shown in both Sale POS and Rubic POS
   const positiveStockItems = useMemo(() => {
-    return stockItems
+    return catalogItems
       .map(item => ({
         ...item,
         _calculatedStock: getItemStock(item)
       }))
       .filter(item => item._calculatedStock > 0);
-  }, [stockItems, getItemStock]);
+  }, [catalogItems, getItemStock]);
 
   // AI Product Image Generator Trigger
   const handleGenerateAIImages = () => {
@@ -449,7 +549,7 @@ export default function POSSaleView({
     if (!query || !query.trim()) return;
     const cleanQ = query.trim();
 
-    const matched = posService.matchStockItem(cleanQ, stockItems);
+    const matched = posService.matchStockItem(cleanQ, catalogItems);
     if (matched) {
       playBeep(1046, 0.08); // Success high beep
       handleSelectOrScanItem(matched);
@@ -463,41 +563,8 @@ export default function POSSaleView({
   // Helper to resolve actual item unit (e.g. Kg, Box, Pcs, Bags, Ltr, Mtr, Nos)
   const resolveItemUnit = useCallback((item: any): string => {
     if (!item) return '';
-    // 1. Direct unitName string (Prisma standard)
-    if (typeof item.unitName === 'string' && item.unitName.trim() && item.unitName.trim() !== '-' && item.unitName.trim() !== '—') {
-      return item.unitName.trim();
-    }
-    // 2. Direct unit string
-    if (typeof item.unit === 'string' && item.unit.trim() && item.unit.trim() !== '-' && item.unit.trim() !== '—') {
-      return item.unit.trim();
-    }
-    // 3. Unit as object { symbol, name }
-    if (item.unit && typeof item.unit === 'object') {
-      if (item.unit.symbol && typeof item.unit.symbol === 'string' && item.unit.symbol.trim()) return item.unit.symbol.trim();
-      if (item.unit.name && typeof item.unit.name === 'string' && item.unit.name.trim()) return item.unit.name.trim();
-    }
-    // 4. Other unit fields
-    if (typeof item.uom === 'string' && item.uom.trim()) return item.uom.trim();
-    if (typeof item.baseUnit === 'string' && item.baseUnit.trim()) return item.baseUnit.trim();
-    if (typeof item.symbol === 'string' && item.symbol.trim()) return item.symbol.trim();
-
-    // 5. Lookup in stockItems array
-    if (Array.isArray(stockItems)) {
-      const targetId = item.id || item.itemId;
-      const targetName = (item.name || '').trim().toLowerCase();
-      const matched = stockItems.find(si => (si.id && si.id === targetId) || (si.name && si.name.trim().toLowerCase() === targetName));
-      if (matched && matched !== item) {
-        if (typeof matched.unitName === 'string' && matched.unitName.trim()) return matched.unitName.trim();
-        if (typeof matched.unit === 'string' && matched.unit.trim()) return matched.unit.trim();
-        if (matched.unit && typeof matched.unit === 'object') {
-          if (matched.unit.symbol && typeof matched.unit.symbol === 'string' && matched.unit.symbol.trim()) return matched.unit.symbol.trim();
-          if (matched.unit.name && typeof matched.unit.name === 'string' && matched.unit.name.trim()) return matched.unit.name.trim();
-        }
-        if (typeof matched.uom === 'string' && matched.uom.trim()) return matched.uom.trim();
-      }
-    }
-    return '';
-  }, [stockItems]);
+    return resolveUnitString(item);
+  }, []);
 
   // Add item to cart (with tax-inclusive rate & resolved unit)
   const addItemToCart = (item: any, quantity = 1) => {
@@ -513,6 +580,8 @@ export default function POSSaleView({
     const mrpRate = Number(item.mrp) > 0 ? Number(item.mrp) : rateWithTax;
     const availableStock = item._calculatedStock !== undefined ? item._calculatedStock : (Number(item.openingQty) || 0);
     const itemUnit = resolveItemUnit(item);
+    const discPerc = Number(item.discountPerc) || 0;
+    const discAmt = Number(item.discountAmt) || (mrpRate > rateWithTax ? (mrpRate - rateWithTax) : 0);
 
     // Check if already in cart
     const existingIdx = cart.findIndex(c => c.itemId === item.id);
@@ -524,12 +593,13 @@ export default function POSSaleView({
         name: existing.name,
         barcode: existing.barcode,
         hsnCode: existing.hsnCode,
-        unit: itemUnit || existing.unit || '',
+        unit: itemUnit || existing.unit || 'Nos',
         qty: newQty,
         mrpRate: existing.mrpRate || mrpRate,
-        rateWithTax: existing.rateWithTax,
+        rateWithTax: existing.rateWithTax || rateWithTax,
         gstRate: existing.gstRate,
-        discountPerc: existing.discountPerc,
+        discountPerc: existing.discountPerc !== undefined ? existing.discountPerc : discPerc,
+        discountAmt: (discAmt > 0 ? discAmt * newQty : 0),
         stockAvailable: existing.stockAvailable,
       }, false, existing.cartId);
 
@@ -546,7 +616,8 @@ export default function POSSaleView({
         mrpRate,
         rateWithTax,
         gstRate,
-        discountPerc: Number(item.discountPerc) || 0,
+        discountPerc: discPerc,
+        discountAmt: discAmt * quantity,
         stockAvailable: availableStock,
       });
 
@@ -894,7 +965,7 @@ export default function POSSaleView({
   };
 
   // Quick 8 Pill items for the right upper panel
-  const quickItems = stockItems.slice(0, 8);
+  const quickItems = catalogItems.slice(0, 8);
 
   return (
     <div
@@ -1290,22 +1361,29 @@ export default function POSSaleView({
                           fontWeight: isSelected ? 'bold' : 500,
                         }}
                       >
-                        <td style={{ padding: '6px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <div style={{ fontSize: 13, fontWeight: 700 }}>{item.name}</div>
-                          <div style={{ fontSize: 9.5, color: '#475569', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                            {(resolveItemUnit(item) || item.unit) && (
+                        <td style={{ padding: '6px 12px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{item.name}</div>
+                          <div style={{ fontSize: 9.5, color: '#475569', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+                            {item.unit && (
                               <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: 4, fontWeight: 800, fontSize: 9 }}>
-                                Unit: {resolveItemUnit(item) || item.unit}
+                                Unit: {item.unit}
                               </span>
                             )}
+                            {/* Visible Item Discount Badge (exact user requirement: "aur item pr jitna discount ho apne discount ki jgah dikhe") */}
+                            {(item.mrpRate > item.rateWithTax || (item.discountPerc && item.discountPerc > 0) || (item.discountAmt && item.discountAmt > 0)) && (
+                              <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '1px 6px', borderRadius: 4, fontWeight: 700, fontSize: 9 }}>
+                                🏷️ MRP: ₹{item.mrpRate.toFixed(2)} • Disc: {item.discountPerc > 0 ? `${item.discountPerc.toFixed(1)}%` : `₹${item.discountAmt.toFixed(2)}`} (Save ₹{((item.mrpRate - item.rateWithTax) * item.qty).toFixed(2)})
+                              </span>
+                            )}
+                            {item.barcode && <span style={{ color: '#64748b' }}>Barcode: {item.barcode}</span>}
                             {item.hsnCode && <span>HSN: {item.hsnCode}</span>}
                             {item.gstRate !== undefined && <span>GST: {item.gstRate}%</span>}
                           </div>
                         </td>
                         <td style={{ padding: '6px', textAlign: 'center', fontSize: 14, fontWeight: 'bold' }}>
-                          {item.qty} {resolveItemUnit(item) || item.unit || ''}
+                          {item.qty} {item.unit}
                         </td>
-                        <td style={{ padding: '6px', textAlign: 'right', fontSize: 13 }}>
+                        <td style={{ padding: '6px', textAlign: 'right', fontSize: 13, fontWeight: 600 }}>
                           ₹{item.rateWithTax.toFixed(2)}
                         </td>
                         <td style={{ padding: '6px 12px', textAlign: 'right', fontSize: 14, fontWeight: 'bold', color: '#0f3c64' }}>
@@ -1898,7 +1976,7 @@ export default function POSSaleView({
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                               <span style={{ fontWeight: 800, color: '#0284c7' }}>
-                                ₹{item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}
+                                ₹{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
                               </span>
                               <span style={{ fontSize: 9, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: 8 }}>
                                 Stock: {st}
@@ -2015,7 +2093,7 @@ export default function POSSaleView({
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 2, gap: 1 }}>
                               <span style={{ fontSize: 8.5, fontWeight: 900, color: '#0284c7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                ₹{item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}
+                                ₹{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
                               </span>
                               <span style={{ fontSize: 7.5, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1px 3px', borderRadius: 4, flexShrink: 0 }}>
                                 S:{st}
@@ -2252,6 +2330,29 @@ export default function POSSaleView({
           const cleanPwd = pwd.trim();
           if (!cleanPwd) return false;
 
+          // 0. Check Session Login Password (the exact password entered by cashier at login screen)
+          let sessionLoginPwd = '';
+          try {
+            if (typeof window !== 'undefined') {
+              sessionLoginPwd = (sessionStorage.getItem('ledgerx_pos_session_password') || '').trim();
+            }
+          } catch (_) {}
+          const userSessionPwd = (
+            (cashierUser as any)?.sessionLoginPassword ||
+            (cashierUser as any)?.password ||
+            permissionGuard.getCurrentUser()?.password ||
+            ''
+          ).trim();
+
+          if (sessionLoginPwd && (cleanPwd === sessionLoginPwd || cleanPwd.toLowerCase() === sessionLoginPwd.toLowerCase())) {
+            setSecurePassword('');
+            return true;
+          }
+          if (userSessionPwd && (cleanPwd === userSessionPwd || cleanPwd.toLowerCase() === userSessionPwd.toLowerCase())) {
+            setSecurePassword('');
+            return true;
+          }
+
           // 1. Direct matches for default / common supervisor / admin PINs
           const standardMasterPasswords = [
             'admin', '1234', '0000', '123', '12345', '123456', 
@@ -2374,7 +2475,7 @@ export default function POSSaleView({
       <POSItemSearchModal
         isOpen={showCatalogModal}
         onClose={() => setShowCatalogModal(false)}
-        stockItems={stockItems}
+        stockItems={catalogItems}
         onSelectItem={item => addItemToCart(item, 1)}
       />
     </div>

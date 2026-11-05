@@ -26,6 +26,7 @@ import PurchasePOSListView from '@/components/pos/PurchasePOSListView';
 import UserSwitchModal from '@/components/UserSwitchModal';
 import { permissionGuard, LANUser } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
+import { resolveUnitString } from '@/lib/unitResolver';
 import {
   computeBaseFinancials,
 
@@ -1653,7 +1654,7 @@ export default function App() {
     if (allStockItems.length === 0) {
       const stored = getUStored('allStockItems', []);
       const normalizedStored = stored.map((si: any) => {
-        const u = si.unit || si.unitName || 'Nos';
+        const u = resolveUnitString(si, storedUnits);
         return {
           ...si,
           unit: u,
@@ -1826,7 +1827,7 @@ export default function App() {
       const siData = await siRes.json();
       if (siRes.ok && siData.items) {
         const normalizedItems = siData.items.map((si: any) => {
-          const u = si.unit || si.unitName || 'Nos';
+          const u = resolveUnitString(si, allUnits);
           return {
             ...si,
             unit: u,
@@ -1889,12 +1890,7 @@ export default function App() {
       }
       if (Array.isArray(pull.stockItems) && pull.stockItems.length > 0) {
         const normalizedPulled = pull.stockItems.map((si: any) => {
-          const u = (
-            (typeof si.unit === 'string' && si.unit.trim()) ? si.unit.trim() :
-            (typeof si.unitName === 'string' && si.unitName.trim()) ? si.unitName.trim() :
-            (si.unit && typeof si.unit === 'object') ? (si.unit.symbol || si.unit.name || '') :
-            'Nos'
-          ) || 'Nos';
+          const u = resolveUnitString(si, pull.units);
           return {
             ...si,
             unit: u,
@@ -1973,7 +1969,7 @@ export default function App() {
       const cItems = allStockItems
         .filter(si => Number(si.companyId) === Number(activeCompany.id))
         .map(it => {
-          const u = it.unit || it.unitName || 'Nos';
+          const u = resolveUnitString(it, allUnits);
           return {
             ...it,
             unit: u,
@@ -4104,7 +4100,7 @@ export default function App() {
               if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers.map((fv: any) => ({ ...fv, partyDetails: safeParseJSON(fv.partyDetails), dispatchDetails: safeParseJSON(fv.dispatchDetails) }))]);
               if (folderData.stockItems?.length) {
                 const normalized = folderData.stockItems.map((si: any) => {
-                  const u = si.unit || si.unitName || 'Nos';
+                  const u = resolveUnitString(si, folderData.units);
                   return {
                     ...si,
                     unit: u,
@@ -4946,7 +4942,7 @@ export default function App() {
                         if (folderData.vouchers?.length) setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(c.id)), ...folderData.vouchers.map((fv: any) => ({ ...fv, partyDetails: safeParseJSON(fv.partyDetails), dispatchDetails: safeParseJSON(fv.dispatchDetails) }))]);
                         if (folderData.stockItems?.length) {
                           const normalized = folderData.stockItems.map((si: any) => {
-                            const u = si.unit || si.unitName || 'Nos';
+                            const u = resolveUnitString(si, folderData.units);
                             return {
                               ...si,
                               unit: u,
@@ -10342,7 +10338,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       ...nr[idx],
       itemId:it.id || 0,
       itemName:it.name || '',
-      unit: (typeof it.unit === 'string' ? it.unit : (it.unit as any)?.symbol || (it.unit as any)?.name) || 'Nos',
+      unit: resolveUnitString(it, units),
       discountPerc: round2(it.defaultDiscount || 0),
       gstRate: round2(gst),
       hsnCode:it.hsnCode || '',
@@ -11607,7 +11603,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                      const nextId = hasDisc ? `item-disc-${idx}` : `item-amt-${idx}`;
                      setTimeout(()=>document.getElementById(nextId)?.focus(), 80);
                    }}} /> : null}</div>
-                <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{row.itemName ? (typeof row.unit === 'string' ? row.unit : (row.unit as any)?.name || (row.unit as any)?.symbol || 'Nos') : ''}</div>
+                <div style={{width:55,textAlign:'center',fontSize:11,color:'#666'}}>{row.itemName ? resolveUnitString(row, units) : ''}</div>
                 {(activeCompany?.showDiscount || rows.some(r => (r.discountPerc || 0) > 0 || (r.discountAmt || 0) > 0)) && (
                   <div style={{width:65}}>
                     {row.itemName ? <input id={`item-disc-${idx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold'}}
@@ -12219,7 +12215,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                       ...nr[focus.rowIdx],
                       itemId: newItem.id,
                       itemName: newItem.name,
-                      unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.symbol || (newItem.unit as any)?.name || 'Nos',
+                      unit: resolveUnitString(newItem, units),
                       gstRate: gst,
                       hsnCode: newItem.hsnCode || '',
                       rateInclTax: (nr[focus.rowIdx].rate || 0) * (1 + gst / 100)
@@ -12282,7 +12278,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   {it && 'name' in (it as any) ? (it as any).name : 'Unknown Item'}
                   {focus.field==='item' && (() => {
                     const item = it as StockItem;
-                    const unitStr = typeof item.unit === 'string' ? item.unit : (item.unit as any)?.symbol || (item.unit as any)?.name || 'Nos';
+                    const unitStr = resolveUnitString(item, units);
                     let totalQty = Number(item.openingQty) || 0;
                     if (vouchers && vouchers.length > 0) {
                       vouchers.forEach(v => {
