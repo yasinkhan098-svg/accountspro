@@ -440,42 +440,6 @@ export default function POSLoginScreen({
           </div>
 
           <div style={{ fontSize: 12, color: '#fef3c7', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>Store:</span>
-              {!isTrainingMode && availableCompanies && availableCompanies.length > 1 ? (
-                <select
-                  value={selectedCode}
-                  onChange={(e) => {
-                    const newCode = e.target.value;
-                    setSelectedCode(newCode);
-                    const match = availableCompanies.find(c => companyDataFolderService.getCompanyFolderCode(c, availableCompanies) === newCode);
-                    if (match && onSelectCompany) onSelectCompany(match);
-                  }}
-                  style={{
-                    background: '#3c2712',
-                    color: '#fef3c7',
-                    border: '1.5px solid #f59e0b',
-                    borderRadius: 6,
-                    padding: '3px 10px',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    outline: 'none',
-                  }}
-                >
-                  {availableCompanies.map(c => {
-                    const code = companyDataFolderService.getCompanyFolderCode(c, availableCompanies);
-                    return (
-                      <option key={code} value={code} style={{ background: '#1e293b', color: '#ffffff' }}>
-                        {c.name} [{code}]
-                      </option>
-                    );
-                  })}
-                </select>
-              ) : (
-                <b>{isTrainingMode ? TRAINING_COMPANY.name : (activeTargetCompany?.name || company?.name || 'Main Retail')} [{isTrainingMode ? 'TRAINING' : selectedCode}]</b>
-              )}
-            </div>
             <span>Device ID: <b>01 POS</b></span>
             <span>Counter: <b>R141</b></span>
           </div>
@@ -736,11 +700,9 @@ export default function POSLoginScreen({
               const displayedUsers = isTrainingMode ? TRAINING_USERS : registeredUsers;
               if (displayedUsers.length === 0) return null;
               return (
-                <div style={{ marginTop: 16, width: 340, textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: isTrainingMode ? '#2563eb' : '#0f3c64', fontWeight: 800, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    {isTrainingMode 
-                      ? '🎓 Training Cashiers (Demo Only):' 
-                      : `🏢 Cashiers for ${activeTargetCompany?.name || 'Store'} [${selectedCode}] (${displayedUsers.length}):`}
+                <div style={{ marginTop: 16, width: 320, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: isTrainingMode ? '#2563eb' : '#64748b', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {isTrainingMode ? '🎓 Training Cashiers (Demo Only):' : 'Quick Cashier Switch:'}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 110, overflowY: 'auto', padding: '2px 4px' }}>
                     {displayedUsers.map(u => {
