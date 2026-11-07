@@ -522,12 +522,9 @@ function getDaysRemainingText(expiryStr: string | Date | null | undefined) {
 
 function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
   if (!ledger) return 0;
-  // If ledger has odLimit set and openingBalance is zero/null, use odLimit as initial base balance
-  const opBal = (ledger.openingBalance && Math.abs(ledger.openingBalance) > 0) 
-    ? ledger.openingBalance 
-    : (ledger.odLimit || 0);
+  const opBal = Number(ledger.openingBalance ?? (ledger as any).openingBal) || 0;
 
-  let bal = ledger.balanceType === 'Dr' ? opBal : -opBal;
+  let bal = ledger.balanceType === 'Cr' ? -opBal : opBal;
   for (const v of vouchers) {
     if (!v || !v.entries || v.type === 'Sales Quotation' || v.type === 'Quotation') continue;
     for (const e of v.entries) {
@@ -536,7 +533,7 @@ function getLedgerClosingBalance(ledger: Ledger, vouchers: Voucher[]): number {
       }
     }
   }
-  return bal;
+  return round2(bal);
 }
 
 function getLedgerEntries(ledgerId: number, vouchers: Voucher[]): { voucher: Voucher; entry: VoucherEntry }[] {
@@ -4596,21 +4593,25 @@ export default function App() {
               </table>
               {/* Quick Stats */}
               {(() => {
-                const cashLedger = ledgers.find(l => l.name === 'Cash' || l.groupName === 'Cash-in-hand');
-                const bankLedgers = ledgers.filter(l => l.groupName === 'Bank Accounts');
-                const cashBal = cashLedger ? getLedgerClosingBalance(cashLedger, vouchers) : 0;
+                const cashLedgers = ledgers.filter(l => (l.groupName || '').toLowerCase().includes('cash-in-hand') || l.name.toLowerCase() === 'cash' || l.name.toLowerCase() === 'petty cash');
+                const bankLedgers = ledgers.filter(l => {
+                  const gn = (l.groupName || '').toLowerCase().trim();
+                  const ln = (l.name || '').toLowerCase().trim();
+                  return gn.includes('bank') || ln.includes('bank');
+                });
+                const cashBal = cashLedgers.reduce((s, l) => s + getLedgerClosingBalance(l, vouchers), 0);
                 const bankBal = bankLedgers.reduce((s, l) => s + getLedgerClosingBalance(l, vouchers), 0);
                 return (
                   <div style={{padding:'10px 15px',borderTop:'1px solid #ccc',fontSize:12}}>
                     <div style={{color:'#1d4885',fontWeight:'bold',marginBottom:6}}>QUICK OVERVIEW</div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                      <span>Cash Balance</span><span style={{fontWeight:'bold',color:'#006600'}}>
-                        ₹ {fmt(cashBal)}
+                      <span>Cash Balance</span><span style={{fontWeight:'bold',color: cashBal >= 0 ? '#006600' : '#b45309'}}>
+                        ₹ {fmt(Math.abs(cashBal))} {cashBal >= 0 ? 'Dr' : 'Cr'}
                       </span>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                      <span>Bank Balance</span><span style={{fontWeight:'bold',color:'#006600'}}>
-                        ₹ {fmt(bankBal)}
+                      <span>Bank Balance</span><span style={{fontWeight:'bold',color: bankBal >= 0 ? '#006600' : '#b45309'}}>
+                        ₹ {fmt(Math.abs(bankBal))} {bankBal >= 0 ? 'Dr' : 'Cr (OD)'}
                       </span>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
@@ -10167,36 +10168,40 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   const totalIgst = gstBreakdown.reduce((s: number, g: any) => s + g.igst, 0);
   const totalTax = totalCgst + totalSgst + totalIgst;
 
+  // Additional charges/discounts excluding Round Off
+  const otherAddlTotal = useMemo(() => {
+    return round2(additionalLedgers
+      .filter(al => al.ledgerName && al.ledgerName !== 'Round Off' && (al.amount || 0) > 0)
+      .reduce((s, l) => {
+        const factor = l.entryType === otherSide ? 1 : -1;
+        return s + (l.amount * factor);
+      }, 0));
+  }, [additionalLedgers, otherSide]);
+
+  // Raw Total before Round Off
+  const rawInvoiceTotal = round2(itemSubtotal + totalTax + otherAddlTotal);
+  const roundedInvoiceTotal = Math.round(rawInvoiceTotal);
+  const autoRoundOffDiff = round2(roundedInvoiceTotal - rawInvoiceTotal); // e.g. -0.40 or +0.40
+
   // Dynamic Round Off sync: If "Round Off" ledger is in additionalLedgers, keep it updated
   useEffect(() => {
     const roundOffIdx = additionalLedgers.findIndex(al => al.ledgerName === 'Round Off');
     if (roundOffIdx >= 0) {
-      // Calculate total BEFORE round off
-      // Calculate total BEFORE round off using the new logical rule:
-      // In Tally, additional ledgers on the 'otherSide' (income/recovery in Sales, cost in Purchase) ADD to the total.
-      // Ledgers on the 'partySide' (expense/discount in Sales, income/discount in Purchase) SUBTRACT from the total.
-      const otherAddlTotal = additionalLedgers.filter((_, i) => i !== roundOffIdx).reduce((s, l) => {
-        const factor = l.entryType === otherSide ? 1 : -1;
-        return s + (l.amount * factor);
-      }, 0);
-      
-      const currentRawTotal = round2(itemSubtotal + totalTax + otherAddlTotal);
-      const currentRounded = Math.round(currentRawTotal);
-      const neededRoundOff = round2(currentRounded - currentRawTotal);
-      
-      const currentAmt = additionalLedgers[roundOffIdx].amount;
-      const targetAmt = Math.abs(neededRoundOff);
-      // Logic Fix: In Sales (partySide=Dr, otherSide=Cr), to ADD (+ve neededRoundOff), we need targetType = otherSide (Cr).
-      const targetType = neededRoundOff >= 0 ? otherSide : partySide;
-      
-      // Update only if different and NOT currently focused
-      if ((Math.abs(currentAmt - targetAmt) > 0.001 || additionalLedgers[roundOffIdx].entryType !== targetType) && focus?.field !== 'addl-ledger') {
+      const targetAmt = Math.abs(autoRoundOffDiff);
+      let targetType: 'Dr' | 'Cr';
+      if (activeVoucher === 'Sales' || activeVoucher === 'Debit Note') {
+        targetType = autoRoundOffDiff < 0 ? 'Dr' : 'Cr';
+      } else {
+        targetType = autoRoundOffDiff < 0 ? 'Cr' : 'Dr';
+      }
+      const cur = additionalLedgers[roundOffIdx];
+      if ((Math.abs((cur.amount || 0) - targetAmt) > 0.001 || cur.entryType !== targetType) && focus?.field !== 'addl-ledger') {
         const ne = [...additionalLedgers];
         ne[roundOffIdx] = { ...ne[roundOffIdx], amount: targetAmt, entryType: targetType };
         setAdditionalLedgers(ne);
       }
     }
-  }, [itemSubtotal, totalTax, additionalLedgers, focus, ledgers]);
+  }, [rawInvoiceTotal, autoRoundOffDiff, activeVoucher, additionalLedgers, focus]);
 
   const isManualMode = !activeAlterItem && localNumberingMode === 'Manual';
   const vNum = activeAlterItem ? activeAlterItem.number : (isManualMode ? (parseInt(manualVoucherNo) || 1) : getNextAutoNumber());
@@ -10296,9 +10301,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         eType = (activeVoucher === 'Sales' || activeVoucher === 'Debit Note') ? partySide : otherSide;
       }
       
-      if (l.name === 'Round Off') eType = 'Dr'; // Will be adjusted by effect logic anyway
-
-      ne[idx] = { ...ne[idx], ledgerId: l.id, ledgerName: l.name, entryType: eType };
+      if (l.name === 'Round Off') {
+        let rType: 'Dr' | 'Cr';
+        if (activeVoucher === 'Sales' || activeVoucher === 'Debit Note') {
+          rType = autoRoundOffDiff < 0 ? 'Dr' : 'Cr';
+        } else {
+          rType = autoRoundOffDiff < 0 ? 'Cr' : 'Dr';
+        }
+        ne[idx] = { ...ne[idx], ledgerId: l.id, ledgerName: l.name, amount: Math.abs(autoRoundOffDiff), entryType: rType };
+      } else {
+        ne[idx] = { ...ne[idx], ledgerId: l.id, ledgerName: l.name, entryType: eType };
+      }
       
       // If it's the last row and we just picked a ledger, add a new blank row for next selection
       if (idx === ne.length - 1) {
@@ -10366,7 +10379,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
     return s + (l.amount * factor);
   }, 0));
   
-  const grandTotal = round2(itemSubtotal + totalTax + addlLedgerTotal);
+  // Grand Total is strictly the mathematically rounded invoice total
+  const grandTotal = rawInvoiceTotal > 0 ? roundedInvoiceTotal : 0;
 
   const accDr = accEntries.filter(e=>e.entryType==='Dr').reduce((s: number, e: any) => s + e.amount, 0);
   const accCr = accEntries.filter(e=>e.entryType==='Cr').reduce((s: number, e: any) => s + e.amount, 0);
@@ -10475,11 +10489,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       }
     }
 
-    const hasManualRoundOff = additionalLedgers.some(al => al.ledgerName === 'Round Off');
-    const currentRawTotal = round2(itemSubtotal + totalTax + addlLedgerTotal);
-    const currentRounded = Math.round(currentRawTotal);
-    const roundOff = round2(currentRounded - currentRawTotal);
-    
+    const roundOffAmt = Math.abs(autoRoundOffDiff);
+    let roundOffEntryType: 'Dr' | 'Cr';
+    if (activeVoucher === 'Sales' || activeVoucher === 'Debit Note') {
+      roundOffEntryType = autoRoundOffDiff < 0 ? 'Dr' : 'Cr';
+    } else {
+      roundOffEntryType = autoRoundOffDiff < 0 ? 'Cr' : 'Dr';
+    }
+
+    const nonRoundOffAddl = additionalLedgers.filter(al => al.ledgerName && al.ledgerName !== 'Round Off' && (Number(al.amount) || 0) > 0);
     const salesPurchaseLedger = isPurchaseSide ? 'Purchase A/c' : 'Sales A/c';
 
     let savePartyName = (partyName || '').trim();
@@ -10505,14 +10523,20 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         {id:1,ledgerId:findL(savePartyName),ledgerName:savePartyName,amount:grandTotal,entryType: partySide},
         ...rows.filter(r=>r.itemName).map((r,i)=>({id:i+2,ledgerId:findL(salesPurchaseLedger),ledgerName:salesPurchaseLedger,amount:r.amount,entryType: otherSide} as VoucherEntry)),
         ...taxEntries,
-        ...additionalLedgers.filter(al=>al.ledgerName && al.amount > 0).map((al, i) => ({
+        ...nonRoundOffAddl.map((al, i) => ({
           id: entryId++, 
           ledgerId: al.ledgerId || findL(al.ledgerName), 
           ledgerName: al.ledgerName, 
-          amount: al.amount, 
+          amount: Math.abs(al.amount), 
           entryType: al.entryType
         } as VoucherEntry)),
-        ...(Math.abs(roundOff) > 0.001 && !hasManualRoundOff ? [{id: entryId++, ledgerId: findL('Round Off'), ledgerName: 'Round Off', amount: Math.abs(roundOff), entryType: roundOff > 0 ? otherSide : partySide} as VoucherEntry] : []),
+        ...(roundOffAmt > 0.001 ? [{
+          id: entryId++, 
+          ledgerId: findL('Round Off'), 
+          ledgerName: 'Round Off', 
+          amount: roundOffAmt, 
+          entryType: roundOffEntryType
+        } as VoucherEntry] : []),
       ] : (() => {
         const validP = accEntries.filter(e => {
           if (!e.ledgerName) return false;
@@ -11711,9 +11735,11 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 
                 <div style={{width:110}}>
                   {al.ledgerName ? (
-                    <input id={`addl-amt-${alIdx}`} type="number" className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold',color:'#1c5282'}}
-                      value={al.amount||''}
+                    <input id={`addl-amt-${alIdx}`} type={al.ledgerName === 'Round Off' ? 'text' : 'number'} className="form-input" style={{width:'90%',textAlign:'right',fontWeight:'bold',color: al.ledgerName === 'Round Off' ? (autoRoundOffDiff < 0 ? '#b45309' : '#166534') : '#1c5282'}}
+                      value={al.ledgerName === 'Round Off' ? (autoRoundOffDiff < 0 ? `-${fmt(Math.abs(al.amount || autoRoundOffDiff))}` : `+${fmt(Math.abs(al.amount || autoRoundOffDiff))}`) : (al.amount||'')}
+                      readOnly={al.ledgerName === 'Round Off'}
                       onChange={e=>{
+                        if (al.ledgerName === 'Round Off') return;
                         const ne = [...additionalLedgers];
                         ne[alIdx].amount = parseFloat(e.target.value)||0;
                         setAdditionalLedgers(ne);
@@ -11783,7 +11809,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold'}}>₹ {fmt(totalTax)}</span>
               </div>
             )}
-            {/* Round Off and other ledgers are now in the main grid list */}
+            {/* Round Off and other ledgers are now explicitly shown */}
+            {Math.abs(autoRoundOffDiff) > 0.001 && (
+              <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:4}}>
+                <span style={{fontSize:12,fontWeight:'bold',color:autoRoundOffDiff < 0 ? '#b45309' : '#166534'}}>
+                  Round Off {autoRoundOffDiff < 0 ? '(-)' : '(+)'}:
+                </span>
+                <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold',color:autoRoundOffDiff < 0 ? '#b45309' : '#166534'}}>
+                  {autoRoundOffDiff < 0 ? `- ₹ ${fmt(Math.abs(autoRoundOffDiff))}` : `+ ₹ ${fmt(autoRoundOffDiff)}`}
+                </span>
+              </div>
+            )}
             <div style={{display:'flex',justifyContent:'flex-end',gap:20,borderTop:`1px solid ${vc}`,paddingTop:6}}>
               <span style={{fontSize:15,fontWeight:'bold',color:vc}}>Grand Total:</span>
               <span style={{width:130,textAlign:'right',fontSize:18,fontWeight:'bold',color:vc}}>₹ {fmt(grandTotal)}</span>
@@ -16633,6 +16669,9 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
     });
     const roundOffEntry = (v?.entries || []).find((e: any) => getEntryLedgerName(e) === 'Round Off');
     const roundOffAmt = roundOffEntry?.amount || 0;
+    const isRoundOffDeduction = roundOffEntry ? (
+      (v.type === 'Sales' || v.type === 'Debit Note') ? roundOffEntry.entryType === 'Dr' : roundOffEntry.entryType === 'Cr'
+    ) : false;
     // Purchase-specific: lookup party ledger for supplier info
     const isPurchaseType = v.type === 'Purchase' || v.type === 'Debit Note';
     const partyLedger = ledgers.find(l => l.name === v.partyName);
@@ -16835,14 +16874,18 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
             {roundOffAmt !== 0 && (
                <tr style={{fontSize:11}}>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
-                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>Round Off</td>
+                 <td style={{...tdB, border:'none', borderRight:'1px solid #000', textAlign:'right'}}>
+                   Round Off {isRoundOffDeduction ? '(-)' : '(+)'}
+                 </td>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showInclRate&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  <td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>
                  {showDiscount&&<td style={{...tdB, border:'none', borderRight:'1px solid #000'}}/>}
-                 <td style={{...tdB, border:'none', borderLeft:'1px solid #000', ...(showAmtIncl?{borderRight:'1px solid #000'}:{}), textAlign:'right'}}>{fmt(Math.abs(roundOffAmt))}</td>
+                 <td style={{...tdB, border:'none', borderLeft:'1px solid #000', ...(showAmtIncl?{borderRight:'1px solid #000'}:{}), textAlign:'right'}}>
+                   {isRoundOffDeduction ? `- ${fmt(Math.abs(roundOffAmt))}` : `+ ${fmt(Math.abs(roundOffAmt))}`}
+                 </td>
                  {showAmtIncl&&<td style={{...tdB, border:'none'}}/>}
                </tr>
             )}

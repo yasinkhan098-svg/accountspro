@@ -1,12 +1,12 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { 
-  posService, 
-  POSCartItem, 
-  POSCartTotals, 
-  POSCustomer, 
-  POSPaymentDetails, 
-  POSHeldBill 
+import {
+  posService,
+  POSCartItem,
+  POSCartTotals,
+  POSCustomer,
+  POSPaymentDetails,
+  POSHeldBill
 } from '@/lib/pos/posService';
 import POSVirtualKeyboard from './POSVirtualKeyboard';
 import POSSecureModal from './POSSecureModal';
@@ -140,8 +140,8 @@ export default function POSSaleView({
   onVouchersUpdated,
   onOpenPurchasePOSList,
 }: POSSaleViewProps) {
-  const companyCode = company 
-    ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies) 
+  const companyCode = company
+    ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies)
     : '10000';
 
   const currentUser = permissionGuard.getCurrentUser();
@@ -209,7 +209,7 @@ export default function POSSaleView({
       try {
         const stored = localStorage.getItem('ledgerx_stock_item_ai_images');
         if (stored) return JSON.parse(stored);
-      } catch (e) {}
+      } catch (e) { }
     }
     return {};
   });
@@ -221,9 +221,9 @@ export default function POSSaleView({
     const triggerFs = () => {
       try {
         if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(() => {});
+          document.documentElement.requestFullscreen().catch(() => { });
         }
-      } catch (e) {}
+      } catch (e) { }
     };
     window.addEventListener('click', triggerFs, { once: true });
     window.addEventListener('keydown', triggerFs, { once: true });
@@ -238,14 +238,14 @@ export default function POSSaleView({
     try {
       if (!document.fullscreenElement) {
         if (document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(() => {});
+          document.documentElement.requestFullscreen().catch(() => { });
         }
       } else {
         if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
+          document.exitFullscreen().catch(() => { });
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // Live stock calculator per item (Vouchers + Opening Qty)
@@ -255,9 +255,9 @@ export default function POSSaleView({
       for (const v of vouchers) {
         if (!v.inventoryEntries) continue;
         for (const ie of v.inventoryEntries) {
-          const isMatch = ie.itemId === item.id || 
-                          (ie.stockItemId && ie.stockItemId === item.id) ||
-                          (ie.itemName && item.name && ie.itemName.trim().toLowerCase() === item.name.trim().toLowerCase());
+          const isMatch = ie.itemId === item.id ||
+            (ie.stockItemId && ie.stockItemId === item.id) ||
+            (ie.itemName && item.name && ie.itemName.trim().toLowerCase() === item.name.trim().toLowerCase());
           if (isMatch) {
             const q = Number(ie.qty) || 0;
             if (v.type === 'Purchase' || v.type === 'Credit Note') {
@@ -294,12 +294,12 @@ export default function POSSaleView({
           return;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
     companyDataFolderService.loadCompanyFolder(companyCode).then(f => {
       if (f?.posPurchaseList && Array.isArray(f.posPurchaseList) && f.posPurchaseList.length > 0) {
         setActivePOSPurchaseList(f.posPurchaseList);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, [posPurchaseList, companyCode]);
 
   // Unified Catalog: Stock items merged with Purchase POS List
@@ -311,8 +311,8 @@ export default function POSSaleView({
     const merged = list.map(si => {
       const targetId = Number(si.id);
       const targetName = (si.name || '').trim().toLowerCase();
-      const posMatch = posList.find(p => 
-        (targetId && Number(p.id) === targetId) || 
+      const posMatch = posList.find(p =>
+        (targetId && Number(p.id) === targetId) ||
         ((p.barcode || '').trim() && (p.barcode || '').trim() === (si.barcode || '').trim()) ||
         ((p.name || '').trim().toLowerCase() === targetName)
       );
@@ -491,7 +491,7 @@ export default function POSSaleView({
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
         osc.stop(ctx.currentTime + duration);
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // Hardware Barcode Scanner listener
@@ -571,11 +571,11 @@ export default function POSSaleView({
     const baseRate = Number(item.openingRate) || 0;
     const gstRate = Number(item.gstRate) || 0;
     const retailPrice = Number(item.retailSalePrice);
-    const rateWithTax = retailPrice > 0 
+    const rateWithTax = retailPrice > 0
       ? retailPrice
-      : (item.showInclTax || item.rateInclTax 
-          ? Number(item.rateInclTax || item.openingRate) 
-          : Math.round(baseRate * (1 + gstRate / 100) * 100) / 100);
+      : (item.showInclTax || item.rateInclTax
+        ? Number(item.rateInclTax || item.openingRate)
+        : Math.round(baseRate * (1 + gstRate / 100) * 100) / 100);
 
     const mrpRate = Number(item.mrp) > 0 ? Number(item.mrp) : rateWithTax;
     const availableStock = item._calculatedStock !== undefined ? item._calculatedStock : (Number(item.openingQty) || 0);
@@ -1280,7 +1280,7 @@ export default function POSSaleView({
 
       {/* ==================== 2. MAIN POS WORKSPACE (SPLIT LAYOUT) ==================== */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        
+
         {/* ========== LEFT PANEL: ITEM CART TABLE + STATS + RIBBON + TOUCH KEYBOARD ========== */}
         <div
           style={{
@@ -1354,8 +1354,8 @@ export default function POSSaleView({
                           background: isSelected
                             ? '#fef08a' // Selected highlight
                             : index % 2 === 0
-                            ? '#e0f2fe' // Alternating cyan light
-                            : '#bae6fd', // Alternating cyan dark
+                              ? '#e0f2fe' // Alternating cyan light
+                              : '#bae6fd', // Alternating cyan dark
                           borderBottom: '1px solid #93c5fd',
                           color: '#0f172a',
                           fontWeight: isSelected ? 'bold' : 500,
@@ -1722,13 +1722,13 @@ export default function POSSaleView({
           >
             {/* Header: Title + Sale POS + Rubic POS Buttons */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, flexShrink: 0 }}>
-              <div 
+              <div
                 onClick={() => setRightViewMode('SCANNED')}
-                style={{ 
-                  fontSize: 11, 
-                  fontWeight: 800, 
-                  color: rightViewMode === 'SCANNED' ? '#0284c7' : '#64748b', 
-                  textTransform: 'uppercase', 
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: rightViewMode === 'SCANNED' ? '#0284c7' : '#64748b',
+                  textTransform: 'uppercase',
                   letterSpacing: 0.5,
                   cursor: 'pointer',
                   display: 'flex',
@@ -1884,8 +1884,8 @@ export default function POSSaleView({
                             style={{
                               ...glassQuickPillStyle,
                               border: isSelected ? '2px solid #0284c7' : '1px solid rgba(255, 255, 255, 0.65)',
-                              background: isSelected 
-                                ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.85) 0%, rgba(30, 58, 138, 0.9) 100%)' 
+                              background: isSelected
+                                ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.85) 0%, rgba(30, 58, 138, 0.9) 100%)'
                                 : glassQuickPillStyle.background,
                               color: isSelected ? '#ffffff' : '#0f172a',
                               boxShadow: isSelected ? '0 0 10px rgba(2, 132, 199, 0.5)' : glassQuickPillStyle.boxShadow,
@@ -2056,8 +2056,8 @@ export default function POSSaleView({
                             }}
                             className="pos-touch-btn"
                             style={{
-                              background: isSelected 
-                                ? 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)' 
+                              background: isSelected
+                                ? 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)'
                                 : '#ffffff',
                               border: isSelected ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
                               borderRadius: 6,
@@ -2078,14 +2078,14 @@ export default function POSSaleView({
                               alt={item.name}
                               style={{ width: 32, height: 32, objectFit: 'contain', marginBottom: 2, borderRadius: 3 }}
                             />
-                            <div style={{ 
-                              fontSize: 8.5, 
-                              fontWeight: 700, 
-                              color: '#0f172a', 
-                              textAlign: 'center', 
-                              width: '100%', 
-                              overflow: 'hidden', 
-                              textOverflow: 'ellipsis', 
+                            <div style={{
+                              fontSize: 8.5,
+                              fontWeight: 700,
+                              color: '#0f172a',
+                              textAlign: 'center',
+                              width: '100%',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
                               lineHeight: 1.2
                             }}>
@@ -2136,8 +2136,8 @@ export default function POSSaleView({
                   width: 44,
                   height: 44,
                   borderRadius: '50%',
-                  background: selectedCartId 
-                    ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
+                  background: selectedCartId
+                    ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)'
                     : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
                   color: '#ffffff',
                   border: '2px solid rgba(255, 255, 255, 0.7)',
@@ -2147,8 +2147,8 @@ export default function POSSaleView({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: selectedCartId 
-                    ? '0 4px 12px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.7), inset 0 -2px 3px rgba(3, 105, 161, 0.5)' 
+                  boxShadow: selectedCartId
+                    ? '0 4px 12px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.7), inset 0 -2px 3px rgba(3, 105, 161, 0.5)'
                     : 'none',
                   touchAction: 'manipulation',
                 }}
@@ -2167,8 +2167,8 @@ export default function POSSaleView({
                   width: 44,
                   height: 44,
                   borderRadius: '50%',
-                  background: selectedCartId 
-                    ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)' 
+                  background: selectedCartId
+                    ? 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%)'
                     : 'linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%)',
                   color: '#ffffff',
                   border: '2px solid rgba(255, 255, 255, 0.7)',
@@ -2178,8 +2178,8 @@ export default function POSSaleView({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: selectedCartId 
-                    ? '0 4px 12px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.7), inset 0 -2px 3px rgba(3, 105, 161, 0.5)' 
+                  boxShadow: selectedCartId
+                    ? '0 4px 12px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.7), inset 0 -2px 3px rgba(3, 105, 161, 0.5)'
                     : 'none',
                   touchAction: 'manipulation',
                 }}
@@ -2336,7 +2336,7 @@ export default function POSSaleView({
             if (typeof window !== 'undefined') {
               sessionLoginPwd = (sessionStorage.getItem('ledgerx_pos_session_password') || '').trim();
             }
-          } catch (_) {}
+          } catch (_) { }
           const userSessionPwd = (
             (cashierUser as any)?.sessionLoginPassword ||
             (cashierUser as any)?.password ||
@@ -2355,7 +2355,7 @@ export default function POSSaleView({
 
           // 1. Direct matches for default / common supervisor / admin PINs
           const standardMasterPasswords = [
-            'admin', '1234', '0000', '123', '12345', '123456', 
+            'admin', '1234', '0000', '123', '12345', '123456',
             'cashier', 'pos', 'pass', 'password', 'supervisor', 'ledgerx'
           ];
           if (standardMasterPasswords.includes(cleanPwd.toLowerCase())) {
@@ -2387,7 +2387,7 @@ export default function POSSaleView({
                 }
               }
             }
-          } catch (e) {}
+          } catch (e) { }
 
           // 5. Also check global users in data/users.json
           try {
@@ -2400,7 +2400,7 @@ export default function POSSaleView({
                 }
               }
             }
-          } catch (e) {}
+          } catch (e) { }
 
           // 6. Check company master password / PIN if set
           if (company?.password && String(company.password).trim() === cleanPwd) {
@@ -2426,7 +2426,7 @@ export default function POSSaleView({
                 }
               }
             }
-          } catch (e) {}
+          } catch (e) { }
 
           // 8. If NO user in this company has any password configured (passwordless setup), allow unlocking
           try {
@@ -2436,7 +2436,7 @@ export default function POSSaleView({
               setSecurePassword('');
               return true;
             }
-          } catch (e) {}
+          } catch (e) { }
 
           return false;
         }}

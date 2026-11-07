@@ -138,15 +138,15 @@ export class POSService {
     // rateWithTax is the Retail Sale Price (already tax-inclusive and discounted from Purchase POS List)
     const rateWithTax = Number(item.rateWithTax) || 0;
     const mrp = Number(item.mrpRate || rateWithTax);
-    
+
     // Amount is strictly Price (Include Tax) * Qty (no double discounting)
     const lineTotal = Math.round(rateWithTax * qty * 100) / 100;
 
     // Item Discount calculation (difference between MRP and Retail Sale Price)
     const mrpTotal = Math.round(mrp * qty * 100) / 100;
     const totalSavings = Math.max(0, Math.round((mrpTotal - lineTotal) * 100) / 100);
-    const discPerc = item.discountPerc !== undefined && item.discountPerc > 0 
-      ? Number(item.discountPerc) 
+    const discPerc = item.discountPerc !== undefined && item.discountPerc > 0
+      ? Number(item.discountPerc)
       : (mrpTotal > 0 ? Math.round(((mrpTotal - lineTotal) / mrpTotal) * 10000) / 100 : 0);
 
     const taxInfo = this.calcTaxInclusive(rateWithTax, item.gstRate, isInterState);

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { calculateDashboardAnalytics, computeLedgerClosingBalance, getSafeVoucherTotal } from '@/lib/dashboardAnalyticsService';
 
 export interface DashboardProps {
   activeCompany: any;
@@ -164,263 +165,18 @@ export default function RealtimeDashboardModal({
 
   // Helper to compute individual ledger balance
   const getLedgerBalance = (ledger: any) => {
-    let dr = ledger.balanceType === 'Dr' ? (Number(ledger.openingBalance ?? ledger.openingBal) || 0) : 0;
-    let cr = ledger.balanceType === 'Cr' ? (Number(ledger.openingBalance ?? ledger.openingBal) || 0) : 0;
-
-    for (const v of vouchers) {
-      for (const e of (v.entries || [])) {
-        if (Number(e.ledgerId) === Number(ledger.id)) {
-          if (e.entryType === 'Dr') dr += Number(e.amount) || 0;
-          else cr += Number(e.amount) || 0;
-        }
-      }
-    }
-    const net = dr - cr;
-    return {
-      amount: Math.abs(net),
-      type: net >= 0 ? 'Dr' : 'Cr',
-      net
-    };
+    return computeLedgerClosingBalance(ledger, vouchers);
   };
 
   // Helper to compute voucher total accurately
   const getVchTotal = (v: any) => {
-    const t = Number(v.total);
-    if (t > 0) return t;
-    const partySide = ['Sales', 'Payment', 'Debit Note'].includes(v.type) ? 'Dr' : 'Cr';
-    const partyEntry = (v.entries || []).find((e: any) => e.entryType === partySide);
-    if (partyEntry && Number(partyEntry.amount) > 0) return Number(partyEntry.amount);
-    return (v.entries || []).reduce((max: number, e: any) => Math.max(max, Number(e.amount) || 0), 0) || 0;
+    return getSafeVoucherTotal(v);
   };
 
-  // ─── Financial Calculations ───
+  // ─── Financial Calculations powered by real-time Dashboard Analytics Engine ───
   const calculations = useMemo(() => {
-    // 1. Group balances
-    const cashLedgers = ledgers.filter(l => (l.groupName || '').toLowerCase().includes('cash-in-hand'));
-    const bankLedgers = ledgers.filter(l => {
-      const gn = (l.groupName || '').toLowerCase();
-      return gn.includes('bank accounts') || gn.includes('bank od') || gn.includes('bank occ');
-    });
-    const debtorLedgers = ledgers.filter(l => (l.groupName || '').toLowerCase().includes('sundry debtors'));
-    const creditorLedgers = ledgers.filter(l => (l.groupName || '').toLowerCase().includes('sundry creditors'));
-
-    // Cash-in-Hand total
-    let cashNet = 0;
-    cashLedgers.forEach(l => {
-      const b = getLedgerBalance(l);
-      cashNet += b.type === 'Dr' ? b.amount : -b.amount;
-    });
-    const cashInHand = { amount: Math.abs(cashNet), type: cashNet >= 0 ? 'Dr' : 'Cr' };
-
-    // Bank Accounts total
-    let bankNet = 0;
-    bankLedgers.forEach(l => {
-      const b = getLedgerBalance(l);
-      bankNet += b.type === 'Dr' ? b.amount : -b.amount;
-    });
-    const bankAccounts = { amount: Math.abs(bankNet), type: bankNet >= 0 ? 'Dr' : 'Cr' };
-
-    // Total Liquid Cash & Bank
-    const totalLiquidCash = (cashNet >= 0 ? cashNet : 0) + (bankNet >= 0 ? bankNet : 0);
-
-    // Receivables (Sundry Debtors)
-    let receivablesNet = 0;
-    debtorLedgers.forEach(l => {
-      const b = getLedgerBalance(l);
-      receivablesNet += b.type === 'Dr' ? b.amount : -b.amount;
-    });
-    const receivables = Math.max(0, receivablesNet);
-
-    // Payables (Sundry Creditors)
-    let payablesNet = 0;
-    creditorLedgers.forEach(l => {
-      const b = getLedgerBalance(l);
-      payablesNet += b.type === 'Cr' ? b.amount : -b.amount;
-    });
-    const payables = Math.max(0, payablesNet);
-
-    // 2. Sales & Purchase Totals
-    let salesTotal = 0;
-    let salesQty = 0;
-    let purchaseTotal = 0;
-    let purchaseQty = 0;
-
-    vouchers.forEach(v => {
-      const vTot = getVchTotal(v);
-      if (v.type === 'Sales') {
-        salesTotal += vTot;
-        (v.inventoryEntries || []).forEach((ie: any) => { salesQty += Number(ie.qty) || 0; });
-      } else if (v.type === 'Purchase') {
-        purchaseTotal += vTot;
-        (v.inventoryEntries || []).forEach((ie: any) => { purchaseQty += Number(ie.qty) || 0; });
-      }
-    });
-
-    // 3. Stock Valuations
-    let openingStockVal = 0;
-    let closingStockVal = 0;
-    let closingStockQty = 0;
-
-    if (stockItems && stockItems.length > 0) {
-      openingStockVal = stockItems.reduce((acc, it) => acc + ((Number(it.openingQty) || 0) * (Number(it.openingRate) || 0)), 0);
-      for (const it of stockItems) {
-        let qty = Number(it.openingQty) || 0;
-        let totalCost = (Number(it.openingQty) || 0) * (Number(it.openingRate) || 0);
-        let totalInQty = Number(it.openingQty) || 0;
-        for (const v of vouchers) {
-          for (const ie of (v.inventoryEntries || [])) {
-            if (Number(ie.stockItemId || ie.itemId) === Number(it.id)) {
-              if (v.type === 'Purchase' || v.type === 'Credit Note') {
-                qty += Number(ie.qty) || 0;
-                totalCost += (Number(ie.qty) || 0) * (Number(ie.rate) || 0);
-                totalInQty += Number(ie.qty) || 0;
-              } else if (v.type === 'Sales' || v.type === 'Debit Note') {
-                qty -= Number(ie.qty) || 0;
-              }
-            }
-          }
-        }
-        closingStockQty += Math.max(0, qty);
-        closingStockVal += Math.max(0, qty) * (totalInQty > 0 ? totalCost / totalInQty : (Number(it.openingRate) || 0));
-      }
-    } else {
-      const stockLedgers = ledgers.filter(l => (l.groupName || '').toLowerCase().includes('stock-in-hand'));
-      stockLedgers.forEach(l => {
-        const ob = Number(l.openingBalance ?? l.openingBal) || 0;
-        openingStockVal += l.balanceType === 'Dr' ? ob : -ob;
-        const b = getLedgerBalance(l);
-        closingStockVal += b.type === 'Dr' ? b.amount : -b.amount;
-      });
-    }
-
-    // 4. Expenses & Incomes
-    let directExp = 0;
-    let indirectExp = 0;
-    let indirectInc = 0;
-
-    ledgers.forEach(l => {
-      const gn = (l.groupName || '').toLowerCase();
-      const b = getLedgerBalance(l);
-      if (gn.includes('direct exp') || gn.includes('expenses (direct)')) {
-        directExp += b.type === 'Dr' ? b.amount : -b.amount;
-      } else if (gn.includes('indirect exp') || gn.includes('expenses (indirect)')) {
-        indirectExp += b.type === 'Dr' ? b.amount : -b.amount;
-      } else if (gn.includes('indirect inc') || gn.includes('income (indirect)')) {
-        indirectInc += b.type === 'Cr' ? b.amount : -b.amount;
-      }
-    });
-
-    // 5. Profit calculations
-    const grossProfit = salesTotal + closingStockVal - (openingStockVal + purchaseTotal + directExp);
-    const netProfit = grossProfit + indirectInc - indirectExp;
-    const grossProfitMargin = salesTotal > 0 ? ((grossProfit / salesTotal) * 100).toFixed(1) : '0.0';
-    const netProfitMargin = salesTotal > 0 ? ((netProfit / salesTotal) * 100).toFixed(1) : '0.0';
-
-    // 6. Assets & Liabilities
-    const currAssetGroups = ['stock-in-hand', 'sundry debtors', 'cash-in-hand', 'bank accounts', 'loans & advances (asset)', 'current assets'];
-    const currLiabGroups = ['sundry creditors', 'current liabilities', 'provisions', 'duties & taxes'];
-
-    let currentAssetsNet = 0;
-    let currentLiabNet = 0;
-    let capitalNet = 0;
-    let loansNet = 0;
-
-    ledgers.forEach(l => {
-      const gn = (l.groupName || '').toLowerCase();
-      const b = getLedgerBalance(l);
-      if (currAssetGroups.some(g => gn.includes(g))) {
-        currentAssetsNet += b.type === 'Dr' ? b.amount : -b.amount;
-      }
-      if (currLiabGroups.some(g => gn.includes(g))) {
-        currentLiabNet += b.type === 'Cr' ? b.amount : -b.amount;
-      }
-      if (gn.includes('capital') || gn.includes('reserves')) {
-        capitalNet += b.type === 'Cr' ? b.amount : -b.amount;
-      }
-      if (gn.includes('secured') || gn.includes('unsecured') || gn.includes('loans (liability)')) {
-        loansNet += b.type === 'Cr' ? b.amount : -b.amount;
-      }
-    });
-
-    // Add closing stock to current assets if not already included
-    if (!ledgers.some(l => (l.groupName || '').toLowerCase().includes('stock-in-hand'))) {
-      currentAssetsNet += closingStockVal;
-    }
-
-    const workingCapital = currentAssetsNet - currentLiabNet;
-    const currentRatio = currentLiabNet > 0 ? (currentAssetsNet / currentLiabNet).toFixed(2) : (currentAssetsNet > 0 ? '∞' : '1.00');
-
-    // 7. Cash Flow (Inflow & Outflow)
-    let inflow = 0;
-    let outflow = 0;
-
-    vouchers.forEach(v => {
-      const vTot = getVchTotal(v);
-      if (v.type === 'Receipt') {
-        inflow += vTot;
-      } else if (v.type === 'Payment') {
-        outflow += vTot;
-      } else {
-        // Check Dr/Cr on cash/bank
-        (v.entries || []).forEach((e: any) => {
-          const l = ledgers.find(led => led.id === e.ledgerId);
-          const gn = (l?.groupName || '').toLowerCase();
-          if (gn.includes('cash') || gn.includes('bank')) {
-            if (e.entryType === 'Dr') inflow += Number(e.amount) || 0;
-            else outflow += Number(e.amount) || 0;
-          }
-        });
-      }
-    });
-    const nettFlow = inflow - outflow;
-    const totalCashTurnover = inflow + outflow;
-    const inflowPercent = totalCashTurnover > 0 ? Math.round((inflow / totalCashTurnover) * 100) : 50;
-    const outflowPercent = totalCashTurnover > 0 ? (100 - inflowPercent) : 50;
-
-    // 8. Accounting Ratios
-    const inventoryTurnover = closingStockVal > 0 ? (salesTotal / closingStockVal).toFixed(2) : '0.00';
-    const debtEquityRatio = capitalNet > 0 ? (loansNet / capitalNet).toFixed(2) + ' : 1' : '0.00 : 1';
-    const receivableTurnoverDays = salesTotal > 0 ? ((receivables / salesTotal) * 365).toFixed(0) + ' days' : '0 days';
-    const returnOnInvestment = capitalNet > 0 ? ((netProfit / capitalNet) * 100).toFixed(1) + ' %' : 'N/A';
-
-    return {
-      cashInHand,
-      bankAccounts,
-      totalLiquidCash,
-      receivables,
-      payables,
-      salesTotal,
-      salesQty,
-      purchaseTotal,
-      purchaseQty,
-      openingStockVal,
-      closingStockVal,
-      closingStockQty,
-      directExp,
-      indirectExp,
-      indirectInc,
-      grossProfit,
-      netProfit,
-      grossProfitMargin,
-      netProfitMargin,
-      currentAssets: { amount: Math.abs(currentAssetsNet), type: currentAssetsNet >= 0 ? 'Dr' : 'Cr' },
-      currentLiabilities: { amount: Math.abs(currentLiabNet), type: currentLiabNet >= 0 ? 'Dr' : 'Cr' },
-      workingCapital,
-      currentRatio,
-      inflow,
-      outflow,
-      inflowPercent,
-      outflowPercent,
-      nettFlow: { amount: Math.abs(nettFlow), type: nettFlow >= 0 ? 'Dr' : 'Cr', val: nettFlow },
-      inventoryTurnover,
-      debtEquityRatio,
-      receivableTurnoverDays,
-      returnOnInvestment,
-      bankLedgers,
-      debtorLedgers,
-      creditorLedgers
-    };
-  }, [vouchers, ledgers, stockItems]);
+    return calculateDashboardAnalytics(ledgers, vouchers, stockItems);
+  }, [ledgers, vouchers, stockItems]);
 
   // ─── 12-Month Trend Data for Line Charts (Apr to Mar) ───
   const trendMonths = useMemo(() => {
@@ -1416,18 +1172,39 @@ export default function RealtimeDashboardModal({
                       {fmt(calculations.cashInHand.amount)}
                     </td>
                   </tr>
-                  <tr>
-                    <td style={{ padding: '7px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <td style={{ padding: '7px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
                       <span style={{ fontSize: 14 }}>🏦</span>
-                      <span>Bank Accounts</span>
+                      <span>Bank Accounts (Total)</span>
                     </td>
                     <td style={{ textAlign: 'center', padding: '7px 0' }}>
                       {calculations.bankAccounts.type === 'Dr' ? <DrPill /> : <CrPill />}
                     </td>
-                    <td style={{ textAlign: 'right', padding: '7px 0', fontWeight: 700, color: '#818cf8', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    <td style={{ textAlign: 'right', padding: '7px 0', fontWeight: 800, color: '#818cf8', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                       {fmt(calculations.bankAccounts.amount)}
                     </td>
                   </tr>
+                  {calculations.bankLedgerList && calculations.bankLedgerList.map((b, bi) => (
+                    <tr key={bi} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: 'rgba(0,0,0,0.1)' }}>
+                      <td style={{ padding: '5px 0 5px 18px', color: '#cbd5e1', fontSize: 11 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>↳</span>
+                          <span style={{ fontWeight: 600 }}>{b.name}</span>
+                          {b.accountNo && <span style={{ fontSize: 9.5, color: '#94a3b8' }}>({b.accountNo})</span>}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '5px 0' }}>
+                        {b.balanceType === 'Dr' ? <DrPill /> : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 5px', fontSize: 9, fontWeight: 700, borderRadius: 3, background: 'rgba(239, 68, 68, 0.2)', color: '#f87171' }}>
+                            Cr (OD)
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '5px 0', fontSize: 11, fontWeight: 600, color: b.balanceType === 'Dr' ? '#a5b4fc' : '#fb7185', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {fmt(b.closingBalance)}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1851,26 +1628,76 @@ export default function RealtimeDashboardModal({
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '6px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <td style={{ padding: '6px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></span>
-                      <span>Total Inflow (Receipts)</span>
+                      <span>Total Inflow (Receipts & Inwards)</span>
                     </td>
                     <td style={{ textAlign: 'center', padding: '6px 0' }}><DrPill /></td>
-                    <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                      {fmt(calculations.inflow)}
+                    <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {fmt(calculations.totalInflow)}
                     </td>
                   </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '6px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: 'rgba(0,0,0,0.1)' }}>
+                    <td style={{ padding: '4px 0 4px 18px', color: '#cbd5e1', fontSize: 11 }}>
+                      ↳ 💵 Cash Receipts (Counter/Hand)
+                    </td>
+                    <td style={{ textAlign: 'center', padding: '4px 0' }}><DrPill /></td>
+                    <td style={{ textAlign: 'right', padding: '4px 0', fontSize: 11, color: '#6ee7b7', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {fmt(calculations.cashReceipts)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.1)' }}>
+                    <td style={{ padding: '4px 0 4px 18px', color: '#cbd5e1', fontSize: 11 }}>
+                      ↳ 🏦 Bank Receipts (NEFT/UPI/Cheque)
+                    </td>
+                    <td style={{ textAlign: 'center', padding: '4px 0' }}><DrPill /></td>
+                    <td style={{ textAlign: 'right', padding: '4px 0', fontSize: 11, color: '#a7f3d0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {fmt(calculations.bankReceipts)}
+                    </td>
+                  </tr>
+
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <td style={{ padding: '6px 0', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f43f5e' }}></span>
-                      <span>Total Outflow (Payments)</span>
+                      <span>Total Outflow (Payments & Outwards)</span>
                     </td>
                     <td style={{ textAlign: 'center', padding: '6px 0' }}><CrPill /></td>
-                    <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#fb7185', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                      {fmt(calculations.outflow)}
+                    <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 800, color: '#fb7185', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {fmt(calculations.totalOutflow)}
                     </td>
                   </tr>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: 'rgba(0,0,0,0.1)' }}>
+                    <td style={{ padding: '4px 0 4px 18px', color: '#cbd5e1', fontSize: 11 }}>
+                      ↳ 💵 Cash Payments
+                    </td>
+                    <td style={{ textAlign: 'center', padding: '4px 0' }}><CrPill /></td>
+                    <td style={{ textAlign: 'right', padding: '4px 0', fontSize: 11, color: '#fda4af', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {fmt(calculations.cashPayments)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.1)' }}>
+                    <td style={{ padding: '4px 0 4px 18px', color: '#cbd5e1', fontSize: 11 }}>
+                      ↳ 🏦 Bank Payments
+                    </td>
+                    <td style={{ textAlign: 'center', padding: '4px 0' }}><CrPill /></td>
+                    <td style={{ textAlign: 'right', padding: '4px 0', fontSize: 11, color: '#fecdd3', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {fmt(calculations.bankPayments)}
+                    </td>
+                  </tr>
+
+                  {(calculations.contraDeposits > 0 || calculations.contraWithdrawals > 0) && (
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(56, 189, 248, 0.05)' }}>
+                      <td style={{ padding: '4px 0 4px 10px', color: '#94a3b8', fontSize: 10.5 }}>
+                        🔄 Contra: Cash Dep ₹{fmt(calculations.contraDeposits)} | Withdrawn ₹{fmt(calculations.contraWithdrawals)}
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '4px 0', fontSize: 9, color: '#94a3b8' }}>Transfer</td>
+                      <td style={{ textAlign: 'right', padding: '4px 0', fontSize: 10.5, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                        {fmt(calculations.contraDeposits + calculations.contraWithdrawals)}
+                      </td>
+                    </tr>
+                  )}
+
                   <tr style={{ borderTop: '1px solid #475569', background: 'rgba(56, 189, 248, 0.1)' }}>
                     <td style={{ padding: '8px 4px', fontWeight: 700, color: '#7dd3fc' }}>Nett Cash Position</td>
                     <td style={{ textAlign: 'center', padding: '8px 0' }}>
@@ -1994,6 +1821,20 @@ export default function RealtimeDashboardModal({
                   </tr>
                 </thead>
                 <tbody>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Current Ratio (Solvency)</td>
+                    <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {calculations.currentRatio}
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '6px 0', color: '#94a3b8', fontSize: 10 }}>&gt; 1.50</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Quick Ratio (Acid-Test)</td>
+                    <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#60a5fa', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {calculations.quickRatio}
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '6px 0', color: '#94a3b8', fontSize: 10 }}>&gt; 1.00</td>
+                  </tr>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <td style={{ padding: '6px 0', color: '#f1f5f9' }}>Inventory Turnover</td>
                     <td style={{ textAlign: 'right', padding: '6px 0', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
