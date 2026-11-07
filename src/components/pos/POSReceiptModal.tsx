@@ -70,6 +70,20 @@ export default function POSReceiptModal({
     }
   }, [isOpen, autoPrint, qrCodeDataUrl]);
 
+  // Step-by-step Escape listener: closes receipt print modal safely back to counter
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handlePrint = () => {

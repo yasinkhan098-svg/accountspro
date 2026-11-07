@@ -80,6 +80,20 @@ export default function POSPaymentModal({
     return () => { active = false; };
   }, [upiPayUrl]);
 
+  // Step-by-step Escape listener: closes payment modal safely back to cart
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e?: React.FormEvent) => {

@@ -471,26 +471,119 @@ export default function POSSaleView({
     playBeep(920, 0.032, 'sine', 0.11);
   }, [playBeep]);
 
-  // Hardware Barcode Scanner listener
+  // Explicit Logout Action: Only transitions to Login Screen when cashier explicitly confirms Logout
+  const handlePerformLogout = useCallback(() => {
+    if (onLogoutToLogin) {
+      onLogoutToLogin();
+    } else {
+      onBack();
+    }
+  }, [onLogoutToLogin, onBack]);
+
+  // Master Step-by-Step Escape Handler:
+  // Exits modals, sub-views, search bars, selections step-by-step.
+  // NEVER kicks out to login screen directly until user explicitly confirms Log Out!
+  const handleStepByStepEscape = useCallback(() => {
+    // Step 1: Is Secure Mode Lock Modal open?
+    if (showSecureModal) {
+      setShowSecureModal(false);
+      setSecurePassword('');
+      resetIdleTimer();
+      return;
+    }
+
+    // Step 2: Is Payment / Checkout Modal open?
+    if (showPaymentModal) {
+      setShowPaymentModal(false);
+      return;
+    }
+
+    // Step 3: Is Bill / Receipt Print Preview Modal open?
+    if (showReceiptModal) {
+      setShowReceiptModal(false);
+      return;
+    }
+
+    // Step 4: Is Catalog Modal open?
+    if (showCatalogModal) {
+      setShowCatalogModal(false);
+      return;
+    }
+
+    // Step 5: Are any search inputs populated? Clear them first
+    if (rubicSearchQuery.trim()) {
+      setRubicSearchQuery('');
+      return;
+    }
+    if (posSearchQuery.trim()) {
+      setPosSearchQuery('');
+      return;
+    }
+    if (barcodeInput.trim()) {
+      setBarcodeInput('');
+      return;
+    }
+
+    // Step 6: Is the right pane in Catalog mode ('SALE_POS' or 'RUBIC_POS')? Step back to 'SCANNED'
+    if (rightViewMode !== 'SCANNED') {
+      setRightViewMode('SCANNED');
+      return;
+    }
+
+    // Step 7: Is a cart row selected? Deselect it
+    if (selectedCartId !== null) {
+      setSelectedCartId(null);
+      return;
+    }
+
+    // Step 8: Is an input field currently focused? Blur it to return to clean counter state
+    if (typeof document !== 'undefined' && document.activeElement && document.activeElement instanceof HTMLElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+      document.activeElement.blur();
+      return;
+    }
+
+    // Step 9: Base POS Counter screen is reached!
+    // As per user requirement: "JB TK LOG OUT NA KRE TB TK LOGING SE LOGING SCREEN NA AYE JB LOG OUT KR DE TB LOGING SCREEN AYE"
+    // Never jump to login screen directly; only prompt with explicit confirmation:
+    const confirmLogout = confirm(
+      cart.length > 0
+        ? 'Current POS cart has items.\n\nDo you want to discard cart and Log Out from POS Counter?'
+        : 'Do you want to Log Out from POS Counter?'
+    );
+    if (confirmLogout) {
+      handlePerformLogout();
+    }
+  }, [
+    showSecureModal,
+    showPaymentModal,
+    showReceiptModal,
+    showCatalogModal,
+    rubicSearchQuery,
+    posSearchQuery,
+    barcodeInput,
+    rightViewMode,
+    selectedCartId,
+    cart.length,
+    resetIdleTimer,
+    handlePerformLogout,
+  ]);
+
+  // Hardware Barcode Scanner & Global POS Keyboard listener
   useEffect(() => {
     const handleHardwareScan = (e: KeyboardEvent) => {
+      // 1. Master Step-by-Step Escape Handler (highest priority, handled before modal blocking)
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleStepByStepEscape();
+        return;
+      }
+
       if (showPaymentModal || showSecureModal || showReceiptModal || showCatalogModal) return;
 
       const now = Date.now();
       const timeDiff = now - lastKeyTimeRef.current;
       lastKeyTimeRef.current = now;
-
-      // Handle Escape to exit POS
-      if (e.key === 'Escape') {
-        if (cart.length > 0) {
-          if (confirm('Discard current POS bill and exit?')) {
-            onBack();
-          }
-        } else {
-          onBack();
-        }
-        return;
-      }
 
       // Handle F12 or Ctrl+Enter for Quick Pay
       if (e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) {
@@ -519,7 +612,7 @@ export default function POSSaleView({
 
     window.addEventListener('keydown', handleHardwareScan);
     return () => window.removeEventListener('keydown', handleHardwareScan);
-  }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal]);
+  }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal, handleStepByStepEscape]);
 
   // Process barcode lookup
   const handleProcessBarcode = (query: string) => {
@@ -1226,28 +1319,21 @@ export default function POSSaleView({
             🔒 Lock
           </button>
 
-          {/* Exit POS Button */}
+          {/* Explicit Log Out Button */}
           <button
             className="pos-touch-btn"
             onClick={() => {
-              const handleExitAction = () => {
-                if (permissionGuard.isClientSession()) {
-                  if (onLogoutToLogin) onLogoutToLogin();
-                  else onBack();
-                } else {
-                  onBack();
-                }
-              };
-
               if (cart.length > 0) {
-                if (confirm('Discard current POS cart and switch cashier / exit?')) {
-                  handleExitAction();
+                if (confirm('Current POS cart has items.\n\nDo you want to discard cart and Log Out?')) {
+                  handlePerformLogout();
                 }
               } else {
-                handleExitAction();
+                if (confirm('Are you sure you want to Log Out of POS Counter?')) {
+                  handlePerformLogout();
+                }
               }
             }}
-            title="Exit POS Terminal (Esc)"
+            title="Log Out Cashier (Return to Login Screen)"
             style={{
               background: 'linear-gradient(180deg, #f87171 0%, #dc2626 60%, #991b1b 100%)',
               color: '#ffffff',
@@ -1264,7 +1350,7 @@ export default function POSSaleView({
               gap: 4,
             }}
           >
-            ✕ Exit (Esc)
+            🚪 Log Out
           </button>
         </div>
       </div>
@@ -2375,8 +2461,7 @@ export default function POSSaleView({
         onCancelToLogin={() => {
           setShowSecureModal(false);
           setSecurePassword('');
-          if (onLogoutToLogin) onLogoutToLogin();
-          else onBack();
+          resetIdleTimer();
         }}
         onAuthorize={async pwd => {
           const cleanPwd = pwd.trim();

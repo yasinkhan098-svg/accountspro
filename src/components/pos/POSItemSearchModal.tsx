@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface POSItemSearchModalProps {
   isOpen: boolean;
@@ -16,6 +16,20 @@ export default function POSItemSearchModal({
 }: POSItemSearchModalProps) {
   const [search, setSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('ALL');
+
+  // Step-by-step Escape listener: closes catalog modal safely back to counter
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
