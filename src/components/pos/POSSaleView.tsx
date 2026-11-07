@@ -127,10 +127,11 @@ export default function POSSaleView({
     statusText: string;
     isDone: boolean;
   } | null>(null);
+  const aiImagesStorageKey = `ledgerx_stock_item_ai_images_${companyCode}`;
   const [aiImagesMap, setAiImagesMap] = useState<Record<string, string>>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem('ledgerx_stock_item_ai_images');
+        const stored = localStorage.getItem(`ledgerx_stock_item_ai_images_${companyCode}`) || localStorage.getItem('ledgerx_stock_item_ai_images');
         if (stored) return JSON.parse(stored);
       } catch (e) { }
     }
@@ -247,11 +248,18 @@ export default function POSSaleView({
     }).catch(() => { });
   }, [posPurchaseList, companyCode]);
 
-  // Unified Catalog: Stock items merged with Purchase POS List
+  // Unified Catalog: Stock items merged with Purchase POS List strictly for this company
   // Guarantees that every item in POS Sale (and barcode scanning) uses Retail Sale Price, MRP & Discount from Purchase POS List
   const catalogItems = useMemo(() => {
-    const list = Array.isArray(stockItems) ? [...stockItems] : [];
-    const posList = Array.isArray(activePOSPurchaseList) ? activePOSPurchaseList : [];
+    const list = (Array.isArray(stockItems) ? stockItems : []).filter(si => {
+      if (!company?.id) return true;
+      return !si.companyId || Number(si.companyId) === Number(company.id);
+    });
+    const posList = (Array.isArray(activePOSPurchaseList) ? activePOSPurchaseList : []).filter((p: any) => {
+      if (p.companyId && company?.id && Number(p.companyId) !== Number(company.id)) return false;
+      if (p.companyCode && companyCode && String(p.companyCode).toUpperCase().trim() !== companyCode) return false;
+      return true;
+    });
 
     const merged = list.map(si => {
       const targetId = Number(si.id);
@@ -495,7 +503,7 @@ export default function POSSaleView({
       // Save to localStorage & state
       setAiImagesMap(currentMap);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(currentMap));
+        localStorage.setItem(aiImagesStorageKey, JSON.stringify(currentMap));
       }
 
       // Show completion in green strip
@@ -540,7 +548,7 @@ export default function POSSaleView({
         };
         setAiImagesMap(updatedMap);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
+          localStorage.setItem(aiImagesStorageKey, JSON.stringify(updatedMap));
         }
         setManagingImageItem(null);
       }
@@ -563,7 +571,7 @@ export default function POSSaleView({
     };
     setAiImagesMap(updatedMap);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
+      localStorage.setItem(aiImagesStorageKey, JSON.stringify(updatedMap));
     }
     setManagingImageItem(null);
   };
@@ -579,7 +587,7 @@ export default function POSSaleView({
     delete updatedMap[keyByName];
     setAiImagesMap(updatedMap);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
+      localStorage.setItem(aiImagesStorageKey, JSON.stringify(updatedMap));
     }
     setManagingImageItem(null);
   };
@@ -2982,20 +2990,7 @@ export default function POSSaleView({
             }
           } catch (e) { }
 
-          // 5. Also check global users in data/users.json
-          try {
-            const globalUsers = await lanUserManagementService.getUsers('10000');
-            if (Array.isArray(globalUsers)) {
-              for (const u of globalUsers) {
-                if (u.password && (u.password.trim() === cleanPwd || u.password.trim().toLowerCase() === cleanPwd.toLowerCase())) {
-                  setSecurePassword('');
-                  return true;
-                }
-              }
-            }
-          } catch (e) { }
-
-          // 6. Check company master password / PIN if set
+          // 5. Check company master password / PIN if set
           if (company?.password && String(company.password).trim() === cleanPwd) {
             setSecurePassword('');
             return true;

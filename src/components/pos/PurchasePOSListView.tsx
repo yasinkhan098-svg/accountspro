@@ -26,6 +26,7 @@ export interface POSPurchaseItem {
 
 interface PurchasePOSListViewProps {
   company: any;
+  availableCompanies?: any[];
   stockItems: any[];
   vouchers: any[];
   onBack: () => void;
@@ -38,6 +39,7 @@ const EDITABLE_COLS_COUNT = 8;
 
 export default function PurchasePOSListView({
   company,
+  availableCompanies = [],
   stockItems = [],
   vouchers = [],
   onBack,
@@ -61,7 +63,9 @@ export default function PurchasePOSListView({
   const itemsRef = useRef<POSPurchaseItem[]>([]);
   itemsRef.current = items;
 
-  const companyCode = (company?.companyCode || '10000').toUpperCase().trim();
+  const companyCode = company
+    ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies)
+    : (company?.companyCode || '10000').toUpperCase().trim();
   const companyId = company?.id || 0;
   const storageKey = `ledgerx_pos_purchase_list_${companyCode}`;
 
@@ -143,9 +147,16 @@ export default function PurchasePOSListView({
     if (!currentItems || currentItems.length === 0) return;
     setSaveStatus('saving');
     try {
+      // Stamp every item with companyId and companyCode
+      const stampedItems = currentItems.map(it => ({
+        ...it,
+        companyId: companyId,
+        companyCode: companyCode,
+      }));
+
       // A. Save to LocalStorage immediately
       if (typeof window !== 'undefined') {
-        localStorage.setItem(storageKey, JSON.stringify(currentItems));
+        localStorage.setItem(storageKey, JSON.stringify(stampedItems));
       }
 
       // B. Save to Database API /api/pos/purchase-list (both online Turso DB + offline JSON)
@@ -156,7 +167,7 @@ export default function PurchasePOSListView({
           body: JSON.stringify({
             companyId: companyId,
             companyCode: companyCode,
-            items: currentItems,
+            items: stampedItems,
           }),
         });
       } catch (err) {
@@ -167,7 +178,7 @@ export default function PurchasePOSListView({
       try {
         await companyDataFolderService.saveCompanyFolder({
           companyCode,
-          posPurchaseList: currentItems,
+          posPurchaseList: stampedItems,
         });
       } catch (err) {
         console.warn("Folder service save error:", err);
@@ -175,11 +186,16 @@ export default function PurchasePOSListView({
 
       // D. Merge updated fields back into stockItems for POS Sale
       if (onStockUpdated) {
-        const updatedStockItems = (stockItems || []).map(si => {
+        const scopedStockItems = (stockItems || []).filter(si => {
+          if (!companyId) return true;
+          return !si.companyId || Number(si.companyId) === Number(companyId);
+        });
+        const updatedStockItems = scopedStockItems.map(si => {
           const found = currentItems.find(it => it.id === si.id || it.name.trim().toLowerCase() === (si.name || '').trim().toLowerCase());
           if (found) {
             return {
               ...si,
+              companyId: companyId || si.companyId,
               barcode: found.barcode,
               mrp: found.mrp,
               discountPerc: found.discountPerc,
@@ -218,15 +234,22 @@ export default function PurchasePOSListView({
     const assignedBarcodes: string[] = [];
     const savedMap = new Map<string, any>();
 
-    // Index saved items by ID and by lowercased name
+    // Index saved items by ID and by lowercased name (strictly for this company)
     (savedData || []).forEach(s => {
       if (!s) return;
+      if (s.companyId && companyId && Number(s.companyId) !== Number(companyId)) return;
+      if (s.companyCode && companyCode && String(s.companyCode).toUpperCase().trim() !== companyCode) return;
       if (s.id !== undefined) savedMap.set(String(s.id), s);
       if (s.name) savedMap.set(String(s.name).trim().toLowerCase(), s);
     });
 
-    // 1. Process items from stockItems
-    const built: POSPurchaseItem[] = (stockItems || []).map((si, idx) => {
+    // 1. Process items from stockItems strictly belonging to this company
+    const scopedStockItems = (stockItems || []).filter(si => {
+      if (!companyId) return true;
+      return !si.companyId || Number(si.companyId) === Number(companyId);
+    });
+
+    const built: POSPurchaseItem[] = scopedStockItems.map((si, idx) => {
       const saved = savedMap.get(String(si.id)) || savedMap.get((si.name || '').trim().toLowerCase()) || {};
       const { purchasePrice, newPurchasePrice } = resolvePurchasePrices(si);
       const liveStock = calculateLiveStock(si);
@@ -297,6 +320,8 @@ export default function PurchasePOSListView({
     // 2. Also preserve any custom inserted items that were in savedData but not in stockItems
     (savedData || []).forEach(s => {
       if (!s) return;
+      if (s.companyId && companyId && Number(s.companyId) !== Number(companyId)) return;
+      if (s.companyCode && companyCode && String(s.companyCode).toUpperCase().trim() !== companyCode) return;
       const alreadyIncluded = built.some(b => b.id === s.id || b.name.trim().toLowerCase() === (s.name || '').trim().toLowerCase());
       if (!alreadyIncluded && s.name) {
         built.push({
@@ -322,7 +347,7 @@ export default function PurchasePOSListView({
     });
 
     return built;
-  }, [stockItems, calculateLiveStock, resolvePurchasePrices]);
+  }, [stockItems, companyId, companyCode, calculateLiveStock, resolvePurchasePrices]);
 
   // 4. Initial load from LocalStorage and Database API
   useEffect(() => {
@@ -350,8 +375,13 @@ export default function PurchasePOSListView({
     fetch(fetchApiUrl)
       .then(res => res.json())
       .then(data => {
-        if (data.success && Array.isArray(data.items) && data.items.length > 0) {
-          const freshBuilt = buildItemsList(data.items);
+        if (data.success && Array.isArray(data.items)) {
+          const companySpecificItems = data.items.filter((it: any) => {
+            if (it.companyId && companyId && Number(it.companyId) !== Number(companyId)) return false;
+            if (it.companyCode && companyCode && String(it.companyCode).toUpperCase().trim() !== companyCode) return false;
+            return true;
+          });
+          const freshBuilt = buildItemsList(companySpecificItems);
           setItems(freshBuilt);
           if (typeof window !== 'undefined') {
             localStorage.setItem(storageKey, JSON.stringify(freshBuilt));

@@ -41,6 +41,7 @@ class LANUserManagementService {
         localStorage.setItem('ledgerx_active_company_code', code.trim().toUpperCase());
       } catch (e) {}
     }
+    this.companyUsersCache.clear();
   }
 
   /**
@@ -175,28 +176,29 @@ class LANUserManagementService {
       }
     } catch (_) {}
 
-    // 4. Also scan global users across all companies (e.g. Amir001)
-    const globalUsers = this.getAllUsersAcrossCompanies();
-    for (const gu of globalUsers) {
-      if (
-        !gu.assignedCompanyCodes ||
-        gu.assignedCompanyCodes.length === 0 ||
-        gu.assignedCompanyCodes.includes(code)
-      ) {
-        collectedUsers.push(gu);
+    // 4. Strictly filter collected users to this company:
+    // A user belongs to this company ONLY if assignedCompanyCodes is either:
+    // a) contains this code, or
+    // b) is empty/undefined AND the user was locally loaded from this company's storage
+    // NEVER pull in users created in other companies!
+    const companyScopedUsers = collectedUsers.filter(u => {
+      if (!u || !u.username) return false;
+      if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
+        return u.assignedCompanyCodes.includes(code);
       }
-    }
+      return true;
+    });
 
     // 5. Intelligent Merge: unique by username.toLowerCase()
     const mergedMap = new Map<string, LANUser>();
-    for (const u of collectedUsers) {
+    for (const u of companyScopedUsers) {
       if (u && u.username) {
         const key = u.username.trim().toLowerCase();
         // If already present, preserve the one with full properties
         if (!mergedMap.has(key)) {
-          mergedMap.set(key, u);
+          mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
         } else {
-          mergedMap.set(key, { ...mergedMap.get(key)!, ...u });
+          mergedMap.set(key, { ...mergedMap.get(key)!, ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
         }
       }
     }
@@ -397,18 +399,6 @@ class LANUserManagementService {
   private saveToLocalStorage(companyCode: string, users: LANUser[]) {
     try {
       localStorage.setItem(`ledgerx_lan_users_${companyCode}`, JSON.stringify(users));
-      localStorage.setItem('ledgerx_lan_users_cache', JSON.stringify(users));
-
-      // Also upsert into global ledgerx_all_users registry
-      let allUsers: LANUser[] = [];
-      try {
-        const raw = localStorage.getItem('ledgerx_all_users');
-        if (raw) allUsers = JSON.parse(raw);
-      } catch (_) {}
-      const userMap = new Map<string, LANUser>();
-      allUsers.forEach(u => { if (u && u.username) userMap.set(u.username.toLowerCase(), u); });
-      users.forEach(u => { if (u && u.username) userMap.set(u.username.toLowerCase(), u); });
-      localStorage.setItem('ledgerx_all_users', JSON.stringify(Array.from(userMap.values())));
     } catch (_) {}
   }
 

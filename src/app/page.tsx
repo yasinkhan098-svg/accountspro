@@ -2146,6 +2146,7 @@ export default function App() {
         setScreen('POS_SALE');
       } else {
         // Force return to Gateway whenever active company changes (selection, opening, creation)
+        permissionGuard.setCurrentUser(null);
         setScreen('GATEWAY_MAIN');
       }
       setHistory([]);
@@ -4711,10 +4712,17 @@ export default function App() {
               permissionGuard.canAccessScreen('PURCHASE_POS_LIST') ? (
                 <PurchasePOSListView
                   company={activeCompany}
-                  stockItems={allStockItems}
-                  vouchers={allVouchers}
+                  availableCompanies={companies}
+                  stockItems={stockItems}
+                  vouchers={vouchers}
                   onBack={goBack}
-                  onStockUpdated={updated => setAllStockItems(updated)}
+                  onStockUpdated={updated => {
+                    setAllStockItems(prev => {
+                      const cid = Number(activeCompany?.id || 0);
+                      const others = prev.filter(si => Number(si.companyId) !== cid);
+                      return [...others, ...updated];
+                    });
+                  }}
                 />
               ) : (
                 <div style={{ padding: '60px 20px', textAlign: 'center', color: '#dc2626', background: '#ffffff', minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -4733,12 +4741,24 @@ export default function App() {
               <POSWorkflowContainer
                 company={activeCompany}
                 availableCompanies={companies}
-                stockItems={allStockItems}
-                ledgers={allLedgers}
-                vouchers={allVouchers}
+                stockItems={stockItems}
+                ledgers={ledgers}
+                vouchers={vouchers}
                 onBack={goBack}
-                onStockUpdated={updated => setAllStockItems(updated)}
-                onVouchersUpdated={updated => setAllVouchers(updated)}
+                onStockUpdated={updated => {
+                  setAllStockItems(prev => {
+                    const cid = Number(activeCompany?.id || 0);
+                    const others = prev.filter(si => Number(si.companyId) !== cid);
+                    return [...others, ...updated];
+                  });
+                }}
+                onVouchersUpdated={updated => {
+                  setAllVouchers(prev => {
+                    const cid = Number(activeCompany?.id || 0);
+                    const others = prev.filter(v => Number(v.companyId) !== cid);
+                    return [...others, ...updated];
+                  });
+                }}
               />
             )}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}

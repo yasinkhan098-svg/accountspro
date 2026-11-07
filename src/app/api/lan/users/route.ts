@@ -118,39 +118,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, companyCode: code, users: mergedList });
     }
 
-    // 2.5 Fallback: Check root users.json (%LocalAppData%\LedgerX\data\users.json)
-    try {
-      const rootCandidates: string[] = [];
-      if (process.env.LOCALAPPDATA) {
-        rootCandidates.push(path.join(process.env.LOCALAPPDATA, 'LedgerX', 'data', 'users.json'));
-      }
-      rootCandidates.push(path.join(process.cwd(), 'data', 'users.json'));
-      for (const rp of rootCandidates) {
-        if (fs.existsSync(rp)) {
-          const rootRaw = fs.readFileSync(rp, 'utf-8');
-          const rootParsed = JSON.parse(rootRaw);
-          if (Array.isArray(rootParsed) && rootParsed.length > 0) {
-            rootParsed.forEach((u: any) => {
-              if (u && u.username) userMap.set(u.username.toLowerCase(), u);
-            });
-            break;
-          }
-        }
-      }
-    } catch (_) {}
-
-    if (userMap.size > 0) {
-      const mergedList = Array.from(userMap.values());
-      cloudUsersCache.set(code, mergedList);
-      return NextResponse.json({ success: true, companyCode: code, users: mergedList });
-    }
-
     // 3. Check cloud memory cache
     if (cloudUsersCache.has(code) && cloudUsersCache.get(code)!.length > 0) {
       return NextResponse.json({ success: true, companyCode: code, users: cloudUsersCache.get(code) });
     }
 
-    // 4. Return default starter admin and cashier users
+    // 4. Return default starter admin and cashier users specific to this company
     const defaultUsers = [
       {
         id: `usr_admin_${code}`,
@@ -218,33 +191,6 @@ export async function POST(req: Request) {
         }
         const file = path.join(d, 'users.json');
         fs.writeFileSync(file, JSON.stringify(users, null, 2), 'utf-8');
-      }
-
-      // Also update root master users.json
-      const rootDirs: string[] = [];
-      if (process.env.LOCALAPPDATA) {
-        rootDirs.push(path.join(process.env.LOCALAPPDATA, 'LedgerX', 'data'));
-      }
-      rootDirs.push(path.join(process.cwd(), 'data'));
-      for (const rd of rootDirs) {
-        const rootFile = path.join(rd, 'users.json');
-        let existingMaster: any[] = [];
-        if (fs.existsSync(rootFile)) {
-          try {
-            existingMaster = JSON.parse(fs.readFileSync(rootFile, 'utf-8'));
-          } catch (_) {}
-        }
-        const masterMap = new Map<string, any>();
-        if (Array.isArray(existingMaster)) {
-          existingMaster.forEach((u: any) => {
-            if (u && u.username) masterMap.set(u.username.toLowerCase(), u);
-          });
-        }
-        users.forEach((u: any) => {
-          if (u && u.username) masterMap.set(u.username.toLowerCase(), u);
-        });
-        if (!fs.existsSync(rd)) fs.mkdirSync(rd, { recursive: true });
-        fs.writeFileSync(rootFile, JSON.stringify(Array.from(masterMap.values()), null, 2), 'utf-8');
       }
     } catch (fsErr) {
       console.warn("Local users file write error (non-fatal):", fsErr);

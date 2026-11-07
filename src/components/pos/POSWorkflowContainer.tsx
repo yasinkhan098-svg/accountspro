@@ -146,6 +146,7 @@ export default function POSWorkflowContainer({
     return (
       <PurchasePOSListView
         company={isTrainingMode ? (trainingPkg?.company || TRAINING_COMPANY) : company}
+        availableCompanies={isTrainingMode ? [] : availableCompanies}
         stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : stockItems}
         vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : vouchers}
         onBack={() => setWorkflowState('SALES')}
