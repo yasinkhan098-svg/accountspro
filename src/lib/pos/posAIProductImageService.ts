@@ -14,20 +14,23 @@
 export const posAIProductImageService = {
   isLegacyAIImage(url?: string): boolean {
     if (!url) return false;
-    // Upgrade if older than v6
-    return !url.includes('ai-product-v6');
+    // Upgrade if older than v7
+    return !url.includes('ai-product-v7');
   },
 
   generateImage(item: any): string {
     const rawName = String(item?.name || item?.itemName || '').trim();
     const name = rawName.toUpperCase();
+    const rawVariant = String(item?.variant || (Array.isArray(item?.variants) && item?.variants[0]) || item?.stockGroup || item?.group || item?.category || '').trim();
+    const variant = rawVariant.toUpperCase();
     const idStr = String(item?.id || Math.random()).replace(/[^a-zA-Z0-9]/g, '');
     const cleanTitle = rawName.slice(0, 18);
+    const context = `${variant} ${name}`;
 
     // Standard wrapper: 160x160 SVG with soft backdrop, drop shadow and vibrant floating name pill
     const wrapSvg = (artContent: string, badgeBg = '#0f172a', badgeText = cleanTitle, bgTint = '#f8fafc') => {
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
-  <!-- ai-product-v6 -->
+  <!-- ai-product-v7 -->
   <defs>
     <filter id="f_${idStr}" x="-10%" y="-10%" width="130%" height="130%">
       <feDropShadow dx="0" dy="4.5" stdDeviation="3.8" flood-color="#0f172a" flood-opacity="0.28" />
@@ -527,6 +530,80 @@ export const posAIProductImageService = {
       <rect x="84" y="36" width="6" height="8" rx="1" fill="#1e293b" />
       <text x="80" y="82" font-size="7" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">USB 3.0</text>`;
       return wrapSvg(art, '#0369a1', '🔌 ' + cleanTitle, '#f0f9ff');
+    }
+
+    // --- Cooling Fan / CPU Fan / Cabinet Fan / M Fan ---
+    if (
+      name.includes('M FAN') ||
+      name.includes('FAN') ||
+      name.includes('COOLER') ||
+      context.includes('COOLING') ||
+      (variant.includes('COMPUTER') && name.includes('FAN'))
+    ) {
+      const art = `
+      <defs>
+        <linearGradient id="fanFrame_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#334155" />
+          <stop offset="50%" stop-color="#1e293b" />
+          <stop offset="100%" stop-color="#0f172a" />
+        </linearGradient>
+      </defs>
+      <!-- Square Outer Fan Housing -->
+      <rect x="36" y="36" width="88" height="88" rx="8" fill="url(#fanFrame_${idStr})" stroke="#0284c7" stroke-width="1.6" />
+      <!-- Mounting Screw Holes at 4 corners -->
+      <circle cx="44" cy="44" r="3.5" fill="#f8fafc" stroke="#475569" stroke-width="0.8" />
+      <circle cx="116" cy="44" r="3.5" fill="#f8fafc" stroke="#475569" stroke-width="0.8" />
+      <circle cx="44" cy="116" r="3.5" fill="#f8fafc" stroke="#475569" stroke-width="0.8" />
+      <circle cx="116" cy="116" r="3.5" fill="#f8fafc" stroke="#475569" stroke-width="0.8" />
+      <!-- Inner Circular Vent & RGB Neon Ring -->
+      <circle cx="80" cy="80" r="36" fill="#020617" stroke="#38bdf8" stroke-width="2.5" />
+      <circle cx="80" cy="80" r="32" fill="#0f172a" />
+      <!-- Central Motor Hub -->
+      <circle cx="80" cy="80" r="13" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5" />
+      <circle cx="80" cy="80" r="5" fill="#38bdf8" />
+      <!-- Curved Aerodynamic Fan Blades -->
+      <path d="M 80 67 C 72 52, 92 48, 80 44 C 68 52, 74 65, 80 67 Z" fill="#64748b" />
+      <path d="M 80 93 C 72 108, 92 112, 80 116 C 68 108, 74 95, 80 93 Z" fill="#64748b" />
+      <path d="M 67 80 C 52 72, 48 92, 44 80 C 52 68, 65 74, 67 80 Z" fill="#64748b" />
+      <path d="M 93 80 C 108 72, 112 92, 116 80 C 108 68, 95 74, 93 80 Z" fill="#64748b" />
+      <path d="M 70 70 C 58 60, 70 50, 56 56 C 60 70, 68 68, 70 70 Z" fill="#64748b" />
+      <path d="M 90 90 C 102 100, 90 110, 104 104 C 100 90, 92 92, 90 90 Z" fill="#64748b" />
+      <path d="M 70 90 C 60 102, 50 90, 56 104 C 70 100, 68 92, 70 90 Z" fill="#64748b" />
+      <path d="M 90 70 C 100 58, 90 48, 104 54 C 90 60, 92 68, 90 70 Z" fill="#64748b" />`;
+      return wrapSvg(art, '#0284c7', '💨 ' + cleanTitle, '#f0f9ff');
+    }
+
+    // --- DVD Writer / Optical Disc Drive ---
+    if (
+      name.includes('DVD') ||
+      name.includes('CD') ||
+      name.includes('WRITER') ||
+      name.includes('OPTICAL') ||
+      name.includes('BLURAY')
+    ) {
+      const art = `
+      <defs>
+        <linearGradient id="dvdBody_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#cbd5e1" />
+          <stop offset="50%" stop-color="#94a3b8" />
+          <stop offset="100%" stop-color="#475569" />
+        </linearGradient>
+      </defs>
+      <!-- Metallic 5.25 Inch Optical Drive Enclosure -->
+      <rect x="30" y="46" width="100" height="68" rx="5" fill="url(#dvdBody_${idStr})" stroke="#334155" stroke-width="1.6" />
+      <!-- Top Cover Stamping Indentations -->
+      <rect x="42" y="52" width="76" height="20" rx="2" fill="none" stroke="#64748b" stroke-width="1" />
+      <!-- Front Loading Tray Bezel Faceplate -->
+      <rect x="28" y="76" width="104" height="34" rx="3" fill="#0f172a" stroke="#1e293b" stroke-width="1.4" />
+      <!-- Sliding Disc Tray Seam -->
+      <rect x="34" y="80" width="92" height="18" rx="2" fill="#1e293b" stroke="#334155" stroke-width="0.8" />
+      <text x="56" y="92" font-size="6.5" font-weight="900" fill="#cbd5e1" font-family="sans-serif">DVD R/RW</text>
+      <!-- Activity Green LED & Eject Button -->
+      <circle cx="106" cy="90" r="2" fill="#22c55e" />
+      <rect x="112" y="86" width="10" height="7" rx="1.5" fill="#475569" stroke="#64748b" stroke-width="0.8" />
+      <!-- Emergency Pin Hole -->
+      <circle cx="100" cy="90" r="0.8" fill="#ffffff" />`;
+      return wrapSvg(art, '#334155', '💿 ' + cleanTitle, '#f8fafc');
     }
 
     // =========================================================================
@@ -1703,6 +1780,180 @@ export const posAIProductImageService = {
       <circle cx="80" cy="80" r="14" fill="#0f172a" stroke="#ffffff" stroke-width="2" />
       <text x="80" y="83" font-size="7" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">ROLL</text>`;
       return wrapSvg(art, '#312e81', '📦 ' + cleanTitle, '#eef2ff');
+    }
+
+    // =========================================================================
+    // ================= 6B. CONSTRUCTION, STEEL & BUILDING MATERIALS =========
+    // =========================================================================
+
+    // --- Cement Bags (50 KG) ---
+    if (
+      name.includes('CEMENT') ||
+      name.includes('ULTRATECH') ||
+      name.includes('ACC ') ||
+      name.includes('AMBUJA') ||
+      name.includes('BIRLA') ||
+      (variant.includes('CEMENT') || variant.includes('CONSTRUCTION'))
+    ) {
+      const art = `
+      <defs>
+        <linearGradient id="cementGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f8fafc" />
+          <stop offset="45%" stop-color="#e2e8f0" />
+          <stop offset="100%" stop-color="#94a3b8" />
+        </linearGradient>
+      </defs>
+      <!-- 50KG Woven Poly Cement Bag -->
+      <path d="M 46 44 L 114 44 L 118 118 C 118 123, 42 123, 42 118 Z" fill="url(#cementGrad_${idStr})" stroke="#475569" stroke-width="1.6" />
+      <line x1="46" y1="48" x2="114" y2="48" stroke="#dc2626" stroke-width="2" stroke-dasharray="4 2" />
+      <line x1="42" y1="114" x2="118" y2="114" stroke="#dc2626" stroke-width="2" stroke-dasharray="4 2" />
+      <rect x="52" y="60" width="56" height="38" rx="4" fill="#dc2626" stroke="#991b1b" stroke-width="1" />
+      <text x="80" y="74" font-size="8.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">CEMENT</text>
+      <text x="80" y="84" font-size="6" font-weight="800" fill="#fef08a" text-anchor="middle" font-family="sans-serif">50 KG NETT</text>
+      <circle cx="80" cy="91" r="3.5" fill="#ffffff" />
+      <rect x="88" y="100" width="18" height="9" rx="1.5" fill="#1e293b" />
+      <text x="97" y="106.5" font-size="5" font-weight="900" fill="#ffffff" text-anchor="middle">ISI</text>`;
+      return wrapSvg(art, '#b91c1c', '🧱 ' + cleanTitle, '#f8fafc');
+    }
+
+    // --- TMT Rebar / Steel Rods ---
+    if (
+      name.includes('TMT') ||
+      name.includes('BAR') ||
+      name.includes('SARIA') ||
+      name.includes('REBAR') ||
+      name.includes('STEEL ROD') ||
+      name.includes('IRON ROD')
+    ) {
+      const art = `
+      <defs>
+        <linearGradient id="tmtGrad_${idStr}" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#94a3b8" />
+          <stop offset="50%" stop-color="#64748b" />
+          <stop offset="100%" stop-color="#334155" />
+        </linearGradient>
+      </defs>
+      <!-- Heavy Ribbed Steel TMT Rebars Bundle -->
+      <rect x="36" y="58" width="88" height="12" rx="3" fill="url(#tmtGrad_${idStr})" stroke="#1e293b" stroke-width="1.2" />
+      <rect x="36" y="74" width="88" height="12" rx="3" fill="url(#tmtGrad_${idStr})" stroke="#1e293b" stroke-width="1.2" />
+      <rect x="36" y="90" width="88" height="12" rx="3" fill="url(#tmtGrad_${idStr})" stroke="#1e293b" stroke-width="1.2" />
+      <!-- Diagonal Rib Grips on Bars -->
+      <g stroke="#ffffff" stroke-width="1.6" opacity="0.6">
+        <line x1="46" y1="58" x2="52" y2="70" /><line x1="60" y1="58" x2="66" y2="70" /><line x1="74" y1="58" x2="80" y2="70" /><line x1="88" y1="58" x2="94" y2="70" /><line x1="102" y1="58" x2="108" y2="70" />
+        <line x1="46" y1="74" x2="52" y2="86" /><line x1="60" y1="74" x2="66" y2="86" /><line x1="74" y1="74" x2="80" y2="86" /><line x1="88" y1="74" x2="94" y2="86" /><line x1="102" y1="74" x2="108" y2="86" />
+        <line x1="46" y1="90" x2="52" y2="102" /><line x1="60" y1="90" x2="66" y2="102" /><line x1="74" y1="90" x2="80" y2="102" /><line x1="88" y1="90" x2="94" y2="102" /><line x1="102" y1="90" x2="108" y2="102" />
+      </g>
+      <!-- Blue Steel Strapping Binding Bands -->
+      <rect x="52" y="54" width="8" height="52" rx="1.5" fill="#0284c7" stroke="#0369a1" stroke-width="0.8" />
+      <rect x="100" y="54" width="8" height="52" rx="1.5" fill="#0284c7" stroke="#0369a1" stroke-width="0.8" />
+      <rect x="66" y="66" width="28" height="16" rx="2" fill="#eab308" stroke="#ca8a04" stroke-width="0.8" />
+      <text x="80" y="77" font-size="6" font-weight="900" fill="#78350f" text-anchor="middle">Fe 550D</text>`;
+      return wrapSvg(art, '#334155', '🏗️ ' + cleanTitle, '#f8fafc');
+    }
+
+    // --- Aluminium Section / Architectural Channel ---
+    if (
+      name.includes('ALUMIN') ||
+      name.includes('SECTION') ||
+      name.includes('SACTION') ||
+      name.includes('CHANNEL') ||
+      name.includes('PROFILE') ||
+      name.includes('EXTRUSION')
+    ) {
+      const art = `
+      <defs>
+        <linearGradient id="alumGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="30%" stop-color="#e2e8f0" />
+          <stop offset="70%" stop-color="#94a3b8" />
+          <stop offset="100%" stop-color="#64748b" />
+        </linearGradient>
+      </defs>
+      <!-- 3D Hollow Extruded Architectural Aluminium Box Section -->
+      <path d="M 42 66 L 82 42 L 122 66 L 82 90 Z" fill="#ffffff" stroke="#64748b" stroke-width="1.4" />
+      <path d="M 54 66 L 82 50 L 110 66 L 82 82 Z" fill="#334155" stroke="#475569" stroke-width="1" />
+      <path d="M 42 66 L 82 90 L 82 118 L 42 94 Z" fill="url(#alumGrad_${idStr})" stroke="#475569" stroke-width="1.4" />
+      <path d="M 82 90 L 122 66 L 122 94 L 82 118 Z" fill="#64748b" stroke="#334155" stroke-width="1.4" />
+      <line x1="58" y1="76" x2="58" y2="104" stroke="#ffffff" stroke-width="2" opacity="0.6" stroke-linecap="round" />
+      <text x="80" y="110" font-size="6" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">ANODIZED</text>`;
+      return wrapSvg(art, '#475569', '📐 ' + cleanTitle, '#f8fafc');
+    }
+
+    // =========================================================================
+    // ================= 6C. VARIANT GROUP CONTEXTUAL FALLBACKS ===============
+    // =========================================================================
+    // 1. Computer Hardware / Electronics Variant Group
+    if (
+      variant.includes('COMPUTER') ||
+      variant.includes('HARDWARE') ||
+      variant.includes('ELECTRONIC') ||
+      variant.includes('IT ') ||
+      variant.includes('PC ')
+    ) {
+      const art = `
+      <defs>
+        <linearGradient id="hwGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" />
+          <stop offset="50%" stop-color="#0284c7" />
+          <stop offset="100%" stop-color="#0f172a" />
+        </linearGradient>
+      </defs>
+      <!-- High-Tech Hardware Component PCB Box with Golden Contacts -->
+      <rect x="36" y="42" width="88" height="76" rx="6" fill="#0f172a" stroke="#0284c7" stroke-width="1.6" />
+      <rect x="42" y="48" width="76" height="42" rx="3" fill="#1e293b" />
+      <rect x="68" y="56" width="24" height="24" rx="2" fill="#0f172a" stroke="#38bdf8" stroke-width="1" />
+      <circle cx="80" cy="68" r="5" fill="#38bdf8" />
+      <line x1="48" y1="68" x2="68" y2="68" stroke="#38bdf8" stroke-width="1.2" />
+      <line x1="92" y1="68" x2="112" y2="68" stroke="#38bdf8" stroke-width="1.2" />
+      <line x1="80" y1="48" x2="80" y2="56" stroke="#38bdf8" stroke-width="1.2" />
+      <line x1="80" y1="80" x2="80" y2="90" stroke="#38bdf8" stroke-width="1.2" />
+      <text x="80" y="104" font-size="7.5" font-weight="900" fill="#38bdf8" text-anchor="middle" font-family="monospace">HARDWARE</text>
+      <rect x="46" y="118" width="68" height="4" fill="#facc15" />`;
+      return wrapSvg(art, '#0284c7', '💻 ' + cleanTitle, '#f0f9ff');
+    }
+
+    // 2. Fresh Vegetables Variant Group
+    if (variant.includes('VEG') || variant.includes('SABZI') || variant.includes('PRODUCE')) {
+      const art = `
+      <circle cx="80" cy="80" r="36" fill="#15803d" stroke="#14532d" stroke-width="1.4" />
+      <ellipse cx="68" cy="68" rx="14" ry="8" fill="#4ade80" />
+      <ellipse cx="92" cy="72" rx="12" ry="7" fill="#86efac" />
+      <circle cx="80" cy="84" r="14" fill="#22c55e" />
+      <path d="M 80 44 Q 80 24 86 20" stroke="#16a34a" stroke-width="3" fill="none" stroke-linecap="round" />`;
+      return wrapSvg(art, '#15803d', '🥦 ' + cleanTitle, '#f0fdf4');
+    }
+
+    // 3. Fruits Variant Group
+    if (variant.includes('FRUIT') || variant.includes('FAL')) {
+      const art = `
+      <circle cx="70" cy="82" r="26" fill="#ef4444" stroke="#b91c1c" stroke-width="1.2" />
+      <circle cx="94" cy="78" r="24" fill="#f97316" stroke="#c2410c" stroke-width="1.2" />
+      <ellipse cx="64" cy="74" rx="8" ry="4" fill="#ffffff" opacity="0.6" />
+      <path d="M 70 56 Q 74 44 80 40" stroke="#78350f" stroke-width="2.5" fill="none" stroke-linecap="round" />
+      <path d="M 80 44 Q 92 38 94 48 Z" fill="#22c55e" />`;
+      return wrapSvg(art, '#c2410c', '🍎 ' + cleanTitle, '#fff7ed');
+    }
+
+    // 4. Grains & Pulses Variant Group
+    if (variant.includes('GRAIN') || variant.includes('DAL') || variant.includes('PULSE') || variant.includes('KIRANA') || variant.includes('GROCERY')) {
+      const art = `
+      <path d="M 50 46 L 110 46 L 116 118 C 116 123, 44 123, 44 118 Z" fill="#d97706" stroke="#92400e" stroke-width="1.4" />
+      <rect x="46" y="40" width="68" height="8" rx="2" fill="#b45309" />
+      <circle cx="80" cy="80" r="16" fill="#ffffff" />
+      <text x="80" y="85" font-size="12" text-anchor="middle">🌾</text>
+      <text x="80" y="106" font-size="7" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">GRAINS</text>`;
+      return wrapSvg(art, '#92400e', '🌾 ' + cleanTitle, '#fefce8');
+    }
+
+    // 5. Industrial Paints / Chemicals Variant Group
+    if (variant.includes('PAINT') || variant.includes('COATING') || variant.includes('CHEMICAL')) {
+      const art = `
+      <path d="M 46 48 L 48 120 C 48 126, 112 126, 112 120 L 114 48 Z" fill="#0284c7" stroke="#1e293b" stroke-width="1.2" />
+      <ellipse cx="80" cy="48" rx="34" ry="7" fill="#cbd5e1" stroke="#64748b" stroke-width="1" />
+      <rect x="52" y="66" width="56" height="42" rx="4" fill="#ffffff" opacity="0.96" />
+      <text x="80" y="80" font-size="7" font-weight="900" fill="#0284c7" text-anchor="middle" font-family="sans-serif">COATING</text>
+      <circle cx="80" cy="92" r="7" fill="#0284c7" />`;
+      return wrapSvg(art, '#0369a1', '🎨 ' + cleanTitle, '#f1f5f9');
     }
 
     // =========================================================================

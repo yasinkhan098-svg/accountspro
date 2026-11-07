@@ -137,6 +137,9 @@ export default function POSSaleView({
     return {};
   });
 
+  const [managingImageItem, setManagingImageItem] = useState<any | null>(null);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+
   // Track Fullscreen status & lock Escape from minimizing/exiting Fullscreen
   useEffect(() => {
     const lockKeyboardEscape = () => {
@@ -415,8 +418,13 @@ export default function POSSaleView({
       for (const it of allItems) {
         if (!it) continue;
         const nameKey = String(it.name || it.itemName || '').trim().toLowerCase();
-        if (nameKey && !uniqueItemsMap.has(nameKey)) {
-          uniqueItemsMap.set(nameKey, it);
+        if (nameKey) {
+          const existingIt = uniqueItemsMap.get(nameKey);
+          if (!existingIt) {
+            uniqueItemsMap.set(nameKey, it);
+          } else if (!existingIt.variant && it.variant) {
+            existingIt.variant = it.variant;
+          }
         }
       }
 
@@ -462,7 +470,8 @@ export default function POSSaleView({
         const it = itemsToGenerate[i];
         const nameKey = String(it.name || it.itemName || '').trim().toLowerCase();
         const idKey = String(it.id);
-        const img = generateAIImageForProduct(it);
+        const resolvedVariant = it.variant || (Array.isArray(it.variants) && it.variants[0]) || '';
+        const img = generateAIImageForProduct({ ...it, variant: resolvedVariant });
 
         currentMap[idKey] = img;
         currentMap[nameKey] = img;
@@ -511,6 +520,68 @@ export default function POSSaleView({
       setAiProgress(null);
       alert('AI image generation error: ' + err.message);
     }
+  };
+
+  // Per-Item Image Upload from device/gallery
+  const handleUploadProductImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !managingImageItem) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64Data = reader.result as string;
+      if (base64Data) {
+        playBeep(1200, 0.08);
+        const keyById = String(managingImageItem.id);
+        const keyByName = String(managingImageItem.name || managingImageItem.itemName || '').trim().toLowerCase();
+        const updatedMap = {
+          ...aiImagesMap,
+          [keyById]: base64Data,
+          [keyByName]: base64Data,
+        };
+        setAiImagesMap(updatedMap);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
+        }
+        setManagingImageItem(null);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Per-Item AI Re-generation using Name and Variant
+  const handleRegenerateItemAIImage = () => {
+    if (!managingImageItem) return;
+    playBeep(1046, 0.06);
+    const keyById = String(managingImageItem.id);
+    const keyByName = String(managingImageItem.name || managingImageItem.itemName || '').trim().toLowerCase();
+    const resolvedVariant = managingImageItem.variant || (Array.isArray(managingImageItem.variants) && managingImageItem.variants[0]) || '';
+    const newImg = generateAIImageForProduct({ ...managingImageItem, variant: resolvedVariant });
+    const updatedMap = {
+      ...aiImagesMap,
+      [keyById]: newImg,
+      [keyByName]: newImg,
+    };
+    setAiImagesMap(updatedMap);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
+    }
+    setManagingImageItem(null);
+  };
+
+  // Reset/Clear Item Image back to default AI generator
+  const handleResetItemImage = () => {
+    if (!managingImageItem) return;
+    playBeep(700, 0.04);
+    const keyById = String(managingImageItem.id);
+    const keyByName = String(managingImageItem.name || managingImageItem.itemName || '').trim().toLowerCase();
+    const updatedMap = { ...aiImagesMap };
+    delete updatedMap[keyById];
+    delete updatedMap[keyByName];
+    setAiImagesMap(updatedMap);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
+    }
+    setManagingImageItem(null);
   };
 
   // Add & register in scannedActiveItems
@@ -637,6 +708,12 @@ export default function POSSaleView({
   // Exits modals, sub-views, search bars, selections step-by-step.
   // NEVER kicks out to login screen directly until user explicitly confirms Log Out!
   const handleStepByStepEscape = useCallback(() => {
+    // Step 0: Is Item Image Manager Modal open?
+    if (managingImageItem) {
+      setManagingImageItem(null);
+      return;
+    }
+
     // Step 1: Is Secure Mode Lock Modal open?
     if (showSecureModal) {
       setShowSecureModal(false);
@@ -711,6 +788,7 @@ export default function POSSaleView({
       handlePerformLogout();
     }
   }, [
+    managingImageItem,
     showSecureModal,
     showPaymentModal,
     showReceiptModal,
@@ -2540,6 +2618,40 @@ export default function POSSaleView({
                                   }}
                                   title={`${displayName} | Stock: ${st} | ₹${item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}`}
                                 >
+                                  {/* Small Touch Camera / Upload Badge Button in top-right */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      playBeep(920, 0.035);
+                                      setManagingImageItem({
+                                        ...item,
+                                        variant: item.variant || groupName
+                                      });
+                                    }}
+                                    className="pos-touch-btn"
+                                    title="📷 Touch to Upload custom photo or Re-Generate AI image"
+                                    style={{
+                                      position: 'absolute',
+                                      top: 3,
+                                      right: 3,
+                                      background: 'rgba(255, 255, 255, 0.92)',
+                                      border: '1px solid #cbd5e1',
+                                      borderRadius: 4,
+                                      width: 22,
+                                      height: 22,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: 11,
+                                      cursor: 'pointer',
+                                      zIndex: 3,
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                                    }}
+                                  >
+                                    📷
+                                  </button>
+
                                   {/* Product Image */}
                                   <img
                                     src={imgSrc}
@@ -2959,6 +3071,202 @@ export default function POSSaleView({
         stockItems={catalogItems}
         onSelectItem={item => addItemToCart(item, 1)}
       />
+
+      {/* Hidden File Input for Custom Image Upload from Device/Camera */}
+      <input
+        type="file"
+        ref={imageFileInputRef}
+        accept="image/*"
+        onChange={handleUploadProductImage}
+        style={{ display: 'none' }}
+      />
+
+      {/* ================= MODAL: Per-Item Touch Image Manager (AI Re-Gen + Device Upload) ================= */}
+      {managingImageItem && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000000,
+            padding: 16,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setManagingImageItem(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 12,
+              padding: '20px 24px',
+              width: 440,
+              maxWidth: '95vw',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+              border: '2px solid #0284c7',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#1e3a5f', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>📷</span> Product Image Manager
+                </h3>
+                <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
+                  Item: <b style={{ color: '#0f172a' }}>{managingImageItem.name || managingImageItem.itemName}</b>
+                </div>
+                <div style={{ fontSize: 11, color: '#0284c7', fontWeight: 800, marginTop: 2 }}>
+                  Variant Group: 🏷️ {managingImageItem.variant || 'General'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManagingImageItem(null)}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  borderRadius: 6,
+                  width: 28,
+                  height: 28,
+                  cursor: 'pointer',
+                  fontWeight: 900,
+                  fontSize: 14,
+                  color: '#64748b'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Image Preview */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+              <img
+                src={
+                  aiImagesMap[String(managingImageItem.id)] ||
+                  aiImagesMap[String(managingImageItem.name || managingImageItem.itemName || '').trim().toLowerCase()] ||
+                  generateAIImageForProduct(managingImageItem)
+                }
+                alt={managingImageItem.name}
+                style={{ width: 100, height: 100, objectFit: 'contain', borderRadius: 8, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}
+              />
+              <span style={{ fontSize: 10, color: '#64748b', marginTop: 6, fontWeight: 700 }}>Current Display Preview</span>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Option 1: AI Auto-Generate based on Variant & Name */}
+              <button
+                type="button"
+                onClick={handleRegenerateItemAIImage}
+                className="pos-touch-btn"
+                style={{
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  boxShadow: '0 2px 6px rgba(109, 40, 217, 0.35)',
+                }}
+              >
+                <span>✨</span> Auto-Generate AI Vector Image (Using Name & Variant)
+              </button>
+
+              {/* Option 2: Upload Custom Photo */}
+              <button
+                type="button"
+                onClick={() => {
+                  playTouchBeep();
+                  if (imageFileInputRef.current) {
+                    imageFileInputRef.current.value = '';
+                    imageFileInputRef.current.click();
+                  }
+                }}
+                className="pos-touch-btn"
+                style={{
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)',
+                }}
+              >
+                <span>📷</span> Upload Custom Image from Computer / Gallery
+              </button>
+
+              {/* Option 3: Reset to Default */}
+              <button
+                type="button"
+                onClick={handleResetItemImage}
+                className="pos-touch-btn"
+                style={{
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 8,
+                  padding: '8px 14px',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>🗑️</span> Reset to Default
+              </button>
+            </div>
+
+            {/* Close Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setManagingImageItem(null)}
+                className="pos-touch-btn"
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#f1f5f9',
+                  color: '#334155',
+                  fontWeight: 800,
+                  fontSize: 12,
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
