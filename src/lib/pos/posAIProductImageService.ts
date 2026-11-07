@@ -1,16 +1,16 @@
 /**
- * POS AI Product Image Generator Service
- * Generates realistic, beautiful vector illustrations based on product names and categories.
- * Covers vegetables, fruits, dairy, staples, snacks, beverages, household, industrial paints,
- * strapping rolls, polymers, and generic retail products.
+ * POS AI Product Image Generator Service (v4 Ultra-Colorful & Name-Specific)
+ * Generates realistic, vibrant, colorful vector illustrations based on product names and categories.
+ * Covers all grocery, FMCG, produce, packaged food, confectionery, personal care,
+ * industrial chemicals, strapping rolls, and custom retail items.
  * 100% offline, zero latency, renders as standard data:image/svg+xml.
  */
 
 export const posAIProductImageService = {
   isLegacyAIImage(url?: string): boolean {
     if (!url) return false;
-    // Upgrade if legacy paint bucket OR older v1/v2 without prominent name badge
-    return !url.includes('ai-product-v3');
+    // Upgrade if legacy paint bucket or older v1/v2/v3 without v4 color palette
+    return !url.includes('ai-product-v4');
   },
 
   generateImage(item: any): string {
@@ -18,24 +18,24 @@ export const posAIProductImageService = {
     const name = rawName.toUpperCase();
     const idStr = String(item?.id || Math.random()).replace(/[^a-zA-Z0-9]/g, '');
     const cleanTitle = rawName.slice(0, 18);
-    const unitText = item?.unit || 'NOS';
 
-    // Helper to wrap content inside standard 160x160 SVG frame with shadow filter
-    const wrapSvg = (artContent: string, badgeBg = '#0f172a', badgeText = cleanTitle) => {
+    // Standard wrapper: 160x160 SVG with soft backdrop, drop shadow and vibrant floating name pill
+    const wrapSvg = (artContent: string, badgeBg = '#0f172a', badgeText = cleanTitle, bgTint = '#f8fafc') => {
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
-  <!-- ai-product-v3 -->
+  <!-- ai-product-v4 -->
   <defs>
     <filter id="f_${idStr}" x="-10%" y="-10%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#0f172a" flood-opacity="0.25" />
+      <feDropShadow dx="0" dy="4.5" stdDeviation="3.8" flood-color="#0f172a" flood-opacity="0.28" />
     </filter>
     <linearGradient id="podGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
-      <stop offset="100%" stop-color="#f1f5f9" stop-opacity="0.75" />
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.98" />
+      <stop offset="60%" stop-color="${bgTint}" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#e2e8f0" stop-opacity="0.7" />
     </linearGradient>
   </defs>
   <!-- Background Soft Radial Pod -->
-  <rect x="4" y="4" width="152" height="152" rx="14" fill="url(#podGrad_${idStr})" stroke="#cbd5e1" stroke-width="1.2" />
-  <ellipse cx="80" cy="116" rx="44" ry="7" fill="#94a3b8" opacity="0.32" />
+  <rect x="4" y="4" width="152" height="152" rx="16" fill="url(#podGrad_${idStr})" stroke="#cbd5e1" stroke-width="1.2" />
+  <ellipse cx="80" cy="118" rx="46" ry="7.5" fill="#64748b" opacity="0.3" />
   
   <!-- Artwork -->
   <g filter="url(#f_${idStr})">
@@ -43,7 +43,7 @@ export const posAIProductImageService = {
   </g>
 
   <!-- Bottom Floating High-Contrast Name Badge -->
-  <rect x="10" y="126" width="140" height="26" rx="7" fill="${badgeBg}" opacity="0.95" stroke="#ffffff" stroke-width="1.2" />
+  <rect x="8" y="126" width="144" height="26" rx="7" fill="${badgeBg}" opacity="0.96" stroke="#ffffff" stroke-width="1.2" />
   <text x="80" y="143" font-size="9.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" letter-spacing="0.3">
     ${badgeText.length > 18 ? badgeText.slice(0, 18) + '..' : badgeText}
   </text>
@@ -51,9 +51,317 @@ export const posAIProductImageService = {
       return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
     };
 
-    // ==================== 1. VEGETABLES ====================
+    // ==================== 1. CHOCOLATES & CONFECTIONERY (Match BEFORE Milk!) ====================
+    if (name.includes('CHOCOLATE') || name.includes('CADBURY') || name.includes('SILK') || name.includes('KITKAT') || name.includes('CANDY') || name.includes('TOFFEE')) {
+      const art = `
+      <defs>
+        <linearGradient id="chocWrap_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#9333ea" />
+          <stop offset="50%" stop-color="#6b21a8" />
+          <stop offset="100%" stop-color="#3b0764" />
+        </linearGradient>
+        <linearGradient id="chocBar_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#451a03" />
+          <stop offset="50%" stop-color="#78350f" />
+          <stop offset="100%" stop-color="#451a03" />
+        </linearGradient>
+      </defs>
+      <!-- Chocolate Bar exposed top -->
+      <rect x="54" y="32" width="52" height="36" rx="4" fill="url(#chocBar_${idStr})" stroke="#291002" stroke-width="1" />
+      <rect x="58" y="36" width="20" height="13" rx="2" fill="#5c2406" stroke="#291002" stroke-width="0.8" />
+      <rect x="82" y="36" width="20" height="13" rx="2" fill="#5c2406" stroke="#291002" stroke-width="0.8" />
+      <!-- Silver Foil Edge -->
+      <polygon points="52,62 108,62 104,70 56,70" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1" />
+      <!-- Purple Cadbury Foil Wrapper -->
+      <rect x="50" y="66" width="60" height="52" rx="4" fill="url(#chocWrap_${idStr})" stroke="#3b0764" stroke-width="1.2" />
+      <ellipse cx="80" cy="90" rx="20" ry="10" fill="#eab308" opacity="0.9" />
+      <text x="80" y="93" font-size="7.5" font-weight="900" fill="#3b0764" text-anchor="middle" font-family="sans-serif">SILK</text>`;
+      return wrapSvg(art, '#581c87', '🍫 ' + cleanTitle, '#f3e8ff');
+    }
 
-    // TOMATO / TAMATAR
+    // ==================== 2. NOODLES & PASTA ====================
+    if (name.includes('MAGGI') || name.includes('NOODLE') || name.includes('PASTA') || name.includes('CHOWMEIN') || name.includes('MACARONI') || name.includes('YIPPEE')) {
+      const art = `
+      <defs>
+        <linearGradient id="noodBowl_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ef4444" />
+          <stop offset="60%" stop-color="#b91c1c" />
+          <stop offset="100%" stop-color="#7f1d1d" />
+        </linearGradient>
+      </defs>
+      <!-- Steaming Noodle Bowl -->
+      <path d="M 44 68 C 44 110, 116 110, 116 68 Z" fill="url(#noodBowl_${idStr})" stroke="#991b1b" stroke-width="1.5" />
+      <!-- Yellow Wavy Noodles -->
+      <ellipse cx="80" cy="68" rx="36" ry="10" fill="#fde047" stroke="#ca8a04" stroke-width="1.5" />
+      <path d="M 52 66 Q 60 56 68 64 Q 76 54 84 64 Q 92 56 100 64" fill="none" stroke="#eab308" stroke-width="3" stroke-linecap="round" />
+      <path d="M 56 60 Q 64 50 72 58 Q 80 48 88 58 Q 96 50 104 58" fill="none" stroke="#facc15" stroke-width="2.5" stroke-linecap="round" />
+      <!-- Peas & Veggies -->
+      <circle cx="68" cy="64" r="3" fill="#16a34a" />
+      <circle cx="88" cy="62" r="3" fill="#16a34a" />
+      <circle cx="78" cy="60" r="2.5" fill="#dc2626" />
+      <!-- Chopsticks -->
+      <line x1="90" y1="36" x2="124" y2="24" stroke="#78350f" stroke-width="2.8" stroke-linecap="round" />
+      <line x1="86" y1="42" x2="120" y2="30" stroke="#78350f" stroke-width="2.8" stroke-linecap="round" />`;
+      return wrapSvg(art, '#b91c1c', '🍜 ' + cleanTitle, '#fef08a');
+    }
+
+    // ==================== 3. SNACKS, NAMKEEN & CHIPS ====================
+    if (name.includes('HALDIRAM') || name.includes('MIXTURE') || name.includes('BHUJIA') || name.includes('NAMKEEN') || name.includes('SEV') || name.includes('CHIPS') || name.includes('LAYS') || name.includes('KURKURE') || name.includes('WAFERS') || name.includes('SNACK')) {
+      const art = `
+      <defs>
+        <linearGradient id="pouchGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#fbbf24" />
+          <stop offset="40%" stop-color="#f97316" />
+          <stop offset="100%" stop-color="#dc2626" />
+        </linearGradient>
+      </defs>
+      <!-- Snack Pouch Bag -->
+      <path d="M 54 36 L 106 36 L 114 116 C 114 120, 46 120, 46 116 Z" fill="url(#pouchGrad_${idStr})" stroke="#b45309" stroke-width="1.2" />
+      <rect x="52" y="32" width="56" height="6" rx="2" fill="#c2410c" />
+      <!-- Golden Crispy Snack Burst Circle -->
+      <circle cx="80" cy="74" r="20" fill="#ffffff" stroke="#f59e0b" stroke-width="1.5" />
+      <text x="80" y="80" font-size="16" text-anchor="middle">🍿</text>
+      <rect x="58" y="96" width="44" height="12" rx="3" fill="#78350f" />
+      <text x="80" y="105" font-size="6.5" font-weight="900" fill="#fef08a" text-anchor="middle" font-family="sans-serif">CRISPY</text>`;
+      return wrapSvg(art, '#c2410c', '🍿 ' + cleanTitle, '#fff7ed');
+    }
+
+    // ==================== 4. PERSONAL CARE: SOAPS ====================
+    if (name.includes('SOAP') || name.includes('SABUN') || name.includes('DETTOL') || name.includes('LIFEBUOY') || name.includes('LUX') || name.includes('DOVE') || name.includes('PEARS') || name.includes('BATH')) {
+      const art = `
+      <defs>
+        <linearGradient id="soapGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#a7f3d0" />
+          <stop offset="40%" stop-color="#10b981" />
+          <stop offset="100%" stop-color="#047857" />
+        </linearGradient>
+      </defs>
+      <!-- Ergonomic Curved Soap Bar -->
+      <path d="M 50 68 C 44 48, 116 48, 110 68 L 112 94 C 116 114, 44 114, 48 94 Z" fill="url(#soapGrad_${idStr})" stroke="#065f46" stroke-width="1.2" />
+      <!-- Embossed Brand Crest -->
+      <ellipse cx="80" cy="78" rx="22" ry="10" fill="none" stroke="#ecfdf5" stroke-width="1.5" />
+      <text x="80" y="81.5" font-size="8" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">SOAP</text>
+      <!-- Translucent Lather Bubbles -->
+      <circle cx="108" cy="50" r="7" fill="#ffffff" opacity="0.65" stroke="#99f6e4" stroke-width="1" />
+      <circle cx="118" cy="42" r="4.5" fill="#ffffff" opacity="0.65" stroke="#99f6e4" stroke-width="1" />
+      <circle cx="48" cy="56" r="6" fill="#ffffff" opacity="0.6" stroke="#99f6e4" stroke-width="1" />`;
+      return wrapSvg(art, '#047857', '🧼 ' + cleanTitle, '#ecfdf5');
+    }
+
+    // ==================== 5. PERSONAL CARE: TOOTHPASTE ====================
+    if (name.includes('TOOTHPASTE') || name.includes('COLGATE') || name.includes('PEPSODENT') || name.includes('CLOSEUP') || name.includes('BRUSH') || name.includes('DANT')) {
+      const art = `
+      <defs>
+        <linearGradient id="pasteGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#dc2626" />
+          <stop offset="50%" stop-color="#ef4444" />
+          <stop offset="100%" stop-color="#b91c1c" />
+        </linearGradient>
+      </defs>
+      <!-- Tube Body -->
+      <path d="M 44 40 L 116 40 L 104 116 C 104 120, 56 120, 56 116 Z" fill="url(#pasteGrad_${idStr})" stroke="#991b1b" stroke-width="1.2" />
+      <!-- White & Blue Cap -->
+      <rect x="66" y="28" width="28" height="12" rx="3" fill="#ffffff" stroke="#94a3b8" stroke-width="1" />
+      <rect x="72" y="32" width="16" height="4" fill="#0284c7" />
+      <!-- Dynamic Swirled Toothpaste Stripe -->
+      <path d="M 52 64 Q 80 84 108 64 Q 80 94 52 74 Z" fill="#ffffff" opacity="0.95" />
+      <path d="M 56 70 Q 80 88 104 70" fill="none" stroke="#38bdf8" stroke-width="3" />
+      <text x="80" y="104" font-size="7" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">MAX FRESH</text>`;
+      return wrapSvg(art, '#b91c1c', '🪥 ' + cleanTitle, '#fee2e2');
+    }
+
+    // ==================== 6. BEVERAGES & COLD DRINKS (Match BEFORE Detergent!) ====================
+    if (name.includes('COCA') || name.includes('COLA') || name.includes('PEPSI') || name.includes('SPRITE') || name.includes('THUMS') || name.includes('FANTA') || name.includes('LIMCA') || name.includes('JUICE') || name.includes('COLD DRINK') || name.includes('SOFT DRINK') || name.includes('SODA') || name.includes('WATER') || name.includes('BEVERAGE')) {
+      const art = `
+      <defs>
+        <linearGradient id="canGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ef4444" />
+          <stop offset="35%" stop-color="#f87171" />
+          <stop offset="70%" stop-color="#dc2626" />
+          <stop offset="100%" stop-color="#991b1b" />
+        </linearGradient>
+      </defs>
+      <!-- Soda Can -->
+      <rect x="58" y="44" width="44" height="74" rx="8" fill="url(#canGrad_${idStr})" stroke="#b91c1c" stroke-width="1.2" />
+      <ellipse cx="80" cy="44" rx="22" ry="6" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1" />
+      <ellipse cx="80" cy="118" rx="22" ry="6" fill="#991b1b" />
+      <path d="M 58 74 Q 80 88 102 74 L 102 86 Q 80 100 58 86 Z" fill="#ffffff" opacity="0.9" />
+      <circle cx="80" cy="62" r="2.5" fill="#ffffff" opacity="0.7" />`;
+      return wrapSvg(art, '#b91c1c', '🥤 ' + cleanTitle, '#fee2e2');
+    }
+
+    // ==================== 7. LAUNDRY & CLEANING DETERGENT ====================
+    if (name.includes('SURF') || name.includes('DETERGENT') || name.includes('TIDE') || name.includes('ARIEL') || name.includes('WASHING') || name.includes(' RIN') || name.includes('RIN ') || name.includes('WHEEL') || name.includes('CLEAN')) {
+      const art = `
+      <defs>
+        <linearGradient id="surfGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0284c7" />
+          <stop offset="50%" stop-color="#2563eb" />
+          <stop offset="100%" stop-color="#1d4ed8" />
+        </linearGradient>
+      </defs>
+      <!-- Detergent Pouch Box -->
+      <path d="M 50 40 L 110 40 L 114 118 C 114 122, 46 122, 46 118 Z" fill="url(#surfGrad_${idStr})" stroke="#1e40af" stroke-width="1.2" />
+      <!-- Multi-Color Sparkle Wave -->
+      <path d="M 48 70 Q 80 90 112 66 L 114 84 Q 80 108 46 88 Z" fill="#f59e0b" />
+      <path d="M 48 76 Q 80 96 112 72 L 114 88 Q 80 112 46 92 Z" fill="#ef4444" />
+      <!-- Washing Powder Sparkles -->
+      <polygon points="80,52 83,58 89,59 84,63 86,69 80,66 74,69 76,63 71,59 77,58" fill="#ffffff" />
+      <circle cx="62" cy="54" r="2.5" fill="#ffffff" opacity="0.85" />
+      <circle cx="98" cy="56" r="3" fill="#ffffff" opacity="0.85" />
+      <text x="80" y="112" font-size="6.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">DETERGENT</text>`;
+      return wrapSvg(art, '#1d4ed8', '🫧 ' + cleanTitle, '#eff6ff');
+    }
+
+    // ==================== 7. SALT & SEASONINGS ====================
+    if (name.includes('SALT') || name.includes('NAMAK') || name.includes('SENDHA')) {
+      const art = `
+      <defs>
+        <linearGradient id="saltGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0284c7" />
+          <stop offset="50%" stop-color="#0369a1" />
+          <stop offset="100%" stop-color="#0c4a6e" />
+        </linearGradient>
+      </defs>
+      <!-- Blue Salt Dispenser / Pouch -->
+      <path d="M 52 46 L 108 46 L 114 116 C 114 120, 46 120, 46 116 Z" fill="url(#saltGrad_${idStr})" stroke="#075985" stroke-width="1.2" />
+      <!-- Salt Crystals Mound -->
+      <ellipse cx="80" cy="80" rx="20" ry="8" fill="#ffffff" stroke="#94a3b8" stroke-width="1" />
+      <polygon points="80,62 94,80 66,80" fill="#ffffff" />
+      <circle cx="76" cy="74" r="1.5" fill="#0284c7" />
+      <circle cx="84" cy="74" r="1.5" fill="#0284c7" />
+      <text x="80" y="104" font-size="7.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">100% PURE SALT</text>`;
+      return wrapSvg(art, '#0369a1', '🧂 ' + cleanTitle, '#f0f9ff');
+    }
+
+    // ==================== 8. BISCUITS & COOKIES ====================
+    if (name.includes('BISCUIT') || name.includes('PARLE') || name.includes('COOKIE') || name.includes('GOOD DAY') || name.includes('OREO') || name.includes('MARIE') || name.includes('CRACKER') || name.includes('RUSK')) {
+      const art = `
+      <defs>
+        <radialGradient id="cookGrad_${idStr}" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#fef08a" />
+          <stop offset="40%" stop-color="#f59e0b" />
+          <stop offset="85%" stop-color="#d97706" />
+          <stop offset="100%" stop-color="#92400e" />
+        </radialGradient>
+      </defs>
+      <!-- Golden Fluted Biscuit -->
+      <rect x="44" y="44" width="72" height="72" rx="14" fill="url(#cookGrad_${idStr})" stroke="#78350f" stroke-width="1.8" />
+      <rect x="52" y="52" width="56" height="56" rx="10" fill="none" stroke="#b45309" stroke-width="1.2" stroke-dasharray="4 3" />
+      <!-- Dot Matrix Texture -->
+      <circle cx="62" cy="62" r="2.5" fill="#78350f" />
+      <circle cx="80" cy="62" r="2.5" fill="#78350f" />
+      <circle cx="98" cy="62" r="2.5" fill="#78350f" />
+      <circle cx="62" cy="80" r="2.5" fill="#78350f" />
+      <circle cx="80" cy="80" r="3.2" fill="#78350f" />
+      <circle cx="98" cy="80" r="2.5" fill="#78350f" />
+      <circle cx="62" cy="98" r="2.5" fill="#78350f" />
+      <circle cx="80" cy="98" r="2.5" fill="#78350f" />
+      <circle cx="98" cy="98" r="2.5" fill="#78350f" />`;
+      return wrapSvg(art, '#78350f', '🍪 ' + cleanTitle, '#fefce8');
+    }
+
+    // ==================== 9. BREAD & BAKERY ====================
+    if (name.includes('BREAD') || name.includes('PAV') || name.includes('ROTI') || name.includes('BUN') || name.includes('TOAST') || name.includes('CAKE') || name.includes('BAKERY')) {
+      const art = `
+      <defs>
+        <linearGradient id="breadGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#fef08a" />
+          <stop offset="40%" stop-color="#f59e0b" />
+          <stop offset="80%" stop-color="#b45309" />
+          <stop offset="100%" stop-color="#78350f" />
+        </linearGradient>
+      </defs>
+      <!-- Baked Loaf with Crust Cuts -->
+      <path d="M 44 80 C 44 48, 116 48, 116 80 L 112 114 C 112 118, 48 118, 48 114 Z" fill="url(#breadGrad_${idStr})" stroke="#78350f" stroke-width="1.5" />
+      <path d="M 58 64 Q 68 56 74 68" stroke="#78350f" stroke-width="2.5" stroke-linecap="round" fill="none" />
+      <path d="M 76 60 Q 86 52 92 64" stroke="#78350f" stroke-width="2.5" stroke-linecap="round" fill="none" />
+      <path d="M 94 62 Q 102 56 106 68" stroke="#78350f" stroke-width="2.5" stroke-linecap="round" fill="none" />`;
+      return wrapSvg(art, '#78350f', '🍞 ' + cleanTitle, '#fffbeb');
+    }
+
+    // ==================== 10. MILK & DAIRY ====================
+    if (name.includes('MILK') || name.includes('DOODH') || name.includes('TAAZA') || name.includes('TONED') || name.includes('AMUL') || name.includes('DAIRY')) {
+      const art = `
+      <defs>
+        <linearGradient id="milkGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#e2e8f0" />
+          <stop offset="40%" stop-color="#ffffff" />
+          <stop offset="80%" stop-color="#f1f5f9" />
+          <stop offset="100%" stop-color="#cbd5e1" />
+        </linearGradient>
+      </defs>
+      <!-- Milk Bottle / Pouch -->
+      <path d="M 68 34 L 92 34 L 92 48 L 104 62 L 104 120 C 104 124, 56 124, 56 120 L 56 62 L 68 48 Z" fill="url(#milkGrad_${idStr})" stroke="#94a3b8" stroke-width="1.2" />
+      <!-- Blue Cap -->
+      <rect x="66" y="28" width="28" height="8" rx="2" fill="#0284c7" />
+      <!-- Blue Dairy Brand Crest -->
+      <circle cx="80" cy="85" r="16" fill="#0284c7" />
+      <path d="M 80 75 Q 86 85 80 92 Q 74 85 80 75 Z" fill="#ffffff" />
+      <text x="80" y="112" font-size="7" font-weight="900" fill="#0284c7" text-anchor="middle" font-family="sans-serif">PURE MILK</text>`;
+      return wrapSvg(art, '#0284c7', '🥛 ' + cleanTitle, '#f0f9ff');
+    }
+
+    // ==================== 11. COOKING OIL & GHEE ====================
+    if (name.includes('OIL') || name.includes('GHEE') || name.includes('SUNLITE') || name.includes('FORTUNE') || name.includes('REFINED') || name.includes('MUSTARD') || name.includes('SOYA') || name.includes('TEL')) {
+      const art = `
+      <defs>
+        <linearGradient id="oilGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#fef08a" />
+          <stop offset="50%" stop-color="#eab308" />
+          <stop offset="100%" stop-color="#ca8a04" />
+        </linearGradient>
+      </defs>
+      <!-- Translucent Amber Bottle -->
+      <path d="M 68 36 L 92 36 L 92 48 L 104 64 L 104 120 C 104 124, 56 124, 56 120 L 56 64 L 68 48 Z" fill="url(#oilGrad_${idStr})" opacity="0.95" stroke="#a16207" stroke-width="1.2" />
+      <rect x="66" y="28" width="28" height="9" rx="2" fill="#ca8a04" />
+      <circle cx="80" cy="88" r="15" fill="#ffffff" />
+      <path d="M 80 78 Q 86 88 80 96 Q 74 88 80 78 Z" fill="#eab308" stroke="#ca8a04" stroke-width="1" />
+      <text x="80" y="112" font-size="6.5" font-weight="900" fill="#a16207" text-anchor="middle" font-family="sans-serif">REFINED OIL</text>`;
+      return wrapSvg(art, '#a16207', '🛢️ ' + cleanTitle, '#fefce8');
+    }
+
+    // ==================== 12. ATTA, FLOUR & GRAINS ====================
+    if (name.includes('ATTA') || name.includes('AASHIRVAAD') || name.includes('WHEAT') || name.includes('FLOUR') || name.includes('MAIDA') || name.includes('BESAN') || name.includes('SUJI')) {
+      const art = `
+      <defs>
+        <linearGradient id="attaGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#fed7aa" />
+          <stop offset="60%" stop-color="#fb923c" />
+          <stop offset="100%" stop-color="#c2410c" />
+        </linearGradient>
+      </defs>
+      <!-- Kraft Paper Sack -->
+      <path d="M 52 44 L 108 44 L 114 118 C 114 122, 46 122, 46 118 Z" fill="url(#attaGrad_${idStr})" stroke="#9a3412" stroke-width="1.2" />
+      <rect x="48" y="38" width="64" height="8" rx="2" fill="#c2410c" />
+      <circle cx="80" cy="80" r="16" fill="#ffffff" />
+      <text x="80" y="84" font-size="12" text-anchor="middle">🌾</text>
+      <text x="80" y="94" font-size="6.5" font-weight="900" fill="#9a3412" text-anchor="middle" font-family="sans-serif">SHUDH ATTA</text>`;
+      return wrapSvg(art, '#9a3412', '🌾 ' + cleanTitle, '#fff7ed');
+    }
+
+    // ==================== 13. COFFEE & TEA ====================
+    if (name.includes('COFFEE') || name.includes('NESCAFE') || name.includes('BRU') || name.includes('TEA') || name.includes('CHAI') || name.includes('TAJ MAHAL') || name.includes('RED LABEL')) {
+      const art = `
+      <defs>
+        <linearGradient id="cofGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#78350f" />
+          <stop offset="50%" stop-color="#451a03" />
+          <stop offset="100%" stop-color="#291002" />
+        </linearGradient>
+      </defs>
+      <!-- Glass Coffee Jar with Red Cap -->
+      <rect x="54" y="44" width="52" height="74" rx="8" fill="url(#cofGrad_${idStr})" stroke="#451a03" stroke-width="1.2" />
+      <rect x="58" y="36" width="44" height="10" rx="3" fill="#dc2626" />
+      <!-- Label Banner -->
+      <rect x="58" y="68" width="44" height="30" rx="3" fill="#fbbf24" />
+      <text x="80" y="82" font-size="8" font-weight="900" fill="#78350f" text-anchor="middle" font-family="sans-serif">COFFEE</text>
+      <ellipse cx="80" cy="92" rx="4" ry="2.5" fill="#451a03" />`;
+      return wrapSvg(art, '#451a03', '☕ ' + cleanTitle, '#fffbeb');
+    }
+
+
+    // ==================== 15. VEGETABLES ====================
     if (name.includes('TOMATO') || name.includes('TAMATAR')) {
       const art = `
       <defs>
@@ -63,26 +371,14 @@ export const posAIProductImageService = {
           <stop offset="85%" stop-color="#b91c1c" />
           <stop offset="100%" stop-color="#7f1d1d" />
         </radialGradient>
-        <linearGradient id="calyxGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#86efac" />
-          <stop offset="60%" stop-color="#16a34a" />
-          <stop offset="100%" stop-color="#14532d" />
-        </linearGradient>
       </defs>
-      <!-- Plump Tomato Shape -->
-      <path d="M 50 75 C 40 40, 80 40, 80 50 C 80 40, 120 40, 110 75 C 105 115, 55 115, 50 75 Z" fill="url(#tomGrad_${idStr})" />
       <circle cx="80" cy="80" r="38" fill="url(#tomGrad_${idStr})" />
-      <!-- Calyx Leaf Star on Top -->
-      <path d="M 80 48 L 72 38 L 78 46 L 68 47 L 76 52 L 72 58 L 80 53 L 88 58 L 84 52 L 92 47 L 82 46 L 88 38 Z" fill="url(#calyxGrad_${idStr})" />
-      <!-- Curving Stem -->
+      <path d="M 80 48 L 72 38 L 78 46 L 68 47 L 76 52 L 72 58 L 80 53 L 88 58 L 84 52 L 92 47 L 82 46 L 88 38 Z" fill="#16a34a" />
       <path d="M 80 46 Q 84 32 94 30" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" />
-      <!-- Glossy Light Glare -->
-      <ellipse cx="68" cy="68" rx="10" ry="6" transform="rotate(-30 68 68)" fill="#ffffff" opacity="0.55" />
-      <circle cx="88" cy="88" r="3" fill="#ffffff" opacity="0.3" />`;
-      return wrapSvg(art, '#b91c1c', '🍅 ' + cleanTitle);
+      <ellipse cx="68" cy="68" rx="10" ry="6" transform="rotate(-30 68 68)" fill="#ffffff" opacity="0.55" />`;
+      return wrapSvg(art, '#b91c1c', '🍅 ' + cleanTitle, '#fef2f2');
     }
 
-    // CARROT / GAJAR
     if (name.includes('CARROT') || name.includes('GAJAR')) {
       const art = `
       <defs>
@@ -93,20 +389,13 @@ export const posAIProductImageService = {
           <stop offset="100%" stop-color="#9a3412" />
         </linearGradient>
       </defs>
-      <!-- Green Bushy Foliage Top -->
       <path d="M 80 42 Q 72 20 62 18 M 80 42 Q 80 16 80 14 M 80 42 Q 88 20 98 18" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round" fill="none" />
-      <path d="M 76 34 Q 65 24 58 28 M 84 34 Q 95 24 102 28" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" fill="none" />
-      <!-- Tapered Carrot Root -->
       <path d="M 64 44 Q 80 40 96 44 L 84 120 Q 80 124 76 120 Z" fill="url(#carrGrad_${idStr})" />
-      <!-- Horizontal Grooves -->
-      <path d="M 68 56 Q 80 58 90 55 M 71 72 Q 80 74 88 71 M 73 88 Q 80 90 86 87 M 76 104 Q 80 105 83 103" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.75" />
-      <!-- Highlight -->
-      <path d="M 70 48 L 76 112" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" opacity="0.4" />`;
-      return wrapSvg(art, '#c2410c', '🥕 ' + cleanTitle);
+      <path d="M 68 56 Q 80 58 90 55 M 71 72 Q 80 74 88 71" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.75" />`;
+      return wrapSvg(art, '#c2410c', '🥕 ' + cleanTitle, '#fff7ed');
     }
 
-    // CHILLI / MIRCH / PEPPER
-    if (name.includes('CHILLI') || name.includes('CHILI') || name.includes('MIRCH') || name.includes('PEPPER') || name.includes('JALAPENO')) {
+    if (name.includes('CHILLI') || name.includes('CHILI') || name.includes('MIRCH') || name.includes('PEPPER')) {
       const isGreen = name.includes('GREEN') || name.includes('HARI');
       const baseCol1 = isGreen ? '#86efac' : '#fca5a5';
       const baseCol2 = isGreen ? '#22c55e' : '#ef4444';
@@ -119,375 +408,18 @@ export const posAIProductImageService = {
           <stop offset="100%" stop-color="${baseCol3}" />
         </linearGradient>
       </defs>
-      <!-- Cap & Stem -->
       <path d="M 88 34 Q 98 22 108 24" fill="none" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round" />
-      <path d="M 76 38 C 76 34, 98 34, 98 38 L 94 45 L 80 45 Z" fill="#15803d" />
-      <!-- Curved Chilli Body -->
       <path d="M 78 44 C 76 75, 52 95, 78 122 C 84 124, 88 120, 84 114 C 74 95, 96 75, 96 44 Z" fill="url(#chiliGrad_${idStr})" />
-      <!-- Glossy Reflection Sheen -->
       <path d="M 82 48 C 82 70, 68 85, 78 112" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.55" />`;
-      return wrapSvg(art, isGreen ? '#15803d' : '#b91c1c', '🌶️ ' + cleanTitle);
+      return wrapSvg(art, isGreen ? '#15803d' : '#b91c1c', '🌶️ ' + cleanTitle, isGreen ? '#f0fdf4' : '#fef2f2');
     }
 
-    // POTATO / ALOO
-    if (name.includes('POTATO') || name.includes('ALOO')) {
-      const art = `
-      <defs>
-        <radialGradient id="potGrad_${idStr}" cx="35%" cy="35%" r="65%">
-          <stop offset="0%" stop-color="#fde68a" />
-          <stop offset="40%" stop-color="#d97706" />
-          <stop offset="85%" stop-color="#b45309" />
-          <stop offset="100%" stop-color="#78350f" />
-        </radialGradient>
-      </defs>
-      <!-- Organic Potato Body -->
-      <path d="M 46 76 C 40 50, 75 42, 106 46 C 126 50, 126 88, 114 104 C 98 120, 60 118, 46 100 C 40 92, 48 84, 46 76 Z" fill="url(#potGrad_${idStr})" />
-      <!-- Dimple Eyes -->
-      <circle cx="68" cy="62" r="2.2" fill="#78350f" opacity="0.65" />
-      <path d="M 66 61 Q 70 63 74 61" stroke="#92400e" stroke-width="1.2" fill="none" />
-      <circle cx="94" cy="74" r="2.5" fill="#78350f" opacity="0.65" />
-      <circle cx="78" cy="94" r="2" fill="#78350f" opacity="0.65" />
-      <ellipse cx="64" cy="54" rx="12" ry="5" transform="rotate(-15 64 54)" fill="#ffffff" opacity="0.35" />`;
-      return wrapSvg(art, '#92400e', '🥔 ' + cleanTitle);
-    }
-
-    // ONION / PYAZ
-    if (name.includes('ONION') || name.includes('PYAZ')) {
-      const art = `
-      <defs>
-        <radialGradient id="onGrad_${idStr}" cx="40%" cy="40%" r="65%">
-          <stop offset="0%" stop-color="#f472b6" />
-          <stop offset="45%" stop-color="#c026d3" />
-          <stop offset="80%" stop-color="#86198f" />
-          <stop offset="100%" stop-color="#4a044e" />
-        </radialGradient>
-      </defs>
-      <!-- Root whiskers -->
-      <path d="M 76 118 L 74 126 M 80 118 L 80 128 M 84 118 L 86 126" stroke="#ca8a04" stroke-width="1.5" stroke-linecap="round" />
-      <!-- Bulb -->
-      <path d="M 80 40 C 50 48, 40 85, 52 106 C 62 120, 98 120, 108 106 C 120 85, 110 48, 80 40 Z" fill="url(#onGrad_${idStr})" />
-      <!-- Papery Layer Ribs -->
-      <path d="M 80 40 Q 64 80 76 118" fill="none" stroke="#fbcfe8" stroke-width="1.4" opacity="0.6" />
-      <path d="M 80 40 Q 96 80 84 118" fill="none" stroke="#fbcfe8" stroke-width="1.4" opacity="0.6" />
-      <path d="M 80 40 L 80 118" fill="none" stroke="#f472b6" stroke-width="1.2" opacity="0.5" />
-      <!-- Top sprout shoot -->
-      <path d="M 80 40 Q 82 28 88 26" fill="none" stroke="#84cc16" stroke-width="2.5" stroke-linecap="round" />`;
-      return wrapSvg(art, '#701a75', '🧅 ' + cleanTitle);
-    }
-
-    // LEMON / NIMBU / LIME
-    if (name.includes('LEMON') || name.includes('NIMBU') || name.includes('LIME')) {
-      const art = `
-      <defs>
-        <radialGradient id="lemGrad_${idStr}" cx="35%" cy="30%" r="65%">
-          <stop offset="0%" stop-color="#fef08a" />
-          <stop offset="40%" stop-color="#facc15" />
-          <stop offset="80%" stop-color="#eab308" />
-          <stop offset="100%" stop-color="#a16207" />
-        </radialGradient>
-      </defs>
-      <!-- Green Leaf -->
-      <path d="M 80 46 C 70 30, 95 24, 108 30 C 104 42, 88 44, 80 46 Z" fill="#22c55e" stroke="#15803d" stroke-width="1" />
-      <!-- Oval Lemon with Nipples -->
-      <path d="M 46 80 C 42 78, 40 82, 46 84 C 54 108, 106 108, 114 84 C 120 82, 118 78, 114 80 C 106 56, 54 56, 46 80 Z" fill="url(#lemGrad_${idStr})" />
-      <ellipse cx="72" cy="70" rx="14" ry="6" transform="rotate(-15 72 70)" fill="#ffffff" opacity="0.45" />`;
-      return wrapSvg(art, '#854d0e', '🍋 ' + cleanTitle);
-    }
-
-    // GINGER / ADRAK / GARLIC / LAHSUN
-    if (name.includes('GINGER') || name.includes('ADRAK') || name.includes('GARLIC') || name.includes('LAHSUN') || name.includes('LAHSOON')) {
-      const isGarlic = name.includes('GARLIC') || name.includes('LAHSUN');
-      const art = isGarlic ? `
-      <defs>
-        <radialGradient id="garGrad_${idStr}" cx="40%" cy="35%" r="65%">
-          <stop offset="0%" stop-color="#ffffff" />
-          <stop offset="60%" stop-color="#e2e8f0" />
-          <stop offset="100%" stop-color="#cbd5e1" />
-        </radialGradient>
-      </defs>
-      <!-- Garlic Bulb & Cloves -->
-      <path d="M 80 42 C 54 50, 48 88, 56 108 C 66 120, 94 120, 104 108 C 112 88, 106 50, 80 42 Z" fill="url(#garGrad_${idStr})" stroke="#cbd5e1" stroke-width="1.2" />
-      <path d="M 80 42 Q 68 80 72 116" fill="none" stroke="#94a3b8" stroke-width="1.4" />
-      <path d="M 80 42 Q 92 80 88 116" fill="none" stroke="#94a3b8" stroke-width="1.4" />
-      <path d="M 80 42 L 80 34" stroke="#a16207" stroke-width="2.5" stroke-linecap="round" />` : `
-      <defs>
-        <linearGradient id="ginGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fed7aa" />
-          <stop offset="50%" stop-color="#d4a373" />
-          <stop offset="100%" stop-color="#8c5836" />
-        </linearGradient>
-      </defs>
-      <!-- Knobby Ginger Root -->
-      <path d="M 52 86 C 45 66, 68 56, 74 68 C 80 50, 106 52, 102 74 C 116 70, 122 92, 108 102 C 98 114, 62 116, 52 86 Z" fill="url(#ginGrad_${idStr})" stroke="#78350f" stroke-width="1" />
-      <circle cx="68" cy="64" r="8" fill="url(#ginGrad_${idStr})" />
-      <circle cx="94" cy="68" r="9" fill="url(#ginGrad_${idStr})" />`;
-      return wrapSvg(art, isGarlic ? '#475569' : '#78350f', (isGarlic ? '🧄 ' : '🥔 ') + cleanTitle);
-    }
-
-    // PEAS / MATAR / CORIANDER / DHANIYA / MINT / PUDINA / CABBAGE / GOBHI / CAPSICUM
-    if (name.includes('PEAS') || name.includes('MATAR') || name.includes('CORIANDER') || name.includes('DHANIYA') || name.includes('MINT') || name.includes('GOBHI') || name.includes('CABBAGE') || name.includes('CAPSICUM')) {
-      const art = `
-      <defs>
-        <linearGradient id="peaGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#4ade80" />
-          <stop offset="60%" stop-color="#16a34a" />
-          <stop offset="100%" stop-color="#14532d" />
-        </linearGradient>
-      </defs>
-      <!-- Open Pea Pod -->
-      <path d="M 42 98 C 60 118, 110 114, 126 66 C 114 74, 64 78, 42 98 Z" fill="url(#peaGrad_${idStr})" />
-      <!-- Round Plump Peas -->
-      <circle cx="62" cy="94" r="7.5" fill="#86efac" stroke="#16a34a" stroke-width="1" />
-      <circle cx="78" cy="90" r="7.5" fill="#86efac" stroke="#16a34a" stroke-width="1" />
-      <circle cx="94" cy="84" r="7.5" fill="#86efac" stroke="#16a34a" stroke-width="1" />
-      <circle cx="108" cy="76" r="6.5" fill="#86efac" stroke="#16a34a" stroke-width="1" />
-      <!-- Leaf Vein Accents -->
-      <path d="M 42 98 Q 32 102 28 106" stroke="#15803d" stroke-width="2.5" fill="none" stroke-linecap="round" />`;
-      return wrapSvg(art, '#15803d', '🥬 ' + cleanTitle);
-    }
-
-    // ==================== 2. FRUITS ====================
-
-    // APPLE / SEB
-    if (name.includes('APPLE') || name.includes('SEB')) {
-      const art = `
-      <defs>
-        <radialGradient id="appGrad_${idStr}" cx="35%" cy="30%" r="65%">
-          <stop offset="0%" stop-color="#f87171" />
-          <stop offset="45%" stop-color="#dc2626" />
-          <stop offset="90%" stop-color="#991b1b" />
-          <stop offset="100%" stop-color="#450a0a" />
-        </radialGradient>
-      </defs>
-      <!-- Leaf & Stem -->
-      <path d="M 80 48 Q 84 32 92 30" fill="none" stroke="#78350f" stroke-width="3" stroke-linecap="round" />
-      <path d="M 84 38 C 96 32, 104 38, 102 44 C 94 48, 86 44, 84 38 Z" fill="#22c55e" />
-      <!-- Heart-indented Apple -->
-      <path d="M 80 52 C 64 38, 42 54, 46 84 C 50 114, 76 122, 80 120 C 84 122, 110 114, 114 84 C 118 54, 96 38, 80 52 Z" fill="url(#appGrad_${idStr})" />
-      <ellipse cx="64" cy="68" rx="8" ry="14" transform="rotate(-25 64 68)" fill="#ffffff" opacity="0.4" />`;
-      return wrapSvg(art, '#991b1b', '🍎 ' + cleanTitle);
-    }
-
-    // BANANA / KELA
-    if (name.includes('BANANA') || name.includes('KELA')) {
-      const art = `
-      <defs>
-        <linearGradient id="banGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fef08a" />
-          <stop offset="50%" stop-color="#eab308" />
-          <stop offset="100%" stop-color="#ca8a04" />
-        </linearGradient>
-      </defs>
-      <!-- Banana Cluster -->
-      <path d="M 52 38 C 42 78, 62 116, 118 108 C 88 114, 58 84, 62 44 Z" fill="url(#banGrad_${idStr})" stroke="#a16207" stroke-width="1.2" />
-      <path d="M 64 36 C 54 74, 76 112, 126 102 C 98 108, 70 80, 74 42 Z" fill="url(#banGrad_${idStr})" stroke="#a16207" stroke-width="1.2" />
-      <!-- Crown Cap -->
-      <rect x="54" y="32" width="12" height="8" rx="2" fill="#15803d" />
-      <path d="M 126 102 L 130 104" stroke="#78350f" stroke-width="3" stroke-linecap="round" />`;
-      return wrapSvg(art, '#854d0e', '🍌 ' + cleanTitle);
-    }
-
-    // MANGO / AAM / ORANGE / FRUITS
-    if (name.includes('MANGO') || name.includes('AAM') || name.includes('ORANGE') || name.includes('SANTRA') || name.includes('GRAPES') || name.includes('ANAR')) {
-      const art = `
-      <defs>
-        <radialGradient id="manGrad_${idStr}" cx="35%" cy="30%" r="65%">
-          <stop offset="0%" stop-color="#fde047" />
-          <stop offset="45%" stop-color="#f97316" />
-          <stop offset="85%" stop-color="#ea580c" />
-          <stop offset="100%" stop-color="#9a3412" />
-        </radialGradient>
-      </defs>
-      <!-- Stem & Leaf -->
-      <path d="M 80 44 Q 86 30 94 28" fill="none" stroke="#78350f" stroke-width="3" stroke-linecap="round" />
-      <path d="M 84 36 C 98 30, 106 38, 102 44 C 94 48, 86 42, 84 36 Z" fill="#16a34a" />
-      <!-- Mango Silhouette -->
-      <path d="M 80 44 C 54 46, 42 78, 54 104 C 68 126, 108 124, 114 96 C 120 72, 102 44, 80 44 Z" fill="url(#manGrad_${idStr})" />
-      <ellipse cx="66" cy="68" rx="8" ry="14" transform="rotate(-20 66 68)" fill="#ffffff" opacity="0.45" />`;
-      return wrapSvg(art, '#c2410c', '🥭 ' + cleanTitle);
-    }
-
-    // ==================== 3. DAIRY & BAKERY ====================
-
-    // MILK / DOODH / DAIRY
-    if (name.includes('MILK') || name.includes('DOODH') || name.includes('DAIRY')) {
-      const art = `
-      <defs>
-        <linearGradient id="milkGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#e2e8f0" />
-          <stop offset="40%" stop-color="#ffffff" />
-          <stop offset="80%" stop-color="#f1f5f9" />
-          <stop offset="100%" stop-color="#cbd5e1" />
-        </linearGradient>
-      </defs>
-      <!-- Milk Bottle / Pouch -->
-      <path d="M 68 34 L 92 34 L 92 48 L 102 62 L 102 120 C 102 124, 58 124, 58 120 L 58 62 L 68 48 Z" fill="url(#milkGrad_${idStr})" stroke="#94a3b8" stroke-width="1.2" />
-      <!-- Blue Cap -->
-      <rect x="66" y="28" width="28" height="8" rx="2" fill="#0284c7" />
-      <!-- Blue Dairy Brand Crest -->
-      <circle cx="80" cy="85" r="16" fill="#0284c7" />
-      <path d="M 80 75 Q 86 85 80 92 Q 74 85 80 75 Z" fill="#ffffff" />
-      <text x="80" y="112" font-size="7" font-weight="900" fill="#0284c7" text-anchor="middle" font-family="sans-serif">PURE MILK</text>`;
-      return wrapSvg(art, '#0284c7', '🥛 ' + cleanTitle);
-    }
-
-    // BUTTER / PANEER / CHEESE / BREAD / BAKERY
-    if (name.includes('BUTTER') || name.includes('MAKHAN') || name.includes('CHEESE') || name.includes('PANEER') || name.includes('BREAD') || name.includes('PAV') || name.includes('ROTI') || name.includes('BAKERY')) {
-      const art = `
-      <defs>
-        <linearGradient id="butGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fef08a" />
-          <stop offset="60%" stop-color="#facc15" />
-          <stop offset="100%" stop-color="#ca8a04" />
-        </linearGradient>
-      </defs>
-      <!-- Butter / Cheese 3D Block -->
-      <path d="M 44 74 L 88 56 L 124 74 L 80 94 Z" fill="#fde047" stroke="#eab308" stroke-width="1" />
-      <path d="M 44 74 L 80 94 L 80 116 L 44 96 Z" fill="url(#butGrad_${idStr})" stroke="#ca8a04" stroke-width="1" />
-      <path d="M 80 94 L 124 74 L 124 96 L 80 116 Z" fill="#eab308" stroke="#ca8a04" stroke-width="1" />
-      <ellipse cx="62" cy="85" rx="4" ry="2" fill="#ca8a04" opacity="0.4" />
-      <ellipse cx="98" cy="88" rx="5" ry="3" fill="#a16207" opacity="0.4" />`;
-      return wrapSvg(art, '#a16207', '🧈 ' + cleanTitle);
-    }
-
-    // ==================== 4. GRAINS, STAPLES & OIL ====================
-
-    // RICE / CHAWAL / BASMATI
-    if (name.includes('RICE') || name.includes('CHAWAL') || name.includes('BASMATI')) {
-      const art = `
-      <defs>
-        <linearGradient id="sackGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fde68a" />
-          <stop offset="50%" stop-color="#d97706" />
-          <stop offset="100%" stop-color="#92400e" />
-        </linearGradient>
-      </defs>
-      <!-- Jute Grain Sack -->
-      <path d="M 52 64 C 52 54, 108 54, 108 64 L 114 116 C 114 122, 46 122, 46 116 Z" fill="url(#sackGrad_${idStr})" stroke="#78350f" stroke-width="1.2" />
-      <!-- Tied Sack Neck -->
-      <ellipse cx="80" cy="62" rx="28" ry="8" fill="#ffffff" stroke="#b45309" stroke-width="1.2" />
-      <path d="M 54 64 Q 80 72 106 64" fill="none" stroke="#78350f" stroke-width="2.5" />
-      <!-- Golden Grain Sheaf Emblem -->
-      <circle cx="80" cy="90" r="14" fill="#ffffff" opacity="0.9" />
-      <text x="80" y="93.5" font-size="10" text-anchor="middle">🌾</text>
-      <text x="80" y="102" font-size="6" font-weight="900" fill="#78350f" text-anchor="middle" font-family="sans-serif">RICE</text>`;
-      return wrapSvg(art, '#92400e', '🌾 ' + cleanTitle);
-    }
-
-    // ATTA / FLOUR / MAIDA / BESAN / SUJI
-    if (name.includes('ATTA') || name.includes('FLOUR') || name.includes('MAIDA') || name.includes('BESAN') || name.includes('SUJI')) {
-      const art = `
-      <defs>
-        <linearGradient id="attaGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fed7aa" />
-          <stop offset="60%" stop-color="#fb923c" />
-          <stop offset="100%" stop-color="#c2410c" />
-        </linearGradient>
-      </defs>
-      <!-- Flour Bag Pouch -->
-      <path d="M 54 44 L 106 44 L 112 118 C 112 122, 48 122, 48 118 Z" fill="url(#attaGrad_${idStr})" stroke="#9a3412" stroke-width="1.2" />
-      <rect x="50" y="38" width="60" height="8" rx="2" fill="#c2410c" />
-      <circle cx="80" cy="80" r="16" fill="#ffffff" />
-      <text x="80" y="84" font-size="12" text-anchor="middle">🌾</text>
-      <text x="80" y="94" font-size="6.5" font-weight="900" fill="#9a3412" text-anchor="middle" font-family="sans-serif">WHEAT</text>`;
-      return wrapSvg(art, '#9a3412', '🌾 ' + cleanTitle);
-    }
-
-    // COOKING OIL / GHEE / MUSTARD / TEL
-    if (name.includes('OIL') || name.includes('GHEE') || name.includes('TEL') || name.includes('MUSTARD') || name.includes('REFINED')) {
-      const art = `
-      <defs>
-        <linearGradient id="oilGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#fef08a" />
-          <stop offset="50%" stop-color="#eab308" />
-          <stop offset="100%" stop-color="#ca8a04" />
-        </linearGradient>
-      </defs>
-      <!-- Oil Bottle Translucent Body -->
-      <path d="M 68 36 L 92 36 L 92 48 L 104 64 L 104 120 C 104 124, 56 124, 56 120 L 56 64 L 68 48 Z" fill="url(#oilGrad_${idStr})" opacity="0.9" stroke="#a16207" stroke-width="1.2" />
-      <!-- Golden Cap -->
-      <rect x="66" y="28" width="28" height="9" rx="2" fill="#ca8a04" />
-      <!-- Pure Golden Oil Drop Badge -->
-      <circle cx="80" cy="88" r="15" fill="#ffffff" />
-      <path d="M 80 78 Q 86 88 80 96 Q 74 88 80 78 Z" fill="#eab308" stroke="#ca8a04" stroke-width="1" />
-      <text x="80" y="112" font-size="6.5" font-weight="900" fill="#a16207" text-anchor="middle" font-family="sans-serif">100% PURE</text>`;
-      return wrapSvg(art, '#a16207', '🛢️ ' + cleanTitle);
-    }
-
-    // TEA / CHAI / COFFEE / SUGAR / SALT / SPICES / MASALA
-    if (name.includes('TEA') || name.includes('CHAI') || name.includes('COFFEE') || name.includes('SUGAR') || name.includes('SALT') || name.includes('MASALA') || name.includes('SPICE') || name.includes('HALDI')) {
-      const art = `
-      <defs>
-        <linearGradient id="cupGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fef3c7" />
-          <stop offset="50%" stop-color="#f59e0b" />
-          <stop offset="100%" stop-color="#b45309" />
-        </linearGradient>
-      </defs>
-      <!-- Steaming Hot Cup / Jar -->
-      <ellipse cx="80" cy="116" rx="42" ry="6" fill="#cbd5e1" />
-      <path d="M 52 64 L 108 64 L 100 110 C 100 116, 60 116, 60 110 Z" fill="url(#cupGrad_${idStr})" stroke="#92400e" stroke-width="1.2" />
-      <!-- Handle -->
-      <path d="M 104 72 C 120 72, 120 96, 102 98" fill="none" stroke="#b45309" stroke-width="4" stroke-linecap="round" />
-      <!-- Aromatic Steam Swirls -->
-      <path d="M 70 54 Q 66 42 74 34 M 80 52 Q 86 40 80 30 M 90 54 Q 96 42 88 34" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" />`;
-      return wrapSvg(art, '#92400e', '☕ ' + cleanTitle);
-    }
-
-    // ==================== 5. SNACKS, DRINKS & FMCG ====================
-
-    // BISCUIT / COOKIE / SNACKS / CHIPS / NAMKEEN / CHOCOLATE
-    if (name.includes('BISCUIT') || name.includes('COOKIE') || name.includes('CHIPS') || name.includes('NAMKEEN') || name.includes('SNACK') || name.includes('CHOCOLATE')) {
-      const art = `
-      <defs>
-        <radialGradient id="cookGrad_${idStr}" cx="40%" cy="35%" r="65%">
-          <stop offset="0%" stop-color="#fde68a" />
-          <stop offset="60%" stop-color="#d97706" />
-          <stop offset="100%" stop-color="#92400e" />
-        </radialGradient>
-      </defs>
-      <!-- Golden Baked Cookie with Scalloped Edge -->
-      <circle cx="80" cy="80" r="36" fill="url(#cookGrad_${idStr})" stroke="#78350f" stroke-width="1.5" />
-      <!-- Chocolate Chips -->
-      <circle cx="66" cy="68" r="4.5" fill="#451a03" />
-      <circle cx="94" cy="72" r="5" fill="#451a03" />
-      <circle cx="74" cy="94" r="4" fill="#451a03" />
-      <circle cx="90" cy="92" r="3.5" fill="#451a03" />
-      <circle cx="80" cy="78" r="4" fill="#451a03" />`;
-      return wrapSvg(art, '#78350f', '🍪 ' + cleanTitle);
-    }
-
-    // COLD DRINK / SODA / COLA / JUICE / WATER
-    if (name.includes('COLD DRINK') || name.includes('SODA') || name.includes('COLA') || name.includes('PEPSI') || name.includes('COKE') || name.includes('WATER') || name.includes('JUICE') || name.includes('BEVERAGE')) {
-      const art = `
-      <defs>
-        <linearGradient id="canGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#ef4444" />
-          <stop offset="35%" stop-color="#f87171" />
-          <stop offset="70%" stop-color="#dc2626" />
-          <stop offset="100%" stop-color="#991b1b" />
-        </linearGradient>
-      </defs>
-      <!-- Chilled Soda Can -->
-      <rect x="58" y="44" width="44" height="74" rx="8" fill="url(#canGrad_${idStr})" stroke="#b91c1c" stroke-width="1.2" />
-      <ellipse cx="80" cy="44" rx="22" ry="6" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1" />
-      <ellipse cx="80" cy="118" rx="22" ry="6" fill="#991b1b" />
-      <!-- Dynamic Wave Stripe -->
-      <path d="M 58 74 Q 80 88 102 74 L 102 86 Q 80 100 58 86 Z" fill="#ffffff" opacity="0.9" />
-      <circle cx="80" cy="62" r="2.5" fill="#ffffff" opacity="0.7" />
-      <circle cx="72" cy="70" r="2" fill="#ffffff" opacity="0.7" />
-      <circle cx="88" cy="70" r="2" fill="#ffffff" opacity="0.7" />`;
-      return wrapSvg(art, '#b91c1c', '🥤 ' + cleanTitle);
-    }
-
-    // ==================== 6. INDUSTRIAL, CHEMICAL & PACKAGING (USER INVENTORY) ====================
-
-    // SIRCA / PU / SEALER / HARDENER / THINNER / PAINT / COATING
-    if (name.includes('SIRCA') || name.includes('SEALER') || name.includes('HARDENER') || name.includes('THINNER') || name.includes('PAINT') || name.includes('PU ') || name.includes('COATING') || name.includes('1LT') || name.includes('4LT')) {
+    // ==================== 16. INDUSTRIAL PAINTS, SEALERS & HARDENERS ====================
+    if (name.includes('SIRCA') || name.includes('SEALER') || name.includes('HARDENER') || name.includes('THINNER') || name.includes('PAINT') || name.includes('PU ') || name.includes('SUNRISE') || name.includes('SPRT')) {
       let mainColor = '#0284c7';
       let secColor = '#0369a1';
       let accentCol = '#38bdf8';
-      let tag = 'CAN';
+      let tag = 'SEALER';
 
       if (name.includes('HARDENER')) {
         mainColor = '#ea580c';
@@ -499,11 +431,6 @@ export const posAIProductImageService = {
         secColor = '#6d28d9';
         accentCol = '#c4b5fd';
         tag = 'THINNER';
-      } else if (name.includes('SEALER')) {
-        mainColor = '#059669';
-        secColor = '#065f46';
-        accentCol = '#34d399';
-        tag = 'SEALER';
       } else if (name.includes('WHITE') || name.includes('CLEAR')) {
         mainColor = '#475569';
         secColor = '#1e293b';
@@ -519,21 +446,17 @@ export const posAIProductImageService = {
           <stop offset="100%" stop-color="${secColor}" />
         </linearGradient>
       </defs>
-      <!-- Metal Paint Can Body -->
       <path d="M 46 48 L 48 120 C 48 126, 112 126, 112 120 L 114 48 Z" fill="url(#canBody_${idStr})" stroke="#334155" stroke-width="1.2" />
-      <!-- Rim & Handle -->
       <ellipse cx="80" cy="48" rx="34" ry="7" fill="#cbd5e1" stroke="#64748b" stroke-width="1" />
       <path d="M 44 50 C 44 24, 116 24, 116 50" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" />
-      <!-- Product Label Banner -->
       <rect x="52" y="68" width="56" height="38" rx="4" fill="#ffffff" opacity="0.95" />
-      <rect x="54" y="70" width="52" height="34" rx="3" fill="none" stroke="${mainColor}" stroke-width="1" />
-      <text x="80" y="82" font-size="7" font-weight="900" fill="${secColor}" text-anchor="middle" font-family="sans-serif">SIRCA PU</text>
+      <text x="80" y="82" font-size="7.5" font-weight="900" fill="${secColor}" text-anchor="middle" font-family="sans-serif">SIRCA PU</text>
       <rect x="60" y="86" width="40" height="12" rx="3" fill="${mainColor}" />
       <text x="80" y="94.5" font-size="6" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">${tag}</text>`;
-      return wrapSvg(art, secColor, '🎨 ' + cleanTitle);
+      return wrapSvg(art, secColor, '🎨 ' + cleanTitle, '#f1f5f9');
     }
 
-    // STRAPPING / TAPE / ROLL / PP STRAPING
+    // ==================== 17. PACKAGING: STRAPPING & RAFFIA ====================
     if (name.includes('STRAP') || name.includes('TAPE') || name.includes('ROLL')) {
       const art = `
       <defs>
@@ -544,18 +467,13 @@ export const posAIProductImageService = {
           <stop offset="100%" stop-color="#312e81" />
         </radialGradient>
       </defs>
-      <!-- Circular Strapping Coil Roll -->
       <circle cx="80" cy="80" r="38" fill="url(#spoolGrad_${idStr})" stroke="#1e1b4b" stroke-width="1.5" />
-      <!-- Wound Band Layers -->
       <circle cx="80" cy="80" r="30" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-dasharray="6 3" />
-      <circle cx="80" cy="80" r="22" fill="none" stroke="#a5b4fc" stroke-width="2" />
-      <!-- Center Spool Core Hole -->
       <circle cx="80" cy="80" r="14" fill="#0f172a" stroke="#ffffff" stroke-width="2" />
-      <text x="80" y="83" font-size="7" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">CORE</text>`;
-      return wrapSvg(art, '#312e81', '📦 ' + cleanTitle);
+      <text x="80" y="83" font-size="7" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">ROLL</text>`;
+      return wrapSvg(art, '#312e81', '📦 ' + cleanTitle, '#eef2ff');
     }
 
-    // RAFFIA / PLASTIC / GRANULE / POWDER
     if (name.includes('RAFFIA') || name.includes('PLASTIC') || name.includes('POWDER') || name.includes('POLYMER')) {
       const art = `
       <defs>
@@ -565,34 +483,48 @@ export const posAIProductImageService = {
           <stop offset="100%" stop-color="#047857" />
         </linearGradient>
       </defs>
-      <!-- Industrial Polymer Woven Bag -->
       <path d="M 52 46 L 108 46 L 114 118 C 114 122, 46 122, 46 118 Z" fill="url(#polyGrad_${idStr})" stroke="#065f46" stroke-width="1.2" />
-      <!-- Diamond Quality Seal -->
       <polygon points="80,64 96,80 80,96 64,80" fill="#ffffff" opacity="0.95" />
       <text x="80" y="83" font-size="8" font-weight="900" fill="#047857" text-anchor="middle" font-family="sans-serif">PP</text>
       <text x="80" y="108" font-size="6.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">GRADE A</text>`;
-      return wrapSvg(art, '#065f46', '🏭 ' + cleanTitle);
+      return wrapSvg(art, '#065f46', '🏭 ' + cleanTitle, '#ecfdf5');
     }
 
-    // ==================== 7. GENERAL / DEFAULT PRODUCT ====================
+    // ==================== 18. DYNAMIC ULTRA-COLORFUL PROCEDURAL PALETTE FOR ALL OTHER ITEMS ====================
+    // Compute deterministic color palette from name hash
+    const PALETTES = [
+      { primary: '#e11d48', secondary: '#9f1239', accent: '#fda4af', tag: '#881337', tint: '#ffe4e6', icon: '💎' },
+      { primary: '#7c3aed', secondary: '#5b21b6', accent: '#c4b5fd', tag: '#4c1d95', tint: '#f3e8ff', icon: '✨' },
+      { primary: '#059669', secondary: '#047857', accent: '#6ee7b7', tag: '#064e3b', tint: '#d1fae5', icon: '🌿' },
+      { primary: '#0284c7', secondary: '#0369a1', accent: '#7dd3fc', tag: '#0c4a6e', tint: '#e0f2fe', icon: '⭐' },
+      { primary: '#ea580c', secondary: '#c2410c', accent: '#fed7aa', tag: '#7c2d12', tint: '#ffedd5', icon: '🔥' },
+      { primary: '#c026d3', secondary: '#9333ea', accent: '#f5d0fe', tag: '#701a75', tint: '#fae8ff', icon: '🔮' },
+      { primary: '#d97706', secondary: '#b45309', accent: '#fde68a', tag: '#78350f', tint: '#fef3c7', icon: '👑' },
+      { primary: '#4f46e5', secondary: '#3730a3', accent: '#c7d2fe', tag: '#312e81', tint: '#e0e7ff', icon: '⚡' },
+      { primary: '#0d9488', secondary: '#0f766e', accent: '#99f6e4', tag: '#134e4a', tint: '#ccfbf1', icon: '🍀' },
+    ];
+    let hash = 0;
+    for (let i = 0; i < rawName.length; i++) {
+      hash = (hash << 5) - hash + rawName.charCodeAt(i);
+      hash |= 0;
+    }
+    const pal = PALETTES[Math.abs(hash) % PALETTES.length];
+
     const art = `
     <defs>
-      <linearGradient id="genGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#38bdf8" />
-        <stop offset="50%" stop-color="#0284c7" />
-        <stop offset="100%" stop-color="#075985" />
+      <linearGradient id="dynGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="${pal.accent}" />
+        <stop offset="50%" stop-color="${pal.primary}" />
+        <stop offset="100%" stop-color="${pal.secondary}" />
       </linearGradient>
     </defs>
-    <!-- Modern 3D Retail Product Package Box -->
-    <path d="M 48 58 L 80 40 L 112 58 L 80 76 Z" fill="#7dd3fc" stroke="#0284c7" stroke-width="1" />
-    <path d="M 48 58 L 80 76 L 80 118 L 48 100 Z" fill="url(#genGrad_${idStr})" stroke="#0369a1" stroke-width="1" />
-    <path d="M 80 76 L 112 58 L 112 100 L 80 118 Z" fill="#0369a1" stroke="#075985" stroke-width="1" />
-    <!-- Barcode & Star Accent -->
-    <rect x="85" y="86" width="22" height="12" rx="1.5" fill="#ffffff" />
-    <path d="M 88 88 L 88 96 M 91 88 L 91 96 M 93 88 L 93 96 M 97 88 L 97 96 M 101 88 L 101 96 M 104 88 L 104 96" stroke="#0f172a" stroke-width="1" />
-    <circle cx="64" cy="88" r="8" fill="#ffffff" opacity="0.9" />
-    <text x="64" y="91" font-size="9" font-weight="900" fill="#0284c7" text-anchor="middle" font-family="sans-serif">★</text>`;
-    return wrapSvg(art, '#0369a1', '✨ ' + cleanTitle);
+    <!-- Vibrant 3D Retail Product Package with Gold Foil Ribbon -->
+    <path d="M 48 58 L 80 40 L 112 58 L 80 76 Z" fill="${pal.accent}" stroke="${pal.primary}" stroke-width="1.2" />
+    <path d="M 48 58 L 80 76 L 80 118 L 48 100 Z" fill="url(#dynGrad_${idStr})" stroke="${pal.secondary}" stroke-width="1.2" />
+    <path d="M 80 76 L 112 58 L 112 100 L 80 118 Z" fill="${pal.secondary}" stroke="${pal.tag}" stroke-width="1.2" />
+    <!-- Center Emblem & Initials -->
+    <circle cx="80" cy="76" r="14" fill="#ffffff" stroke="${pal.primary}" stroke-width="2" />
+    <text x="80" y="80.5" font-size="10" font-weight="900" fill="${pal.tag}" text-anchor="middle" font-family="sans-serif">${cleanTitle.slice(0, 2).toUpperCase()}</text>`;
+    return wrapSvg(art, pal.tag, pal.icon + ' ' + cleanTitle, pal.tint);
   }
 };
-

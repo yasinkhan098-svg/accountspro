@@ -282,7 +282,7 @@ export default function PurchasePOSListView({
         discountPerc: Math.round(discountPerc * 100) / 100,
         discountAmt: Math.round(discountAmt * 100) / 100,
         retailSalePrice: Math.round(retailSalePrice * 100) / 100,
-        unit: resolveUnitString(saved.unit ? saved : si),
+        unit: resolveUnitString(si) || resolveUnitString(saved),
         gstRate: Number(si.gstRate) || 18,
         variants: saved.variants || si.variants || [],
       };
@@ -355,6 +355,43 @@ export default function PurchasePOSListView({
         console.warn("Could not fetch remote purchase list:", err);
       });
   }, [storageKey, companyCode, companyId, buildItemsList]);
+
+  // 4B. Live Reactive Sync: When stockItems prop updates (e.g. user altered item unit or name in Masters), update items immediately!
+  useEffect(() => {
+    if (!isInitializedRef.current || !stockItems || stockItems.length === 0) return;
+    setItems(prev => {
+      let hasChanges = false;
+      const updated = prev.map(item => {
+        const matchedSi = (stockItems || []).find(
+          si => si.id === item.id || (si.name && si.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+        );
+        if (!matchedSi) return item;
+
+        const liveUnit = resolveUnitString(matchedSi);
+        const liveStock = calculateLiveStock(matchedSi);
+        const liveName = matchedSi.name || item.name;
+
+        if (item.unit !== liveUnit || item.openingStock !== liveStock || item.name !== liveName) {
+          hasChanges = true;
+          return {
+            ...item,
+            name: liveName,
+            unit: liveUnit,
+            openingStock: liveStock,
+          };
+        }
+        return item;
+      });
+
+      if (hasChanges) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+        }
+        return updated;
+      }
+      return prev;
+    });
+  }, [stockItems, vouchers, calculateLiveStock, storageKey]);
 
   // 5. Reactive Item Updating with Auto-Save
   const handleUpdateItem = (id: number, field: keyof POSPurchaseItem, value: any) => {

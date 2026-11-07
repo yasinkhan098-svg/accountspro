@@ -231,7 +231,7 @@ export default function POSSaleView({
         ((p.name || '').trim().toLowerCase() === targetName)
       );
 
-      const resolvedUnit = resolveUnitString(posMatch?.unit ? posMatch : si);
+      const resolvedUnit = resolveUnitString(si) || resolveUnitString(posMatch);
       const mrp = Number(posMatch?.mrp) > 0 ? Number(posMatch.mrp) : (Number(si.mrp) > 0 ? Number(si.mrp) : 0);
       const discountPerc = Number(posMatch?.discountPerc) || 0;
       const discountAmt = Number(posMatch?.discountAmt) || 0;
@@ -324,34 +324,35 @@ export default function POSSaleView({
     return positiveStockItems;
   }, [positiveStockItems, activePOSPurchaseList]);
 
-  // AI Product Image Generator Trigger (Intelligently generates realistic vector imagery based on item name)
+  // AI Product Image Generator Trigger (Intelligently generates realistic colorful imagery based on item name)
   const handleGenerateAIImages = () => {
     setIsGeneratingAI(true);
     try {
       const updatedMap = { ...aiImagesMap };
       let generatedCount = 0;
 
-      // Combine all stock items and purchase POS items to ensure 100% coverage
-      const allItemsToProcess = [...stockItems];
-      if (Array.isArray(activePOSPurchaseList)) {
-        for (const p of activePOSPurchaseList) {
-          if (!allItemsToProcess.some(it => String(it.id) === String(p.id))) {
-            allItemsToProcess.push(p);
-          }
-        }
-      }
+      // Combine all stock items, catalog items, and purchase POS items to ensure 100% coverage
+      const allItemsToProcess = [...stockItems, ...catalogItems, ...(activePOSPurchaseList || [])];
+      const seen = new Set<string>();
 
       for (const it of allItemsToProcess) {
-        const key = String(it.id);
-        // Regenerate and upgrade AI image matching product name
-        updatedMap[key] = generateAIImageForProduct(it);
+        if (!it) continue;
+        const nameKey = String(it.name || it.itemName || '').trim().toLowerCase();
+        const idKey = String(it.id);
+        if (!nameKey || seen.has(nameKey)) continue;
+        seen.add(nameKey);
+
+        const img = generateAIImageForProduct(it);
+        updatedMap[idKey] = img;
+        updatedMap[nameKey] = img;
         generatedCount++;
       }
+
       setAiImagesMap(updatedMap);
       if (typeof window !== 'undefined') {
         localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
       }
-      alert(`✨ AI Image Generation Complete!\nGenerated realistic product imagery for ${generatedCount} items.`);
+      alert(`✨ AI Image Generation Complete!\nGenerated realistic colorful product imagery for ${generatedCount} items.`);
     } catch (err: any) {
       alert('AI image generation error: ' + err.message);
     } finally {
@@ -2058,7 +2059,9 @@ export default function POSSaleView({
                       })
                       .map((item: any) => {
                         const st = item._calculatedStock;
-                        const rawImg = aiImagesMap[String(item.id)];
+                        const keyById = String(item.id);
+                        const keyByName = String(item.name || item.itemName || '').trim().toLowerCase();
+                        const rawImg = aiImagesMap[keyById] || aiImagesMap[keyByName];
                         const imgSrc = item.image || (rawImg && !posAIProductImageService.isLegacyAIImage(rawImg) ? rawImg : generateAIImageForProduct(item));
                         const isSelected = selectedCartItem?.itemId === item.id;
                         const displayName = item.name || item.itemName || 'Item';
