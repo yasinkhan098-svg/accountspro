@@ -585,6 +585,20 @@ export default function PurchasePOSListView({
     );
   }, [items, searchQuery]);
 
+  // Reusable sticky style for fixed golden yellow header row
+  const thStickyBase: React.CSSProperties = {
+    position: 'sticky',
+    top: 0,
+    zIndex: 30,
+    background: '#eab308',
+    color: '#000000',
+    fontWeight: 900,
+    borderBottom: '2.5px solid #ca8a04',
+    borderRight: '1px solid #d4a373',
+    boxSizing: 'border-box',
+    userSelect: 'none',
+  };
+
   return (
     <div
       style={{
@@ -629,6 +643,21 @@ export default function PurchasePOSListView({
           background: #ffffff !important;
           box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.3) !important;
           outline: none !important;
+        }
+        .pos-purchase-table {
+          border-collapse: separate !important;
+          border-spacing: 0 !important;
+        }
+        .pos-purchase-table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 30;
+          background: #eab308;
+          border-bottom: 2.5px solid #ca8a04;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+        }
+        .pos-purchase-table tbody td {
+          border-bottom: 1px solid #e2e8f0;
         }
       `}</style>
 
@@ -795,41 +824,45 @@ export default function PurchasePOSListView({
       </div>
 
       {/* ==================== 2. MAIN EXCEL-STYLE GRID TABLE ==================== */}
-      {/* Scrollable area with 60px bottom padding so row 69, 70, etc. never get hidden */}
+      {/* Scrollable grid container with permanently sticky yellow header row */}
       <div
         style={{
           flex: 1,
           minHeight: 0,
+          margin: '8px 12px 10px 12px',
+          border: '1.5px solid #cbd5e1',
+          borderRadius: 6,
+          background: '#ffffff',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)',
           overflowY: 'auto',
           overflowX: 'auto',
-          padding: '8px 12px 60px 12px',
           WebkitOverflowScrolling: 'touch',
           boxSizing: 'border-box',
+          position: 'relative',
         }}
       >
-        <div style={{ border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden', background: '#ffffff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left', minWidth: 1250 }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#eab308' }}>
-              {/* Golden Yellow Header matching uploaded screenshot */}
-              <tr style={{ background: '#eab308', color: '#000000', fontWeight: 900, textTransform: 'capitalize', borderBottom: '2.5px solid #ca8a04', whiteSpace: 'nowrap', height: 44 }}>
-                <th style={{ padding: '10px 8px', borderRight: '1px solid #d4a373', width: 50, textAlign: 'center' }}>S.no</th>
-                <th style={{ padding: '10px 12px', borderRight: '1px solid #d4a373', minWidth: 190 }}>Product Name</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 110 }}>Purchase Price</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 135 }}>New Purchase Price</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'center', minWidth: 115 }}>Expiry Date</th>
-                <th style={{ padding: '10px 8px', borderRight: '1px solid #d4a373', textAlign: 'right', width: 75 }}>CESS%</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 110 }}>Openning Stock</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', minWidth: 145 }}>Barcode</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 95 }}>MRP</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 155 }}>Discount% in percentage</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 140 }}>Discount in Amount</th>
-                <th style={{ padding: '10px 14px', borderRight: '1px solid #d4a373', textAlign: 'right', minWidth: 125, background: '#f59e0b', color: '#000000', fontWeight: 900 }}>Retail Sale Price</th>
-                <th style={{ padding: '10px 8px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 70 }}>insert</th>
-                <th style={{ padding: '10px 8px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 70 }}>delete</th>
-                <th style={{ padding: '10px 10px', borderRight: '1px solid #d4a373', textAlign: 'center', width: 115 }}>print Barcode</th>
-                <th style={{ padding: '10px 8px', textAlign: 'center', width: 85 }}>Variant</th>
-              </tr>
-            </thead>
+        <table className="pos-purchase-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13, textAlign: 'left', minWidth: 1250 }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 30, background: '#eab308' }}>
+            {/* Golden Yellow Header matching uploaded screenshot */}
+            <tr style={{ background: '#eab308', color: '#000000', fontWeight: 900, textTransform: 'capitalize', whiteSpace: 'nowrap', height: 44 }}>
+              <th style={{ ...thStickyBase, width: 50, textAlign: 'center', padding: '10px 8px', borderTopLeftRadius: 5 }}>S.no</th>
+              <th style={{ ...thStickyBase, minWidth: 190, padding: '10px 12px' }}>Product Name</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 110, padding: '10px 10px' }}>Purchase Price</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 135, padding: '10px 10px' }}>New Purchase Price</th>
+              <th style={{ ...thStickyBase, textAlign: 'center', minWidth: 115, padding: '10px 10px' }}>Expiry Date</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', width: 75, padding: '10px 8px' }}>CESS%</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 110, padding: '10px 10px' }}>Openning Stock</th>
+              <th style={{ ...thStickyBase, minWidth: 145, padding: '10px 10px' }}>Barcode</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 95, padding: '10px 10px' }}>MRP</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 155, padding: '10px 10px' }}>Discount% in percentage</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 140, padding: '10px 10px' }}>Discount in Amount</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 125, padding: '10px 14px', background: '#f59e0b', color: '#000000' }}>Retail Sale Price</th>
+              <th style={{ ...thStickyBase, textAlign: 'center', width: 70, padding: '10px 8px' }}>insert</th>
+              <th style={{ ...thStickyBase, textAlign: 'center', width: 70, padding: '10px 8px' }}>delete</th>
+              <th style={{ ...thStickyBase, textAlign: 'center', width: 115, padding: '10px 10px' }}>print Barcode</th>
+              <th style={{ ...thStickyBase, textAlign: 'center', width: 85, padding: '10px 8px', borderRight: 'none', borderTopRightRadius: 5 }}>Variant</th>
+            </tr>
+          </thead>
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
@@ -1172,9 +1205,13 @@ export default function PurchasePOSListView({
                   );
                 })
               )}
+              {filteredItems.length > 0 && (
+                <tr>
+                  <td colSpan={16} style={{ height: 40, border: 'none', background: 'transparent' }} />
+                </tr>
+              )}
             </tbody>
           </table>
-        </div>
       </div>
 
       {/* ==================== 3. FIXED BOTTOM STATUS FOOTER ==================== */}
