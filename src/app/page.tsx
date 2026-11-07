@@ -4739,13 +4739,6 @@ export default function App() {
                 onBack={goBack}
                 onStockUpdated={updated => setAllStockItems(updated)}
                 onVouchersUpdated={updated => setAllVouchers(updated)}
-                onOpenPurchasePOSList={() => {
-                  if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') && permissionGuard.canAccessVoucher('Purchase POS List')) {
-                    nav('PURCHASE_POS_LIST');
-                  } else {
-                    alert('Access Denied: You do not have permission to view Purchase POS List.');
-                  }
-                }}
               />
             )}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}

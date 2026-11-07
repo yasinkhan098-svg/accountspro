@@ -123,11 +123,9 @@ export default function POSWorkflowContainer({
     }
 
     if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') && permissionGuard.canAccessVoucher('Purchase POS List')) {
-      if (onOpenPurchasePOSList) {
-        onOpenPurchasePOSList();
-      } else {
-        setWorkflowState('PURCHASE_POS_LIST');
-      }
+      // Always switch to internal PURCHASE_POS_LIST state so the cashier session is preserved
+      // and pressing Escape returns smoothly step-by-step to SALES screen without logging out!
+      setWorkflowState('PURCHASE_POS_LIST');
     } else {
       alert('Access Denied: You do not have permission to access Purchase POS List.');
     }

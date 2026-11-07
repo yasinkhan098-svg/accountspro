@@ -567,13 +567,29 @@ export default function PurchasePOSListView({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleManualSave();
-      } else if (e.key === 'Escape' && !printModalItem && !showBulkPrintModal) {
-        onBack();
+      } else if (e.key === 'Escape') {
+        if (printModalItem) {
+          e.preventDefault();
+          e.stopPropagation();
+          setPrintModalItem(null);
+        } else if (showBulkPrintModal) {
+          e.preventDefault();
+          e.stopPropagation();
+          setShowBulkPrintModal(false);
+        } else if (searchQuery.trim()) {
+          e.preventDefault();
+          e.stopPropagation();
+          setSearchQuery('');
+        } else {
+          e.preventDefault();
+          e.stopPropagation();
+          onBack();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, printModalItem, showBulkPrintModal, onBack]);
+  }, [items, printModalItem, showBulkPrintModal, searchQuery, onBack]);
 
   // Filter items
   const filteredItems = useMemo(() => {
