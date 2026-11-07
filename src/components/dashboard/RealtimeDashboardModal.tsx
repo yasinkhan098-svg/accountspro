@@ -317,7 +317,7 @@ export default function RealtimeDashboardModal({
   );
 
   return (
-    <div 
+    <div
       className="dashboard-modal-overlay modal-overlay"
       style={{
         position: 'fixed',
@@ -663,9 +663,9 @@ export default function RealtimeDashboardModal({
               onClick={() => {
                 if (typeof document !== 'undefined') {
                   if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {});
+                    document.documentElement.requestFullscreen().catch(() => { });
                   } else {
-                    document.exitFullscreen().catch(() => {});
+                    document.exitFullscreen().catch(() => { });
                   }
                 }
               }}
@@ -691,7 +691,7 @@ export default function RealtimeDashboardModal({
 
           {/* Close Button (only when not standalone) */}
           {!isStandalone && onClose && (
-            <button 
+            <button
               onClick={onClose}
               style={{
                 background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
@@ -774,8 +774,8 @@ export default function RealtimeDashboardModal({
 
         {/* KPI 3: Net Profit & Margin - Radiant Gold / Emerald */}
         <div className="dashboard-kpi-card" style={{
-          background: calculations.netProfit >= 0 
-            ? 'linear-gradient(145deg, #14532d 0%, #052e16 100%)' 
+          background: calculations.netProfit >= 0
+            ? 'linear-gradient(145deg, #14532d 0%, #052e16 100%)'
             : 'linear-gradient(145deg, #7f1d1d 0%, #450a0a 100%)',
           border: calculations.netProfit >= 0 ? '1px solid #22c55e' : '1px solid #ef4444',
           borderRadius: 10,
@@ -885,7 +885,7 @@ export default function RealtimeDashboardModal({
         {/* ═══════════ COLUMN 1: REVENUE & TRADING (EMERALD / GREEN THEME) ═══════════ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* 1. Sales Trend Interactive Area Chart */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -908,8 +908,8 @@ export default function RealtimeDashboardModal({
 
             {/* Chart SVG */}
             <div className="dashboard-chart-box">
-              <svg 
-                viewBox={`0 0 ${chartW} ${chartH}`} 
+              <svg
+                viewBox={`0 0 ${chartW} ${chartH}`}
                 style={{ width: '100%', height: '100%', overflow: 'visible' }}
                 onClick={() => setHoveredSalesPoint(null)}
               >
@@ -958,19 +958,19 @@ export default function RealtimeDashboardModal({
                       {points.map((p, i) => (
                         <g key={i}>
                           {/* Visible Circle */}
-                          <circle 
-                            cx={p.x} 
-                            cy={p.y} 
-                            r={p.val > 0 ? 4.5 : 2.5} 
-                            fill={p.val > 0 ? '#34d399' : '#059669'} 
-                            stroke="#ffffff" 
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={p.val > 0 ? 4.5 : 2.5}
+                            fill={p.val > 0 ? '#34d399' : '#059669'}
+                            stroke="#ffffff"
                             strokeWidth={p.val > 0 ? 1.5 : 0.8}
                           />
                           {/* Invisible larger circle for easy touch/click on mobile */}
-                          <circle 
-                            cx={p.x} 
-                            cy={p.y} 
-                            r={14} 
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={14}
                             fill="transparent"
                             style={{ cursor: 'pointer' }}
                             onMouseEnter={() => setHoveredSalesPoint(p)}
@@ -979,21 +979,21 @@ export default function RealtimeDashboardModal({
                             onClick={(e) => { e.stopPropagation(); setHoveredSalesPoint(hoveredSalesPoint?.name === p.name ? null : p); }}
                           />
                           {/* X-axis labels */}
-                          <text 
-                            x={p.x} 
-                            y={chartH - paddingB + 13} 
-                            textAnchor="middle" 
-                            fontSize="8.5" 
+                          <text
+                            x={p.x}
+                            y={chartH - paddingB + 13}
+                            textAnchor="middle"
+                            fontSize="8.5"
                             fill="#cbd5e1"
                             fontWeight="600"
                           >
                             {p.name}
                           </text>
-                          <text 
-                            x={p.x} 
-                            y={chartH - paddingB + 23} 
-                            textAnchor="middle" 
-                            fontSize="7.5" 
+                          <text
+                            x={p.x}
+                            y={chartH - paddingB + 23}
+                            textAnchor="middle"
+                            fontSize="7.5"
                             fill="#64748b"
                           >
                             {p.label.split('-')[1]}
@@ -1007,7 +1007,7 @@ export default function RealtimeDashboardModal({
 
               {/* High-Tech Hover Tooltip */}
               {hoveredSalesPoint && (
-                <div 
+                <div
                   style={{
                     position: 'absolute',
                     left: `${(hoveredSalesPoint.x / chartW) * 100}%`,
@@ -1040,7 +1040,7 @@ export default function RealtimeDashboardModal({
           </div>
 
           {/* 2. Trading Details Panel (P&L Breakdown) */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -1124,7 +1124,7 @@ export default function RealtimeDashboardModal({
           </div>
 
           {/* 3. Cash & Bank Accounts Panel */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -1211,7 +1211,7 @@ export default function RealtimeDashboardModal({
           </div>
 
           {/* 4. Inventory Performance Details */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -1272,7 +1272,7 @@ export default function RealtimeDashboardModal({
         {/* ═══════════ COLUMN 2: PURCHASES & WORKING CAPITAL (ROSE / INDIGO THEME) ═══════════ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* 1. Purchase Trend Interactive Area Chart */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -1295,8 +1295,8 @@ export default function RealtimeDashboardModal({
 
             {/* Chart SVG */}
             <div className="dashboard-chart-box">
-              <svg 
-                viewBox={`0 0 ${chartW} ${chartH}`} 
+              <svg
+                viewBox={`0 0 ${chartW} ${chartH}`}
                 style={{ width: '100%', height: '100%', overflow: 'visible' }}
                 onClick={() => setHoveredPurchasePoint(null)}
               >
@@ -1345,19 +1345,19 @@ export default function RealtimeDashboardModal({
                       {points.map((p, i) => (
                         <g key={i}>
                           {/* Visible Circle */}
-                          <circle 
-                            cx={p.x} 
-                            cy={p.y} 
-                            r={p.val > 0 ? 4.5 : 2.5} 
-                            fill={p.val > 0 ? '#fb7185' : '#e11d48'} 
-                            stroke="#ffffff" 
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={p.val > 0 ? 4.5 : 2.5}
+                            fill={p.val > 0 ? '#fb7185' : '#e11d48'}
+                            stroke="#ffffff"
                             strokeWidth={p.val > 0 ? 1.5 : 0.8}
                           />
                           {/* Invisible larger circle for easy touch/click on mobile */}
-                          <circle 
-                            cx={p.x} 
-                            cy={p.y} 
-                            r={14} 
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={14}
                             fill="transparent"
                             style={{ cursor: 'pointer' }}
                             onMouseEnter={() => setHoveredPurchasePoint(p)}
@@ -1366,21 +1366,21 @@ export default function RealtimeDashboardModal({
                             onClick={(e) => { e.stopPropagation(); setHoveredPurchasePoint(hoveredPurchasePoint?.name === p.name ? null : p); }}
                           />
                           {/* X-axis labels */}
-                          <text 
-                            x={p.x} 
-                            y={chartH - paddingB + 13} 
-                            textAnchor="middle" 
-                            fontSize="8.5" 
+                          <text
+                            x={p.x}
+                            y={chartH - paddingB + 13}
+                            textAnchor="middle"
+                            fontSize="8.5"
                             fill="#cbd5e1"
                             fontWeight="600"
                           >
                             {p.name}
                           </text>
-                          <text 
-                            x={p.x} 
-                            y={chartH - paddingB + 23} 
-                            textAnchor="middle" 
-                            fontSize="7.5" 
+                          <text
+                            x={p.x}
+                            y={chartH - paddingB + 23}
+                            textAnchor="middle"
+                            fontSize="7.5"
                             fill="#64748b"
                           >
                             {p.label.split('-')[1]}
@@ -1394,7 +1394,7 @@ export default function RealtimeDashboardModal({
 
               {/* High-Tech Hover Tooltip */}
               {hoveredPurchasePoint && (
-                <div 
+                <div
                   style={{
                     position: 'absolute',
                     left: `${(hoveredPurchasePoint.x / chartW) * 100}%`,
@@ -1427,7 +1427,7 @@ export default function RealtimeDashboardModal({
           </div>
 
           {/* 2. Assets & Liabilities Balance */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -1498,7 +1498,7 @@ export default function RealtimeDashboardModal({
           </div>
 
           {/* 3. Top Groups / Ledgers with Interactive Selector */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -1510,8 +1510,8 @@ export default function RealtimeDashboardModal({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
               <span style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc' }}>Top Ledgers Breakdown</span>
-              <select 
-                value={activeLedgerGroup} 
+              <select
+                value={activeLedgerGroup}
                 onChange={e => setActiveLedgerGroup(e.target.value as any)}
                 style={{
                   fontSize: 11,
@@ -1580,10 +1580,10 @@ export default function RealtimeDashboardModal({
                           <td style={{ textAlign: 'center', padding: '6px 0' }}>
                             {b.type === 'Dr' ? <DrPill /> : <CrPill />}
                           </td>
-                          <td style={{ 
-                            textAlign: 'right', 
-                            padding: '6px 0', 
-                            fontWeight: 700, 
+                          <td style={{
+                            textAlign: 'right',
+                            padding: '6px 0',
+                            fontWeight: 700,
                             color: b.type === 'Dr' ? '#60a5fa' : '#34d399',
                             fontVariantNumeric: 'tabular-nums',
                             whiteSpace: 'nowrap'
@@ -1603,7 +1603,7 @@ export default function RealtimeDashboardModal({
         {/* ═══════════ COLUMN 3: CASH FLOW, RECEIVABLES & KEY RATIOS (CYAN / AMBER THEME) ═══════════ */}
         <div className="dashboard-col-3" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* 1. Cash In/Out Flow Analysis */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -1725,7 +1725,7 @@ export default function RealtimeDashboardModal({
           </div>
 
           {/* 2. Receivables vs Payables (Debtors vs Creditors) */}
-          <div 
+          <div
             style={{
               background: '#1e293b',
               border: '1px solid #334155',
@@ -1795,7 +1795,7 @@ export default function RealtimeDashboardModal({
           </div>
 
           {/* 3. Executive Accounting Ratios */}
-          <div 
+          <div
             className="dashboard-col-3-full"
             style={{
               background: '#1e293b',
@@ -1890,7 +1890,7 @@ export default function RealtimeDashboardModal({
           {!isStandalone && onClose ? (
             <>
               <span style={{ color: '#64748b' }}>Press <strong>Esc</strong> key to close</span>
-              <button 
+              <button
                 onClick={onClose}
                 style={{
                   background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',

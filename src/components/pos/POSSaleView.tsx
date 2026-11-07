@@ -18,6 +18,7 @@ import { permissionGuard } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
 import { posTrainingService } from '@/lib/pos/posTrainingService';
 import { resolveUnitString } from '@/lib/unitResolver';
+import { posAIProductImageService } from '@/lib/pos/posAIProductImageService';
 
 interface POSSaleViewProps {
   company: any;
@@ -36,94 +37,7 @@ interface POSSaleViewProps {
 
 // AI Realistic Product Mockup Generator
 function generateAIImageForProduct(item: any): string {
-  const name = String(item.name || '').trim().toUpperCase();
-
-  let primaryColor = '#0284c7';
-  let secondaryColor = '#0369a1';
-  let accentColor = '#38bdf8';
-
-  if (name.includes('RED') || name.includes('RLD') || name.includes('ROSE')) {
-    primaryColor = '#dc2626';
-    secondaryColor = '#991b1b';
-    accentColor = '#f87171';
-  } else if (name.includes('GREEN') || name.includes('GRN') || name.includes('EMERALD')) {
-    primaryColor = '#16a34a';
-    secondaryColor = '#14532d';
-    accentColor = '#4ade80';
-  } else if (name.includes('YELLOW') || name.includes('YLW') || name.includes('GOLD')) {
-    primaryColor = '#eab308';
-    secondaryColor = '#854d0e';
-    accentColor = '#fde047';
-  } else if (name.includes('BLUE') || name.includes('SKY') || name.includes('INDIGO')) {
-    primaryColor = '#2563eb';
-    secondaryColor = '#1e3a8a';
-    accentColor = '#60a5fa';
-  } else if (name.includes('ORANGE') || name.includes('SUNRISE')) {
-    primaryColor = '#ea580c';
-    secondaryColor = '#9a3412';
-    accentColor = '#fb923c';
-  } else if (name.includes('BLACK') || name.includes('CARBON')) {
-    primaryColor = '#1e293b';
-    secondaryColor = '#0f172a';
-    accentColor = '#64748b';
-  } else if (name.includes('WHITE') || name.includes('SILVER')) {
-    primaryColor = '#64748b';
-    secondaryColor = '#334155';
-    accentColor = '#cbd5e1';
-  }
-
-  let capacityText = '';
-  if (name.includes('1LT') || name.includes('1 LT') || name.includes('1LTR')) capacityText = '1 LTR';
-  else if (name.includes('4LT') || name.includes('4 LT') || name.includes('4LTR')) capacityText = '4 LTR';
-  else if (name.includes('10LT') || name.includes('10 LT')) capacityText = '10 LTR';
-  else if (name.includes('20LT') || name.includes('20 LT')) capacityText = '20 LTR';
-  else if (name.includes('500ML') || name.includes('500 ML')) capacityText = '500 ML';
-  else if (name.includes('50KG') || name.includes('50 KG')) capacityText = '50 KG';
-  else if (name.includes('25KG') || name.includes('25 KG')) capacityText = '25 KG';
-  else capacityText = item.unit || 'PACK';
-
-  const cleanTitle = name.slice(0, 16);
-  const idStr = String(item.id || Math.random()).replace(/[^a-zA-Z0-9]/g, '');
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
-  <defs>
-    <linearGradient id="bodyGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="${secondaryColor}" />
-      <stop offset="40%" stop-color="${primaryColor}" />
-      <stop offset="70%" stop-color="${accentColor}" />
-      <stop offset="100%" stop-color="${secondaryColor}" />
-    </linearGradient>
-    <linearGradient id="lidGrad_${idStr}" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
-      <stop offset="100%" stop-color="#cbd5e1" stop-opacity="0.8" />
-    </linearGradient>
-    <filter id="shadow_${idStr}" x="-10%" y="-10%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.3" />
-    </filter>
-  </defs>
-  <ellipse cx="80" cy="142" rx="46" ry="9" fill="#94a3b8" opacity="0.35" />
-  <g filter="url(#shadow_${idStr})">
-    <path d="M 40 46 L 46 128 C 46 136, 114 136, 114 128 L 120 46 Z" fill="url(#bodyGrad_${idStr})" />
-    <ellipse cx="80" cy="46" rx="40" ry="8" fill="url(#lidGrad_${idStr})" stroke="#94a3b8" stroke-width="0.75" />
-    <ellipse cx="80" cy="43" rx="34" ry="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.75" />
-    <path d="M 37 49 C 37 20, 123 20, 123 49" fill="none" stroke="#e2e8f0" stroke-width="2.5" stroke-linecap="round" />
-    <path d="M 37 49 C 37 20, 123 20, 123 49" fill="none" stroke="#64748b" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
-    <rect x="48" y="66" width="64" height="46" rx="5" fill="#ffffff" opacity="0.95" />
-    <rect x="50" y="68" width="60" height="42" rx="4" fill="none" stroke="${primaryColor}" stroke-width="1.2" />
-    <circle cx="80" cy="79" r="6.5" fill="${primaryColor}" />
-    <text x="80" y="82" font-size="6.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">★</text>
-    <text x="80" y="94" font-size="6.5" font-weight="800" fill="#0f172a" text-anchor="middle" font-family="sans-serif">
-      ${cleanTitle.length > 12 ? cleanTitle.slice(0, 12) + '..' : cleanTitle}
-    </text>
-    <rect x="62" y="99" width="36" height="8" rx="4" fill="${secondaryColor}" />
-    <text x="80" y="105.5" font-size="5.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">
-      ${capacityText}
-    </text>
-  </g>
-  <path d="M 47 52 Q 52 90 51 124" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.45" />
-</svg>`;
-
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  return posAIProductImageService.generateImage(item);
 }
 
 export default function POSSaleView({
@@ -383,18 +297,52 @@ export default function POSSaleView({
       .filter(item => item._calculatedStock > 0);
   }, [catalogItems, getItemStock]);
 
-  // AI Product Image Generator Trigger
+  // Rubic POS Stock Items: Strictly filtered to items present in Purchase POS List (Stock > 0)
+  const rubicStockItems = useMemo(() => {
+    if (Array.isArray(activePOSPurchaseList) && activePOSPurchaseList.length > 0) {
+      const purchaseIds = new Set<string>();
+      const purchaseBarcodes = new Set<string>();
+      const purchaseNames = new Set<string>();
+
+      activePOSPurchaseList.forEach(p => {
+        if (p.id !== undefined && p.id !== null) purchaseIds.add(String(p.id));
+        if (p.barcode) purchaseBarcodes.add(String(p.barcode).trim().toLowerCase());
+        if (p.name) purchaseNames.add(String(p.name).trim().toLowerCase());
+      });
+
+      return positiveStockItems.filter(item => {
+        const idMatch = item.id && purchaseIds.has(String(item.id));
+        const barcodeMatch = item.barcode && purchaseBarcodes.has(String(item.barcode).trim().toLowerCase());
+        const nameMatch = item.name && purchaseNames.has(String(item.name).trim().toLowerCase());
+        return idMatch || barcodeMatch || nameMatch;
+      });
+    }
+
+    return positiveStockItems;
+  }, [positiveStockItems, activePOSPurchaseList]);
+
+  // AI Product Image Generator Trigger (Intelligently generates realistic vector imagery based on item name)
   const handleGenerateAIImages = () => {
     setIsGeneratingAI(true);
     try {
       const updatedMap = { ...aiImagesMap };
       let generatedCount = 0;
-      for (const it of stockItems) {
-        const key = String(it.id);
-        if (!updatedMap[key] && !it.image) {
-          updatedMap[key] = generateAIImageForProduct(it);
-          generatedCount++;
+
+      // Combine all stock items and purchase POS items to ensure 100% coverage
+      const allItemsToProcess = [...stockItems];
+      if (Array.isArray(activePOSPurchaseList)) {
+        for (const p of activePOSPurchaseList) {
+          if (!allItemsToProcess.some(it => String(it.id) === String(p.id))) {
+            allItemsToProcess.push(p);
+          }
         }
+      }
+
+      for (const it of allItemsToProcess) {
+        const key = String(it.id);
+        // Regenerate and upgrade AI image matching product name
+        updatedMap[key] = generateAIImageForProduct(it);
+        generatedCount++;
       }
       setAiImagesMap(updatedMap);
       if (typeof window !== 'undefined') {
@@ -476,23 +424,48 @@ export default function POSSaleView({
     return () => clearInterval(timer);
   }, []);
 
-  // Web Audio Scanner Beep
-  const playBeep = (freq = 880, duration = 0.08) => {
+  // Persistent Web Audio context for instant 0ms latency sound across all devices
+  const audioCtxRef = useRef<any>(null);
+
+  const getAudioContext = useCallback(() => {
     try {
-      if (typeof window !== 'undefined' && (window as any).AudioContext) {
-        const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = freq;
-        osc.start();
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-        osc.stop(ctx.currentTime + duration);
+      if (typeof window === 'undefined') return null;
+      const AudioCtxClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtxClass) return null;
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtxClass();
       }
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => { });
+      }
+      return audioCtxRef.current;
+    } catch (e) {
+      return null;
+    }
+  }, []);
+
+  // Web Audio Beep player
+  const playBeep = useCallback((freq = 880, duration = 0.05, type: OscillatorType = 'sine', volume = 0.12) => {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
     } catch (e) { }
-  };
+  }, [getAudioContext]);
+
+  // Tactile button touch feedback beep (crisp, pleasant retail POS click)
+  const playTouchBeep = useCallback(() => {
+    playBeep(920, 0.032, 'sine', 0.11);
+  }, [playBeep]);
 
   // Hardware Barcode Scanner listener
   useEffect(() => {
@@ -969,6 +942,19 @@ export default function POSSaleView({
 
   return (
     <div
+      id="pos-terminal-root"
+      onPointerDownCapture={(e) => {
+        try {
+          const target = e.target as HTMLElement | null;
+          if (!target) return;
+          const clickable = target.closest(
+            'button, [role="button"], .pos-touch-btn, .pos-glass-morph-btn, input[type="button"], input[type="submit"], tr.pos-cart-row, .pos-clickable'
+          );
+          if (clickable) {
+            playTouchBeep();
+          }
+        } catch (err) { }
+      }}
       style={{
         position: 'fixed',
         top: 0,
@@ -976,7 +962,8 @@ export default function POSSaleView({
         right: 0,
         bottom: 0,
         width: '100vw',
-        height: '100vh',
+        height: '100dvh',
+        maxHeight: '100vh',
         background: '#e2e8f0',
         zIndex: 999999,
         display: 'flex',
@@ -1284,7 +1271,8 @@ export default function POSSaleView({
         {/* ========== LEFT PANEL: ITEM CART TABLE + STATS + RIBBON + TOUCH KEYBOARD ========== */}
         <div
           style={{
-            flex: 6.5,
+            flex: '1 1 60%',
+            minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
             borderRight: '2px solid #cbd5e1',
@@ -1347,6 +1335,7 @@ export default function POSSaleView({
                     return (
                       <tr
                         key={item.cartId}
+                        className="pos-cart-row pos-touch-btn"
                         onClick={() => setSelectedCartId(item.cartId)}
                         style={{
                           height: 40,
@@ -1696,13 +1685,14 @@ export default function POSSaleView({
         {/* ========== RIGHT PANEL: QUICK PILLS + SELECTED ITEM CONTROLS + NUMPAD ========== */}
         <div
           style={{
-            flex: 3.5,
-            minWidth: 460,
+            flex: '0 0 clamp(320px, 35vw, 480px)',
+            minWidth: 320,
+            maxWidth: 520,
             background: '#f1f5f9',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            padding: 8,
+            padding: 'clamp(4px, 0.7vw, 8px)',
             overflow: 'hidden',
             height: '100%',
           }}
@@ -1989,7 +1979,7 @@ export default function POSSaleView({
                 </div>
               )}
 
-              {/* MODE 3: RUBIC POS (Visual Catalog with AI Images & Stock > 0) */}
+              {/* MODE 3: RUBIC POS (Visual Catalog with AI Images & Stock > 0 strictly filtered to Purchase POS List) */}
               {rightViewMode === 'RUBIC_POS' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
                   <div style={{ display: 'flex', gap: 4, marginBottom: 2, alignItems: 'center' }}>
@@ -2008,11 +1998,25 @@ export default function POSSaleView({
                         background: '#ffffff'
                       }}
                     />
+                    <span
+                      style={{
+                        fontSize: 9,
+                        background: '#dcfce7',
+                        color: '#166534',
+                        padding: '3px 7px',
+                        borderRadius: 8,
+                        fontWeight: 900,
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Items strictly filtered by active Purchase POS List"
+                    >
+                      📋 {rubicStockItems.length}
+                    </span>
                     <button
                       type="button"
                       onClick={handleGenerateAIImages}
                       disabled={isGeneratingAI}
-                      title="AI Auto-Generate Images for all items missing photos"
+                      title="AI Auto-Generate & Upgrade realistic product illustrations for all catalog items"
                       style={{
                         background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
                         color: '#ffffff',
@@ -2040,12 +2044,13 @@ export default function POSSaleView({
                       ✕
                     </button>
                   </div>
-                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 4, padding: 2 }}>
-                    {positiveStockItems
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: 4, padding: 2 }}>
+                    {rubicStockItems
                       .filter((it: any) => !rubicSearchQuery || it.name.toLowerCase().includes(rubicSearchQuery.toLowerCase()))
                       .map((item: any) => {
                         const st = item._calculatedStock;
-                        const imgSrc = item.image || aiImagesMap[String(item.id)] || generateAIImageForProduct(item);
+                        const rawImg = aiImagesMap[String(item.id)];
+                        const imgSrc = item.image || (rawImg && !posAIProductImageService.isLegacyAIImage(rawImg) ? rawImg : generateAIImageForProduct(item));
                         const isSelected = selectedCartItem?.itemId === item.id;
                         return (
                           <div
@@ -2076,7 +2081,7 @@ export default function POSSaleView({
                             <img
                               src={imgSrc}
                               alt={item.name}
-                              style={{ width: 32, height: 32, objectFit: 'contain', marginBottom: 2, borderRadius: 3 }}
+                              style={{ width: 44, height: 44, objectFit: 'contain', marginBottom: 2, borderRadius: 4 }}
                             />
                             <div style={{
                               fontSize: 8.5,
@@ -2102,6 +2107,26 @@ export default function POSSaleView({
                           </div>
                         );
                       })}
+                    {rubicStockItems.length === 0 && (
+                      <div style={{
+                        gridColumn: '1 / -1',
+                        padding: '24px 12px',
+                        textAlign: 'center',
+                        color: '#64748b',
+                        fontSize: 11,
+                        background: '#ffffff',
+                        borderRadius: 8,
+                        border: '1px dashed #cbd5e1',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}>
+                        <span style={{ fontSize: 24 }}>📋</span>
+                        <div style={{ fontWeight: 800, color: '#334155' }}>No Items Found in Purchase POS List</div>
+                        <div style={{ fontSize: 10 }}>Only items with positive stock present in the Purchase POS List appear here.</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
