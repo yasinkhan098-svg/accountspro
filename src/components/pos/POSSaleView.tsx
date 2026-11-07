@@ -292,6 +292,7 @@ export default function POSSaleView({
     return catalogItems
       .map(item => ({
         ...item,
+        name: String(item.name || item.itemName || item.title || '').trim(),
         _calculatedStock: getItemStock(item)
       }))
       .filter(item => item._calculatedStock > 0);
@@ -307,13 +308,15 @@ export default function POSSaleView({
       activePOSPurchaseList.forEach(p => {
         if (p.id !== undefined && p.id !== null) purchaseIds.add(String(p.id));
         if (p.barcode) purchaseBarcodes.add(String(p.barcode).trim().toLowerCase());
-        if (p.name) purchaseNames.add(String(p.name).trim().toLowerCase());
+        const pName = String(p.name || p.itemName || '').trim().toLowerCase();
+        if (pName) purchaseNames.add(pName);
       });
 
       return positiveStockItems.filter(item => {
+        const iName = String(item.name || item.itemName || '').trim().toLowerCase();
         const idMatch = item.id && purchaseIds.has(String(item.id));
         const barcodeMatch = item.barcode && purchaseBarcodes.has(String(item.barcode).trim().toLowerCase());
-        const nameMatch = item.name && purchaseNames.has(String(item.name).trim().toLowerCase());
+        const nameMatch = iName && purchaseNames.has(iName);
         return idMatch || barcodeMatch || nameMatch;
       });
     }
@@ -2044,14 +2047,22 @@ export default function POSSaleView({
                       ✕
                     </button>
                   </div>
-                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: 4, padding: 2 }}>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 6, padding: 3 }}>
                     {rubicStockItems
-                      .filter((it: any) => !rubicSearchQuery || it.name.toLowerCase().includes(rubicSearchQuery.toLowerCase()))
+                      .filter((it: any) => {
+                        if (!rubicSearchQuery) return true;
+                        const q = rubicSearchQuery.toLowerCase();
+                        const n = (it.name || it.itemName || '').toLowerCase();
+                        const b = (it.barcode || '').toLowerCase();
+                        return n.includes(q) || b.includes(q);
+                      })
                       .map((item: any) => {
                         const st = item._calculatedStock;
                         const rawImg = aiImagesMap[String(item.id)];
                         const imgSrc = item.image || (rawImg && !posAIProductImageService.isLegacyAIImage(rawImg) ? rawImg : generateAIImageForProduct(item));
                         const isSelected = selectedCartItem?.itemId === item.id;
+                        const displayName = item.name || item.itemName || 'Item';
+
                         return (
                           <div
                             key={item.id}
@@ -2064,43 +2075,56 @@ export default function POSSaleView({
                               background: isSelected
                                 ? 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)'
                                 : '#ffffff',
-                              border: isSelected ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
-                              borderRadius: 6,
-                              padding: '4px 3px',
+                              border: isSelected ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                              borderRadius: 8,
+                              padding: '6px 5px',
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
+                              justifyContent: 'space-between',
                               cursor: 'pointer',
-                              boxShadow: isSelected ? '0 0 6px rgba(2, 132, 199, 0.4)' : '0 1px 3px rgba(0,0,0,0.05)',
+                              boxShadow: isSelected ? '0 0 8px rgba(2, 132, 199, 0.45)' : '0 1.5px 4px rgba(0,0,0,0.06)',
                               position: 'relative',
                               minWidth: 0,
                               overflow: 'hidden',
+                              minHeight: 122,
                             }}
-                            title={`${item.name} | Stock: ${st} | ₹${item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}`}
+                            title={`${displayName} | Stock: ${st} | ₹${item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}`}
                           >
+                            {/* Product Image */}
                             <img
                               src={imgSrc}
-                              alt={item.name}
-                              style={{ width: 44, height: 44, objectFit: 'contain', marginBottom: 2, borderRadius: 4 }}
+                              alt={displayName}
+                              style={{ width: 52, height: 52, objectFit: 'contain', marginBottom: 3, borderRadius: 6 }}
                             />
+
+                            {/* Prominent, Bold, Multi-line Item Name (Clearly visible) */}
                             <div style={{
-                              fontSize: 8.5,
-                              fontWeight: 700,
+                              fontSize: 10.5,
+                              fontWeight: 800,
                               color: '#0f172a',
                               textAlign: 'center',
                               width: '100%',
+                              lineHeight: 1.25,
+                              minHeight: 26,
+                              maxHeight: 32,
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
                               overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              lineHeight: 1.2
+                              wordBreak: 'break-word',
+                              marginBottom: 3,
+                              padding: '0 2px',
                             }}>
-                              {item.name}
+                              {displayName}
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 2, gap: 1 }}>
-                              <span style={{ fontSize: 8.5, fontWeight: 900, color: '#0284c7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+
+                            {/* Price & Stock Badges */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 'auto', gap: 2, borderTop: '1px solid #f1f5f9', paddingTop: 3 }}>
+                              <span style={{ fontSize: 9.5, fontWeight: 900, color: '#0284c7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 ₹{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
                               </span>
-                              <span style={{ fontSize: 7.5, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1px 3px', borderRadius: 4, flexShrink: 0 }}>
+                              <span style={{ fontSize: 8, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1.5px 4px', borderRadius: 4, flexShrink: 0 }}>
                                 S:{st}
                               </span>
                             </div>

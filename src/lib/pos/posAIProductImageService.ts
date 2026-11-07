@@ -9,43 +9,43 @@
 export const posAIProductImageService = {
   isLegacyAIImage(url?: string): boolean {
     if (!url) return false;
-    // Legacy generic paint bucket generator contained 'bodyGrad_' and had only a bucket
-    return url.includes('bodyGrad_') && !url.includes('ai-product-v2');
+    // Upgrade if legacy paint bucket OR older v1/v2 without prominent name badge
+    return !url.includes('ai-product-v3');
   },
 
   generateImage(item: any): string {
-    const rawName = String(item?.name || '').trim();
+    const rawName = String(item?.name || item?.itemName || '').trim();
     const name = rawName.toUpperCase();
     const idStr = String(item?.id || Math.random()).replace(/[^a-zA-Z0-9]/g, '');
-    const cleanTitle = rawName.slice(0, 14);
+    const cleanTitle = rawName.slice(0, 18);
     const unitText = item?.unit || 'NOS';
 
     // Helper to wrap content inside standard 160x160 SVG frame with shadow filter
     const wrapSvg = (artContent: string, badgeBg = '#0f172a', badgeText = cleanTitle) => {
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
-  <!-- ai-product-v2 -->
+  <!-- ai-product-v3 -->
   <defs>
     <filter id="f_${idStr}" x="-10%" y="-10%" width="130%" height="130%">
       <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#0f172a" flood-opacity="0.25" />
     </filter>
     <linearGradient id="podGrad_${idStr}" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9" />
-      <stop offset="100%" stop-color="#f1f5f9" stop-opacity="0.6" />
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#f1f5f9" stop-opacity="0.75" />
     </linearGradient>
   </defs>
   <!-- Background Soft Radial Pod -->
-  <rect x="4" y="4" width="152" height="152" rx="14" fill="url(#podGrad_${idStr})" stroke="#e2e8f0" stroke-width="1.2" />
-  <ellipse cx="80" cy="126" rx="46" ry="7" fill="#94a3b8" opacity="0.32" />
+  <rect x="4" y="4" width="152" height="152" rx="14" fill="url(#podGrad_${idStr})" stroke="#cbd5e1" stroke-width="1.2" />
+  <ellipse cx="80" cy="116" rx="44" ry="7" fill="#94a3b8" opacity="0.32" />
   
   <!-- Artwork -->
   <g filter="url(#f_${idStr})">
     ${artContent}
   </g>
 
-  <!-- Bottom Floating Badge -->
-  <rect x="18" y="132" width="124" height="20" rx="6" fill="${badgeBg}" opacity="0.95" />
-  <text x="80" y="145.5" font-size="8" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" letter-spacing="0.3">
-    ${badgeText}
+  <!-- Bottom Floating High-Contrast Name Badge -->
+  <rect x="10" y="126" width="140" height="26" rx="7" fill="${badgeBg}" opacity="0.95" stroke="#ffffff" stroke-width="1.2" />
+  <text x="80" y="143" font-size="9.5" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" letter-spacing="0.3">
+    ${badgeText.length > 18 ? badgeText.slice(0, 18) + '..' : badgeText}
   </text>
 </svg>`;
       return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
