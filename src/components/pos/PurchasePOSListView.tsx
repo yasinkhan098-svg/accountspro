@@ -583,12 +583,20 @@ export default function PurchasePOSListView({
         } else {
           e.preventDefault();
           e.stopPropagation();
+          (e as any).stopImmediatePropagation?.();
           onBack();
         }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    try {
+      if (typeof window !== 'undefined' && (navigator as any)?.keyboard?.lock) {
+        (navigator as any).keyboard.lock(['Escape']).catch(() => { });
+      }
+    } catch (_) { }
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [items, printModalItem, showBulkPrintModal, searchQuery, onBack]);
 
   // Filter items

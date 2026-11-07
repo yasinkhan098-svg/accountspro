@@ -118,6 +118,14 @@ export default function POSSaleView({
   const [posSearchQuery, setPosSearchQuery] = useState('');
   const [rubicSearchQuery, setRubicSearchQuery] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiProgress, setAiProgress] = useState<{
+    current: number;
+    total: number;
+    percent: number;
+    itemName: string;
+    statusText: string;
+    isDone: boolean;
+  } | null>(null);
   const [aiImagesMap, setAiImagesMap] = useState<Record<string, string>>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -128,19 +136,38 @@ export default function POSSaleView({
     return {};
   });
 
-  // Track Fullscreen status & attempt fullscreen on first touch
+  // Track Fullscreen status & lock Escape from minimizing/exiting Fullscreen
   useEffect(() => {
-    const checkFs = () => setIsFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener('fullscreenchange', checkFs);
-    const triggerFs = () => {
+    const lockKeyboardEscape = () => {
       try {
-        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(() => { });
+        if (typeof window !== 'undefined' && (navigator as any)?.keyboard?.lock) {
+          (navigator as any).keyboard.lock(['Escape']).catch(() => { });
         }
       } catch (e) { }
     };
+
+    const checkFs = () => {
+      const isFs = Boolean(document.fullscreenElement);
+      setIsFullscreen(isFs);
+      if (isFs) lockKeyboardEscape();
+    };
+
+    document.addEventListener('fullscreenchange', checkFs);
+
+    const triggerFs = () => {
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().then(() => {
+            lockKeyboardEscape();
+          }).catch(() => { });
+        }
+      } catch (e) { }
+    };
+
     window.addEventListener('click', triggerFs, { once: true });
     window.addEventListener('keydown', triggerFs, { once: true });
+    lockKeyboardEscape();
+
     return () => {
       document.removeEventListener('fullscreenchange', checkFs);
       window.removeEventListener('click', triggerFs);
@@ -324,39 +351,116 @@ export default function POSSaleView({
     return positiveStockItems;
   }, [positiveStockItems, activePOSPurchaseList]);
 
-  // AI Product Image Generator Trigger (Intelligently generates realistic colorful imagery based on item name)
-  const handleGenerateAIImages = () => {
+  // AI Product Image Generator: Generates only for items that don't have valid images yet,
+  // showing an installation-style green animated progress strip that finishes & disappears automatically.
+  const handleGenerateAIImages = async () => {
+    if (isGeneratingAI) return;
     setIsGeneratingAI(true);
+
     try {
-      const updatedMap = { ...aiImagesMap };
-      let generatedCount = 0;
+      const currentMap = { ...aiImagesMap };
 
-      // Combine all stock items, catalog items, and purchase POS items to ensure 100% coverage
-      const allItemsToProcess = [...stockItems, ...catalogItems, ...(activePOSPurchaseList || [])];
-      const seen = new Set<string>();
-
-      for (const it of allItemsToProcess) {
+      // Gather all items from catalog, stock, and purchase POS lists
+      const allItems = [...rubicStockItems, ...catalogItems, ...(activePOSPurchaseList || []), ...stockItems];
+      const uniqueItemsMap = new Map<string, any>();
+      for (const it of allItems) {
         if (!it) continue;
         const nameKey = String(it.name || it.itemName || '').trim().toLowerCase();
+        if (nameKey && !uniqueItemsMap.has(nameKey)) {
+          uniqueItemsMap.set(nameKey, it);
+        }
+      }
+
+      // Filter: ONLY items where image does NOT exist yet (or is legacy placeholder needing upgrade)
+      const itemsToGenerate: any[] = [];
+      for (const it of Array.from(uniqueItemsMap.values())) {
         const idKey = String(it.id);
-        if (!nameKey || seen.has(nameKey)) continue;
-        seen.add(nameKey);
+        const nameKey = String(it.name || it.itemName || '').trim().toLowerCase();
+        const existing = currentMap[idKey] || currentMap[nameKey];
+        if (!existing || posAIProductImageService.isLegacyAIImage(existing)) {
+          itemsToGenerate.push(it);
+        }
+      }
 
+      // If all items already have valid images, show clean confirmation in strip and disappear
+      if (itemsToGenerate.length === 0) {
+        setAiProgress({
+          current: uniqueItemsMap.size,
+          total: uniqueItemsMap.size,
+          percent: 100,
+          itemName: 'All items already have AI images!',
+          statusText: '✓ Sabhi items ki images pehle se taiyar hain!',
+          isDone: true,
+        });
+        setTimeout(() => {
+          setAiProgress(null);
+          setIsGeneratingAI(false);
+        }, 1200);
+        return;
+      }
+
+      const total = itemsToGenerate.length;
+      setAiProgress({
+        current: 0,
+        total,
+        percent: 0,
+        itemName: itemsToGenerate[0]?.name || '',
+        statusText: `Generating AI Product Image 1 of ${total}...`,
+        isDone: false,
+      });
+
+      for (let i = 0; i < total; i++) {
+        const it = itemsToGenerate[i];
+        const nameKey = String(it.name || it.itemName || '').trim().toLowerCase();
+        const idKey = String(it.id);
         const img = generateAIImageForProduct(it);
-        updatedMap[idKey] = img;
-        updatedMap[nameKey] = img;
-        generatedCount++;
+
+        currentMap[idKey] = img;
+        currentMap[nameKey] = img;
+
+        const current = i + 1;
+        const percent = Math.round((current / total) * 100);
+
+        setAiProgress({
+          current,
+          total,
+          percent,
+          itemName: it.name || it.itemName || 'Product',
+          statusText: `Generating AI Product Image: ${it.name || it.itemName} (${current}/${total})...`,
+          isDone: false,
+        });
+
+        // Visible progress step for smooth installer green strip animation
+        await new Promise(r => setTimeout(r, 35));
       }
 
-      setAiImagesMap(updatedMap);
+      // Save to localStorage & state
+      setAiImagesMap(currentMap);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(updatedMap));
+        localStorage.setItem('ledgerx_stock_item_ai_images', JSON.stringify(currentMap));
       }
-      alert(`✨ AI Image Generation Complete!\nGenerated realistic colorful product imagery for ${generatedCount} items.`);
+
+      // Show completion in green strip
+      setAiProgress({
+        current: total,
+        total,
+        percent: 100,
+        itemName: 'Completed!',
+        statusText: `✓ Successfully generated ${total} AI product images!`,
+        isDone: true,
+      });
+
+      // Automatically finish and disappear (gayeeb ho jaye)
+      setTimeout(() => {
+        setAiProgress(null);
+        setIsGeneratingAI(false);
+      }, 1200);
+
     } catch (err: any) {
-      alert('AI image generation error: ' + err.message);
-    } finally {
+      console.error("AI image gen error:", err);
       setIsGeneratingAI(false);
+      setAiProgress(null);
+      alert('AI image generation error: ' + err.message);
     }
   };
 
@@ -575,6 +679,15 @@ export default function POSSaleView({
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
+        (e as any).stopImmediatePropagation?.();
+
+        // Lock keyboard Escape so browser does not shrink/exit Fullscreen
+        try {
+          if (typeof window !== 'undefined' && (navigator as any)?.keyboard?.lock) {
+            (navigator as any).keyboard.lock(['Escape']).catch(() => { });
+          }
+        } catch (_) { }
+
         handleStepByStepEscape();
         return;
       }
@@ -610,8 +723,8 @@ export default function POSSaleView({
       }
     };
 
-    window.addEventListener('keydown', handleHardwareScan);
-    return () => window.removeEventListener('keydown', handleHardwareScan);
+    window.addEventListener('keydown', handleHardwareScan, true);
+    return () => window.removeEventListener('keydown', handleHardwareScan, true);
   }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal, handleStepByStepEscape]);
 
   // Process barcode lookup
@@ -1097,6 +1210,21 @@ export default function POSSaleView({
           transform: translateY(2.5px) scale(0.96) !important;
           box-shadow: inset 0 3.5px 7px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.15) !important;
           filter: brightness(0.93);
+        }
+        @keyframes installStripes {
+          0% { background-position: 0 0; }
+          100% { background-position: 28px 0; }
+        }
+        .pos-install-strip {
+          background-image: repeating-linear-gradient(
+            45deg,
+            rgba(255, 255, 255, 0.28) 0,
+            rgba(255, 255, 255, 0.28) 7px,
+            transparent 7px,
+            transparent 14px
+          ) !important;
+          background-size: 28px 28px !important;
+          animation: installStripes 0.7s linear infinite !important;
         }
       `}</style>
       {/* ==================== 1. TOP HEADER BAR (MAROON / BURGUNDY) ==================== */}
@@ -2118,12 +2246,13 @@ export default function POSSaleView({
                         cursor: isGeneratingAI ? 'wait' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 3,
+                        gap: 4,
                         flexShrink: 0,
-                        boxShadow: '0 2px 5px rgba(109, 40, 217, 0.35)'
+                        boxShadow: '0 2px 6px rgba(109, 40, 217, 0.4)',
+                        letterSpacing: 0.2,
                       }}
                     >
-                      {isGeneratingAI ? '⏳ AI...' : '✨ AI Images'}
+                      {isGeneratingAI ? '⏳ Generating...' : '✨ AI Image Generator'}
                     </button>
                     <button
                       type="button"
@@ -2134,6 +2263,44 @@ export default function POSSaleView({
                       ✕
                     </button>
                   </div>
+
+                  {/* Green Installation-style Processing Strip */}
+                  {aiProgress && (
+                    <div
+                      style={{
+                        margin: '4px 6px 8px 6px',
+                        padding: '6px 10px',
+                        background: 'linear-gradient(180deg, #064e3b 0%, #022c22 100%)',
+                        borderRadius: 8,
+                        border: '1.5px solid #10b981',
+                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.45)',
+                        color: '#ffffff',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, fontSize: 10.5, fontWeight: 800 }}>
+                        <span style={{ color: '#86efac', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+                          ⚡ {aiProgress.statusText}
+                        </span>
+                        <span style={{ color: '#ffffff', fontWeight: 900, background: '#15803d', padding: '1px 6px', borderRadius: 10, fontSize: 10 }}>
+                          {aiProgress.percent}%
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: 10, background: '#022c22', borderRadius: 5, overflow: 'hidden', border: '1px solid #059669', position: 'relative' }}>
+                        <div
+                          className="pos-install-strip"
+                          style={{
+                            width: `${aiProgress.percent}%`,
+                            height: '100%',
+                            background: 'linear-gradient(90deg, #22c55e 0%, #10b981 50%, #34d399 100%)',
+                            transition: 'width 0.12s ease-out',
+                            borderRadius: 4,
+                            boxShadow: '0 0 10px #34d399',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                   <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 6, padding: 3 }}>
                     {rubicStockItems
                       .filter((it: any) => {
