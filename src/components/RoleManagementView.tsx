@@ -119,6 +119,9 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
       isAdmin: formIsAdmin,
       isActive: formIsActive,
       assignedCompanyCodes: formCompanies.length > 0 ? formCompanies : [activeCompanyCode],
+      companyCode: activeCompanyCode,
+      companyName: activeCompanyName,
+      companyId: activeCompany?.id || 0,
       createdAt: editingUser?.createdAt || new Date().toISOString(),
       permissions: formIsAdmin ? DEFAULT_ADMIN_PERMISSIONS : formPerms,
     };

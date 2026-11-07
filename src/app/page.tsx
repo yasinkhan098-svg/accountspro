@@ -4759,6 +4759,23 @@ export default function App() {
                     return [...others, ...updated];
                   });
                 }}
+                onSwitchCompany={async (targetCo) => {
+                  if (!targetCo) return;
+                  const code = companyDataFolderService.getCompanyFolderCode(targetCo, companies);
+                  const folderData = await companyDataFolderService.loadCompanyFolder(code);
+                  if (folderData) {
+                    if (folderData.stockItems?.length) {
+                      setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(targetCo.id)), ...folderData.stockItems]);
+                    }
+                    if (folderData.ledgers?.length) {
+                      setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(targetCo.id)), ...folderData.ledgers]);
+                    }
+                    if (folderData.vouchers?.length) {
+                      setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(targetCo.id)), ...folderData.vouchers]);
+                    }
+                  }
+                  setActiveCompany(targetCo);
+                }}
               />
             )}
             {screen==='PURCHASE_REGISTER'    && <UniversalRegisterView voucherType='Purchase'    vouchers={filteredVouchers} currentPeriod={currentPeriod} onBack={goBack} onDrillDown={v=>{ nav('VOUCHER_ENTRY', v); setActiveVoucher(v.type as VoucherTypeKey); }} />}

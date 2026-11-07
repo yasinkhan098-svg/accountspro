@@ -1,20 +1,25 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
 import { permissionGuard, LANUser, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_OPERATOR_PERMISSIONS } from '@/lib/permissionGuard';
 import { TRAINING_COMPANY, TRAINING_USERS, TRAINING_COMPANY_CODE, posTrainingService } from '@/lib/pos/posTrainingService';
+import { companyDataFolderService } from '@/lib/companyDataFolderService';
 
 interface POSLoginScreenProps {
   company: any;
   companyCode: string;
-  onLoginSuccess: (user: any) => void;
+  availableCompanies?: any[];
+  onLoginSuccess: (user: any, targetCompany?: any) => void;
+  onSelectCompany?: (targetCompany: any) => void;
   onExit: () => void;
 }
 
 export default function POSLoginScreen({
   company,
   companyCode,
+  availableCompanies = [],
   onLoginSuccess,
+  onSelectCompany,
   onExit,
 }: POSLoginScreenProps) {
   const [isTrainingMode, setIsTrainingMode] = useState(false);
@@ -28,29 +33,52 @@ export default function POSLoginScreen({
   const cashierInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
-  // Load company users on mount
+  const [selectedCode, setSelectedCode] = useState<string>(() => {
+    return (companyCode || (availableCompanies?.[0] ? companyDataFolderService.getCompanyFolderCode(availableCompanies[0], availableCompanies) : '10000')).toUpperCase().trim();
+  });
+
+  useEffect(() => {
+    if (companyCode) {
+      setSelectedCode(companyCode.toUpperCase().trim());
+    }
+  }, [companyCode]);
+
+  const activeTargetCompany = useMemo(() => {
+    if (isTrainingMode) return TRAINING_COMPANY;
+    if (availableCompanies && availableCompanies.length > 0) {
+      const match = availableCompanies.find(c => {
+        const code = companyDataFolderService.getCompanyFolderCode(c, availableCompanies);
+        return code === selectedCode || String(c.id) === selectedCode;
+      });
+      if (match) return match;
+    }
+    return company || { name: 'Main Retail', companyCode: selectedCode };
+  }, [availableCompanies, selectedCode, company, isTrainingMode]);
+
+  // Load company users on mount and whenever selectedCode changes
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const uList = await lanUserManagementService.getUsers(companyCode, company?.name);
-        const allGlobal = lanUserManagementService.getAllUsersAcrossCompanies();
-        const combinedMap = new Map<string, LANUser>();
-        if (Array.isArray(uList)) {
-          uList.forEach(u => { if (u && u.username) combinedMap.set(u.username.toLowerCase(), u); });
-        }
-        allGlobal.forEach(u => {
-          if (u && u.username && !combinedMap.has(u.username.toLowerCase())) {
-            combinedMap.set(u.username.toLowerCase(), u);
+        const uList = await lanUserManagementService.getUsers(selectedCode, activeTargetCompany?.name);
+        const filteredList = (Array.isArray(uList) ? uList : []).filter(u => {
+          if (!u || !u.username) return false;
+          if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
+            return u.assignedCompanyCodes.includes(selectedCode);
           }
+          if (u.companyCode) {
+            return u.companyCode.toUpperCase().trim() === selectedCode;
+          }
+          return true;
         });
-        const combinedList = Array.from(combinedMap.values());
-        if (mounted && combinedList.length > 0) {
-          setRegisteredUsers(combinedList);
+
+        if (mounted) {
+          setRegisteredUsers(filteredList);
           // Auto-fill first cashier or admin username if available
-          const first = combinedList[0];
-          if (first && !cashierId) {
-            setCashierId(first.username);
+          const exists = filteredList.some(u => u.username.toLowerCase() === cashierId.toLowerCase());
+          if (!exists && filteredList.length > 0) {
+            setCashierId(filteredList[0].username);
+            setPassword('');
             setActiveField('password');
           }
         }
@@ -59,7 +87,7 @@ export default function POSLoginScreen({
     return () => {
       mounted = false;
     };
-  }, [companyCode, company]);
+  }, [selectedCode, activeTargetCompany]);
 
   // Handle hardware keyboard
   useEffect(() => {
@@ -196,19 +224,28 @@ export default function POSLoginScreen({
         return;
       }
 
-      // 1. Live Store Authentication: Check in loaded registered users
+      // 1. Live Store Authentication: Check in loaded registered users of current store
       let matched = registeredUsers.find(
         u => u.username.toLowerCase() === cleanId || 
              u.id.toLowerCase() === cleanId ||
              (u.fullName && u.fullName.toLowerCase() === cleanId)
       );
 
-      // 1.5 Deep live lookup across all sources if not matched in state
+      let finalTargetCompany = activeTargetCompany;
+
+      // 1.5 Deep live lookup in current store first
       if (!matched) {
-        const freshUsers = await lanUserManagementService.getUsers(companyCode, company?.name);
-        const allGlobal = lanUserManagementService.getAllUsersAcrossCompanies();
-        const candidateUsers = [...freshUsers, ...allGlobal];
-        matched = candidateUsers.find(
+        const freshUsers = await lanUserManagementService.getUsers(selectedCode, activeTargetCompany?.name);
+        const filteredFresh = (Array.isArray(freshUsers) ? freshUsers : []).filter(u => {
+          if (!u || !u.username) return false;
+          if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
+            return u.assignedCompanyCodes.includes(selectedCode);
+          }
+          if (u.companyCode) return u.companyCode.toUpperCase().trim() === selectedCode;
+          return true;
+        });
+
+        matched = filteredFresh.find(
           u => u && (
             u.username.toLowerCase() === cleanId ||
             u.id.toLowerCase() === cleanId ||
@@ -221,6 +258,32 @@ export default function POSLoginScreen({
             m.set(matched!.username.toLowerCase(), matched!);
             return Array.from(m.values());
           });
+        }
+      }
+
+      // 1.8 If not found in current store, search across all available companies!
+      // This satisfies the user's explicit requirement:
+      // "AGR COMPANY SELC NHI BHI HAI TO BHI JIS CREATE KI GYI COMPANY KA USER HAI BO USI COMPANY KE DATA PR KAAM KRE AUR USI COMPANY ME DATA SAVE HO"
+      if (!matched && availableCompanies && availableCompanies.length > 0) {
+        for (const co of availableCompanies) {
+          const coCode = companyDataFolderService.getCompanyFolderCode(co, availableCompanies);
+          if (coCode === selectedCode) continue;
+
+          const coUsers = await lanUserManagementService.getUsers(coCode, co.name);
+          const foundInCo = (Array.isArray(coUsers) ? coUsers : []).find(
+            u => u && (
+              u.username.toLowerCase() === cleanId ||
+              u.id.toLowerCase() === cleanId ||
+              (u.fullName && u.fullName.toLowerCase() === cleanId)
+            )
+          );
+
+          if (foundInCo) {
+            matched = foundInCo;
+            finalTargetCompany = co;
+            setSelectedCode(coCode);
+            break;
+          }
         }
       }
 
@@ -253,6 +316,9 @@ export default function POSLoginScreen({
           permissions: matched.permissions,
           password: cleanPwd || matched.password || '',
           sessionLoginPassword: cleanPwd,
+          companyCode: selectedCode,
+          companyName: finalTargetCompany?.name,
+          companyId: finalTargetCompany?.id,
           isTrainingMode: false,
         };
         try {
@@ -263,7 +329,7 @@ export default function POSLoginScreen({
         } catch (_) {}
 
         permissionGuard.setCurrentUser(userObj);
-        onLoginSuccess(userObj);
+        onLoginSuccess(userObj, finalTargetCompany);
         return;
       }
 
@@ -276,7 +342,10 @@ export default function POSLoginScreen({
           isAdmin: cleanId === 'admin',
           isActive: true,
           createdAt: new Date().toISOString(),
-          assignedCompanyCodes: [companyCode],
+          assignedCompanyCodes: [selectedCode],
+          companyCode: selectedCode,
+          companyName: finalTargetCompany?.name,
+          companyId: finalTargetCompany?.id,
           permissions: cleanId === 'admin' ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_OPERATOR_PERMISSIONS,
           password: cleanPwd || 'admin',
         };
@@ -290,6 +359,9 @@ export default function POSLoginScreen({
           permissions: fallbackUser.permissions,
           password: cleanPwd || 'admin',
           sessionLoginPassword: cleanPwd,
+          companyCode: selectedCode,
+          companyName: finalTargetCompany?.name,
+          companyId: finalTargetCompany?.id,
           isTrainingMode: false,
         };
         try {
@@ -300,7 +372,7 @@ export default function POSLoginScreen({
         } catch (_) {}
 
         permissionGuard.setCurrentUser(userObj);
-        onLoginSuccess(userObj);
+        onLoginSuccess(userObj, finalTargetCompany);
         return;
       }
 
@@ -367,8 +439,43 @@ export default function POSLoginScreen({
             <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: -0.5 }}>LedgerX POS</span>
           </div>
 
-          <div style={{ fontSize: 12, color: '#fef3c7', display: 'flex', gap: 14 }}>
-            <span>Store: <b>{isTrainingMode ? TRAINING_COMPANY.name : (company?.name || 'Main Retail')}</b> [{isTrainingMode ? 'TRAINING' : companyCode}]</span>
+          <div style={{ fontSize: 12, color: '#fef3c7', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>Store:</span>
+              {!isTrainingMode && availableCompanies && availableCompanies.length > 1 ? (
+                <select
+                  value={selectedCode}
+                  onChange={(e) => {
+                    const newCode = e.target.value;
+                    setSelectedCode(newCode);
+                    const match = availableCompanies.find(c => companyDataFolderService.getCompanyFolderCode(c, availableCompanies) === newCode);
+                    if (match && onSelectCompany) onSelectCompany(match);
+                  }}
+                  style={{
+                    background: '#3c2712',
+                    color: '#fef3c7',
+                    border: '1.5px solid #f59e0b',
+                    borderRadius: 6,
+                    padding: '3px 10px',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                >
+                  {availableCompanies.map(c => {
+                    const code = companyDataFolderService.getCompanyFolderCode(c, availableCompanies);
+                    return (
+                      <option key={code} value={code} style={{ background: '#1e293b', color: '#ffffff' }}>
+                        {c.name} [{code}]
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <b>{isTrainingMode ? TRAINING_COMPANY.name : (activeTargetCompany?.name || company?.name || 'Main Retail')} [{isTrainingMode ? 'TRAINING' : selectedCode}]</b>
+              )}
+            </div>
             <span>Device ID: <b>01 POS</b></span>
             <span>Counter: <b>R141</b></span>
           </div>
@@ -629,9 +736,11 @@ export default function POSLoginScreen({
               const displayedUsers = isTrainingMode ? TRAINING_USERS : registeredUsers;
               if (displayedUsers.length === 0) return null;
               return (
-                <div style={{ marginTop: 16, width: 320, textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: isTrainingMode ? '#2563eb' : '#64748b', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    {isTrainingMode ? '🎓 Training Cashiers (Demo Only):' : 'Quick Cashier Switch:'}
+                <div style={{ marginTop: 16, width: 340, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: isTrainingMode ? '#2563eb' : '#0f3c64', fontWeight: 800, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {isTrainingMode 
+                      ? '🎓 Training Cashiers (Demo Only):' 
+                      : `🏢 Cashiers for ${activeTargetCompany?.name || 'Store'} [${selectedCode}] (${displayedUsers.length}):`}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 110, overflowY: 'auto', padding: '2px 4px' }}>
                     {displayedUsers.map(u => {

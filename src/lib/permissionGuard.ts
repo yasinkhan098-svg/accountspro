@@ -75,6 +75,9 @@ export interface LANUser {
   isActive: boolean;
   createdAt: string;
   permissions: UserPermissions;
+  companyCode?: string;
+  companyName?: string;
+  companyId?: number;
 }
 
 export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {

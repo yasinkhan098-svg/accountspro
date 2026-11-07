@@ -17,6 +17,7 @@ interface POSWorkflowContainerProps {
   onStockUpdated?: (updatedStock: any[]) => void;
   onVouchersUpdated?: (updatedVouchers: any[]) => void;
   onOpenPurchasePOSList?: () => void;
+  onSwitchCompany?: (targetCompany: any) => void;
 }
 
 export default function POSWorkflowContainer({
@@ -29,10 +30,17 @@ export default function POSWorkflowContainer({
   onStockUpdated,
   onVouchersUpdated,
   onOpenPurchasePOSList,
+  onSwitchCompany,
 }: POSWorkflowContainerProps) {
-  const companyCode = company
-    ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies)
-    : '10000';
+  const [activeCompanyState, setActiveCompanyState] = useState<any>(company);
+
+  useEffect(() => {
+    setActiveCompanyState(company);
+  }, [company]);
+
+  const companyCode = activeCompanyState
+    ? companyDataFolderService.getCompanyFolderCode(activeCompanyState, availableCompanies)
+    : (company ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies) : '10000');
 
   const [workflowState, setWorkflowState] = useState<'LOGIN' | 'SALES' | 'PURCHASE_POS_LIST'>('LOGIN');
   const [cashierUser, setCashierUser] = useState<any | null>(null);
@@ -77,8 +85,11 @@ export default function POSWorkflowContainer({
     return () => { isCancelled = true; };
   }, [companyCode, isTrainingMode, trainingPkg]);
 
-  const handleLoginSuccess = async (user: any) => {
+  const handleLoginSuccess = async (user: any, targetCompany?: any) => {
+    const finalCo = targetCompany || activeCompanyState || company;
+    setActiveCompanyState(finalCo);
     setCashierUser(user);
+
     if (user?.isTrainingMode) {
       setIsTrainingMode(true);
       const pkg = await posTrainingService.getTrainingData();
@@ -86,6 +97,24 @@ export default function POSWorkflowContainer({
     } else {
       setIsTrainingMode(false);
       setTrainingPkg(null);
+
+      if (targetCompany && targetCompany.id !== company?.id) {
+        onSwitchCompany?.(targetCompany);
+      }
+
+      // Immediately load target company's POS purchase list
+      const code = companyDataFolderService.getCompanyFolderCode(finalCo, availableCompanies);
+      try {
+        const local = localStorage.getItem(`ledgerx_pos_purchase_list_${code}`);
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) setPosPurchaseList(parsed);
+        }
+        const folder = await companyDataFolderService.loadCompanyFolder(code);
+        if (folder?.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
+          setPosPurchaseList(folder.posPurchaseList);
+        }
+      } catch (_) {}
     }
     setWorkflowState('SALES');
   };
@@ -134,9 +163,14 @@ export default function POSWorkflowContainer({
   if (workflowState === 'LOGIN') {
     return (
       <POSLoginScreen
-        company={company}
+        company={activeCompanyState || company}
         companyCode={companyCode}
+        availableCompanies={availableCompanies}
         onLoginSuccess={handleLoginSuccess}
+        onSelectCompany={(targetCo) => {
+          setActiveCompanyState(targetCo);
+          onSwitchCompany?.(targetCo);
+        }}
         onExit={handleExit}
       />
     );
@@ -145,7 +179,7 @@ export default function POSWorkflowContainer({
   if (workflowState === 'PURCHASE_POS_LIST') {
     return (
       <PurchasePOSListView
-        company={isTrainingMode ? (trainingPkg?.company || TRAINING_COMPANY) : company}
+        company={isTrainingMode ? (trainingPkg?.company || TRAINING_COMPANY) : (activeCompanyState || company)}
         availableCompanies={isTrainingMode ? [] : availableCompanies}
         stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : stockItems}
         vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : vouchers}
@@ -165,7 +199,7 @@ export default function POSWorkflowContainer({
 
   return (
     <POSSaleView
-      company={isTrainingMode ? (trainingPkg?.company || TRAINING_COMPANY) : company}
+      company={isTrainingMode ? (trainingPkg?.company || TRAINING_COMPANY) : (activeCompanyState || company)}
       availableCompanies={isTrainingMode ? [] : availableCompanies}
       stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : stockItems}
       posPurchaseList={posPurchaseList}
