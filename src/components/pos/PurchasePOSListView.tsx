@@ -20,6 +20,7 @@ export interface POSPurchaseItem {
   retailSalePrice: number;     // MRP - Discount
   unit: string;
   gstRate: number;
+  variant?: string;
   variants?: string[];
 }
 
@@ -52,6 +53,8 @@ export default function PurchasePOSListView({
   const [printLayout, setPrintLayout] = useState<BarcodePrintLayout>('a4_40_up');
   const [showBulkPrintModal, setShowBulkPrintModal] = useState(false);
   const [bulkPrintLayout, setBulkPrintLayout] = useState<BarcodePrintLayout>('a4_40_up');
+  const [variantModalItem, setVariantModalItem] = useState<POSPurchaseItem | null>(null);
+  const [variantInputText, setVariantInputText] = useState<string>('');
 
   const isInitializedRef = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -184,6 +187,8 @@ export default function PurchasePOSListView({
               retailSalePrice: found.retailSalePrice,
               expiryDate: found.expiryDate,
               cessPerc: found.cessPerc,
+              variant: found.variant,
+              variants: found.variants,
             };
           }
           return si;
@@ -284,7 +289,8 @@ export default function PurchasePOSListView({
         retailSalePrice: Math.round(retailSalePrice * 100) / 100,
         unit: resolveUnitString(si) || resolveUnitString(saved),
         gstRate: Number(si.gstRate) || 18,
-        variants: saved.variants || si.variants || [],
+        variant: saved.variant || (Array.isArray(saved.variants) && saved.variants[0]) || si.variant || (Array.isArray(si.variants) && si.variants[0]) || '',
+        variants: saved.variants || (saved.variant ? [saved.variant] : (si.variants || [])),
       };
     });
 
@@ -309,7 +315,8 @@ export default function PurchasePOSListView({
           retailSalePrice: Number(s.retailSalePrice) || 0,
           unit: resolveUnitString(s),
           gstRate: Number(s.gstRate) || 18,
-          variants: s.variants || [],
+          variant: s.variant || (Array.isArray(s.variants) && s.variants[0]) || '',
+          variants: s.variants || (s.variant ? [s.variant] : []),
         });
       }
     });
@@ -513,6 +520,7 @@ export default function PurchasePOSListView({
       retailSalePrice: 0,
       unit: 'NOS',
       gstRate: 18,
+      variant: '',
       variants: [],
     };
 
@@ -561,6 +569,54 @@ export default function PurchasePOSListView({
     setIsSaving(false);
   };
 
+  // Audio Feedback Synthesizer for tactile touch
+  const playTouchBeep = useCallback((freq = 920, duration = 0.035) => {
+    try {
+      if (typeof window === 'undefined') return;
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.09, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+      setTimeout(() => ctx.close().catch(() => {}), (duration + 0.1) * 1000);
+    } catch (_) {}
+  }, []);
+
+  // Unique list of all existing variants across all items
+  const existingVariants = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach(it => {
+      const v = (it.variant || it.variants?.[0] || '').trim();
+      if (v) set.add(v);
+    });
+    return Array.from(set).sort();
+  }, [items]);
+
+  const handleSaveVariant = () => {
+    if (!variantModalItem) return;
+    playTouchBeep(1046, 0.05);
+    const v = variantInputText.trim();
+    handleUpdateItem(variantModalItem.id, 'variant', v);
+    handleUpdateItem(variantModalItem.id, 'variants', v ? [v] : []);
+    setVariantModalItem(null);
+  };
+
+  const handleClearVariant = () => {
+    if (!variantModalItem) return;
+    playTouchBeep(700, 0.04);
+    handleUpdateItem(variantModalItem.id, 'variant', '');
+    handleUpdateItem(variantModalItem.id, 'variants', []);
+    setVariantModalItem(null);
+  };
+
   // Global keyboard shortcuts (Ctrl+S & Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -568,7 +624,11 @@ export default function PurchasePOSListView({
         e.preventDefault();
         handleManualSave();
       } else if (e.key === 'Escape') {
-        if (printModalItem) {
+        if (variantModalItem) {
+          e.preventDefault();
+          e.stopPropagation();
+          setVariantModalItem(null);
+        } else if (printModalItem) {
           e.preventDefault();
           e.stopPropagation();
           setPrintModalItem(null);
@@ -597,7 +657,7 @@ export default function PurchasePOSListView({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [items, printModalItem, showBulkPrintModal, searchQuery, onBack]);
+  }, [items, variantModalItem, printModalItem, showBulkPrintModal, searchQuery, onBack]);
 
   // Filter items
   const filteredItems = useMemo(() => {
@@ -1200,30 +1260,63 @@ export default function PurchasePOSListView({
 
                       {/* 16. Action: Variant */}
                       <td style={{ padding: '5px 8px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => {
-                            const vStr = prompt('Enter variants (comma separated, e.g. Red, Blue, 1kg):', (item.variants || []).join(', '));
-                            if (vStr !== null) {
-                              const vars = vStr.split(',').map(s => s.trim()).filter(Boolean);
-                              handleUpdateItem(item.id, 'variants', vars);
-                            }
-                          }}
-                          className="pos-touch-btn"
-                          title="Configure item variants"
-                          style={{
-                            background: '#f1f5f9',
-                            color: '#334155',
-                            border: '1.5px solid #cbd5e1',
-                            borderRadius: 6,
-                            padding: '6px 12px',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            minHeight: 34,
-                          }}
-                        >
-                          Variant {item.variants && item.variants.length > 0 ? `(${item.variants.length})` : ''}
-                        </button>
+                        {item.variant || (item.variants && item.variants.length > 0) ? (
+                          <button
+                            onClick={() => {
+                              playTouchBeep();
+                              setVariantModalItem(item);
+                              setVariantInputText(item.variant || item.variants?.[0] || '');
+                            }}
+                            className="pos-touch-btn"
+                            title={`Variant: ${item.variant || item.variants?.[0]} (Click to change)`}
+                            style={{
+                              background: 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)',
+                              color: '#1d4ed8',
+                              border: '1.5px solid #93c5fd',
+                              borderRadius: 6,
+                              padding: '5px 8px',
+                              fontSize: 11,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              minHeight: 34,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4,
+                              maxWidth: 120,
+                              boxShadow: '0 1px 3px rgba(37, 99, 235, 0.15)',
+                            }}
+                          >
+                            <span>🏷️</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.variant || item.variants?.[0]}
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              playTouchBeep();
+                              setVariantModalItem(item);
+                              setVariantInputText('');
+                            }}
+                            className="pos-touch-btn"
+                            title="Touch to assign or create variant"
+                            style={{
+                              background: '#f8fafc',
+                              color: '#64748b',
+                              border: '1.5px dashed #cbd5e1',
+                              borderRadius: 6,
+                              padding: '5px 10px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              minHeight: 34,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            + Variant
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1267,6 +1360,257 @@ export default function PurchasePOSListView({
           {saveStatus === 'saving' && <span style={{ color: '#d97706', fontWeight: 900 }}>Saving changes...</span>}
         </div>
       </div>
+
+      {/* ================= MODAL: Touch-Friendly Item Variant Setup ================= */}
+      {variantModalItem && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000000,
+            padding: 16,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setVariantModalItem(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 12,
+              padding: '20px 24px',
+              width: 480,
+              maxWidth: '95vw',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              border: '2px solid #3b82f6',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#1e3a5f', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🏷️</span> Item Variant Setup
+                </h3>
+                <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
+                  Product: <b style={{ color: '#0f172a' }}>{variantModalItem.name}</b>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVariantModalItem(null)}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  borderRadius: 6,
+                  width: 28,
+                  height: 28,
+                  cursor: 'pointer',
+                  fontWeight: 900,
+                  fontSize: 14,
+                  color: '#64748b'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Input for new or custom variant */}
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 5 }}>
+                Type Variant Name (e.g. Computer Hardware, Vegetables, Paints, Grocery):
+              </label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  autoFocus
+                  value={variantInputText}
+                  onChange={(e) => setVariantInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSaveVariant();
+                    }
+                  }}
+                  placeholder="Enter or select variant..."
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    border: '1.5px solid #3b82f6',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    outline: 'none',
+                    background: '#f8fafc',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveVariant}
+                  className="pos-touch-btn"
+                  style={{
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '0 16px',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  ✓ OK
+                </button>
+              </div>
+            </div>
+
+            {/* Existing Variants Dropdown & Touch Quick-Pick Chips */}
+            {existingVariants.length > 0 && (
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 5 }}>
+                  Or Choose from Existing Variants ({existingVariants.length}):
+                </label>
+                
+                {/* Dropdown Selection */}
+                <select
+                  value={variantInputText}
+                  onChange={(e) => {
+                    playTouchBeep();
+                    setVariantInputText(e.target.value);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    background: '#ffffff',
+                    marginBottom: 8,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">-- Touch to Select Existing Variant --</option>
+                  {existingVariants.map(v => (
+                    <option key={v} value={v}>🏷️ {v}</option>
+                  ))}
+                </select>
+
+                {/* Touch Quick-Chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 110, overflowY: 'auto', padding: '2px 0' }}>
+                  {existingVariants.map(v => {
+                    const isSelected = variantInputText.trim().toLowerCase() === v.trim().toLowerCase();
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => {
+                          playTouchBeep();
+                          setVariantInputText(v);
+                        }}
+                        className="pos-touch-btn"
+                        style={{
+                          background: isSelected ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : '#f1f5f9',
+                          color: isSelected ? '#ffffff' : '#334155',
+                          border: isSelected ? '1.5px solid #1e40af' : '1px solid #cbd5e1',
+                          borderRadius: 20,
+                          padding: '5px 12px',
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <span>🏷️</span> {v}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Modal Bottom Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: 12, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  playTouchBeep();
+                  handleClearVariant();
+                }}
+                className="pos-touch-btn"
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #fca5a5',
+                  background: '#fef2f2',
+                  color: '#dc2626',
+                  fontWeight: 800,
+                  fontSize: 11,
+                  cursor: 'pointer'
+                }}
+              >
+                ✕ Clear Variant
+              </button>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setVariantModalItem(null)}
+                  className="pos-touch-btn"
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#64748b',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveVariant}
+                  className="pos-touch-btn"
+                  style={{
+                    padding: '7px 18px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#ffffff',
+                    fontWeight: 900,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.4)'
+                  }}
+                >
+                  ✓ Save Variant
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= MODAL: Single Item Barcode Label Print ================= */}
       {printModalItem && (

@@ -117,6 +117,7 @@ export default function POSSaleView({
   const [scannedActiveItems, setScannedActiveItems] = useState<any[]>([]);
   const [posSearchQuery, setPosSearchQuery] = useState('');
   const [rubicSearchQuery, setRubicSearchQuery] = useState('');
+  const [selectedVariantFilter, setSelectedVariantFilter] = useState<string>('ALL');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiProgress, setAiProgress] = useState<{
     current: number;
@@ -280,6 +281,8 @@ export default function POSSaleView({
         discountAmt,
         retailSalePrice,
         expiryDate: posMatch?.expiryDate || si.expiryDate || '',
+        variant: posMatch?.variant || (Array.isArray(posMatch?.variants) && posMatch.variants[0]) || si.variant || (Array.isArray(si.variants) && si.variants[0]) || '',
+        variants: posMatch?.variants || (posMatch?.variant ? [posMatch.variant] : (si.variants || [])),
       };
     });
 
@@ -307,6 +310,8 @@ export default function POSSaleView({
           gstRate: Number(p.gstRate) || 18,
           hsnCode: p.hsnCode || '',
           expiryDate: p.expiryDate || '',
+          variant: p.variant || (Array.isArray(p.variants) && p.variants[0]) || '',
+          variants: p.variants || (p.variant ? [p.variant] : []),
         });
       }
     });
@@ -350,6 +355,50 @@ export default function POSSaleView({
 
     return positiveStockItems;
   }, [positiveStockItems, activePOSPurchaseList]);
+
+  // All unique variants available in Rubic POS items with item counts
+  const rubicVariantsData = useMemo(() => {
+    const map = new Map<string, number>();
+    rubicStockItems.forEach((it: any) => {
+      const v = String(it.variant || (Array.isArray(it.variants) && it.variants[0]) || '').trim() || 'General / Unassigned';
+      map.set(v, (map.get(v) || 0) + 1);
+    });
+    const list = Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+    // Sort so 'General / Unassigned' is at the end, other variants alphabetically
+    list.sort((a, b) => {
+      if (a.name === 'General / Unassigned') return 1;
+      if (b.name === 'General / Unassigned') return -1;
+      return a.name.localeCompare(b.name);
+    });
+    return list;
+  }, [rubicStockItems]);
+
+  // Filtered Rubic Stock Items by search query and variant shortlist
+  const filteredRubicItems = useMemo(() => {
+    return rubicStockItems.filter((it: any) => {
+      const itemVariant = String(it.variant || (Array.isArray(it.variants) && it.variants[0]) || '').trim() || 'General / Unassigned';
+      if (selectedVariantFilter !== 'ALL' && itemVariant.toLowerCase() !== selectedVariantFilter.toLowerCase()) {
+        return false;
+      }
+      if (!rubicSearchQuery) return true;
+      const q = rubicSearchQuery.toLowerCase();
+      const n = (it.name || it.itemName || '').toLowerCase();
+      const b = (it.barcode || '').toLowerCase();
+      const v = itemVariant.toLowerCase();
+      return n.includes(q) || b.includes(q) || v.includes(q);
+    });
+  }, [rubicStockItems, selectedVariantFilter, rubicSearchQuery]);
+
+  // Group filtered items by Variant for heading sections
+  const groupedRubicSections = useMemo(() => {
+    const groups: { [key: string]: any[] } = {};
+    filteredRubicItems.forEach(item => {
+      const v = String(item.variant || (Array.isArray(item.variants) && item.variants[0]) || '').trim() || 'General / Unassigned';
+      if (!groups[v]) groups[v] = [];
+      groups[v].push(item);
+    });
+    return groups;
+  }, [filteredRubicItems]);
 
   // AI Product Image Generator: Generates only for items that don't have valid images yet,
   // showing an installation-style green animated progress strip that finishes & disappears automatically.
@@ -614,9 +663,13 @@ export default function POSSaleView({
       return;
     }
 
-    // Step 5: Are any search inputs populated? Clear them first
+    // Step 5: Are any search inputs or variant filters active? Clear them first
     if (rubicSearchQuery.trim()) {
       setRubicSearchQuery('');
+      return;
+    }
+    if (selectedVariantFilter !== 'ALL') {
+      setSelectedVariantFilter('ALL');
       return;
     }
     if (posSearchQuery.trim()) {
@@ -663,6 +716,7 @@ export default function POSSaleView({
     showReceiptModal,
     showCatalogModal,
     rubicSearchQuery,
+    selectedVariantFilter,
     posSearchQuery,
     barcodeInput,
     rightViewMode,
@@ -2264,6 +2318,112 @@ export default function POSSaleView({
                     </button>
                   </div>
 
+                  {/* Variant Filter Bar: Touch Dropdown + Horizontal Scrolling Touch Pills */}
+                  {rubicVariantsData.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 4 }}>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                          <span>🏷️</span> Variant:
+                        </span>
+                        <select
+                          value={selectedVariantFilter}
+                          onChange={(e) => {
+                            playTouchBeep();
+                            setSelectedVariantFilter(e.target.value);
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            border: '1.5px solid #93c5fd',
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            color: '#1d4ed8',
+                            background: '#eff6ff',
+                            cursor: 'pointer',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="ALL">🏷️ All Variants ({rubicStockItems.length} Items)</option>
+                          {rubicVariantsData.map(v => (
+                            <option key={v.name} value={v.name}>
+                              🏷️ {v.name} ({v.count} Items)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Quick-Pick Touch Pills Bar */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 4,
+                          overflowX: 'auto',
+                          padding: '2px 0 4px 0',
+                          scrollbarWidth: 'none',
+                          msOverflowStyle: 'none'
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playTouchBeep();
+                            setSelectedVariantFilter('ALL');
+                          }}
+                          className="pos-touch-btn"
+                          style={{
+                            background: selectedVariantFilter === 'ALL'
+                              ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                              : '#ffffff',
+                            color: selectedVariantFilter === 'ALL' ? '#ffffff' : '#475569',
+                            border: selectedVariantFilter === 'ALL' ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                            borderRadius: 14,
+                            padding: '2.5px 8px',
+                            fontSize: 9.5,
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            boxShadow: selectedVariantFilter === 'ALL' ? '0 1.5px 4px rgba(2, 132, 199, 0.35)' : 'none'
+                          }}
+                        >
+                          All ({rubicStockItems.length})
+                        </button>
+                        {rubicVariantsData.map(v => {
+                          const isSel = selectedVariantFilter.toLowerCase() === v.name.toLowerCase();
+                          return (
+                            <button
+                              key={v.name}
+                              type="button"
+                              onClick={() => {
+                                playTouchBeep();
+                                setSelectedVariantFilter(v.name);
+                              }}
+                              className="pos-touch-btn"
+                              style={{
+                                background: isSel
+                                  ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                                  : '#ffffff',
+                                color: isSel ? '#ffffff' : '#1e293b',
+                                border: isSel ? '1.5px solid #1e40af' : '1px solid #cbd5e1',
+                                borderRadius: 14,
+                                padding: '2.5px 8px',
+                                fontSize: 9.5,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                boxShadow: isSel ? '0 1.5px 4px rgba(37, 99, 235, 0.35)' : 'none'
+                              }}
+                            >
+                              🏷️ {v.name} ({v.count})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Green Installation-style Processing Strip */}
                   {aiProgress && (
                     <div
@@ -2301,111 +2461,128 @@ export default function POSSaleView({
                       </div>
                     </div>
                   )}
-                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 6, padding: 3 }}>
-                    {rubicStockItems
-                      .filter((it: any) => {
-                        if (!rubicSearchQuery) return true;
-                        const q = rubicSearchQuery.toLowerCase();
-                        const n = (it.name || it.itemName || '').toLowerCase();
-                        const b = (it.barcode || '').toLowerCase();
-                        return n.includes(q) || b.includes(q);
-                      })
-                      .map((item: any) => {
-                        const st = item._calculatedStock;
-                        const keyById = String(item.id);
-                        const keyByName = String(item.name || item.itemName || '').trim().toLowerCase();
-                        const rawImg = aiImagesMap[keyById] || aiImagesMap[keyByName];
-                        const imgSrc = item.image || (rawImg && !posAIProductImageService.isLegacyAIImage(rawImg) ? rawImg : generateAIImageForProduct(item));
-                        const isSelected = selectedCartItem?.itemId === item.id;
-                        const displayName = item.name || item.itemName || 'Item';
 
-                        return (
+                  {/* Visual Items Grouped by Variant Sections */}
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '2px 4px' }}>
+                    {Object.keys(groupedRubicSections).length === 0 ? (
+                      <div style={{ padding: '30px 10px', textAlign: 'center', color: '#64748b' }}>
+                        <span style={{ fontSize: 32, display: 'block', marginBottom: 6 }}>🔍</span>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#334155' }}>No visual items found</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                          Try clearing your search query or selecting "All Variants"
+                        </div>
+                      </div>
+                    ) : (
+                      Object.entries(groupedRubicSections).map(([groupName, groupItems]) => (
+                        <div key={groupName} style={{ marginBottom: 14 }}>
+                          {/* Sticky Section Heading Banner */}
                           <div
-                            key={item.id}
-                            onClick={() => {
-                              playBeep(1046, 0.05);
-                              handleSelectOrScanItem(item, 1);
-                            }}
-                            className="pos-touch-btn"
                             style={{
-                              background: isSelected
-                                ? 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)'
-                                : '#ffffff',
-                              border: isSelected ? '2px solid #0284c7' : '1px solid #cbd5e1',
-                              borderRadius: 8,
-                              padding: '6px 5px',
+                              position: 'sticky',
+                              top: 0,
+                              zIndex: 6,
+                              background: 'linear-gradient(90deg, #1e293b 0%, #0f172a 100%)',
+                              color: '#ffffff',
+                              padding: '5px 10px',
+                              borderRadius: 6,
                               display: 'flex',
-                              flexDirection: 'column',
                               alignItems: 'center',
                               justifyContent: 'space-between',
-                              cursor: 'pointer',
-                              boxShadow: isSelected ? '0 0 8px rgba(2, 132, 199, 0.45)' : '0 1.5px 4px rgba(0,0,0,0.06)',
-                              position: 'relative',
-                              minWidth: 0,
-                              overflow: 'hidden',
-                              minHeight: 122,
+                              marginBottom: 6,
+                              boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                              borderLeft: '4px solid #38bdf8',
                             }}
-                            title={`${displayName} | Stock: ${st} | ₹${item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}`}
                           >
-                            {/* Product Image */}
-                            <img
-                              src={imgSrc}
-                              alt={displayName}
-                              style={{ width: 52, height: 52, objectFit: 'contain', marginBottom: 3, borderRadius: 6 }}
-                            />
-
-                            {/* Prominent, Bold, Multi-line Item Name (Clearly visible) */}
-                            <div style={{
-                              fontSize: 10.5,
-                              fontWeight: 800,
-                              color: '#0f172a',
-                              textAlign: 'center',
-                              width: '100%',
-                              lineHeight: 1.25,
-                              minHeight: 26,
-                              maxHeight: 32,
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                              wordBreak: 'break-word',
-                              marginBottom: 3,
-                              padding: '0 2px',
-                            }}>
-                              {displayName}
-                            </div>
-
-                            {/* Price & Stock Badges */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 'auto', gap: 2, borderTop: '1px solid #f1f5f9', paddingTop: 3 }}>
-                              <span style={{ fontSize: 9.5, fontWeight: 900, color: '#0284c7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                ₹{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
-                              </span>
-                              <span style={{ fontSize: 8, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1.5px 4px', borderRadius: 4, flexShrink: 0 }}>
-                                S:{st}
-                              </span>
-                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.3, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span>🏷️</span> {groupName.toUpperCase()}
+                            </span>
+                            <span style={{ fontSize: 9.5, background: '#38bdf8', color: '#0f172a', padding: '1.5px 7px', borderRadius: 10, fontWeight: 900 }}>
+                              {groupItems.length} {groupItems.length === 1 ? 'Item' : 'Items'}
+                            </span>
                           </div>
-                        );
-                      })}
-                    {rubicStockItems.length === 0 && (
-                      <div style={{
-                        gridColumn: '1 / -1',
-                        padding: '24px 12px',
-                        textAlign: 'center',
-                        color: '#64748b',
-                        fontSize: 11,
-                        background: '#ffffff',
-                        borderRadius: 8,
-                        border: '1px dashed #cbd5e1',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}>
-                        <span style={{ fontSize: 24 }}>📋</span>
-                        <div style={{ fontWeight: 800, color: '#334155' }}>No Items Found in Purchase POS List</div>
-                        <div style={{ fontSize: 10 }}>Only items with positive stock present in the Purchase POS List appear here.</div>
-                      </div>
+
+                          {/* Grid of Cards under this Heading */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 6 }}>
+                            {groupItems.map((item: any) => {
+                              const st = item._calculatedStock;
+                              const keyById = String(item.id);
+                              const keyByName = String(item.name || item.itemName || '').trim().toLowerCase();
+                              const rawImg = aiImagesMap[keyById] || aiImagesMap[keyByName];
+                              const imgSrc = item.image || (rawImg && !posAIProductImageService.isLegacyAIImage(rawImg) ? rawImg : generateAIImageForProduct(item));
+                              const isSelected = selectedCartItem?.itemId === item.id;
+                              const displayName = item.name || item.itemName || 'Item';
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  onClick={() => {
+                                    playBeep(1046, 0.05);
+                                    handleSelectOrScanItem(item, 1);
+                                  }}
+                                  className="pos-touch-btn"
+                                  style={{
+                                    background: isSelected
+                                      ? 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)'
+                                      : '#ffffff',
+                                    border: isSelected ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                                    borderRadius: 8,
+                                    padding: '6px 5px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    cursor: 'pointer',
+                                    boxShadow: isSelected ? '0 0 8px rgba(2, 132, 199, 0.45)' : '0 1.5px 4px rgba(0,0,0,0.06)',
+                                    position: 'relative',
+                                    minWidth: 0,
+                                    overflow: 'hidden',
+                                    minHeight: 122,
+                                  }}
+                                  title={`${displayName} | Stock: ${st} | ₹${item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}`}
+                                >
+                                  {/* Product Image */}
+                                  <img
+                                    src={imgSrc}
+                                    alt={displayName}
+                                    style={{ width: 52, height: 52, objectFit: 'contain', marginBottom: 3, borderRadius: 6 }}
+                                  />
+
+                                  {/* Prominent, Bold, Multi-line Item Name */}
+                                  <div style={{
+                                    fontSize: 10.5,
+                                    fontWeight: 800,
+                                    color: '#0f172a',
+                                    textAlign: 'center',
+                                    width: '100%',
+                                    lineHeight: 1.25,
+                                    minHeight: 26,
+                                    maxHeight: 32,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    wordBreak: 'break-word',
+                                    marginBottom: 3,
+                                    padding: '0 2px',
+                                  }}>
+                                    {displayName}
+                                  </div>
+
+                                  {/* Price & Stock Badges */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 'auto', gap: 2, borderTop: '1px solid #f1f5f9', paddingTop: 3 }}>
+                                    <span style={{ fontSize: 9.5, fontWeight: 900, color: '#0284c7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      ₹{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
+                                    </span>
+                                    <span style={{ fontSize: 8, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1.5px 4px', borderRadius: 4, flexShrink: 0 }}>
+                                      S:{st}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
                     )}
                   </div>
                 </div>
