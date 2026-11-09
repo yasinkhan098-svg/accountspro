@@ -41,12 +41,24 @@ namespace LedgerXClient
             }
 
             // =========================================================================
-            // SILENT AUTO-DISCOVERY ENGINE (Runs in 400ms without showing any popup/dialog)
+            // SILENT AUTO-DISCOVERY ENGINE (Runs in 100-400ms without showing any popup/dialog)
             // =========================================================================
             string activeHost = null;
 
+            // 0. Instant direct check on known Host IPs (e.g. 192.168.240.48 or loopback)
+            string[] directHosts = new string[] { "192.168.240.48", "127.0.0.1", "192.168.1.205", "192.168.240.205" };
+            foreach (string direct in directHosts)
+            {
+                if (IsHostAlive(direct, 45454))
+                {
+                    activeHost = direct;
+                    SaveConfigHost(configFile, activeHost);
+                    break;
+                }
+            }
+
             // 1. Quick check on cached Host IP (80ms)
-            if (!string.IsNullOrEmpty(savedHostIp) && IsHostAlive(savedHostIp, 45454))
+            if (activeHost == null && !string.IsNullOrEmpty(savedHostIp) && IsHostAlive(savedHostIp, 45454))
             {
                 activeHost = savedHostIp;
             }

@@ -122,6 +122,16 @@ interface StockItem {
   descLine1?: boolean;
   descLine2?: boolean;
   descLine3?: boolean;
+  companyCode?: string;
+  barcode?: string;
+  partNumber?: string;
+  mrp?: number;
+  retailSalePrice?: number;
+  variant?: string;
+  variants?: string[];
+  rateInclTax?: number;
+  stock?: number;
+  openingStock?: number;
 }
 interface UnitData { id: number; companyId: number; name: string; symbol: string; formalName: string; uqc: string; decimalPlaces: number; }
 interface GodownData { id: number; companyId: number; name: string; alias?: string; under: string; address?: string; }
@@ -2155,8 +2165,41 @@ export default function App() {
       const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
       lanUserManagementService.setActiveCompanyCode(compCode);
 
+      // Load full disk data for this company (Stock items, POS Purchase List, Vouchers, Ledgers)
+      companyDataFolderService.loadCompanyFolder(compCode).then(folderData => {
+        if (folderData) {
+          const cid = Number(activeCompany.id);
+          if (folderData.stockItems && folderData.stockItems.length > 0) {
+            setAllStockItems(prev => {
+              const others = prev.filter(si => Number(si.companyId) !== cid && String(si.companyCode || '').toUpperCase() !== compCode);
+              return [...others, ...folderData.stockItems];
+            });
+          }
+          if (folderData.posPurchaseList && folderData.posPurchaseList.length > 0) {
+            try {
+              localStorage.setItem(`ledgerx_pos_purchase_list_${compCode}`, JSON.stringify(folderData.posPurchaseList));
+            } catch (_) { }
+          }
+          if (folderData.vouchers && folderData.vouchers.length > 0) {
+            setAllVouchers(prev => {
+              const others = prev.filter(v => Number(v.companyId) !== cid);
+              return [...others, ...folderData.vouchers];
+            });
+          }
+          if (folderData.ledgers && folderData.ledgers.length > 0) {
+            setAllLedgers(prev => {
+              const others = prev.filter(l => Number(l.companyId) !== cid);
+              return [...others, ...folderData.ledgers];
+            });
+          }
+        }
+      }).catch(err => console.warn('Error loading company disk folder:', err));
+
       if (permissionGuard.isClientSession()) {
-        setScreen('POS_SALE');
+        const curr = permissionGuard.getCurrentUser();
+        if (!curr) {
+          setScreen('POS_SALE');
+        }
       } else {
         // Force return to Gateway whenever active company changes (selection, opening, creation)
         permissionGuard.setCurrentUser(null);
@@ -4757,7 +4800,29 @@ export default function App() {
                 stockItems={stockItems}
                 ledgers={ledgers}
                 vouchers={vouchers}
-                onBack={goBack}
+                onBack={() => {
+                  const curr = permissionGuard.getCurrentUser();
+                  if (curr && !curr.isAdmin && !permissionGuard.canAccessVoucher('POS Sale')) {
+                    if (permissionGuard.canAccessVoucher('Purchase')) {
+                      setActiveVoucher('Purchase');
+                      setScreen('VOUCHER_ENTRY');
+                      return;
+                    }
+                    if (permissionGuard.canAccessVoucher('Sales')) {
+                      setActiveVoucher('Sales');
+                      setScreen('VOUCHER_ENTRY');
+                      return;
+                    }
+                  }
+                  setScreen('GATEWAY_MAIN');
+                }}
+                onOpenGateway={() => {
+                  setScreen('GATEWAY_MAIN');
+                }}
+                onOpenVoucher={(type) => {
+                  setActiveVoucher(type as VoucherTypeKey);
+                  setScreen('VOUCHER_ENTRY');
+                }}
                 onStockUpdated={updated => {
                   setAllStockItems(prev => {
                     const cid = Number(activeCompany?.id || 0);

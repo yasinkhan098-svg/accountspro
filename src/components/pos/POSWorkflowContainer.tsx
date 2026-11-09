@@ -14,6 +14,8 @@ interface POSWorkflowContainerProps {
   ledgers: any[];
   vouchers: any[];
   onBack: () => void;
+  onOpenGateway?: () => void;
+  onOpenVoucher?: (voucherType: string) => void;
   onStockUpdated?: (updatedStock: any[]) => void;
   onVouchersUpdated?: (updatedVouchers: any[]) => void;
   onOpenPurchasePOSList?: () => void;
@@ -27,6 +29,8 @@ export default function POSWorkflowContainer({
   ledgers = [],
   vouchers = [],
   onBack,
+  onOpenGateway,
+  onOpenVoucher,
   onStockUpdated,
   onVouchersUpdated,
   onOpenPurchasePOSList,
@@ -94,37 +98,71 @@ export default function POSWorkflowContainer({
       setIsTrainingMode(true);
       const pkg = await posTrainingService.getTrainingData();
       setTrainingPkg(pkg);
-    } else {
-      setIsTrainingMode(false);
-      setTrainingPkg(null);
+      setWorkflowState('SALES');
+      return;
+    }
 
-      if (targetCompany && targetCompany.id !== company?.id) {
-        onSwitchCompany?.(targetCompany);
-      }
+    setIsTrainingMode(false);
+    setTrainingPkg(null);
 
-      // Immediately load target company's POS purchase list
-      const code = companyDataFolderService.getCompanyFolderCode(finalCo, availableCompanies);
-      try {
-        const local = localStorage.getItem(`ledgerx_pos_purchase_list_${code}`);
-        if (local) {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && parsed.length > 0) setPosPurchaseList(parsed);
+    if (targetCompany && targetCompany.id !== company?.id) {
+      onSwitchCompany?.(targetCompany);
+    }
+
+    // Immediately load target company's complete disk folder data (Stock, Purchase POS List, Vouchers)
+    const code = companyDataFolderService.getCompanyFolderCode(finalCo, availableCompanies);
+    try {
+      const folder = await companyDataFolderService.loadCompanyFolder(code);
+      if (folder) {
+        if (folder.stockItems && Array.isArray(folder.stockItems) && folder.stockItems.length > 0) {
+          onStockUpdated?.(folder.stockItems);
         }
-        const folder = await companyDataFolderService.loadCompanyFolder(code);
-        if (folder?.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
+        if (folder.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
           setPosPurchaseList(folder.posPurchaseList);
         }
-      } catch (_) { }
+        if (folder.vouchers && Array.isArray(folder.vouchers) && folder.vouchers.length > 0) {
+          onVouchersUpdated?.(folder.vouchers);
+        }
+      }
+    } catch (_) { }
+
+    // Smart routing based on user permissions:
+    // 1. If user does NOT have POS Sale permission, route directly to their allowed screen!
+    if (!permissionGuard.canAccessVoucher('POS Sale') && !user.isAdmin) {
+      if (permissionGuard.canAccessVoucher('Purchase')) {
+        onOpenVoucher ? onOpenVoucher('Purchase') : onBack();
+        return;
+      }
+      if (permissionGuard.canAccessVoucher('Sales')) {
+        onOpenVoucher ? onOpenVoucher('Sales') : onBack();
+        return;
+      }
+      if (permissionGuard.canAccessVoucher('Payment')) {
+        onOpenVoucher ? onOpenVoucher('Payment') : onBack();
+        return;
+      }
+      if (permissionGuard.canAccessVoucher('Contra')) {
+        onOpenVoucher ? onOpenVoucher('Contra') : onBack();
+        return;
+      }
+      if (permissionGuard.canAccessVoucher('Receipt')) {
+        onOpenVoucher ? onOpenVoucher('Receipt') : onBack();
+        return;
+      }
+      if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') || permissionGuard.canAccessVoucher('Purchase POS List')) {
+        setWorkflowState('PURCHASE_POS_LIST');
+        return;
+      }
+      if (onOpenGateway) {
+        onOpenGateway();
+        return;
+      }
+      onBack();
+      return;
     }
 
-    if (permissionGuard.canAccessVoucher('POS Sale') || user.isAdmin) {
-      setWorkflowState('SALES');
-    } else if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') || permissionGuard.canAccessVoucher('Purchase POS List')) {
-      setWorkflowState('PURCHASE_POS_LIST');
-    } else {
-      // User is an accountant or voucher operator without POS permissions; exit directly to their allowed screen
-      onBack();
-    }
+    // 2. User has POS Sale permission (or isAdmin):
+    setWorkflowState('SALES');
   };
 
   const handleExit = () => {
@@ -216,6 +254,8 @@ export default function POSWorkflowContainer({
       cashierUser={cashierUser || undefined}
       onBack={handleExit}
       onLogoutToLogin={handleLogoutToLogin}
+      onOpenGateway={onOpenGateway}
+      onOpenVoucher={onOpenVoucher}
       onStockUpdated={(updated) => {
         if (isTrainingMode && trainingPkg) {
           const newPkg = { ...trainingPkg, stockItems: updated };

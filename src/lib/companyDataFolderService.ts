@@ -265,7 +265,7 @@ class CompanyDataFolderService {
       },
       ledgers: data.ledgers !== undefined ? data.ledgers : (existing?.ledgers || []),
       vouchers: data.vouchers !== undefined ? data.vouchers : (existing?.vouchers || []),
-      stockItems: data.stockItems !== undefined ? data.stockItems : (existing?.stockItems || []),
+      stockItems: (Array.isArray(data.stockItems) && data.stockItems.length > 0) ? data.stockItems : (existing?.stockItems || []),
       stockGroups: data.stockGroups !== undefined ? data.stockGroups : (existing?.stockGroups || []),
       units: data.units !== undefined ? data.units : (existing?.units || []),
       groups: data.groups !== undefined ? data.groups : (existing?.groups || []),
@@ -273,8 +273,17 @@ class CompanyDataFolderService {
       purchaseOrders: data.purchaseOrders !== undefined ? data.purchaseOrders : (existing?.purchaseOrders || []),
       boms: data.boms !== undefined ? data.boms : (existing?.boms || []),
       manufacturingJournals: data.manufacturingJournals !== undefined ? data.manufacturingJournals : (existing?.manufacturingJournals || []),
-      users: data.users !== undefined ? data.users : (existing?.users || []),
-      posPurchaseList: data.posPurchaseList !== undefined ? data.posPurchaseList : (existing?.posPurchaseList || []),
+      users: (Array.isArray(data.users) && data.users.length > 0) ? data.users : (existing?.users || []),
+      posPurchaseList: (Array.isArray(data.posPurchaseList) && data.posPurchaseList.length > 0)
+        ? data.posPurchaseList
+        : ((existing?.posPurchaseList && existing.posPurchaseList.length > 0)
+            ? existing.posPurchaseList
+            : (() => {
+                try {
+                  const raw = localStorage.getItem(`ledgerx_pos_purchase_list_${code}`);
+                  return raw ? JSON.parse(raw) : [];
+                } catch (_) { return []; }
+              })()),
     };
 
     // 1. Electron bridge
@@ -367,7 +376,15 @@ class CompanyDataFolderService {
         const res = await fetch(`${this.getBridgeUrl()}/api/company?code=${encodeURIComponent(code)}`);
         if (res.ok) {
           const data = await res.json();
-          if (data && data.company) return data;
+          if (data && data.company) {
+            let co = data.company;
+            while (co && co.company && typeof co.company === 'object') {
+              co = { ...co, ...co.company };
+            }
+            data.company = co;
+            this.saveToLocalCache(code, data);
+            return data;
+          }
         }
       } catch (e) {}
     }
@@ -409,7 +426,19 @@ class CompanyDataFolderService {
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json.companies) && json.companies.length > 0) {
-            scanned = json.companies;
+            scanned = json.companies.map((item: any) => {
+              let co = item.company;
+              while (co && co.company && typeof co.company === 'object') {
+                co = { ...co, ...co.company };
+              }
+              return {
+                companyCode: item.companyCode,
+                company: {
+                  ...co,
+                  companyCode: item.companyCode,
+                }
+              };
+            });
           }
         }
       } catch (e) {}
