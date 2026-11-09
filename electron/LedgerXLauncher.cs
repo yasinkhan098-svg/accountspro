@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Net.NetworkInformation;
 
 [assembly: AssemblyTitle("LedgerX Desktop")]
 [assembly: AssemblyDescription("LedgerX Desktop Offline Accounting Client")]
@@ -59,7 +60,10 @@ namespace LedgerXLauncher
                 // Start local HTTP Bridge for Tally-style company data folders
                 StartHttpBridge(dataDir);
 
-                // Ensure Windows Firewall inbound rule for port 45454
+                // Start UDP Auto-Discovery Beacon on port 45455 for Zero-Config LAN Clients
+                StartDiscoveryBeacon();
+
+                // Ensure Windows Firewall inbound rules for port 45454 (TCP) & 45455 (UDP)
                 ThreadPool.QueueUserWorkItem((st) => EnsureFirewallRule());
 
                 // Allow passing server URL via command-line argument e.g. LedgerX.exe https://mysite.vercel.app
@@ -347,13 +351,103 @@ namespace LedgerXLauncher
             return "127.0.0.1";
         }
 
+        private static void StartDiscoveryBeacon()
+        {
+            try
+            {
+                Thread beaconThread = new Thread(() =>
+                {
+                    int beaconPort = 45455;
+                    Socket udp = null;
+                    try
+                    {
+                        udp = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                        udp.EnableBroadcast = true;
+                        udp.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, 1);
+                    }
+                    catch { return; }
+
+                    string hostName = Environment.MachineName;
+                    while (true)
+                    {
+                        try
+                        {
+                            string localIp = GetLocalIPAddress();
+                            string message = string.Format(
+                                "{{\"service\":\"ledgerx_host\",\"version\":\"2.5\",\"hostName\":\"{0}\",\"ip\":\"{1}\",\"port\":45454}}",
+                                hostName, localIp
+                            );
+                            byte[] data = Encoding.UTF8.GetBytes(message);
+
+                            // 1. Broadcast to 255.255.255.255
+                            IPEndPoint epGlobal = new IPEndPoint(IPAddress.Broadcast, beaconPort);
+                            try { udp.SendTo(data, epGlobal); } catch { }
+
+                            // 2. Broadcast on each physical network interface subnet (e.g. 192.168.1.255)
+                            try
+                            {
+                                foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+                                {
+                                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                                        continue;
+                                    foreach (UnicastIPAddressInformation ua in ni.GetIPProperties().UnicastAddresses)
+                                    {
+                                        if (ua.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ua.Address))
+                                        {
+                                            if (ua.IPv4Mask != null)
+                                            {
+                                                byte[] ipBytes = ua.Address.GetAddressBytes();
+                                                byte[] maskBytes = ua.IPv4Mask.GetAddressBytes();
+                                                byte[] bcastBytes = new byte[4];
+                                                for (int i = 0; i < 4; i++) bcastBytes[i] = (byte)(ipBytes[i] | ~maskBytes[i]);
+                                                IPAddress bcastIp = new IPAddress(bcastBytes);
+                                                udp.SendTo(data, new IPEndPoint(bcastIp, beaconPort));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                        catch { }
+                        Thread.Sleep(2000);
+                    }
+                });
+                beaconThread.IsBackground = true;
+                beaconThread.Start();
+            }
+            catch { }
+        }
+
         private static void EnsureFirewallRule()
         {
             try
             {
+                // Write Fix-Host-Firewall.bat for 1-click manual remediation
+                try
+                {
+                    string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                    if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
+                    string batPath = Path.Combine(exeDir, "Fix-Host-Firewall.bat");
+                    string batContent =
+                        "@echo off\r\n" +
+                        "echo =====================================================\r\n" +
+                        "echo LedgerX Desktop - Windows Firewall LAN Configuration\r\n" +
+                        "echo =====================================================\r\n" +
+                        "netsh advfirewall firewall delete rule name=\"LedgerX Accounting Host (TCP)\" >nul 2>&1\r\n" +
+                        "netsh advfirewall firewall delete rule name=\"LedgerX Discovery Beacon (UDP)\" >nul 2>&1\r\n" +
+                        "netsh advfirewall firewall add rule name=\"LedgerX Accounting Host (TCP)\" dir=in action=allow protocol=TCP localport=45454 profile=any\r\n" +
+                        "netsh advfirewall firewall add rule name=\"LedgerX Discovery Beacon (UDP)\" dir=in action=allow protocol=UDP localport=45455 profile=any\r\n" +
+                        "echo.\r\n" +
+                        "echo Inbound Port 45454 (TCP) and 45455 (UDP) are now enabled on ALL network profiles!\r\n" +
+                        "pause\r\n";
+                    File.WriteAllText(batPath, batContent);
+                }
+                catch { }
+
                 Process p = new Process();
                 p.StartInfo.FileName = "netsh";
-                p.StartInfo.Arguments = "advfirewall firewall show rule name=\"LedgerX LAN MultiUser\"";
+                p.StartInfo.Arguments = "advfirewall firewall show rule name=\"LedgerX Accounting Host (TCP)\"";
                 p.StartInfo.CreateNoWindow = true;
                 p.StartInfo.UseShellExecute = false;
                 p.StartInfo.RedirectStandardOutput = true;
@@ -361,11 +455,11 @@ namespace LedgerXLauncher
                 string outText = p.StandardOutput.ReadToEnd();
                 p.WaitForExit();
 
-                if (string.IsNullOrEmpty(outText) || !outText.Contains("LedgerX LAN MultiUser"))
+                if (string.IsNullOrEmpty(outText) || !outText.Contains("LedgerX Accounting Host (TCP)"))
                 {
                     ProcessStartInfo psi = new ProcessStartInfo();
                     psi.FileName = "powershell.exe";
-                    psi.Arguments = "-NoProfile -WindowStyle Hidden -Command \"Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\\\"LedgerX LAN MultiUser\\\" dir=in action=allow protocol=TCP localport=45454' -Verb RunAs\"";
+                    psi.Arguments = "-NoProfile -WindowStyle Hidden -Command \"Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\\\"LedgerX Accounting Host (TCP)\\\" dir=in action=allow protocol=TCP localport=45454 profile=any' -Verb RunAs; Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\\\"LedgerX Discovery Beacon (UDP)\\\" dir=in action=allow protocol=UDP localport=45455 profile=any' -Verb RunAs\"";
                     psi.WindowStyle = ProcessWindowStyle.Hidden;
                     psi.UseShellExecute = true;
                     Process.Start(psi);
@@ -491,20 +585,27 @@ namespace LedgerXLauncher
                     }
                 }
 
-                if (path == "/downloads/ledgerx-client.exe")
+                if (path == "/downloads/ledgerx-client-setup.exe" || path == "/downloads/ledgerx-client.exe")
                 {
+                    string fileName = path.EndsWith("setup.exe") ? "LedgerX-Client-Setup.exe" : "LedgerX-Client.exe";
                     string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
                     if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
-                    string clientExe = Path.Combine(exeDir, "LedgerX-Client.exe");
+                    string clientExe = Path.Combine(exeDir, fileName);
                     if (!File.Exists(clientExe))
                     {
-                        clientExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public", "downloads", "LedgerX-Client.exe");
+                        clientExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public", "downloads", fileName);
+                    }
+                    if (!File.Exists(clientExe) && fileName == "LedgerX-Client-Setup.exe")
+                    {
+                        // Fallback to client portable exe if setup is not yet present
+                        clientExe = Path.Combine(exeDir, "LedgerX-Client.exe");
+                        if (!File.Exists(clientExe)) clientExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public", "downloads", "LedgerX-Client.exe");
                     }
                     if (File.Exists(clientExe))
                     {
                         byte[] bytes = File.ReadAllBytes(clientExe);
                         res.ContentType = "application/octet-stream";
-                        res.Headers.Add("Content-Disposition", "attachment; filename=\"LedgerX-Client.exe\"");
+                        res.Headers.Add("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
                         res.ContentLength64 = bytes.Length;
                         res.OutputStream.Write(bytes, 0, bytes.Length);
                         res.OutputStream.Close();

@@ -335,11 +335,35 @@ namespace LedgerXSetup
                         File.WriteAllText(conf, "https://www.ledgerxerp.com");
                     }
                 }
+
+                // Configure Windows Firewall rules for LAN Multi-User
+                ConfigureFirewallRules();
             }
             catch (Exception ex)
             {
                 lblStatus.Text = "Setup Notice: " + ex.Message;
             }
+        }
+
+        private void ConfigureFirewallRules()
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = "netsh";
+                psi.Arguments = "advfirewall firewall add rule name=\"LedgerX Accounting Host (TCP)\" dir=in action=allow protocol=TCP localport=45454 profile=any";
+                psi.CreateNoWindow = true;
+                psi.UseShellExecute = false;
+                Process.Start(psi);
+
+                ProcessStartInfo psi2 = new ProcessStartInfo();
+                psi2.FileName = "netsh";
+                psi2.Arguments = "advfirewall firewall add rule name=\"LedgerX Discovery Beacon (UDP)\" dir=in action=allow protocol=UDP localport=45455 profile=any";
+                psi2.CreateNoWindow = true;
+                psi2.UseShellExecute = false;
+                Process.Start(psi2);
+            }
+            catch { }
         }
 
         private void RegisterWindowsUninstall()

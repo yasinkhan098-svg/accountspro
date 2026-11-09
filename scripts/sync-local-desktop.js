@@ -38,6 +38,24 @@ const publicDir = path.join(projectRoot, 'public');
 if (fs.existsSync(publicDir)) {
   console.log('Copying public assets...');
   copyFolderRecursiveSync(publicDir, wwwDir);
+
+  // Copy updated executables to desktop app root directory if it exists
+  const appRoot = path.join(localApp, 'LedgerX');
+  if (fs.existsSync(appRoot)) {
+    const bins = ['LedgerX.exe', 'LedgerX-Client.exe', 'LedgerX-Client-Setup.exe', 'LedgerX-Setup.exe'];
+    for (const b of bins) {
+      const src = path.join(publicDir, 'downloads', b);
+      const dst = path.join(appRoot, b);
+      if (fs.existsSync(src)) {
+        try {
+          fs.copyFileSync(src, dst);
+          console.log(`Updated desktop executable: ${dst}`);
+        } catch (err) {
+          console.warn(`Could not overwrite ${b}:`, err.message);
+        }
+      }
+    }
+  }
 }
 
 // 2. Copy .next/static to www/_next/static

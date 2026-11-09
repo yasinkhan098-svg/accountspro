@@ -116,7 +116,15 @@ export default function POSWorkflowContainer({
         }
       } catch (_) {}
     }
-    setWorkflowState('SALES');
+
+    if (permissionGuard.canAccessVoucher('POS Sale') || user.isAdmin) {
+      setWorkflowState('SALES');
+    } else if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') || permissionGuard.canAccessVoucher('Purchase POS List')) {
+      setWorkflowState('PURCHASE_POS_LIST');
+    } else {
+      // User is an accountant or voucher operator without POS permissions; exit directly to their allowed screen
+      onBack();
+    }
   };
 
   const handleExit = () => {

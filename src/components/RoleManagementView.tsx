@@ -364,34 +364,49 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                 </div>
                 <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
-                  PORT 45454 ACTIVE
+                  AUTO-DISCOVERY & PORT 45454 ACTIVE
                 </span>
               </div>
               <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.4 }}>
-                For cash counters & billing PCs on this same Wi-Fi / LAN router. Works 100% offline with zero internet required.
+                For cash counters & billing PCs on this local network (Wi-Fi/LAN). Installs cleanly with <strong>Desktop Shortcut</strong> and auto-connects to Host PC without typing IP!
               </div>
-              <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0f3c64', marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                LAN URL: {hostInfo?.localIps?.some(ip => ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) ? `${hostInfo.lanUrl}/?lan_client=1` : 'https://www.ledgerxerp.com/?lan_client=1'}
+              <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0f3c64', marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  Host: {hostInfo?.hostName || 'ACCOUNTING-PC'} ({hostInfo?.lanUrl || 'http://192.168.1.205:45454'})
+                </span>
+                <span style={{ fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '1px 6px', borderRadius: 4, fontWeight: 'bold' }}>UDP 45455 BEACON</span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <button 
-                onClick={copyLANLink}
-                style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
-                title="Copy LAN URL to paste into client computer's browser"
-              >
-                {copied ? '✓ Copied!' : '📋 Copy LAN Link'}
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button 
+                  onClick={copyLANLink}
+                  style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
+                  title="Copy LAN URL to paste into client computer's browser"
+                >
+                  {copied ? '✓ Copied!' : '📋 Copy LAN Link'}
+                </button>
 
-              <a 
-                href="/downloads/LedgerX-Client.exe"
-                download="LedgerX-Client.exe"
-                style={{ background: '#4f46e5', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flex: 1.3, justifyContent: 'center' }}
-                title="Download 138KB portable LAN client app for offline PC"
-              >
-                📥 Download LAN Client (.exe)
-              </a>
+                <a 
+                  href="/downloads/LedgerX-Client-Setup.exe"
+                  download="LedgerX-Client-Setup.exe"
+                  style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flex: 1.4, justifyContent: 'center', boxShadow: '0 2px 4px rgba(16,185,129,0.3)' }}
+                  title="Download installable Client Setup with Desktop Shortcut & Zero-Config Auto-Discovery"
+                >
+                  🚀 Download Client Setup (.exe)
+                </a>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: 11 }}>
+                <a 
+                  href="/downloads/LedgerX-Client.exe" 
+                  download="LedgerX-Client.exe" 
+                  style={{ color: '#64748b', textDecoration: 'underline' }}
+                  title="Download raw portable exe without installer"
+                >
+                  or Download Portable Client (.exe)
+                </a>
+              </div>
             </div>
           </div>
 

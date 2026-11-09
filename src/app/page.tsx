@@ -872,7 +872,20 @@ export default function App() {
           plan: 'PRO',
         });
       }
-      setScreen('POS_SALE');
+      const existingUser = permissionGuard.getCurrentUser();
+      if (existingUser) {
+        if (permissionGuard.canAccessVoucher('POS Sale') || existingUser.isAdmin) {
+          setScreen('POS_SALE');
+        } else if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST')) {
+          setScreen('PURCHASE_POS_LIST');
+        } else if (permissionGuard.canAccessVoucher('Sales') || permissionGuard.canAccessVoucher('Purchase')) {
+          setScreen('VOUCHER_ENTRY');
+        } else {
+          setScreen('GATEWAY_MAIN');
+        }
+      } else {
+        setScreen('POS_SALE');
+      }
     }
 
     const handleOfflineEvent = async () => {

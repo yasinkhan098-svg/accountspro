@@ -23,6 +23,8 @@ const launcherExePath = path.join(downloadsDir, 'LedgerX.exe');
 const setupExePath = path.join(downloadsDir, 'LedgerX-Setup.exe');
 const clientCsPath = path.join(electronDir, 'LedgerXClient.cs');
 const clientExePath = path.join(downloadsDir, 'LedgerX-Client.exe');
+const clientInstallerCsPath = path.join(electronDir, 'ClientInstaller.cs');
+const clientSetupExePath = path.join(downloadsDir, 'LedgerX-Client-Setup.exe');
 const onlineClientCsPath = path.join(electronDir, 'LedgerXOnlineClient.cs');
 const onlineClientExePath = path.join(downloadsDir, 'LedgerX-Online-Client.exe');
 
@@ -396,11 +398,35 @@ namespace LedgerXSetup
                         File.WriteAllText(conf, "https://www.ledgerxerp.com");
                     }
                 }
+
+                // Configure Windows Firewall rules for LAN Multi-User
+                ConfigureFirewallRules();
             }
             catch (Exception ex)
             {
                 lblStatus.Text = "Setup Notice: " + ex.Message;
             }
+        }
+
+        private void ConfigureFirewallRules()
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = "netsh";
+                psi.Arguments = "advfirewall firewall add rule name=\\\"LedgerX Accounting Host (TCP)\\\" dir=in action=allow protocol=TCP localport=45454 profile=any";
+                psi.CreateNoWindow = true;
+                psi.UseShellExecute = false;
+                Process.Start(psi);
+
+                ProcessStartInfo psi2 = new ProcessStartInfo();
+                psi2.FileName = "netsh";
+                psi2.Arguments = "advfirewall firewall add rule name=\\\"LedgerX Discovery Beacon (UDP)\\\" dir=in action=allow protocol=UDP localport=45455 profile=any";
+                psi2.CreateNoWindow = true;
+                psi2.UseShellExecute = false;
+                Process.Start(psi2);
+            }
+            catch { }
         }
 
         private void RegisterWindowsUninstall()
@@ -729,6 +755,14 @@ execSync(setupCmd, { stdio: 'inherit' });
 const setupBuffer = fs.readFileSync(setupExePath);
 console.log('Compiled LedgerX-Setup.exe size:', setupBuffer.length, 'bytes');
 
+console.log('\n=== Step 4B: Compiling LedgerX-Client-Setup.exe with embedded resources & manifest ===');
+const clientSetupCmd = `"${cscPath}" /target:winexe /optimize+ /win32icon:"${icoPath}" /win32manifest:"${manifestPath}" /resource:"${clientExePath}",LedgerXClient.exe /resource:"${icoPath}",app.ico /out:"${clientSetupExePath}" "${clientInstallerCsPath}"`;
+console.log('Executing:', clientSetupCmd);
+execSync(clientSetupCmd, { stdio: 'inherit' });
+
+const clientSetupBuffer = fs.readFileSync(clientSetupExePath);
+console.log('Compiled LedgerX-Client-Setup.exe size:', clientSetupBuffer.length, 'bytes');
+
 console.log('\n=== Step 5: Applying Code Signing Digital Signature via PowerShell ===');
 try {
   const signPs1 = path.join(__dirname, 'sign.ps1');
@@ -740,6 +774,7 @@ if (-not $cert) {
 Set-AuthenticodeSignature -FilePath "${launcherExePath}" -Certificate $cert | Out-Null
 Set-AuthenticodeSignature -FilePath "${setupExePath}" -Certificate $cert | Out-Null
 Set-AuthenticodeSignature -FilePath "${clientExePath}" -Certificate $cert | Out-Null
+Set-AuthenticodeSignature -FilePath "${clientSetupExePath}" -Certificate $cert | Out-Null
 Set-AuthenticodeSignature -FilePath "${onlineClientExePath}" -Certificate $cert | Out-Null
 Write-Output "Successfully signed binaries with certificate: $($cert.Thumbprint)"
 `;
@@ -752,7 +787,9 @@ Write-Output "Successfully signed binaries with certificate: $($cert.Thumbprint)
 }
 
 console.log('\n=== Step 6: Verification ===');
-console.log('1. Launcher EXE: ', launcherExePath, `(${exeBuffer.length} bytes)`);
-console.log('2. Setup EXE:    ', setupExePath, `(${setupBuffer.length} bytes)`);
-console.log('3. Icon file:    ', icoPath);
+console.log('1. Launcher EXE:       ', launcherExePath, `(${exeBuffer.length} bytes)`);
+console.log('2. Host Setup EXE:     ', setupExePath, `(${setupBuffer.length} bytes)`);
+console.log('3. Client Portable EXE:', clientExePath, `(${clientBuffer.length} bytes)`);
+console.log('4. Client Setup EXE:   ', clientSetupExePath, `(${clientSetupBuffer.length} bytes)`);
+console.log('5. Icon file:          ', icoPath);
 console.log('All desktop binaries built successfully with full manifest, resources, and digital signature!');
