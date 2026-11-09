@@ -89,10 +89,10 @@ class LANUserManagementService {
     const defaultInfo: HostLANInfo = {
       isHostRunning: false,
       hostName: 'Host-PC',
-      localIps: ['127.0.0.1'],
+      localIps: ['192.168.240.48', '127.0.0.1'],
       port: 45454,
       dataDir: 'C:\\Users\\...\\AppData\\Local\\LedgerX\\data\\',
-      lanUrl: 'http://127.0.0.1:45454',
+      lanUrl: 'http://192.168.240.48:45454',
     };
 
     if (typeof window === 'undefined') return defaultInfo;

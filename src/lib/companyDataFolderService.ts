@@ -265,7 +265,7 @@ class CompanyDataFolderService {
       },
       ledgers: data.ledgers !== undefined ? data.ledgers : (existing?.ledgers || []),
       vouchers: data.vouchers !== undefined ? data.vouchers : (existing?.vouchers || []),
-      stockItems: (Array.isArray(data.stockItems) && data.stockItems.length > 0) ? data.stockItems : (existing?.stockItems || []),
+      stockItems: data.stockItems !== undefined ? data.stockItems : (existing?.stockItems || []),
       stockGroups: data.stockGroups !== undefined ? data.stockGroups : (existing?.stockGroups || []),
       units: data.units !== undefined ? data.units : (existing?.units || []),
       groups: data.groups !== undefined ? data.groups : (existing?.groups || []),
@@ -273,10 +273,10 @@ class CompanyDataFolderService {
       purchaseOrders: data.purchaseOrders !== undefined ? data.purchaseOrders : (existing?.purchaseOrders || []),
       boms: data.boms !== undefined ? data.boms : (existing?.boms || []),
       manufacturingJournals: data.manufacturingJournals !== undefined ? data.manufacturingJournals : (existing?.manufacturingJournals || []),
-      users: (Array.isArray(data.users) && data.users.length > 0) ? data.users : (existing?.users || []),
-      posPurchaseList: (Array.isArray(data.posPurchaseList) && data.posPurchaseList.length > 0)
+      users: data.users !== undefined ? data.users : (existing?.users || []),
+      posPurchaseList: data.posPurchaseList !== undefined
         ? data.posPurchaseList
-        : ((existing?.posPurchaseList && existing.posPurchaseList.length > 0)
+        : (existing?.posPurchaseList !== undefined
             ? existing.posPurchaseList
             : (() => {
                 try {

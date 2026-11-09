@@ -66,12 +66,14 @@ export default function POSWorkflowContainer({
       }
 
       // Live mode: check localStorage first
+      let loaded = false;
       try {
         const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
         if (local) {
           const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             if (!isCancelled) setPosPurchaseList(parsed);
+            if (parsed.length > 0) loaded = true;
           }
         }
       } catch (_) { }
@@ -79,8 +81,12 @@ export default function POSWorkflowContainer({
       // Check company folder service
       try {
         const folder = await companyDataFolderService.loadCompanyFolder(companyCode);
-        if (folder?.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
-          if (!isCancelled) setPosPurchaseList(folder.posPurchaseList);
+        if (!isCancelled) {
+          if (folder?.posPurchaseList && Array.isArray(folder.posPurchaseList)) {
+            setPosPurchaseList(folder.posPurchaseList);
+          } else if (!loaded) {
+            setPosPurchaseList([]);
+          }
         }
       } catch (_) { }
     };
@@ -114,15 +120,13 @@ export default function POSWorkflowContainer({
     try {
       const folder = await companyDataFolderService.loadCompanyFolder(code);
       if (folder) {
-        if (folder.stockItems && Array.isArray(folder.stockItems) && folder.stockItems.length > 0) {
-          onStockUpdated?.(folder.stockItems);
-        }
-        if (folder.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
-          setPosPurchaseList(folder.posPurchaseList);
-        }
-        if (folder.vouchers && Array.isArray(folder.vouchers) && folder.vouchers.length > 0) {
-          onVouchersUpdated?.(folder.vouchers);
-        }
+        onStockUpdated?.(Array.isArray(folder.stockItems) ? folder.stockItems : []);
+        setPosPurchaseList(Array.isArray(folder.posPurchaseList) ? folder.posPurchaseList : []);
+        onVouchersUpdated?.(Array.isArray(folder.vouchers) ? folder.vouchers : []);
+      } else {
+        onStockUpdated?.([]);
+        setPosPurchaseList([]);
+        onVouchersUpdated?.([]);
       }
     } catch (_) { }
 

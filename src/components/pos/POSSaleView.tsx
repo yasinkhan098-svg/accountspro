@@ -226,24 +226,26 @@ export default function POSSaleView({
   const [activePOSPurchaseList, setActivePOSPurchaseList] = useState<any[]>(posPurchaseList || []);
 
   useEffect(() => {
-    if (Array.isArray(posPurchaseList) && posPurchaseList.length > 0) {
+    if (Array.isArray(posPurchaseList)) {
       setActivePOSPurchaseList(posPurchaseList);
-      return;
+      if (posPurchaseList.length > 0) return;
     }
     // Fallback load from LocalStorage and disk
     try {
       const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setActivePOSPurchaseList(parsed);
-          return;
+          if (parsed.length > 0) return;
         }
       }
     } catch (_) { }
     companyDataFolderService.loadCompanyFolder(companyCode).then(f => {
-      if (f?.posPurchaseList && Array.isArray(f.posPurchaseList) && f.posPurchaseList.length > 0) {
+      if (f?.posPurchaseList && Array.isArray(f.posPurchaseList)) {
         setActivePOSPurchaseList(f.posPurchaseList);
+      } else {
+        setActivePOSPurchaseList([]);
       }
     }).catch(() => { });
   }, [posPurchaseList, companyCode]);
@@ -252,14 +254,15 @@ export default function POSSaleView({
   // Guarantees that every item in POS Sale (and barcode scanning) uses Retail Sale Price, MRP & Discount from Purchase POS List
   const catalogItems = useMemo(() => {
     const list = (Array.isArray(stockItems) ? stockItems : []).filter(si => {
-      if (!company?.id) return true;
+      if (!company?.id && !companyCode) return false;
       if (si.companyCode && companyCode && String(si.companyCode).toUpperCase().trim() === companyCode) return true;
-      return !si.companyId || Number(si.companyId) === Number(company.id);
+      if (si.companyId && company?.id && Number(si.companyId) === Number(company.id)) return true;
+      return false;
     });
     const posList = (Array.isArray(activePOSPurchaseList) ? activePOSPurchaseList : []).filter((p: any) => {
+      if (!company?.id && !companyCode) return false;
       if (p.companyCode && companyCode && String(p.companyCode).toUpperCase().trim() === companyCode) return true;
       if (p.companyId && company?.id && Number(p.companyId) === Number(company.id)) return true;
-      if (!p.companyId && !p.companyCode) return true;
       return false;
     });
 

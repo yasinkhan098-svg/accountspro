@@ -245,8 +245,10 @@ export default function PurchasePOSListView({
 
     // 1. Process items from stockItems strictly belonging to this company
     const scopedStockItems = (stockItems || []).filter(si => {
-      if (!companyId) return true;
-      return !si.companyId || Number(si.companyId) === Number(companyId);
+      if (!companyId && !companyCode) return false;
+      if (si.companyCode && companyCode && String(si.companyCode).toUpperCase().trim() === companyCode) return true;
+      if (si.companyId && companyId && Number(si.companyId) === Number(companyId)) return true;
+      return false;
     });
 
     const built: POSPurchaseItem[] = scopedStockItems.map((si, idx) => {
@@ -349,9 +351,12 @@ export default function PurchasePOSListView({
     return built;
   }, [stockItems, companyId, companyCode, calculateLiveStock, resolvePurchasePrices]);
 
-  // 4. Initial load from LocalStorage and Database API
+  // 4. Initial and company-change load from LocalStorage and Database API
+  const prevCompanyCodeRef = useRef<string | null>(null);
   useEffect(() => {
-    if (isInitializedRef.current) return;
+    if (prevCompanyCodeRef.current === companyCode && isInitializedRef.current) return;
+    prevCompanyCodeRef.current = companyCode;
+    isInitializedRef.current = true;
 
     // A. Read LocalStorage cache first
     let cachedList: any[] = [];
@@ -359,7 +364,7 @@ export default function PurchasePOSListView({
       const raw = localStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           cachedList = parsed;
         }
       }
@@ -368,7 +373,6 @@ export default function PurchasePOSListView({
     // Initialize with cached list or stock items
     const initialBuilt = buildItemsList(cachedList);
     setItems(initialBuilt);
-    isInitializedRef.current = true;
 
     // B. Fetch fresh data from Database & Local API
     const fetchApiUrl = `/api/pos/purchase-list?companyCode=${encodeURIComponent(companyCode)}&companyId=${companyId}`;

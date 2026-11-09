@@ -99,8 +99,8 @@ namespace LedgerXClient
             }
             else
             {
-                // Fallback to cloud portal in client mode (user logs in directly)
-                targetUrl = "https://www.ledgerxerp.com/?lan_client=1";
+                // Direct fallback to Main Accounting Host PC IP on local network
+                targetUrl = "http://192.168.240.48:45454/?lan_client=1";
             }
 
             LaunchHostPortal(targetUrl);

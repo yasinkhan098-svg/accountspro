@@ -262,6 +262,14 @@ namespace LedgerXClientSetup
                 // Extract icon
                 ExtractResource("app.ico", iconPath);
 
+                // Pre-configure Host IP for 100% zero-configuration instant launch
+                try
+                {
+                    string cfgFile = Path.Combine(appDir, "lan_config.json");
+                    File.WriteAllText(cfgFile, "192.168.240.48");
+                }
+                catch { }
+
                 // Copy uninstaller
                 try
                 {

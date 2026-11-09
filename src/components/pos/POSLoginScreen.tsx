@@ -293,9 +293,15 @@ export default function POSLoginScreen({
           setLoading(false);
           return;
         }
-        if (matched.password && matched.password.trim()) {
+        // Strict Password Enforcement: If user has a password configured, it MUST be entered and match exactly
+        if (matched.password && matched.password.trim().length > 0) {
+          if (!cleanPwd) {
+            setErrorMsg('Password is required for this user account.');
+            setLoading(false);
+            return;
+          }
           if (matched.password.trim() !== cleanPwd) {
-            setErrorMsg('Invalid Password!');
+            setErrorMsg('Incorrect Password. Please check and try again.');
             setLoading(false);
             return;
           }
@@ -333,8 +339,9 @@ export default function POSLoginScreen({
         return;
       }
 
-      // 2. Default fallback admin / supervisor credentials if no users configured
-      if (cleanId === 'admin' || cleanId === 'cashier' || cleanId === '101' || cleanId === 'pos') {
+      // 2. Default initial fallback admin ONLY if NO users exist at all in the database
+      const hasConfiguredUsers = registeredUsers && registeredUsers.length > 0;
+      if (!hasConfiguredUsers && (cleanId === 'admin' || cleanId === '101')) {
         const fallbackUser: LANUser = {
           id: `usr_${cleanId}`,
           username: cleanId,
@@ -376,7 +383,7 @@ export default function POSLoginScreen({
         return;
       }
 
-      setErrorMsg(`User "${cashierId}" not found for this store. Use "admin" or select a user.`);
+      setErrorMsg(`User "${cashierId}" not found for this company. Please verify username and password.`);
     } catch (err: any) {
       setErrorMsg(err.message || 'Login error occurred');
     } finally {

@@ -372,7 +372,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
               </div>
               <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#0f3c64', marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  Host: {hostInfo?.hostName || 'ACCOUNTING-PC'} ({hostInfo?.lanUrl || 'http://192.168.1.205:45454'})
+                  Host: {hostInfo?.hostName || 'ACCOUNTING-PC'} ({hostInfo?.lanUrl || 'http://192.168.240.48:45454'})
                 </span>
                 <span style={{ fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '1px 6px', borderRadius: 4, fontWeight: 'bold' }}>UDP 45455 BEACON</span>
               </div>

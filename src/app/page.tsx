@@ -2169,17 +2169,15 @@ export default function App() {
       companyDataFolderService.loadCompanyFolder(compCode).then(folderData => {
         if (folderData) {
           const cid = Number(activeCompany.id);
-          if (folderData.stockItems && folderData.stockItems.length > 0) {
-            setAllStockItems(prev => {
-              const others = prev.filter(si => Number(si.companyId) !== cid && String(si.companyCode || '').toUpperCase() !== compCode);
-              return [...others, ...folderData.stockItems];
-            });
-          }
-          if (folderData.posPurchaseList && folderData.posPurchaseList.length > 0) {
-            try {
-              localStorage.setItem(`ledgerx_pos_purchase_list_${compCode}`, JSON.stringify(folderData.posPurchaseList));
-            } catch (_) { }
-          }
+          setAllStockItems(prev => {
+            const others = prev.filter(si => Number(si.companyId) !== cid && String(si.companyCode || '').toUpperCase() !== compCode);
+            const loaded = Array.isArray(folderData.stockItems) ? folderData.stockItems : [];
+            return [...others, ...loaded];
+          });
+          try {
+            const posList = Array.isArray(folderData.posPurchaseList) ? folderData.posPurchaseList : [];
+            localStorage.setItem(`ledgerx_pos_purchase_list_${compCode}`, JSON.stringify(posList));
+          } catch (_) { }
           if (folderData.vouchers && folderData.vouchers.length > 0) {
             setAllVouchers(prev => {
               const others = prev.filter(v => Number(v.companyId) !== cid);
