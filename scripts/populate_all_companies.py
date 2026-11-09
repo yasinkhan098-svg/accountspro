@@ -387,3 +387,4 @@ for f in folders:
     print(f"Wrote {len(pos_items)} pos items to {p_path} (companyId: {cid})")
 
 print("\nAll company folders populated successfully!")
+

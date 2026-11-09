@@ -30,8 +30,6 @@ interface POSSaleViewProps {
   cashierUser?: any;
   onBack: () => void;
   onLogoutToLogin?: () => void;
-  onOpenGateway?: () => void;
-  onOpenVoucher?: (voucherType: string) => void;
   onStockUpdated?: (updatedStock: any[]) => void;
   onVouchersUpdated?: (updatedVouchers: any[]) => void;
   onOpenPurchasePOSList?: () => void;
@@ -52,8 +50,6 @@ export default function POSSaleView({
   cashierUser,
   onBack,
   onLogoutToLogin,
-  onOpenGateway,
-  onOpenVoucher,
   onStockUpdated,
   onVouchersUpdated,
   onOpenPurchasePOSList,
@@ -791,19 +787,6 @@ export default function POSSaleView({
     }
 
     // Step 9: Base POS Counter screen is reached!
-    if (onOpenGateway) {
-      const choice = confirm(
-        cart.length > 0
-          ? 'Current POS cart has items.\n\nClick OK to go to Gateway / Accounting Vouchers (Cart will be preserved), or Cancel to stay in POS.'
-          : 'Do you want to go to Gateway / Accounting Vouchers?'
-      );
-      if (choice) {
-        onOpenGateway();
-        return;
-      }
-      return;
-    }
-
     const confirmLogout = confirm(
       cart.length > 0
         ? 'Current POS cart has items.\n\nDo you want to discard cart and Log Out from POS Counter?'
@@ -827,7 +810,6 @@ export default function POSSaleView({
     cart.length,
     resetIdleTimer,
     handlePerformLogout,
-    onOpenGateway,
   ]);
 
   // Hardware Barcode Scanner & Global POS Keyboard listener
@@ -856,56 +838,6 @@ export default function POSSaleView({
       const timeDiff = now - lastKeyTimeRef.current;
       lastKeyTimeRef.current = now;
 
-      // Handle F1 for Gateway
-      if (e.key === 'F1') {
-        e.preventDefault();
-        if (onOpenGateway) onOpenGateway();
-        else onBack();
-        return;
-      }
-
-      // Handle F9 for Purchase Voucher
-      if (e.key === 'F9' && permissionGuard.canAccessVoucher('Purchase') && onOpenVoucher) {
-        e.preventDefault();
-        onOpenVoucher('Purchase');
-        return;
-      }
-
-      // Handle F8 for Sales Voucher
-      if (e.key === 'F8' && permissionGuard.canAccessVoucher('Sales') && onOpenVoucher) {
-        e.preventDefault();
-        onOpenVoucher('Sales');
-        return;
-      }
-
-      // Handle F5 for Payment Voucher
-      if (e.key === 'F5' && permissionGuard.canAccessVoucher('Payment') && onOpenVoucher) {
-        e.preventDefault();
-        onOpenVoucher('Payment');
-        return;
-      }
-
-      // Handle F4 for Contra Voucher
-      if (e.key === 'F4' && permissionGuard.canAccessVoucher('Contra') && onOpenVoucher) {
-        e.preventDefault();
-        onOpenVoucher('Contra');
-        return;
-      }
-
-      // Handle F6 for Receipt Voucher
-      if (e.key === 'F6' && permissionGuard.canAccessVoucher('Receipt') && onOpenVoucher) {
-        e.preventDefault();
-        onOpenVoucher('Receipt');
-        return;
-      }
-
-      // Handle F7 for Journal Voucher
-      if (e.key === 'F7' && permissionGuard.canAccessVoucher('Journal') && onOpenVoucher) {
-        e.preventDefault();
-        onOpenVoucher('Journal');
-        return;
-      }
-
       // Handle F12 or Ctrl+Enter for Quick Pay
       if (e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) {
         e.preventDefault();
@@ -933,7 +865,7 @@ export default function POSSaleView({
 
     window.addEventListener('keydown', handleHardwareScan, true);
     return () => window.removeEventListener('keydown', handleHardwareScan, true);
-  }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal, handleStepByStepEscape, onOpenGateway, onOpenVoucher, onBack]);
+  }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal, handleStepByStepEscape, onBack]);
 
   // Process barcode lookup
   const handleProcessBarcode = (query: string) => {
@@ -1607,32 +1539,6 @@ export default function POSSaleView({
             </span>
           </div>
 
-          {/* Gateway / Accounting Vouchers Button */}
-          {onOpenGateway && (
-            <button
-              className="pos-touch-btn"
-              onClick={onOpenGateway}
-              title="Return to Tally Gateway & Accounting Vouchers (F1)"
-              style={{
-                background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 60%, #4338ca 100%)',
-                color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.6)',
-                borderBottom: '2px solid #3730a3',
-                borderRadius: 8,
-                padding: '8px 14px',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 800,
-                boxShadow: '0 4px 10px rgba(79, 70, 229, 0.4), inset 0 1.5px 1px rgba(255, 255, 255, 0.7)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              🏛️ Gateway (F1)
-            </button>
-          )}
-
           {/* Fullscreen Kiosk Mode Button */}
           <button
             className="pos-touch-btn"
@@ -1988,42 +1894,6 @@ export default function POSSaleView({
               >
                 <div style={{ ...ribbonIconCircleStyle, color: '#b45309' }}>📋</div>
                 <span style={{ ...ribbonTextStyle, color: '#92400e', fontWeight: 900 }}>POS List</span>
-              </button>
-            )}
-
-            {/* 1C. F9 Purchase Voucher */}
-            {permissionGuard.canAccessVoucher('Purchase') && onOpenVoucher && (
-              <button
-                type="button"
-                className="pos-touch-btn"
-                onClick={() => onOpenVoucher('Purchase')}
-                style={{
-                  ...ribbonBtnStyle,
-                  background: 'linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%)',
-                  border: '1.5px solid #7c3aed',
-                }}
-                title="Open F9 Purchase Voucher Creation"
-              >
-                <div style={{ ...ribbonIconCircleStyle, color: '#6d28d9' }}>📦</div>
-                <span style={{ ...ribbonTextStyle, color: '#5b21b6', fontWeight: 900 }}>F9 Purchase</span>
-              </button>
-            )}
-
-            {/* 1D. F8 Sales Voucher */}
-            {permissionGuard.canAccessVoucher('Sales') && onOpenVoucher && (
-              <button
-                type="button"
-                className="pos-touch-btn"
-                onClick={() => onOpenVoucher('Sales')}
-                style={{
-                  ...ribbonBtnStyle,
-                  background: 'linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%)',
-                  border: '1.5px solid #16a34a',
-                }}
-                title="Open F8 Sales Voucher Creation"
-              >
-                <div style={{ ...ribbonIconCircleStyle, color: '#15803d' }}>📄</div>
-                <span style={{ ...ribbonTextStyle, color: '#166534', fontWeight: 900 }}>F8 Sales</span>
               </button>
             )}
 

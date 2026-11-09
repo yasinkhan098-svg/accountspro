@@ -2218,7 +2218,7 @@ export default function App() {
 
   // Ensure all standard ledgers exist for the active company (Runs ONCE per company, 100% silent, permanently saved)
   useEffect(() => {
-    if (!isAuthenticated || !activeCompany) return;
+    if (!isAuthenticated || !activeCompany || permissionGuard.isClientSession()) return;
     const cid = activeCompany.id;
     if (allLedgers.length === 0) return;
     if (isInitializingRef.current) return;
@@ -4814,9 +4814,16 @@ export default function App() {
                       return;
                     }
                   }
+                  if (permissionGuard.isClientSession()) {
+                    setScreen('POS_SALE');
+                    return;
+                  }
                   setScreen('GATEWAY_MAIN');
                 }}
                 onOpenGateway={() => {
+                  if (permissionGuard.isClientSession()) {
+                    return;
+                  }
                   setScreen('GATEWAY_MAIN');
                 }}
                 onOpenVoucher={(type) => {

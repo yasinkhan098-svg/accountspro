@@ -378,8 +378,15 @@ class CompanyDataFolderService {
           const data = await res.json();
           if (data && data.company) {
             let co = data.company;
-            while (co && co.company && typeof co.company === 'object') {
-              co = { ...co, ...co.company };
+            for (let depth = 0; depth < 5 && co && typeof co === 'object'; depth++) {
+              if (co.company && typeof co.company === 'object' && co.company !== co) {
+                const inner = co.company;
+                const shallow = { ...co };
+                delete shallow.company;
+                co = { ...inner, ...shallow };
+              } else {
+                break;
+              }
             }
             data.company = co;
             this.saveToLocalCache(code, data);
@@ -428,8 +435,15 @@ class CompanyDataFolderService {
           if (Array.isArray(json.companies) && json.companies.length > 0) {
             scanned = json.companies.map((item: any) => {
               let co = item.company;
-              while (co && co.company && typeof co.company === 'object') {
-                co = { ...co, ...co.company };
+              for (let depth = 0; depth < 5 && co && typeof co === 'object'; depth++) {
+                if (co.company && typeof co.company === 'object' && co.company !== co) {
+                  const inner = co.company;
+                  const shallow = { ...co };
+                  delete shallow.company;
+                  co = { ...inner, ...shallow };
+                } else {
+                  break;
+                }
               }
               return {
                 companyCode: item.companyCode,

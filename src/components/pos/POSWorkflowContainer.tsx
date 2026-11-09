@@ -254,8 +254,6 @@ export default function POSWorkflowContainer({
       cashierUser={cashierUser || undefined}
       onBack={handleExit}
       onLogoutToLogin={handleLogoutToLogin}
-      onOpenGateway={onOpenGateway}
-      onOpenVoucher={onOpenVoucher}
       onStockUpdated={(updated) => {
         if (isTrainingMode && trainingPkg) {
           const newPkg = { ...trainingPkg, stockItems: updated };
