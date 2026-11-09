@@ -439,7 +439,7 @@ namespace LedgerXSetup
                     {
                         key.SetValue("DisplayName", "LedgerX Desktop (Offline Edition)");
                         key.SetValue("DisplayIcon", iconPath);
-                        key.SetValue("DisplayVersion", "2.4.0");
+                        key.SetValue("DisplayVersion", "2.5.0");
                         key.SetValue("Publisher", "AccountsPro / LedgerX");
                         key.SetValue("InstallLocation", appDir);
                         key.SetValue("UninstallString", "\\"" + uninstallerPath + "\\" /uninstall");
@@ -447,6 +447,19 @@ namespace LedgerXSetup
                         key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
                     }
                 }
+
+                // Register Windows Startup so Host Service is always active in background
+                try
+                {
+                    using (RegistryKey runKey = Registry.CurrentUser.CreateSubKey(@"Software\\Microsoft\\Windows\\CurrentVersion\\Run"))
+                    {
+                        if (runKey != null)
+                        {
+                            runKey.SetValue("LedgerXHost", "\\"" + exePath + "\\" --background");
+                        }
+                    }
+                }
+                catch { }
             }
             catch { }
         }
@@ -697,6 +710,10 @@ namespace LedgerXSetup
             try
             {
                 Registry.CurrentUser.DeleteSubKeyTree(@"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\LedgerX", false);
+                using (RegistryKey runKey = Registry.CurrentUser.OpenSubKey(@"Software\\Microsoft\\Windows\\CurrentVersion\\Run", true))
+                {
+                    if (runKey != null) runKey.DeleteValue("LedgerXHost", false);
+                }
             }
             catch { }
 

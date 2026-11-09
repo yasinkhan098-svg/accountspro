@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Windows.Forms;
+using System.Drawing;
 using Microsoft.Win32;
 using System.Security.Cryptography;
 using System.Text;
@@ -28,9 +29,16 @@ namespace LedgerXLauncher
 {
     public class Program
     {
+        private static Mutex _hostMutex = null;
+        private static NotifyIcon _trayIcon = null;
+
         [STAThread]
         public static void Main(string[] args)
         {
+            AppDomain.CurrentDomain.UnhandledException += (s, e) => {
+                Log("FATAL UNHANDLED EXCEPTION: " + (e.ExceptionObject != null ? e.ExceptionObject.ToString() : "unknown"));
+            };
+
             try
             {
                 // AppData for config/profile (safe, always writable)
@@ -42,29 +50,8 @@ namespace LedgerXLauncher
                 if (!Directory.Exists(appDir)) Directory.CreateDirectory(appDir);
                 if (!Directory.Exists(profileDir)) Directory.CreateDirectory(profileDir);
 
-                // Data folder: next to .exe (installation directory) — Tally-style
-                string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-                if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
-                string dataDir = Path.Combine(exeDir, "data");
-                try
-                {
-                    if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
-                }
-                catch
-                {
-                    // Fallback to AppData if exe dir is not writable (e.g. Program Files without admin)
-                    dataDir = Path.Combine(appDir, "data");
-                    if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
-                }
-
-                // Start local HTTP Bridge for Tally-style company data folders
-                StartHttpBridge(dataDir);
-
-                // Start UDP Auto-Discovery Beacon on port 45455 for Zero-Config LAN Clients
-                StartDiscoveryBeacon();
-
-                // Ensure Windows Firewall inbound rules for port 45454 (TCP) & 45455 (UDP)
-                ThreadPool.QueueUserWorkItem((st) => EnsureFirewallRule());
+                string logFile = Path.Combine(appDir, "host_service.log");
+                try { File.AppendAllText(logFile, DateTime.Now.ToString("s") + " - Host starting, args: " + string.Join(" ", args) + "\n"); } catch { }
 
                 // Allow passing server URL via command-line argument e.g. LedgerX.exe https://mysite.vercel.app
                 if (args != null && args.Length > 0 && args[0].Trim().StartsWith("http"))
@@ -88,7 +75,6 @@ namespace LedgerXLauncher
                     catch { }
                 }
 
-                // If target URL is localhost but local dev server is not running, fallback to live cloud server
                 if (targetUrl.Contains("localhost") && !IsServerAlive("localhost", 3000))
                 {
                     targetUrl = "https://www.ledgerxerp.com";
@@ -122,20 +108,113 @@ namespace LedgerXLauncher
                 }
                 catch { }
 
-                // Save machine ID to local data folder
+                string sep = targetUrl.Contains("?") ? "&" : "?";
+                string launchUrl = targetUrl + sep + "desktop=1&hwid=" + hwid;
+                string browserPath = FindBrowserExecutable();
+
+                // Single-Instance Check: If Host Service is ALREADY running, just open browser window and exit
+                bool createdNew;
+                _hostMutex = new Mutex(true, "LedgerX_Accounting_Host_Singleton_Mutex", out createdNew);
+                try { File.AppendAllText(logFile, DateTime.Now.ToString("s") + " - Mutex createdNew: " + createdNew + "\n"); } catch { }
+
+                if (!createdNew)
+                {
+                    bool isBg = args != null && Array.Exists(args, a => a.ToLower() == "--background" || a.ToLower() == "--service");
+                    if (!isBg)
+                    {
+                        LaunchBrowser(browserPath, launchUrl, profileDir);
+                    }
+                    return;
+                }
+
+                // PRIMARY INSTANCE: Start Background Host Services
+                try { File.AppendAllText(logFile, DateTime.Now.ToString("s") + " - Primary instance continuing to start services...\n"); } catch { }
+                string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
+                string dataDir = Path.Combine(exeDir, "data");
                 try
                 {
-                    File.WriteAllText(Path.Combine(dataDir, "machine_id.txt"), hwid);
+                    if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
+                }
+                catch
+                {
+                    dataDir = Path.Combine(appDir, "data");
+                    if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
+                }
+
+                // Save machine ID to local data folder
+                try { File.WriteAllText(Path.Combine(dataDir, "machine_id.txt"), hwid); } catch { }
+
+                // 1. Start local HTTP Bridge (Port 45453 & 45454)
+                StartHttpBridge(dataDir);
+
+                // 2. Start UDP Auto-Discovery Beacon (Port 45455)
+                StartDiscoveryBeacon();
+
+                // 3. Ensure Windows Firewall inbound rules (TCP 45454 & UDP 45455)
+                ThreadPool.QueueUserWorkItem((st) => EnsureFirewallRule());
+
+                // 4. Initialize Windows Forms Application & System Tray
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+
+                _trayIcon = new NotifyIcon();
+                try
+                {
+                    string iconFile = Path.Combine(appDir, "app.ico");
+                    if (!File.Exists(iconFile)) iconFile = Path.Combine(exeDir, "app.ico");
+                    if (File.Exists(iconFile)) _trayIcon.Icon = new Icon(iconFile);
+                    else _trayIcon.Icon = SystemIcons.Application;
+                }
+                catch { _trayIcon.Icon = SystemIcons.Application; }
+
+                _trayIcon.Text = "LedgerX Host Service (Port 45454 Active)";
+                _trayIcon.Visible = true;
+
+                ContextMenu trayMenu = new ContextMenu();
+                trayMenu.MenuItems.Add("Open LedgerX Desktop", (s, e) => LaunchBrowser(FindBrowserExecutable(), launchUrl, profileDir));
+                trayMenu.MenuItems.Add("Open Company Data Folder", (s, e) => {
+                    try { Process.Start("explorer.exe", dataDir); } catch { }
+                });
+                trayMenu.MenuItems.Add("-");
+                trayMenu.MenuItems.Add("Exit LedgerX Host Service", (s, e) => {
+                    try { _trayIcon.Visible = false; _trayIcon.Dispose(); } catch { }
+                    Application.Exit();
+                });
+
+                _trayIcon.ContextMenu = trayMenu;
+                _trayIcon.DoubleClick += (s, e) => LaunchBrowser(FindBrowserExecutable(), launchUrl, profileDir);
+
+                // 5. Open browser window unless launched with --background or --service
+                bool startMinimized = args != null && Array.Exists(args, a => a.ToLower() == "--background" || a.ToLower() == "--service");
+                if (!startMinimized)
+                {
+                    LaunchBrowser(browserPath, launchUrl, profileDir);
+                }
+
+                // 6. KEEP THE PROCESS AND NETWORK SERVICES ALIVE CONTINUOUSLY WITH DEDICATED MESSAGE PUMP!
+                Log("Entering Application.Run(new BackgroundHostForm())...");
+                Application.Run(new BackgroundHostForm());
+                Log("Application.Run exited!");
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                    string logFile = Path.Combine(localApp, "LedgerX", "host_service.log");
+                    File.AppendAllText(logFile, DateTime.Now.ToString("s") + " - EXCEPTION in Main: " + ex.ToString() + Environment.NewLine);
                 }
                 catch { }
 
-                // Append desktop flag and hardware fingerprint to launch URL
-                string sep = targetUrl.Contains("?") ? "&" : "?";
-                string launchUrl = targetUrl + sep + "desktop=1&hwid=" + hwid;
+                MessageBox.Show("Unable to launch LedgerX Desktop:\n\n" + ex.Message, "LedgerX Desktop Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
 
-                // Find modern browser executable (Edge or Chrome)
-                string browserPath = FindBrowserExecutable();
-
+        private static void LaunchBrowser(string browserPath, string launchUrl, string profileDir)
+        {
+            try
+            {
                 if (!string.IsNullOrEmpty(browserPath))
                 {
                     ProcessStartInfo psi = new ProcessStartInfo();
@@ -147,25 +226,13 @@ namespace LedgerXLauncher
                 }
                 else
                 {
-                    // Fallback to system default browser
                     ProcessStartInfo psi = new ProcessStartInfo(launchUrl);
                     psi.UseShellExecute = true;
                     psi.WindowStyle = ProcessWindowStyle.Maximized;
                     Process.Start(psi);
                 }
             }
-            catch (Exception ex)
-            {
-                try
-                {
-                    string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                    string logFile = Path.Combine(localApp, "LedgerX", "launcher_error.log");
-                    File.AppendAllText(logFile, DateTime.Now.ToString("s") + " - " + ex.ToString() + Environment.NewLine);
-                }
-                catch { }
-
-                MessageBox.Show("Unable to launch LedgerX Desktop:\n\n" + ex.Message, "LedgerX Desktop Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            catch { }
         }
 
         private static bool IsServerAlive(string host, int port)
@@ -187,6 +254,17 @@ namespace LedgerXLauncher
             }
         }
 
+        private static void Log(string msg)
+        {
+            try
+            {
+                string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string logFile = Path.Combine(localApp, "LedgerX", "host_service.log");
+                File.AppendAllText(logFile, DateTime.Now.ToString("s") + " - " + msg + Environment.NewLine);
+            }
+            catch { }
+        }
+
         private static void StartHttpBridge(string dataDir)
         {
             try
@@ -195,7 +273,10 @@ namespace LedgerXLauncher
                 t.IsBackground = true;
                 t.Start(dataDir);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log("StartHttpBridge error: " + ex.ToString());
+            }
         }
 
         private static readonly object _fileLock = new object();
@@ -208,10 +289,11 @@ namespace LedgerXLauncher
 
             try
             {
-                // 1. Start internal HttpListener on 127.0.0.1:45453
+                Log("RunListener: Starting internal HttpListener on 127.0.0.1:" + backendPort);
                 HttpListener listener = new HttpListener();
                 listener.Prefixes.Add("http://127.0.0.1:" + backendPort + "/");
                 listener.Start();
+                Log("RunListener: HttpListener started successfully.");
 
                 Thread backendThread = new Thread(() =>
                 {
@@ -228,9 +310,10 @@ namespace LedgerXLauncher
                 backendThread.IsBackground = true;
                 backendThread.Start();
 
-                // 2. Start TCP proxy on 0.0.0.0:45454 (accessible locally & over LAN without admin rights)
+                Log("RunListener: Starting TCP proxy on 0.0.0.0:" + frontPort);
                 TcpListener proxy = new TcpListener(IPAddress.Any, frontPort);
                 proxy.Start();
+                Log("RunListener: TCP proxy listening successfully on port " + frontPort);
 
                 while (true)
                 {
@@ -242,21 +325,26 @@ namespace LedgerXLauncher
                     catch { break; }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Log("RunListener EXCEPTION: " + ex.ToString());
                 // Fallback: If 45453 is already taken, try direct HttpListener on 45454
                 try
                 {
                     HttpListener fallbackListener = new HttpListener();
                     fallbackListener.Prefixes.Add("http://127.0.0.1:45454/");
                     fallbackListener.Start();
+                    Log("RunListener fallback HttpListener started on 45454.");
                     while (true)
                     {
                         HttpListenerContext ctx = fallbackListener.GetContext();
                         ThreadPool.QueueUserWorkItem((state) => HandleRequest(ctx, dataDir));
                     }
                 }
-                catch { }
+                catch (Exception fex)
+                {
+                    Log("RunListener fallback EXCEPTION: " + fex.ToString());
+                }
             }
         }
 
@@ -486,6 +574,13 @@ namespace LedgerXLauncher
                 if (req.HttpMethod == "OPTIONS")
                 {
                     res.StatusCode = 204;
+                    res.Close();
+                    return;
+                }
+
+                if (req.HttpMethod == "HEAD")
+                {
+                    res.StatusCode = 200;
                     res.Close();
                     return;
                 }
@@ -964,6 +1059,23 @@ namespace LedgerXLauncher
             }
 
             return null;
+        }
+    }
+
+    public class BackgroundHostForm : Form
+    {
+        public BackgroundHostForm()
+        {
+            this.ShowInTaskbar = false;
+            this.WindowState = FormWindowState.Minimized;
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.Size = new Size(0, 0);
+            this.Opacity = 0;
+        }
+
+        protected override void SetVisibleCore(bool value)
+        {
+            base.SetVisibleCore(false);
         }
     }
 }

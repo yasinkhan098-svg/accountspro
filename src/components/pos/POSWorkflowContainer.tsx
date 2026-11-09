@@ -70,7 +70,7 @@ export default function POSWorkflowContainer({
             if (!isCancelled) setPosPurchaseList(parsed);
           }
         }
-      } catch (_) {}
+      } catch (_) { }
 
       // Check company folder service
       try {
@@ -78,7 +78,7 @@ export default function POSWorkflowContainer({
         if (folder?.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
           if (!isCancelled) setPosPurchaseList(folder.posPurchaseList);
         }
-      } catch (_) {}
+      } catch (_) { }
     };
 
     loadList();
@@ -114,7 +114,7 @@ export default function POSWorkflowContainer({
         if (folder?.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
           setPosPurchaseList(folder.posPurchaseList);
         }
-      } catch (_) {}
+      } catch (_) { }
     }
 
     if (permissionGuard.canAccessVoucher('POS Sale') || user.isAdmin) {
