@@ -27,7 +27,7 @@ class LANUserManagementService {
       try {
         const stored = localStorage.getItem('ledgerx_active_company_code');
         if (stored && /^\d{5}$/.test(stored.trim())) return stored.trim().toUpperCase();
-      } catch (e) {}
+      } catch (e) { }
     }
     return '10000';
   }
@@ -39,7 +39,7 @@ class LANUserManagementService {
     if (typeof window !== 'undefined' && code) {
       try {
         localStorage.setItem('ledgerx_active_company_code', code.trim().toUpperCase());
-      } catch (e) {}
+      } catch (e) { }
     }
     this.companyUsersCache.clear();
   }
@@ -116,110 +116,121 @@ class LANUserManagementService {
           lanUrl: data.lanUrl || `http://${data.localIps?.[0] || '127.0.0.1'}:45454`,
         };
       }
-    } catch (e) {}
+    } catch (e) { }
 
     return defaultInfo;
   }
 
   /**
    * Retrieves LAN users for a specific company (from data/<companyCode>/users.json)
-   * Intelligently merges Server API, C# Desktop Bridge, and LocalStorage so custom users are never lost!
+   * PRIORITY ORDER: Bridge disk file > Next.js Server API > localStorage cache
+   * Fresh disk data ALWAYS wins over stale localStorage cache!
    */
   public async getUsers(companyCode?: string, companyName?: string): Promise<LANUser[]> {
     if (typeof window === 'undefined') return [];
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
 
-    const collectedUsers: LANUser[] = [];
+    // Fresh users from server/bridge (highest priority - from disk)
+    let freshServerUsers: LANUser[] = [];
 
-    // 1. Load from local cache / localStorage first (immediate responsiveness)
-    const local = this.loadFromLocalStorage(code);
-    if (local.length > 0) {
-      collectedUsers.push(...local);
-    }
-    const mem = this.companyUsersCache.get(code);
-    if (mem && mem.length > 0) {
-      collectedUsers.push(...mem);
-    }
-
-    // 2. Query relative Next.js Server API (/api/lan/users)
+    // 1. Query relative Next.js Server API (/api/lan/users) - reads disk users.json
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       const res = await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
-        signal: controller.signal
+        signal: controller.signal,
+        cache: 'no-store',
       });
       clearTimeout(timeoutId);
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json.users) && json.users.length > 0) {
-          collectedUsers.push(...json.users);
+          freshServerUsers.push(...json.users);
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
-    // 3. Query local C# bridge if running on desktop port 45454
+    // 2. Query local C# bridge if running on desktop port 45454 (also reads disk)
     try {
       const bridgeUrl = getBridgeBaseUrl();
+      // On LAN client: origin = http://192.168.240.48:45454, bridgeUrl = same
+      // So we try both: direct bridge AND via relative path (already done above)
+      // Only try if bridge URL differs from origin (avoids double fetch on main PC)
       if (bridgeUrl && bridgeUrl !== window.location.origin) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
         const res = await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
-          signal: controller.signal
+          signal: controller.signal,
         });
         clearTimeout(timeoutId);
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json.users) && json.users.length > 0) {
-            collectedUsers.push(...json.users);
+            freshServerUsers.push(...json.users);
           }
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
-    // 4. Strictly filter collected users to this company:
-    // A user belongs to this company ONLY if assignedCompanyCodes is either:
-    // a) contains this code, or
-    // b) is empty/undefined AND the user was locally loaded from this company's storage
-    // NEVER pull in users created in other companies!
-    const companyScopedUsers = collectedUsers.filter(u => {
-      if (!u || !u.username) return false;
-      if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
-        return u.assignedCompanyCodes.includes(code);
-      }
-      return true;
-    });
+    // 3. If we got fresh data from server/bridge, use it as AUTHORITATIVE source
+    //    Merge with localStorage only to pick up any locally-created users not yet pushed to server
+    const localCached = this.loadFromLocalStorage(code);
+    const memCached = this.companyUsersCache.get(code) || [];
 
-    // 5. Intelligent Merge: unique by username.toLowerCase()
+    // Build merged map: start with localStorage (lowest priority), then override with fresh server data
     const mergedMap = new Map<string, LANUser>();
-    for (const u of companyScopedUsers) {
+
+    // Add localStorage cached users first (lowest priority - stale)
+    for (const u of [...localCached, ...memCached]) {
       if (u && u.username) {
         const key = u.username.trim().toLowerCase();
-        // If already present, preserve the one with full properties
-        if (!mergedMap.has(key)) {
-          mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
-        } else {
-          mergedMap.set(key, { ...mergedMap.get(key)!, ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
-        }
+        mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
       }
     }
 
-    // 6. Ensure default Administrator and Cashier exist if not present
-    if (!mergedMap.has('admin')) {
+    // Override with fresh server/bridge users (highest priority - from disk)
+    for (const u of freshServerUsers) {
+      if (u && u.username) {
+        const key = u.username.trim().toLowerCase();
+        // Fresh server data wins: overwrite any stale cached version
+        mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
+      }
+    }
+
+    // 4. If NO fresh data at all, fall back to whatever we have cached
+    if (freshServerUsers.length === 0 && mergedMap.size === 0) {
+      // Add defaults only if truly no users anywhere
       const defaultAdmin = this.getDefaultCompanyAdmin(code, companyName);
       mergedMap.set('admin', defaultAdmin);
     }
-    if (!mergedMap.has('cashier')) {
-      const defaultUsers = this.getDefaultCompanyUsers(code, companyName);
-      const defCashier = defaultUsers.find(u => u.username === 'cashier');
-      if (defCashier) mergedMap.set('cashier', defCashier);
+
+    // 5. Strictly filter to this company only
+    const companyScopedMap = new Map<string, LANUser>();
+    Array.from(mergedMap.entries()).forEach(([key, u]) => {
+      if (!u || !u.username) return;
+      if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
+        if (u.assignedCompanyCodes.some(c => c.toUpperCase() === code)) {
+          companyScopedMap.set(key, u);
+        }
+      } else {
+        // No company code restriction = belongs to current company
+        companyScopedMap.set(key, u);
+      }
+    });
+
+    // 6. Ensure default Administrator exists if not present
+    if (!companyScopedMap.has('admin')) {
+      const defaultAdmin = this.getDefaultCompanyAdmin(code, companyName);
+      companyScopedMap.set('admin', defaultAdmin);
     }
 
-    const finalList = Array.from(mergedMap.values());
+    const finalList = Array.from(companyScopedMap.values());
     this.companyUsersCache.set(code, finalList);
-    this.saveToLocalStorage(code, finalList);
-
-    // Background push to server & bridge so persistence is guaranteed
-    this.syncToServer(code, finalList).catch(() => {});
+    // IMPORTANT: Only save to localStorage if we have fresh server data
+    // This prevents stale localStorage from persisting bad cached users
+    if (freshServerUsers.length > 0) {
+      this.saveToLocalStorage(code, finalList);
+    }
 
     return finalList;
   }
@@ -238,7 +249,7 @@ class LANUserManagementService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyCode: code, users }),
       });
-    } catch (_) {}
+    } catch (_) { }
 
     // 2. C# Bridge
     try {
@@ -250,7 +261,7 @@ class LANUserManagementService {
           body: JSON.stringify({ companyCode: code, users }),
         });
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   /**
@@ -270,7 +281,7 @@ class LANUserManagementService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyCode: code, users }),
       });
-    } catch (_) {}
+    } catch (_) { }
 
     // 2. Send to local C# bridge
     try {
@@ -282,7 +293,7 @@ class LANUserManagementService {
           body: JSON.stringify({ companyCode: code, users }),
         });
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // 3. Fallback: direct save-file endpoint
     try {
@@ -291,7 +302,7 @@ class LANUserManagementService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(users, null, 2),
       });
-    } catch (_) {}
+    } catch (_) { }
 
     return true;
   }
@@ -387,10 +398,10 @@ class LANUserManagementService {
                 });
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
       }
-    } catch (_) {}
+    } catch (_) { }
     return Array.from(allMap.values());
   }
 
@@ -399,7 +410,7 @@ class LANUserManagementService {
   private saveToLocalStorage(companyCode: string, users: LANUser[]) {
     try {
       localStorage.setItem(`ledgerx_lan_users_${companyCode}`, JSON.stringify(users));
-    } catch (_) {}
+    } catch (_) { }
   }
 
   private loadFromLocalStorage(companyCode: string): LANUser[] {

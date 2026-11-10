@@ -267,9 +267,7 @@ export default function POSLoginScreen({
         u => u && (
           u.username.toLowerCase() === cleanId || 
           u.id.toLowerCase() === cleanId ||
-          (u.fullName && u.fullName.toLowerCase() === cleanId) ||
-          (cleanId === 'amit001' && u.username.toLowerCase() === 'amir001') ||
-          (cleanId === 'amir001' && u.username.toLowerCase() === 'amit001')
+          (u.fullName && u.fullName.toLowerCase() === cleanId)
         )
       );
 
@@ -291,9 +289,7 @@ export default function POSLoginScreen({
           u => u && (
             u.username.toLowerCase() === cleanId ||
             u.id.toLowerCase() === cleanId ||
-            (u.fullName && u.fullName.toLowerCase() === cleanId) ||
-            (cleanId === 'amit001' && u.username.toLowerCase() === 'amir001') ||
-            (cleanId === 'amir001' && u.username.toLowerCase() === 'amit001')
+            (u.fullName && u.fullName.toLowerCase() === cleanId)
           )
         );
         if (matched) {
@@ -317,9 +313,7 @@ export default function POSLoginScreen({
             u => u && (
               u.username.toLowerCase() === cleanId ||
               u.id.toLowerCase() === cleanId ||
-              (u.fullName && u.fullName.toLowerCase() === cleanId) ||
-              (cleanId === 'amit001' && u.username.toLowerCase() === 'amir001') ||
-              (cleanId === 'amir001' && u.username.toLowerCase() === 'amit001')
+              (u.fullName && u.fullName.toLowerCase() === cleanId)
             )
           );
 
@@ -343,9 +337,7 @@ export default function POSLoginScreen({
               u => u && (
                 u.username.toLowerCase() === cleanId ||
                 u.id.toLowerCase() === cleanId ||
-                (u.fullName && u.fullName.toLowerCase() === cleanId) ||
-                (cleanId === 'amit001' && u.username.toLowerCase() === 'amir001') ||
-                (cleanId === 'amir001' && u.username.toLowerCase() === 'amit001')
+                (u.fullName && u.fullName.toLowerCase() === cleanId)
               )
             );
 
