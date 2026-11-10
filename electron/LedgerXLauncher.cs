@@ -196,9 +196,8 @@ namespace LedgerXLauncher
                 }
 
                 // 6. KEEP THE PROCESS AND NETWORK SERVICES ALIVE CONTINUOUSLY WITH DEDICATED MESSAGE PUMP!
-                Log("Entering Application.Run(new ApplicationContext())...");
-                ApplicationContext appContext = new ApplicationContext();
-                Application.Run(appContext);
+                Log("Entering Application.Run() (Standard persistent message loop)...");
+                Application.Run();
                 Log("Application.Run exited!");
             }
             catch (Exception ex)
@@ -502,7 +501,7 @@ namespace LedgerXLauncher
                             catch { }
                         }
                         catch { }
-                        Thread.Sleep(2000);
+                        Thread.Sleep(1000);
                     }
                 });
                 beaconThread.IsBackground = true;

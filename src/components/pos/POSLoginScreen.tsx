@@ -4,6 +4,7 @@ import { lanUserManagementService } from '@/lib/lanUserManagementService';
 import { permissionGuard, LANUser, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_OPERATOR_PERMISSIONS } from '@/lib/permissionGuard';
 import { TRAINING_COMPANY, TRAINING_USERS, TRAINING_COMPANY_CODE, posTrainingService } from '@/lib/pos/posTrainingService';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
+import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 
 interface POSLoginScreenProps {
   company: any;
@@ -30,6 +31,7 @@ export default function POSLoginScreen({
   const [loading, setLoading] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState<LANUser[]>([]);
 
+
   const cashierInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,6 +44,7 @@ export default function POSLoginScreen({
       setSelectedCode(companyCode.toUpperCase().trim());
     }
   }, [companyCode]);
+
 
   const activeTargetCompany = useMemo(() => {
     if (isTrainingMode) return TRAINING_COMPANY;
@@ -449,6 +452,7 @@ export default function POSLoginScreen({
           <div style={{ fontSize: 12, color: '#fef3c7', display: 'flex', alignItems: 'center', gap: 14 }}>
             <span>Device ID: <b>01 POS</b></span>
             <span>Counter: <b>R141</b></span>
+            <HostServerStatusBadge />
           </div>
         </div>
 

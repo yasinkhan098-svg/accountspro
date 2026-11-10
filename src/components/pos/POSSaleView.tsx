@@ -19,6 +19,7 @@ import { lanUserManagementService } from '@/lib/lanUserManagementService';
 import { posTrainingService } from '@/lib/pos/posTrainingService';
 import { resolveUnitString } from '@/lib/unitResolver';
 import { posAIProductImageService } from '@/lib/pos/posAIProductImageService';
+import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 
 interface POSSaleViewProps {
   company: any;
@@ -1480,13 +1481,14 @@ export default function POSSaleView({
         </div>
 
         {/* Center System Info / Cashier Meta (replica of Posiflex header line) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 12, color: '#fecdd3' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#fecdd3' }}>
           <div>
             Cashier: <b style={{ color: '#ffffff' }}>{cashierName}</b>
           </div>
           <div>
             Store: <b style={{ color: '#ffffff' }}>{company?.name || 'Main Retail'}</b> [{companyCode}]
           </div>
+          <HostServerStatusBadge compact />
           <div>
             Txn: <b style={{ color: '#ffffff' }}>{billNo}</b>
           </div>

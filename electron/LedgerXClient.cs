@@ -63,10 +63,10 @@ namespace LedgerXClient
                 activeHost = savedHostIp;
             }
 
-            // 2. Listen for UDP broadcast beacon from Host PC (Port 45455 - 350ms)
+            // 2. Listen for UDP broadcast beacon from Host PC (Port 45455 - 1200ms)
             if (activeHost == null)
             {
-                string beaconHost = ListenForHostBeacon(350);
+                string beaconHost = ListenForHostBeacon(1200);
                 if (!string.IsNullOrEmpty(beaconHost) && IsHostAlive(beaconHost, 45454))
                 {
                     activeHost = beaconHost;
@@ -91,16 +91,16 @@ namespace LedgerXClient
             string targetUrl;
             if (!string.IsNullOrEmpty(activeHost))
             {
-                targetUrl = string.Format("http://{0}:45454/?lan_client=1", activeHost);
+                targetUrl = string.Format("http://{0}:45454/?lan_client=1&host={0}", activeHost);
             }
             else if (!string.IsNullOrEmpty(savedHostIp))
             {
-                targetUrl = string.Format("http://{0}:45454/?lan_client=1", savedHostIp);
+                targetUrl = string.Format("http://{0}:45454/?lan_client=1&host={0}", savedHostIp);
             }
             else
             {
                 // Direct fallback to Main Accounting Host PC IP on local network
-                targetUrl = "http://192.168.240.48:45454/?lan_client=1";
+                targetUrl = "http://192.168.240.48:45454/?lan_client=1&host=192.168.240.48";
             }
 
             LaunchHostPortal(targetUrl);

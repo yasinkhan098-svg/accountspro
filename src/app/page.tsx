@@ -20,6 +20,7 @@ import { bomOfflineStorage } from '@/lib/bomOfflineStorage';
 import OfflineLicenseGuard from '@/components/OfflineLicenseGuard';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 import AutoUpdateManager from '@/components/AutoUpdateManager';
+import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 import RoleManagementView from '@/components/RoleManagementView';
 import POSWorkflowContainer from '@/components/pos/POSWorkflowContainer';
 import PurchasePOSListView from '@/components/pos/PurchasePOSListView';
@@ -4504,7 +4505,8 @@ export default function App() {
              <span>Dashboard</span>
            </button>
         </div>
-        <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:15, marginRight:10}}>
+        <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:12, marginRight:10}}>
+           <HostServerStatusBadge compact />
            <SyncStatusBadge companyId={activeCompany?.id} authToken={authClient.getToken() || ''} onDataMerged={handleSyncMergedData} />
            <AutoUpdateManager isDesktop={isDesktopApp} onToast={(msg) => setSaveToast(msg)} />
            <div style={{textAlign:'right'}}>
