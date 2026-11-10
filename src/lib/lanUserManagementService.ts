@@ -230,9 +230,21 @@ class LANUserManagementService {
     Array.from(mergedMap.entries()).forEach(([key, u]) => {
       if (!u || !u.username) return;
       const matchAssigned = Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0
-        ? u.assignedCompanyCodes.some(c => String(c).trim().toUpperCase() === code)
+        ? u.assignedCompanyCodes.some(c => {
+            const sc = String(c).trim().toUpperCase();
+            if (sc === code) return true;
+            if (code === '10000' && (sc === '4' || sc === '1')) return true;
+            if (code === '10001' && (sc === '5' || sc === '2')) return true;
+            if (code === '10002' && (sc === '6' || sc === '3')) return true;
+            return false;
+          })
         : false;
-      const matchCoCode = u.companyCode ? String(u.companyCode).trim().toUpperCase() === code : false;
+      const matchCoCode = u.companyCode ? (
+        String(u.companyCode).trim().toUpperCase() === code ||
+        (code === '10000' && (String(u.companyCode).trim() === '4' || String(u.companyCode).trim() === '1')) ||
+        (code === '10001' && (String(u.companyCode).trim() === '5' || String(u.companyCode).trim() === '2')) ||
+        (code === '10002' && (String(u.companyCode).trim() === '6' || String(u.companyCode).trim() === '3'))
+      ) : false;
       const hasNoRestriction = (!u.assignedCompanyCodes || u.assignedCompanyCodes.length === 0) && !u.companyCode;
 
       if (matchAssigned || matchCoCode || hasNoRestriction) {

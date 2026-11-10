@@ -779,6 +779,18 @@ namespace LedgerXLauncher
                         {
                             req.InputStream.CopyTo(fs);
                         }
+                        // Safety: never overwrite existing non-empty files with empty array []
+                        FileInfo tempFi = new FileInfo(tempFile);
+                        if (tempFi.Length <= 4 && File.Exists(targetFile))
+                        {
+                            FileInfo targetFi = new FileInfo(targetFile);
+                            if (targetFi.Length > 4)
+                            {
+                                File.Delete(tempFile);
+                                WriteJsonResponse(res, "{\"success\":true,\"code\":\"" + code + "\",\"file\":\"" + file + "\",\"protected\":true}");
+                                return;
+                            }
+                        }
                         if (File.Exists(targetFile)) File.Delete(targetFile);
                         File.Move(tempFile, targetFile);
                     }
@@ -1451,10 +1463,15 @@ namespace LedgerXLauncher
                                         if (depth == 0)
                                         {
                                             string extracted = json.Substring(start, (i - start) + 1);
-                                            // Safety: never overwrite existing users.json with empty array
-                                            if (key == "users" && (extracted == "[]" || extracted.Trim().Length <= 4) && File.Exists(targetFile))
+                                            // Safety: never overwrite existing files with empty array []
+                                            string extTrim = extracted != null ? extracted.Trim() : "";
+                                            if ((extTrim == "[]" || extTrim.Length <= 4) && File.Exists(targetFile))
                                             {
-                                                return;
+                                                FileInfo fi = new FileInfo(targetFile);
+                                                if (fi.Length > 4)
+                                                {
+                                                    return;
+                                                }
                                             }
                                             File.WriteAllText(targetFile, extracted);
                                             return;

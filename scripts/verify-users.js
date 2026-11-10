@@ -39,3 +39,4 @@ console.log("10001 users:", u10001.map(u => ({ username: u.username, pwd: u.pass
 // 3. Check 10002
 let u10002 = JSON.parse(fs.readFileSync(path.join(base, '10002', 'users.json'), 'utf-8'));
 console.log("10002 users:", u10002.map(u => ({ username: u.username, pwd: u.password, perms: Object.keys(u.permissions?.vouchers || {}).filter(k => u.permissions.vouchers[k]) })));
+

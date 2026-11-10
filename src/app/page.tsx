@@ -1707,13 +1707,17 @@ export default function App() {
                   co = { ...co.company, ...co };
                   delete co.company;
                 }
-                const code = String(c.companyCode || co.companyCode || '').trim();
-                const id = co.id || (code && /^\d{5}$/.test(code) ? (parseInt(code, 10) - 10000 + 4) : Date.now());
+                const rawCode = String(c.companyCode || co.companyCode || c.code || co.code || '').trim();
+                const is5Digit = /^\d{5}$/.test(rawCode);
+                const id = co.id || (is5Digit ? (parseInt(rawCode, 10) - 10000 + 4) : Date.now());
+                const fallbackCode = String(10000 + Math.max(0, (Number(id) || 4) - 4));
+                const code = is5Digit ? rawCode : fallbackCode;
                 return {
                   ...co,
                   id,
-                  name: co.name || `Company ${code || ''}`,
-                  companyCode: code || String(id),
+                  name: co.name || `Company ${code}`,
+                  companyCode: code,
+                  code: code,
                 };
               });
             }
@@ -1766,12 +1770,6 @@ export default function App() {
           if (match) setActiveCompany(match);
         } else {
           setActiveCompany(currentCos[0]);
-        }
-
-        // Auto-ensure all existing companies have their numbered Tally-style folder (10000, 10001...) in data/
-        for (const comp of currentCos) {
-          const code = companyDataFolderService.getCompanyFolderCode(comp, currentCos);
-          companyDataFolderService.saveCompanyFolder({ companyCode: code, company: { ...comp, companyCode: code } });
         }
       }
     };
@@ -2116,13 +2114,17 @@ export default function App() {
                 co = { ...co.company, ...co };
                 delete co.company;
               }
-              const code = String(c.companyCode || co.companyCode || '').trim();
-              const id = co.id || (code && /^\d{5}$/.test(code) ? (parseInt(code, 10) - 10000 + 4) : Date.now());
+              const rawCode = String(c.companyCode || co.companyCode || c.code || co.code || '').trim();
+              const is5Digit = /^\d{5}$/.test(rawCode);
+              const id = co.id || (is5Digit ? (parseInt(rawCode, 10) - 10000 + 4) : Date.now());
+              const fallbackCode = String(10000 + Math.max(0, (Number(id) || 4) - 4));
+              const code = is5Digit ? rawCode : fallbackCode;
               return {
                 ...co,
                 id,
-                name: co.name || `Company ${code || ''}`,
-                companyCode: code || String(id),
+                name: co.name || `Company ${code}`,
+                companyCode: code,
+                code: code,
               };
             });
             setCompanies(normalized);

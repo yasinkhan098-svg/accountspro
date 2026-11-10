@@ -72,33 +72,60 @@ class CompanyDataFolderService {
    * Generates or retrieves the 5-digit Tally-style folder number: e.g. "10000", "10001", "10002"
    */
   public getCompanyFolderCode(company: any, allCompanies: any[] = []): string {
-    // 1. Stored companyCode if 5-digit or valid string
-    if (company?.companyCode && typeof company.companyCode === 'string') {
-      const trimmed = company.companyCode.trim().toUpperCase();
+    if (!company) return '10000';
+
+    // 1. Stored companyCode if 5-digit (e.g. 10000, 10001, 10002)
+    if (company.companyCode) {
+      const trimmed = String(company.companyCode).trim().toUpperCase();
       if (/^\d{5}$/.test(trimmed)) return trimmed;
-      if (trimmed.length > 0 && trimmed.length <= 10) return trimmed;
     }
-    // 2. Alias-based 5-digit code
-    if (company?.alias && /^\d{5}$/.test(String(company.alias).trim())) {
-      return String(company.alias).trim();
+    // 2. Alias or code if 5-digit
+    if (company.code) {
+      const trimmed = String(company.code).trim().toUpperCase();
+      if (/^\d{5}$/.test(trimmed)) return trimmed;
     }
-    // 3. Sequential index among companies (starting at 10000 exactly like Tally Prime)
+    if (company.alias) {
+      const trimmed = String(company.alias).trim().toUpperCase();
+      if (/^\d{5}$/.test(trimmed)) return trimmed;
+    }
+
+    // 3. Match against allCompanies by ID or Name
     if (Array.isArray(allCompanies) && allCompanies.length > 0) {
-      const idx = allCompanies.findIndex(c => c && (c.id === company?.id || (c.name && company?.name && c.name.toLowerCase() === company.name.toLowerCase())));
+      const match = allCompanies.find(c => c && (
+        (c.id && company.id && String(c.id) === String(company.id)) ||
+        (c.name && company.name && c.name.toLowerCase().trim() === company.name.toLowerCase().trim())
+      ));
+      if (match) {
+        if (match.companyCode && /^\d{5}$/.test(String(match.companyCode).trim())) {
+          return String(match.companyCode).trim().toUpperCase();
+        }
+        if (match.code && /^\d{5}$/.test(String(match.code).trim())) {
+          return String(match.code).trim().toUpperCase();
+        }
+      }
+      const idx = allCompanies.findIndex(c => c && (
+        (c.id && company.id && String(c.id) === String(company.id)) ||
+        (c.name && company.name && c.name.toLowerCase().trim() === company.name.toLowerCase().trim())
+      ));
       if (idx >= 0) {
         return String(10000 + idx);
       }
     }
+
     // 4. Derive from small numeric ID (< 10000)
-    if (company?.id) {
+    if (company.id) {
       const numId = Number(company.id);
-      if (!isNaN(numId) && numId > 0 && numId < 10000) {
-        return String(10000 + (numId - 1));
-      }
       if (!isNaN(numId) && numId >= 10000 && numId <= 99999) {
         return String(numId);
       }
+      if (!isNaN(numId) && numId >= 4 && numId < 10000) {
+        return String(10000 + (numId - 4));
+      }
+      if (!isNaN(numId) && numId > 0 && numId < 4) {
+        return String(10000 + (numId - 1));
+      }
     }
+
     return '10000';
   }
 
@@ -377,26 +404,22 @@ class CompanyDataFolderService {
           body: JSON.stringify(batchPayload),
         });
 
-        // B. Stream individual files directly to disk for 100% data fidelity
-        const filesToStream: [string, any][] = [
-          ['company.json', cleanData.company],
-          ['ledgers.json', cleanData.ledgers],
-          ['vouchers.json', cleanData.vouchers],
-          ['stock_items.json', cleanData.stockItems],
-          ['stock_groups.json', cleanData.stockGroups],
-          ['units.json', cleanData.units],
-          ['groups.json', cleanData.groups],
-          ['voucher_types.json', cleanData.voucherTypes],
-          ['purchase_orders.json', cleanData.purchaseOrders],
-          ['boms.json', cleanData.boms],
-          ['manufacturing_journals.json', cleanData.manufacturingJournals],
-          ['pos_purchase_list.json', cleanData.posPurchaseList],
-        ];
+        // B. Stream individual files directly to disk ONLY if explicitly provided in data
+        const filesToStream: [string, any][] = [];
 
-        // Only stream users.json if data.users was explicitly provided
-        if (cleanData.users !== undefined && Array.isArray(cleanData.users) && cleanData.users.length > 0) {
-          filesToStream.push(['users.json', cleanData.users]);
-        }
+        if (data.company !== undefined) filesToStream.push(['company.json', cleanData.company]);
+        if (data.ledgers !== undefined) filesToStream.push(['ledgers.json', cleanData.ledgers]);
+        if (data.vouchers !== undefined) filesToStream.push(['vouchers.json', cleanData.vouchers]);
+        if (data.stockItems !== undefined) filesToStream.push(['stock_items.json', cleanData.stockItems]);
+        if (data.stockGroups !== undefined) filesToStream.push(['stock_groups.json', cleanData.stockGroups]);
+        if (data.units !== undefined) filesToStream.push(['units.json', cleanData.units]);
+        if (data.groups !== undefined) filesToStream.push(['groups.json', cleanData.groups]);
+        if (data.voucherTypes !== undefined) filesToStream.push(['voucher_types.json', cleanData.voucherTypes]);
+        if (data.purchaseOrders !== undefined) filesToStream.push(['purchase_orders.json', cleanData.purchaseOrders]);
+        if (data.boms !== undefined) filesToStream.push(['boms.json', cleanData.boms]);
+        if (data.manufacturingJournals !== undefined) filesToStream.push(['manufacturing_journals.json', cleanData.manufacturingJournals]);
+        if (data.posPurchaseList !== undefined) filesToStream.push(['pos_purchase_list.json', cleanData.posPurchaseList]);
+        if (data.users !== undefined && Array.isArray(data.users) && data.users.length > 0) filesToStream.push(['users.json', cleanData.users]);
 
         for (const [fName, fVal] of filesToStream) {
           if (fVal !== undefined) {

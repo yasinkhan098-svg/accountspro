@@ -101,7 +101,7 @@ export default function PurchasePOSListView({
   const resolvePurchasePrices = useCallback((item: any): { purchasePrice: number; newPurchasePrice: number } => {
     const gstRate = Number(item.gstRate) || 0;
     const baseOpeningRate = Number(item.openingRate) || 0;
-    
+
     // Initial Purchase Price with Tax
     const initialPriceWithTax = item.showInclTax || item.rateInclTax
       ? Number(item.rateInclTax || baseOpeningRate)
@@ -124,8 +124,8 @@ export default function PurchasePOSListView({
             latestVoucherDate = vDate;
             const rate = Number(ie.rate) || 0;
             const itemGst = Number(ie.gstRate ?? gstRate) || 0;
-            latestRateWithTax = ie.rateInclTax 
-              ? Number(ie.rateInclTax) 
+            latestRateWithTax = ie.rateInclTax
+              ? Number(ie.rateInclTax)
               : Math.round(rate * (1 + itemGst / 100) * 100) / 100;
           }
         }
@@ -407,7 +407,7 @@ export default function PurchasePOSListView({
           cachedList = parsed;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Initialize with cached list or stock items
     const initialBuilt = buildItemsList(cachedList);
@@ -468,7 +468,7 @@ export default function PurchasePOSListView({
         .catch(err => {
           console.warn("Could not fetch remote purchase list:", err);
         });
-    }).catch(() => {});
+    }).catch(() => { });
   }, [storageKey, companyCode, companyId, buildItemsList, onStockUpdated]);
 
   // 4B. Live Reactive Sync: When stockItems prop updates (e.g. user altered item unit or name in Masters), update items immediately!
@@ -522,13 +522,13 @@ export default function PurchasePOSListView({
             cur.discountAmt = Math.round((mrp * cur.discountPerc / 100) * 100) / 100;
           }
           cur.retailSalePrice = Math.round(Math.max(0, mrp - cur.discountAmt) * 100) / 100;
-        } 
+        }
         else if (field === 'discountPerc') {
           const perc = Math.max(0, Math.min(100, Number(value) || 0));
           cur.discountPerc = perc;
           cur.discountAmt = Math.round((cur.mrp * perc / 100) * 100) / 100;
           cur.retailSalePrice = Math.round(Math.max(0, cur.mrp - cur.discountAmt) * 100) / 100;
-        } 
+        }
         else if (field === 'discountAmt') {
           const amt = Math.max(0, Number(value) || 0);
           cur.discountAmt = amt;
@@ -694,8 +694,8 @@ export default function PurchasePOSListView({
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + duration);
-      setTimeout(() => ctx.close().catch(() => {}), (duration + 0.1) * 1000);
-    } catch (_) {}
+      setTimeout(() => ctx.close().catch(() => { }), (duration + 0.1) * 1000);
+    } catch (_) { }
   }, []);
 
   // Unique list of all existing variants across all items
@@ -773,7 +773,7 @@ export default function PurchasePOSListView({
     if (!q) return items;
     return items.filter(
       i => (i.name && i.name.toLowerCase().includes(q)) ||
-           (i.barcode && i.barcode.toLowerCase().includes(q))
+        (i.barcode && i.barcode.toLowerCase().includes(q))
     );
   }, [items, searchQuery]);
 
@@ -895,7 +895,7 @@ export default function PurchasePOSListView({
               <span>📋</span> Purchase POS List & Barcode Master
             </h1>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-              Company: <b style={{ color: '#38bdf8' }}>{company?.name || 'Aiman Polymers'}</b> | Code: <b>{companyCode}</b> | 
+              Company: <b style={{ color: '#38bdf8' }}>{company?.name || 'Aiman Polymers'}</b> | Code: <b>{companyCode}</b> |
               Status: {saveStatus === 'saved' ? <b style={{ color: '#4ade80' }}>✓ Saved (DB & Local Storage)</b> : (saveStatus === 'saving' ? <b style={{ color: '#facc15' }}>Saving...</b> : <span style={{ color: '#cbd5e1' }}>Online & Offline Synced</span>)}
             </div>
           </div>
@@ -1055,388 +1055,388 @@ export default function PurchasePOSListView({
               <th style={{ ...thStickyBase, textAlign: 'center', width: 85, padding: '10px 8px', borderRight: 'none', borderTopRightRadius: 5 }}>Variant</th>
             </tr>
           </thead>
-            <tbody>
-              {filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan={16} style={{ textAlign: 'center', padding: '50px 20px', color: '#64748b' }}>
-                    No stock items found. Click <b>➕ Insert Item</b> above to add your first product.
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item, idx) => {
-                  const isSelected = selectedItemId === item.id;
-                  const rowBg = isSelected ? '#eff6ff' : (idx % 2 === 0 ? '#ffffff' : '#fafafa');
+          <tbody>
+            {filteredItems.length === 0 ? (
+              <tr>
+                <td colSpan={16} style={{ textAlign: 'center', padding: '50px 20px', color: '#64748b' }}>
+                  No stock items found. Click <b>➕ Insert Item</b> above to add your first product.
+                </td>
+              </tr>
+            ) : (
+              filteredItems.map((item, idx) => {
+                const isSelected = selectedItemId === item.id;
+                const rowBg = isSelected ? '#eff6ff' : (idx % 2 === 0 ? '#ffffff' : '#fafafa');
 
-                  return (
-                    <tr
-                      key={item.id}
-                      onClick={() => setSelectedItemId(item.id)}
-                      style={{
-                        background: rowBg,
-                        borderBottom: '1px solid #e2e8f0',
-                        height: 50, // Comfortable touch row height
-                      }}
-                    >
-                      {/* 1. S.no */}
-                      <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: '#64748b' }}>
-                        {item.sNo}
-                      </td>
+                return (
+                  <tr
+                    key={item.id}
+                    onClick={() => setSelectedItemId(item.id)}
+                    style={{
+                      background: rowBg,
+                      borderBottom: '1px solid #e2e8f0',
+                      height: 50, // Comfortable touch row height
+                    }}
+                  >
+                    {/* 1. S.no */}
+                    <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: '#64748b' }}>
+                      {item.sNo}
+                    </td>
 
-                      {/* 2. Product Name (Col 0) */}
-                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0' }}>
-                        <input
-                          id={`pos-cell-${idx}-0`}
-                          type="text"
-                          className="pos-grid-input"
-                          value={item.name}
-                          onChange={e => handleUpdateItem(item.id, 'name', e.target.value)}
-                          onBlur={handleCellBlur}
-                          onKeyDown={e => handleCellKeyDown(e, idx, 0)}
-                          style={{
-                            width: '100%',
-                            border: '1px solid #cbd5e1',
-                            background: '#ffffff',
-                            padding: '6px 8px',
-                            fontWeight: 700,
-                            color: '#0f172a',
-                            borderRadius: 4,
-                            fontSize: 13,
-                          }}
-                        />
-                      </td>
+                    {/* 2. Product Name (Col 0) */}
+                    <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0' }}>
+                      <input
+                        id={`pos-cell-${idx}-0`}
+                        type="text"
+                        className="pos-grid-input"
+                        value={item.name}
+                        onChange={e => handleUpdateItem(item.id, 'name', e.target.value)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={e => handleCellKeyDown(e, idx, 0)}
+                        style={{
+                          width: '100%',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          padding: '6px 8px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          borderRadius: 4,
+                          fontSize: 13,
+                        }}
+                      />
+                    </td>
 
-                      {/* 3. Purchase Price (Initial with tax) */}
-                      <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: '#334155' }}>
-                        ₹{item.purchasePrice.toFixed(2)}
-                      </td>
+                    {/* 3. Purchase Price (Initial with tax) */}
+                    <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: '#334155' }}>
+                      ₹{item.purchasePrice.toFixed(2)}
+                    </td>
 
-                      {/* 4. New Purchase Price (Latest with tax from F9) */}
-                      <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: item.newPurchasePrice > 0 ? (item.newPurchasePrice > item.purchasePrice ? '#dc2626' : '#16a34a') : '#94a3b8' }}>
-                        {item.newPurchasePrice > 0 ? `₹${item.newPurchasePrice.toFixed(2)}` : '0'}
-                      </td>
+                    {/* 4. New Purchase Price (Latest with tax from F9) */}
+                    <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: item.newPurchasePrice > 0 ? (item.newPurchasePrice > item.purchasePrice ? '#dc2626' : '#16a34a') : '#94a3b8' }}>
+                      {item.newPurchasePrice > 0 ? `₹${item.newPurchasePrice.toFixed(2)}` : '0'}
+                    </td>
 
-                      {/* 5. Expiry Date (Col 1) */}
-                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>
-                        <input
-                          id={`pos-cell-${idx}-1`}
-                          type="text"
-                          className="pos-grid-input"
-                          placeholder="DD/MM/YYYY"
-                          value={item.expiryDate}
-                          onChange={e => handleUpdateItem(item.id, 'expiryDate', e.target.value)}
-                          onBlur={handleCellBlur}
-                          onKeyDown={e => handleCellKeyDown(e, idx, 1)}
-                          style={{
-                            width: 105,
-                            textAlign: 'center',
-                            border: '1px solid #cbd5e1',
-                            background: '#ffffff',
-                            borderRadius: 4,
-                            padding: '6px 6px',
-                            fontSize: 12,
-                          }}
-                        />
-                      </td>
+                    {/* 5. Expiry Date (Col 1) */}
+                    <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>
+                      <input
+                        id={`pos-cell-${idx}-1`}
+                        type="text"
+                        className="pos-grid-input"
+                        placeholder="DD/MM/YYYY"
+                        value={item.expiryDate}
+                        onChange={e => handleUpdateItem(item.id, 'expiryDate', e.target.value)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={e => handleCellKeyDown(e, idx, 1)}
+                        style={{
+                          width: 105,
+                          textAlign: 'center',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          borderRadius: 4,
+                          padding: '6px 6px',
+                          fontSize: 12,
+                        }}
+                      />
+                    </td>
 
-                      {/* 6. CESS% (Col 2) */}
-                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
-                        <input
-                          id={`pos-cell-${idx}-2`}
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          className="pos-grid-input"
-                          value={item.cessPerc || ''}
-                          onChange={e => handleUpdateItem(item.id, 'cessPerc', parseFloat(e.target.value) || 0)}
-                          onBlur={handleCellBlur}
-                          onKeyDown={e => handleCellKeyDown(e, idx, 2)}
-                          style={{
-                            width: 65,
-                            textAlign: 'right',
-                            border: '1px solid #cbd5e1',
-                            background: '#ffffff',
-                            borderRadius: 4,
-                            padding: '6px 6px',
-                            fontSize: 12,
-                          }}
-                        />
-                      </td>
+                    {/* 6. CESS% (Col 2) */}
+                    <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
+                      <input
+                        id={`pos-cell-${idx}-2`}
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        className="pos-grid-input"
+                        value={item.cessPerc || ''}
+                        onChange={e => handleUpdateItem(item.id, 'cessPerc', parseFloat(e.target.value) || 0)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={e => handleCellKeyDown(e, idx, 2)}
+                        style={{
+                          width: 65,
+                          textAlign: 'right',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          borderRadius: 4,
+                          padding: '6px 6px',
+                          fontSize: 12,
+                        }}
+                      />
+                    </td>
 
-                      {/* 7. Opening Stock (Live real-time quantity) */}
-                      <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, color: item.openingStock > 0 ? '#16a34a' : '#dc2626' }}>
-                        {item.openingStock} <span style={{ fontSize: 11, color: '#64748b' }}>{item.unit}</span>
-                      </td>
+                    {/* 7. Opening Stock (Live real-time quantity) */}
+                    <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, color: item.openingStock > 0 ? '#16a34a' : '#dc2626' }}>
+                      {item.openingStock} <span style={{ fontSize: 11, color: '#64748b' }}>{item.unit}</span>
+                    </td>
 
-                      {/* 8. Barcode (Col 3) */}
-                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0' }}>
-                        <input
-                          id={`pos-cell-${idx}-3`}
-                          type="text"
-                          className="pos-grid-input"
-                          value={item.barcode}
-                          placeholder="Scan / Type Code"
-                          onChange={e => handleUpdateItem(item.id, 'barcode', e.target.value)}
-                          onBlur={handleCellBlur}
-                          onKeyDown={e => handleCellKeyDown(e, idx, 3)}
-                          style={{
-                            width: '100%',
-                            border: '1.5px solid #0284c7',
-                            background: '#f0f9ff',
-                            color: '#0369a1',
-                            fontWeight: 800,
-                            borderRadius: 4,
-                            padding: '6px 8px',
-                            fontSize: 13,
-                            letterSpacing: 0.5,
-                          }}
-                        />
-                      </td>
+                    {/* 8. Barcode (Col 3) */}
+                    <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0' }}>
+                      <input
+                        id={`pos-cell-${idx}-3`}
+                        type="text"
+                        className="pos-grid-input"
+                        value={item.barcode}
+                        placeholder="Scan / Type Code"
+                        onChange={e => handleUpdateItem(item.id, 'barcode', e.target.value)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={e => handleCellKeyDown(e, idx, 3)}
+                        style={{
+                          width: '100%',
+                          border: '1.5px solid #0284c7',
+                          background: '#f0f9ff',
+                          color: '#0369a1',
+                          fontWeight: 800,
+                          borderRadius: 4,
+                          padding: '6px 8px',
+                          fontSize: 13,
+                          letterSpacing: 0.5,
+                        }}
+                      />
+                    </td>
 
-                      {/* 9. MRP (Col 4) */}
-                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
-                        <input
-                          id={`pos-cell-${idx}-4`}
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          className="pos-grid-input"
-                          value={item.mrp || ''}
-                          placeholder="0"
-                          onChange={e => handleUpdateItem(item.id, 'mrp', parseFloat(e.target.value) || 0)}
-                          onBlur={handleCellBlur}
-                          onKeyDown={e => handleCellKeyDown(e, idx, 4)}
-                          style={{
-                            width: 85,
-                            textAlign: 'right',
-                            border: '1px solid #cbd5e1',
-                            background: '#ffffff',
-                            borderRadius: 4,
-                            padding: '6px 6px',
-                            fontSize: 13,
-                            fontWeight: 'bold',
-                          }}
-                        />
-                      </td>
+                    {/* 9. MRP (Col 4) */}
+                    <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
+                      <input
+                        id={`pos-cell-${idx}-4`}
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        className="pos-grid-input"
+                        value={item.mrp || ''}
+                        placeholder="0"
+                        onChange={e => handleUpdateItem(item.id, 'mrp', parseFloat(e.target.value) || 0)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={e => handleCellKeyDown(e, idx, 4)}
+                        style={{
+                          width: 85,
+                          textAlign: 'right',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          borderRadius: 4,
+                          padding: '6px 6px',
+                          fontSize: 13,
+                          fontWeight: 'bold',
+                        }}
+                      />
+                    </td>
 
-                      {/* 10. Discount% in percentage (Col 5) */}
-                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
-                        <input
-                          id={`pos-cell-${idx}-5`}
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max="100"
-                          className="pos-grid-input"
-                          value={item.discountPerc || ''}
-                          placeholder="0%"
-                          onChange={e => handleUpdateItem(item.id, 'discountPerc', parseFloat(e.target.value) || 0)}
-                          onBlur={handleCellBlur}
-                          onKeyDown={e => handleCellKeyDown(e, idx, 5)}
-                          style={{
-                            width: 80,
-                            textAlign: 'right',
-                            border: '1px solid #cbd5e1',
-                            background: '#ffffff',
-                            borderRadius: 4,
-                            padding: '6px 6px',
-                            fontSize: 12,
-                          }}
-                        />
-                      </td>
+                    {/* 10. Discount% in percentage (Col 5) */}
+                    <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
+                      <input
+                        id={`pos-cell-${idx}-5`}
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="100"
+                        className="pos-grid-input"
+                        value={item.discountPerc || ''}
+                        placeholder="0%"
+                        onChange={e => handleUpdateItem(item.id, 'discountPerc', parseFloat(e.target.value) || 0)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={e => handleCellKeyDown(e, idx, 5)}
+                        style={{
+                          width: 80,
+                          textAlign: 'right',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          borderRadius: 4,
+                          padding: '6px 6px',
+                          fontSize: 12,
+                        }}
+                      />
+                    </td>
 
-                      {/* 11. Discount in Amount (Col 6) */}
-                      <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
-                        <input
-                          id={`pos-cell-${idx}-6`}
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          className="pos-grid-input"
-                          value={item.discountAmt || ''}
-                          placeholder="₹0"
-                          onChange={e => handleUpdateItem(item.id, 'discountAmt', parseFloat(e.target.value) || 0)}
-                          onBlur={handleCellBlur}
-                          onKeyDown={e => handleCellKeyDown(e, idx, 6)}
-                          style={{
-                            width: 80,
-                            textAlign: 'right',
-                            border: '1px solid #cbd5e1',
-                            background: '#ffffff',
-                            borderRadius: 4,
-                            padding: '6px 6px',
-                            fontSize: 12,
-                          }}
-                        />
-                      </td>
+                    {/* 11. Discount in Amount (Col 6) */}
+                    <td style={{ padding: '5px 8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>
+                      <input
+                        id={`pos-cell-${idx}-6`}
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        className="pos-grid-input"
+                        value={item.discountAmt || ''}
+                        placeholder="₹0"
+                        onChange={e => handleUpdateItem(item.id, 'discountAmt', parseFloat(e.target.value) || 0)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={e => handleCellKeyDown(e, idx, 6)}
+                        style={{
+                          width: 80,
+                          textAlign: 'right',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          borderRadius: 4,
+                          padding: '6px 6px',
+                          fontSize: 12,
+                        }}
+                      />
+                    </td>
 
-                      {/* 12. Retail Sale Price (Col 7) */}
-                      <td style={{ padding: '5px 8px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, fontSize: 13, color: '#0369a1', background: '#fef3c7' }}>
-                        <input
-                          id={`pos-cell-${idx}-7`}
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          className="pos-grid-input"
-                          value={item.retailSalePrice || ''}
-                          placeholder="0"
-                          onChange={e => handleUpdateItem(item.id, 'retailSalePrice', parseFloat(e.target.value) || 0)}
-                          onBlur={handleCellBlur}
-                          onKeyDown={e => handleCellKeyDown(e, idx, 7)}
-                          style={{
-                            width: 90,
-                            textAlign: 'right',
-                            border: '1px solid #f59e0b',
-                            background: '#fffbeb',
-                            borderRadius: 4,
-                            padding: '6px 8px',
-                            fontSize: 13,
-                            fontWeight: 900,
-                            color: '#0369a1',
-                          }}
-                        />
-                      </td>
+                    {/* 12. Retail Sale Price (Col 7) */}
+                    <td style={{ padding: '5px 8px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, fontSize: 13, color: '#0369a1', background: '#fef3c7' }}>
+                      <input
+                        id={`pos-cell-${idx}-7`}
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        className="pos-grid-input"
+                        value={item.retailSalePrice || ''}
+                        placeholder="0"
+                        onChange={e => handleUpdateItem(item.id, 'retailSalePrice', parseFloat(e.target.value) || 0)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={e => handleCellKeyDown(e, idx, 7)}
+                        style={{
+                          width: 90,
+                          textAlign: 'right',
+                          border: '1px solid #f59e0b',
+                          background: '#fffbeb',
+                          borderRadius: 4,
+                          padding: '6px 8px',
+                          fontSize: 13,
+                          fontWeight: 900,
+                          color: '#0369a1',
+                        }}
+                      />
+                    </td>
 
-                      {/* 13. Action: insert */}
-                      <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
-                        <button
-                          onClick={handleInsertRow}
-                          className="pos-touch-btn"
-                          title="Insert new row"
-                          style={{
-                            background: '#dcfce7',
-                            color: '#15803d',
-                            border: '1.5px solid #86efac',
-                            borderRadius: 6,
-                            padding: '6px 14px',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            minHeight: 34,
-                          }}
-                        >
-                          insert
-                        </button>
-                      </td>
+                    {/* 13. Action: insert */}
+                    <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                      <button
+                        onClick={handleInsertRow}
+                        className="pos-touch-btn"
+                        title="Insert new row"
+                        style={{
+                          background: '#dcfce7',
+                          color: '#15803d',
+                          border: '1.5px solid #86efac',
+                          borderRadius: 6,
+                          padding: '6px 14px',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          minHeight: 34,
+                        }}
+                      >
+                        insert
+                      </button>
+                    </td>
 
-                      {/* 14. Action: delete */}
-                      <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
-                        <button
-                          onClick={() => handleDeleteRow(item.id)}
-                          className="pos-touch-btn"
-                          title="Delete row"
-                          style={{
-                            background: '#fee2e2',
-                            color: '#b91c1c',
-                            border: '1.5px solid #fca5a5',
-                            borderRadius: 6,
-                            padding: '6px 14px',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            minHeight: 34,
-                          }}
-                        >
-                          delete
-                        </button>
-                      </td>
+                    {/* 14. Action: delete */}
+                    <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                      <button
+                        onClick={() => handleDeleteRow(item.id)}
+                        className="pos-touch-btn"
+                        title="Delete row"
+                        style={{
+                          background: '#fee2e2',
+                          color: '#b91c1c',
+                          border: '1.5px solid #fca5a5',
+                          borderRadius: 6,
+                          padding: '6px 14px',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          minHeight: 34,
+                        }}
+                      >
+                        delete
+                      </button>
+                    </td>
 
-                      {/* 15. Action: print Barcode */}
-                      <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                    {/* 15. Action: print Barcode */}
+                    <td style={{ padding: '5px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                      <button
+                        onClick={() => {
+                          setPrintModalItem(item);
+                          setPrintCount(Math.max(1, Math.min(50, Math.round(item.openingStock) || 1)));
+                        }}
+                        className="pos-touch-btn"
+                        title="Print Barcode sticker"
+                        style={{
+                          background: '#f3e8ff',
+                          color: '#6b21a8',
+                          border: '1.5px solid #d8b4fe',
+                          borderRadius: 6,
+                          padding: '6px 12px',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          minHeight: 34,
+                        }}
+                      >
+                        print Barcode
+                      </button>
+                    </td>
+
+                    {/* 16. Action: Variant */}
+                    <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                      {item.variant || (item.variants && item.variants.length > 0) ? (
                         <button
                           onClick={() => {
-                            setPrintModalItem(item);
-                            setPrintCount(Math.max(1, Math.min(50, Math.round(item.openingStock) || 1)));
+                            playTouchBeep();
+                            setVariantModalItem(item);
+                            setVariantInputText(item.variant || item.variants?.[0] || '');
                           }}
                           className="pos-touch-btn"
-                          title="Print Barcode sticker"
+                          title={`Variant: ${item.variant || item.variants?.[0]} (Click to change)`}
                           style={{
-                            background: '#f3e8ff',
-                            color: '#6b21a8',
-                            border: '1.5px solid #d8b4fe',
+                            background: 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)',
+                            color: '#1d4ed8',
+                            border: '1.5px solid #93c5fd',
                             borderRadius: 6,
-                            padding: '6px 12px',
-                            fontSize: 12,
+                            padding: '5px 8px',
+                            fontSize: 11,
                             fontWeight: 800,
                             cursor: 'pointer',
-                            whiteSpace: 'nowrap',
                             minHeight: 34,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4,
+                            maxWidth: 120,
+                            boxShadow: '0 1px 3px rgba(37, 99, 235, 0.15)',
                           }}
                         >
-                          print Barcode
+                          <span>🏷️</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.variant || item.variants?.[0]}
+                          </span>
                         </button>
-                      </td>
-
-                      {/* 16. Action: Variant */}
-                      <td style={{ padding: '5px 8px', textAlign: 'center' }}>
-                        {item.variant || (item.variants && item.variants.length > 0) ? (
-                          <button
-                            onClick={() => {
-                              playTouchBeep();
-                              setVariantModalItem(item);
-                              setVariantInputText(item.variant || item.variants?.[0] || '');
-                            }}
-                            className="pos-touch-btn"
-                            title={`Variant: ${item.variant || item.variants?.[0]} (Click to change)`}
-                            style={{
-                              background: 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)',
-                              color: '#1d4ed8',
-                              border: '1.5px solid #93c5fd',
-                              borderRadius: 6,
-                              padding: '5px 8px',
-                              fontSize: 11,
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              minHeight: 34,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 4,
-                              maxWidth: 120,
-                              boxShadow: '0 1px 3px rgba(37, 99, 235, 0.15)',
-                            }}
-                          >
-                            <span>🏷️</span>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.variant || item.variants?.[0]}
-                            </span>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              playTouchBeep();
-                              setVariantModalItem(item);
-                              setVariantInputText('');
-                            }}
-                            className="pos-touch-btn"
-                            title="Touch to assign or create variant"
-                            style={{
-                              background: '#f8fafc',
-                              color: '#64748b',
-                              border: '1.5px dashed #cbd5e1',
-                              borderRadius: 6,
-                              padding: '5px 10px',
-                              fontSize: 11,
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              minHeight: 34,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            + Variant
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-              {filteredItems.length > 0 && (
-                <tr>
-                  <td colSpan={16} style={{ height: 40, border: 'none', background: 'transparent' }} />
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            playTouchBeep();
+                            setVariantModalItem(item);
+                            setVariantInputText('');
+                          }}
+                          className="pos-touch-btn"
+                          title="Touch to assign or create variant"
+                          style={{
+                            background: '#f8fafc',
+                            color: '#64748b',
+                            border: '1.5px dashed #cbd5e1',
+                            borderRadius: 6,
+                            padding: '5px 10px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            minHeight: 34,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          + Variant
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+            {filteredItems.length > 0 && (
+              <tr>
+                <td colSpan={16} style={{ height: 40, border: 'none', background: 'transparent' }} />
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* ==================== 3. FIXED BOTTOM STATUS FOOTER ==================== */}
@@ -1593,7 +1593,7 @@ export default function PurchasePOSListView({
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 5 }}>
                   Or Choose from Existing Variants ({existingVariants.length}):
                 </label>
-                
+
                 {/* Dropdown Selection */}
                 <select
                   value={variantInputText}

@@ -102,10 +102,21 @@ export default function POSLoginScreen({
         const filteredList = (Array.isArray(uList) ? uList : []).filter(u => {
           if (!u || !u.username) return false;
           if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
-            return u.assignedCompanyCodes.some(c => String(c).trim().toUpperCase() === selectedCode.trim().toUpperCase());
+            return u.assignedCompanyCodes.some(c => {
+              const sc = String(c).trim().toUpperCase();
+              if (sc === selectedCode.trim().toUpperCase()) return true;
+              if (selectedCode === '10000' && (sc === '4' || sc === '1')) return true;
+              if (selectedCode === '10001' && (sc === '5' || sc === '2')) return true;
+              if (selectedCode === '10002' && (sc === '6' || sc === '3')) return true;
+              return false;
+            });
           }
           if (u.companyCode) {
-            return String(u.companyCode).trim().toUpperCase() === selectedCode.trim().toUpperCase();
+            const uc = String(u.companyCode).trim().toUpperCase();
+            if (uc === selectedCode.trim().toUpperCase()) return true;
+            if (selectedCode === '10000' && (uc === '4' || uc === '1')) return true;
+            if (selectedCode === '10001' && (uc === '5' || uc === '2')) return true;
+            if (selectedCode === '10002' && (uc === '6' || uc === '3')) return true;
           }
           return true;
         });
@@ -282,9 +293,22 @@ export default function POSLoginScreen({
         const filteredFresh = (Array.isArray(freshUsers) ? freshUsers : []).filter(u => {
           if (!u || !u.username) return false;
           if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
-            return u.assignedCompanyCodes.some(c => String(c).trim().toUpperCase() === selectedCode.trim().toUpperCase());
+            return u.assignedCompanyCodes.some(c => {
+              const sc = String(c).trim().toUpperCase();
+              if (sc === selectedCode.trim().toUpperCase()) return true;
+              if (selectedCode === '10000' && (sc === '4' || sc === '1')) return true;
+              if (selectedCode === '10001' && (sc === '5' || sc === '2')) return true;
+              if (selectedCode === '10002' && (sc === '6' || sc === '3')) return true;
+              return false;
+            });
           }
-          if (u.companyCode) return String(u.companyCode).trim().toUpperCase() === selectedCode.trim().toUpperCase();
+          if (u.companyCode) {
+            const uc = String(u.companyCode).trim().toUpperCase();
+            if (uc === selectedCode.trim().toUpperCase()) return true;
+            if (selectedCode === '10000' && (uc === '4' || uc === '1')) return true;
+            if (selectedCode === '10001' && (uc === '5' || uc === '2')) return true;
+            if (selectedCode === '10002' && (uc === '6' || uc === '3')) return true;
+          }
           return true;
         });
 
