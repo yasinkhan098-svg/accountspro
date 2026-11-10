@@ -95,20 +95,15 @@ export default function POSWorkflowContainer({
       try {
         const folder = await companyDataFolderService.loadCompanyFolder(companyCode);
         if (!isCancelled && folder) {
-          if (folder.posPurchaseList && Array.isArray(folder.posPurchaseList)) {
-            setPosPurchaseList(folder.posPurchaseList);
-          } else if (!loaded) {
-            setPosPurchaseList([]);
-          }
-          if (folder.stockItems && Array.isArray(folder.stockItems) && folder.stockItems.length > 0) {
-            setLocalStockItems(folder.stockItems);
-          }
-          if (folder.ledgers && Array.isArray(folder.ledgers) && folder.ledgers.length > 0) {
-            setLocalLedgers(folder.ledgers);
-          }
-          if (folder.vouchers && Array.isArray(folder.vouchers) && folder.vouchers.length > 0) {
-            setLocalVouchers(folder.vouchers);
-          }
+          setPosPurchaseList(Array.isArray(folder.posPurchaseList) ? folder.posPurchaseList : []);
+          setLocalStockItems(Array.isArray(folder.stockItems) ? folder.stockItems : []);
+          setLocalLedgers(Array.isArray(folder.ledgers) ? folder.ledgers : []);
+          setLocalVouchers(Array.isArray(folder.vouchers) ? folder.vouchers : []);
+        } else if (!isCancelled) {
+          setPosPurchaseList([]);
+          setLocalStockItems([]);
+          setLocalLedgers([]);
+          setLocalVouchers([]);
         }
       } catch (_) { }
     };

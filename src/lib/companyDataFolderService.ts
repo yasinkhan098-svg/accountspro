@@ -270,6 +270,21 @@ class CompanyDataFolderService {
       }
     }
 
+    // Deduplicate units strictly by name/symbol so file never bloats
+    const rawUnits = data.units !== undefined ? data.units : (existing?.units || []);
+    const deduplicatedUnits: any[] = [];
+    const unitKeys = new Set<string>();
+    if (Array.isArray(rawUnits)) {
+      for (const u of rawUnits) {
+        if (!u) continue;
+        const k = String(u.name || u.symbol || u.id || '').trim().toLowerCase();
+        if (k && !unitKeys.has(k)) {
+          unitKeys.add(k);
+          deduplicatedUnits.push(u);
+        }
+      }
+    }
+
     const cleanData: CompanyFolderData = {
       ...existing,
       ...data,
@@ -277,25 +292,17 @@ class CompanyDataFolderService {
       company: unwrappedCompany,
       ledgers: data.ledgers !== undefined ? data.ledgers : (existing?.ledgers || []),
       vouchers: data.vouchers !== undefined ? data.vouchers : (existing?.vouchers || []),
-      stockItems: (Array.isArray(data.stockItems) && data.stockItems.length > 0) ? data.stockItems : (existing?.stockItems || []),
+      stockItems: data.stockItems !== undefined ? data.stockItems : (existing?.stockItems || []),
       stockGroups: data.stockGroups !== undefined ? data.stockGroups : (existing?.stockGroups || []),
-      units: data.units !== undefined ? data.units : (existing?.units || []),
+      units: deduplicatedUnits.length > 0 ? deduplicatedUnits : (rawUnits || []),
       groups: data.groups !== undefined ? data.groups : (existing?.groups || []),
       voucherTypes: data.voucherTypes !== undefined ? data.voucherTypes : (existing?.voucherTypes || []),
       purchaseOrders: data.purchaseOrders !== undefined ? data.purchaseOrders : (existing?.purchaseOrders || []),
       boms: data.boms !== undefined ? data.boms : (existing?.boms || []),
       manufacturingJournals: data.manufacturingJournals !== undefined ? data.manufacturingJournals : (existing?.manufacturingJournals || []),
-      users: (Array.isArray(data.users) && data.users.length > 0) ? data.users : (existing?.users || []),
-      posPurchaseList: (Array.isArray(data.posPurchaseList) && data.posPurchaseList.length > 0)
-        ? data.posPurchaseList
-        : ((existing?.posPurchaseList && existing.posPurchaseList.length > 0)
-          ? existing.posPurchaseList
-          : (() => {
-            try {
-              const raw = localStorage.getItem(`ledgerx_pos_purchase_list_${code}`);
-              return raw ? JSON.parse(raw) : [];
-            } catch (_) { return []; }
-          })()),
+      // CRITICAL: NEVER overwrite users.json unless explicit non-empty users array is passed
+      users: (Array.isArray(data.users) && data.users.length > 0) ? data.users : undefined,
+      posPurchaseList: data.posPurchaseList !== undefined ? data.posPurchaseList : (existing?.posPurchaseList || []),
     };
 
     // 1. Electron bridge
@@ -310,11 +317,14 @@ class CompanyDataFolderService {
     // 2. C# Launcher HTTP bridge
     if (await this.checkBridge()) {
       try {
-        // A. Primary batch save
+        // A. Primary batch save (omit users if undefined to prevent wiping)
+        const batchPayload: any = { ...cleanData };
+        if (cleanData.users === undefined) delete batchPayload.users;
+
         await fetch(`${this.getBridgeUrl()}/api/company`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cleanData),
+          body: JSON.stringify(batchPayload),
         });
 
         // B. Stream individual files directly to disk for 100% data fidelity
@@ -330,9 +340,13 @@ class CompanyDataFolderService {
           ['purchase_orders.json', cleanData.purchaseOrders],
           ['boms.json', cleanData.boms],
           ['manufacturing_journals.json', cleanData.manufacturingJournals],
-          ['users.json', cleanData.users],
           ['pos_purchase_list.json', cleanData.posPurchaseList],
         ];
+
+        // Only stream users.json if data.users was explicitly provided
+        if (cleanData.users !== undefined && Array.isArray(cleanData.users) && cleanData.users.length > 0) {
+          filesToStream.push(['users.json', cleanData.users]);
+        }
 
         for (const [fName, fVal] of filesToStream) {
           if (fVal !== undefined) {

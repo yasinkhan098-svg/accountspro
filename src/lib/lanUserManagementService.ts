@@ -208,12 +208,13 @@ class LANUserManagementService {
     const companyScopedMap = new Map<string, LANUser>();
     Array.from(mergedMap.entries()).forEach(([key, u]) => {
       if (!u || !u.username) return;
-      if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
-        if (u.assignedCompanyCodes.some(c => c.toUpperCase() === code)) {
-          companyScopedMap.set(key, u);
-        }
-      } else {
-        // No company code restriction = belongs to current company
+      const matchAssigned = Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0
+        ? u.assignedCompanyCodes.some(c => String(c).trim().toUpperCase() === code)
+        : false;
+      const matchCoCode = u.companyCode ? String(u.companyCode).trim().toUpperCase() === code : false;
+      const hasNoRestriction = (!u.assignedCompanyCodes || u.assignedCompanyCodes.length === 0) && !u.companyCode;
+
+      if (matchAssigned || matchCoCode || hasNoRestriction) {
         companyScopedMap.set(key, u);
       }
     });

@@ -102,10 +102,10 @@ export default function POSLoginScreen({
         const filteredList = (Array.isArray(uList) ? uList : []).filter(u => {
           if (!u || !u.username) return false;
           if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
-            return u.assignedCompanyCodes.includes(selectedCode);
+            return u.assignedCompanyCodes.some(c => String(c).trim().toUpperCase() === selectedCode.trim().toUpperCase());
           }
           if (u.companyCode) {
-            return u.companyCode.toUpperCase().trim() === selectedCode;
+            return String(u.companyCode).trim().toUpperCase() === selectedCode.trim().toUpperCase();
           }
           return true;
         });
@@ -279,9 +279,9 @@ export default function POSLoginScreen({
         const filteredFresh = (Array.isArray(freshUsers) ? freshUsers : []).filter(u => {
           if (!u || !u.username) return false;
           if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
-            return u.assignedCompanyCodes.includes(selectedCode);
+            return u.assignedCompanyCodes.some(c => String(c).trim().toUpperCase() === selectedCode.trim().toUpperCase());
           }
-          if (u.companyCode) return u.companyCode.toUpperCase().trim() === selectedCode;
+          if (u.companyCode) return String(u.companyCode).trim().toUpperCase() === selectedCode.trim().toUpperCase();
           return true;
         });
 

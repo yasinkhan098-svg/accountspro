@@ -1448,6 +1448,11 @@ namespace LedgerXLauncher
                                         if (depth == 0)
                                         {
                                             string extracted = json.Substring(start, (i - start) + 1);
+                                            // Safety: never overwrite existing users.json with empty array
+                                            if (key == "users" && (extracted == "[]" || extracted.Trim().Length <= 4) && File.Exists(targetFile))
+                                            {
+                                                return;
+                                            }
                                             File.WriteAllText(targetFile, extracted);
                                             return;
                                         }

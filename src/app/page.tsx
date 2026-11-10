@@ -5024,15 +5024,9 @@ export default function App() {
                     ? { ...folderData.company, companyCode: code, code }
                     : { ...targetCo, companyCode: code, code };
                   if (folderData) {
-                    if (folderData.stockItems?.length) {
-                      setAllStockItems(p => [...p.filter(si => !isCoMatch(si, diskCo)), ...folderData.stockItems]);
-                    }
-                    if (folderData.ledgers?.length) {
-                      setAllLedgers(p => [...p.filter(l => !isCoMatch(l, diskCo)), ...folderData.ledgers]);
-                    }
-                    if (folderData.vouchers?.length) {
-                      setAllVouchers(p => [...p.filter(v => !isCoMatch(v, diskCo)), ...folderData.vouchers]);
-                    }
+                    setAllStockItems(p => [...p.filter(si => !isCoMatch(si, diskCo)), ...(folderData.stockItems || [])]);
+                    setAllLedgers(p => [...p.filter(l => !isCoMatch(l, diskCo)), ...(folderData.ledgers || [])]);
+                    setAllVouchers(p => [...p.filter(v => !isCoMatch(v, diskCo)), ...(folderData.vouchers || [])]);
                     if (folderData.posPurchaseList?.length) {
                       try {
                         localStorage.setItem(`ledgerx_pos_purchase_list_${code}`, JSON.stringify(folderData.posPurchaseList));

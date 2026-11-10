@@ -276,9 +276,7 @@ export default function POSSaleView({
     });
     const posList = (Array.isArray(activePOSPurchaseList) ? activePOSPurchaseList : []).filter((p: any) => {
       if (!company?.id && !companyCode) return false;
-      if (matchCo(p.companyId, p.companyCode)) return true;
-      if (!p.companyCode && !p.companyId) return true;
-      return false;
+      return matchCo(p.companyId, p.companyCode);
     });
 
     const merged = list.map(si => {

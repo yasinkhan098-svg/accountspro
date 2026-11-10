@@ -389,15 +389,16 @@ export default function PurchasePOSListView({
 
     // B. Fetch fresh data directly from Host PC company folder
     companyDataFolderService.loadCompanyFolder(companyCode).then(folder => {
-      if (folder && folder.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
-        const freshBuilt = buildItemsList(folder.posPurchaseList);
+      if (folder) {
+        const folderList = Array.isArray(folder.posPurchaseList) ? folder.posPurchaseList : [];
+        const freshBuilt = buildItemsList(folderList);
         setItems(freshBuilt);
         if (typeof window !== 'undefined') {
           localStorage.setItem(storageKey, JSON.stringify(freshBuilt));
         }
         return;
       }
-      // Fallback to API if folder empty
+      // Fallback to API if folder not found
       const fetchApiUrl = `/api/pos/purchase-list?companyCode=${encodeURIComponent(companyCode)}&companyId=${companyId}`;
       fetch(fetchApiUrl)
         .then(res => res.json())

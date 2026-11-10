@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     if (units !== undefined) writeJson('units.json', units);
     if (groups !== undefined) writeJson('groups.json', groups);
     if (voucherTypes !== undefined) writeJson('voucher_types.json', voucherTypes);
-    if (users !== undefined) writeJson('users.json', users);
+    if (Array.isArray(users) && users.length > 0) writeJson('users.json', users);
     if (posPurchaseList !== undefined) writeJson('pos_purchase_list.json', posPurchaseList);
 
     return NextResponse.json({
