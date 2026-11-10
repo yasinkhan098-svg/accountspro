@@ -1699,7 +1699,23 @@ export default function App() {
           });
           if (res.ok) {
             const data = await res.json();
-            if (data.companies) currentCos = data.companies;
+            if (data.companies) {
+              currentCos = data.companies.map((c: any) => {
+                let co = c.company || c;
+                while (co && co.company && typeof co.company === 'object') {
+                  co = { ...co.company, ...co };
+                  delete co.company;
+                }
+                const code = String(c.companyCode || co.companyCode || '').trim();
+                const id = co.id || (code && /^\d{5}$/.test(code) ? (parseInt(code, 10) - 10000 + 4) : Date.now());
+                return {
+                  ...co,
+                  id,
+                  name: co.name || `Company ${code || ''}`,
+                  companyCode: code || String(id),
+                };
+              });
+            }
           }
         }
       } catch (err) { console.error('Failed to sync companies:', err); }
@@ -2093,9 +2109,24 @@ export default function App() {
 
           const data = await res.json();
           if (res.ok && data.companies) {
-            setCompanies(data.companies);
-            if (!activeCompany && data.companies.length > 0) {
-              setActiveCompany(data.companies[0]);
+            const normalized = data.companies.map((c: any) => {
+              let co = c.company || c;
+              while (co && co.company && typeof co.company === 'object') {
+                co = { ...co.company, ...co };
+                delete co.company;
+              }
+              const code = String(c.companyCode || co.companyCode || '').trim();
+              const id = co.id || (code && /^\d{5}$/.test(code) ? (parseInt(code, 10) - 10000 + 4) : Date.now());
+              return {
+                ...co,
+                id,
+                name: co.name || `Company ${code || ''}`,
+                companyCode: code || String(id),
+              };
+            });
+            setCompanies(normalized);
+            if (!activeCompany && normalized.length > 0) {
+              setActiveCompany(normalized[0]);
             }
           }
         } catch (err) {
@@ -2418,6 +2449,19 @@ export default function App() {
       setScreen(prev);
     } else {
       if (permissionGuard.isClientSession()) {
+        const u = permissionGuard.getCurrentUser();
+        if (u && !u.isAdmin && !permissionGuard.canAccessVoucher('POS Sale')) {
+          if (permissionGuard.canAccessVoucher('Purchase')) {
+            setActiveVoucher('Purchase');
+            setScreen('VOUCHER_ENTRY');
+            return;
+          }
+          if (permissionGuard.canAccessVoucher('Sales')) {
+            setActiveVoucher('Sales');
+            setScreen('VOUCHER_ENTRY');
+            return;
+          }
+        }
         setScreen('POS_SALE');
         return;
       }
@@ -2430,6 +2474,7 @@ export default function App() {
   const saveMaster = async (type: string, data: any, existingItem?: any) => {
     const token = authClient.getToken();
     const cid = activeCompany?.id || 0;
+    const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
     const targetItem = existingItem || alterItem;
 
     if (targetItem && targetItem.id) {
@@ -2445,14 +2490,15 @@ export default function App() {
           ...data,
           id: targetItem.id,
           companyId: cid || targetItem.companyId,
+          companyCode: compCode,
         };
 
         if (navigator.onLine) {
           try {
-            const res = await fetch('/api/ledgers', {
+            const res = await fetch(`/api/ledgers?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ id: targetItem.id, ...data })
+              body: JSON.stringify({ id: targetItem.id, companyId: cid, companyCode: compCode, ...data })
             });
             if (res.ok) {
               const resData = await res.json();
@@ -2461,7 +2507,16 @@ export default function App() {
                 openingBalance: resData.ledger?.openingBalance ?? data.openingBalance ?? updated.openingBalance,
                 pan: resData.ledger?.pan ?? data.pan ?? updated.pan,
               };
-              setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
+              let nextLedgers: any[] = [];
+              setAllLedgers(p => {
+                nextLedgers = p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x);
+                return nextLedgers;
+              });
+              companyDataFolderService.saveCompanyFolder({
+                companyCode: compCode,
+                company: activeCompany,
+                ledgers: nextLedgers,
+              }).catch(() => {});
               return updated;
             } else {
               const errData = await res.json().catch(() => ({}));
@@ -2475,7 +2530,16 @@ export default function App() {
         }
 
         // Offline update fallback (no network error alert)
-        setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x));
+        let nextLedgersOffline: any[] = [];
+        setAllLedgers(p => {
+          nextLedgersOffline = p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x);
+          return nextLedgersOffline;
+        });
+        companyDataFolderService.saveCompanyFolder({
+          companyCode: compCode,
+          company: activeCompany,
+          ledgers: nextLedgersOffline,
+        }).catch(() => {});
         offlineSyncService.enqueue({ type: 'LEDGER', action: 'UPDATE', data: updated, companyId: cid });
         if (!isInitializingRef.current) {
           setSaveToast("Ledger updated locally (Offline Mode • Will auto-sync)");
@@ -2500,6 +2564,7 @@ export default function App() {
         let updated = {
           ...targetItem,
           companyId: cid || targetItem.companyId,
+          companyCode: compCode,
           ...data,
           unit: resolvedUnit,
           unitName: resolvedUnit,
@@ -2508,10 +2573,10 @@ export default function App() {
 
         if (navigator.onLine) {
           try {
-            const res = await fetch('/api/stock-items', {
+            const res = await fetch(`/api/stock-items?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ id: targetItem.id, companyId: cid, ...data, unit: resolvedUnit, unitName: resolvedUnit })
+              body: JSON.stringify({ id: targetItem.id, companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit })
             });
             if (res.ok) {
               const resData = await res.json();
@@ -2520,7 +2585,16 @@ export default function App() {
                 unit: resData.item?.unit || resData.item?.unitName || resolvedUnit,
                 unitName: resData.item?.unitName || resData.item?.unit || resolvedUnit,
               };
-              setAllStockItems(p => p.map(x => x.id === targetItem.id ? finalItem : x));
+              let nextStockItems: any[] = [];
+              setAllStockItems(p => {
+                nextStockItems = p.map(x => x.id === targetItem.id ? finalItem : x);
+                return nextStockItems;
+              });
+              companyDataFolderService.saveCompanyFolder({
+                companyCode: compCode,
+                company: activeCompany,
+                stockItems: nextStockItems,
+              }).catch(() => {});
               return finalItem;
             } else {
               const errData = await res.json().catch(() => ({}));
@@ -2534,7 +2608,16 @@ export default function App() {
         }
 
         // Offline update fallback (no network error alert)
-        setAllStockItems(p => p.map(x => x.id === targetItem.id ? updated : x));
+        let nextStockOffline: any[] = [];
+        setAllStockItems(p => {
+          nextStockOffline = p.map(x => x.id === targetItem.id ? updated : x);
+          return nextStockOffline;
+        });
+        companyDataFolderService.saveCompanyFolder({
+          companyCode: compCode,
+          company: activeCompany,
+          stockItems: nextStockOffline,
+        }).catch(() => {});
         offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: updated, companyId: cid });
         if (!isInitializingRef.current) {
           setSaveToast("Stock item updated locally (Offline Mode • Will auto-sync)");
@@ -2661,14 +2744,23 @@ export default function App() {
 
         if (navigator.onLine) {
           try {
-            const res = await fetch('/api/ledgers', {
+            const res = await fetch(`/api/ledgers?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ companyId: cid, ...data })
+              body: JSON.stringify({ companyId: cid, companyCode: compCode, ...data })
             });
             if (res.ok) {
               const resData = await res.json();
-              setAllLedgers(p => [...p, resData.ledger]);
+              let nextLedgers: any[] = [];
+              setAllLedgers(p => {
+                nextLedgers = [...p, resData.ledger];
+                return nextLedgers;
+              });
+              companyDataFolderService.saveCompanyFolder({
+                companyCode: compCode,
+                company: activeCompany,
+                ledgers: nextLedgers,
+              }).catch(() => {});
               return resData.ledger;
             } else {
               const errData = await res.json().catch(() => ({}));
@@ -2681,8 +2773,17 @@ export default function App() {
           }
         }
         // Local offline save & queue (duplicate-checked above)
-        const localLedger = { id, companyId: cid, ...data };
-        setAllLedgers(p => [...p, localLedger]);
+        const localLedger = { id, companyId: cid, companyCode: compCode, ...data };
+        let nextLedgersOffline: any[] = [];
+        setAllLedgers(p => {
+          nextLedgersOffline = [...p, localLedger];
+          return nextLedgersOffline;
+        });
+        companyDataFolderService.saveCompanyFolder({
+          companyCode: compCode,
+          company: activeCompany,
+          ledgers: nextLedgersOffline,
+        }).catch(() => {});
         offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
         if (!isInitializingRef.current) {
           setSaveToast("Ledger saved locally (Offline Mode • Will auto-sync)");
@@ -2704,10 +2805,10 @@ export default function App() {
 
         if (navigator.onLine) {
           try {
-            const res = await fetch('/api/stock-items', {
+            const res = await fetch(`/api/stock-items?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ companyId: cid, ...data, unit: resolvedUnit, unitName: resolvedUnit })
+              body: JSON.stringify({ companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit })
             });
             if (res.ok) {
               const resData = await res.json();
@@ -2716,7 +2817,16 @@ export default function App() {
                 unit: resData.item?.unit || resData.item?.unitName || resolvedUnit,
                 unitName: resData.item?.unitName || resData.item?.unit || resolvedUnit,
               };
-              setAllStockItems(p => [...p, finalItem]);
+              let nextItems: any[] = [];
+              setAllStockItems(p => {
+                nextItems = [...p, finalItem];
+                return nextItems;
+              });
+              companyDataFolderService.saveCompanyFolder({
+                companyCode: compCode,
+                company: activeCompany,
+                stockItems: nextItems,
+              }).catch(() => {});
               return finalItem;
             } else {
               const errData = await res.json().catch(() => ({}));
@@ -2728,8 +2838,17 @@ export default function App() {
             console.warn("Online stock item save failed, saving offline locally:", e);
           }
         }
-        const localItem = { id, companyId: cid, ...data, unit: resolvedUnit, unitName: resolvedUnit };
-        setAllStockItems(p => [...p, localItem]);
+        const localItem = { id, companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit };
+        let nextItemsOffline: any[] = [];
+        setAllStockItems(p => {
+          nextItemsOffline = [...p, localItem];
+          return nextItemsOffline;
+        });
+        companyDataFolderService.saveCompanyFolder({
+          companyCode: compCode,
+          company: activeCompany,
+          stockItems: nextItemsOffline,
+        }).catch(() => {});
         offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
         if (!isInitializingRef.current) {
           setSaveToast("Stock item saved locally (Offline Mode • Will auto-sync)");
@@ -2982,15 +3101,16 @@ export default function App() {
 
   const deleteVoucher = async (id: number) => {
     const companyId = activeCompany?.id || 0;
+    const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
     try {
       if (navigator.onLine) {
-        await fetch('/api/vouchers', {
+        await fetch(`/api/vouchers?id=${encodeURIComponent(id)}&companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(companyId)}`, {
           method: 'DELETE',
           headers: { 
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${authClient.getToken()}`
           },
-          body: JSON.stringify({ id })
+          body: JSON.stringify({ id, companyId, companyCode: compCode })
         });
       } else {
         offlineSyncService.enqueue({
@@ -3010,23 +3130,33 @@ export default function App() {
       });
     }
 
-    setAllVouchers(p => p.filter(x => x.id !== id));
+    let nextVouchers: any[] = [];
+    setAllVouchers(p => {
+      nextVouchers = p.filter(x => x.id !== id);
+      return nextVouchers;
+    });
+    companyDataFolderService.saveCompanyFolder({
+      companyCode: compCode,
+      company: activeCompany,
+      vouchers: nextVouchers,
+    }).catch(() => {});
     goBack();
   };
 
   const saveVoucher = async (v: any): Promise<Voucher> => {
     const token = authClient.getToken();
     const companyId = activeCompany?.id || 0;
+    const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
 
     // A voucher is an Edit if it has a numeric ID that's not a temporary timestamp
     const isEdit = v.id && !isNaN(Number(v.id)) && Number(v.id) < 1000000000000; 
 
     if (navigator.onLine) {
       try {
-        const res = await fetch('/api/vouchers', {
+        const res = await fetch(`/api/vouchers?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(companyId)}`, {
           method: isEdit ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ ...v, companyId })
+          body: JSON.stringify({ ...v, companyId, companyCode: compCode })
         });
         if (res.ok) {
           const resData = await res.json();
@@ -3098,12 +3228,24 @@ export default function App() {
             partyName: finalSavedPartyName,
             date: formatDateToTally(vRaw.date || v.date) || v.date
           };
+          let nextVouchers: any[] = [];
           if (isEdit) {
-            setAllVouchers(p => p.map(x => x.id === v.id ? savedV : x));
+            setAllVouchers(p => {
+              nextVouchers = p.map(x => x.id === v.id ? savedV : x);
+              return nextVouchers;
+            });
           } else {
-            setAllVouchers(p => [...p, savedV]);
+            setAllVouchers(p => {
+              nextVouchers = [...p, savedV];
+              return nextVouchers;
+            });
           }
           setPrintVoucher(savedV);
+          companyDataFolderService.saveCompanyFolder({
+            companyCode: compCode,
+            company: activeCompany,
+            vouchers: nextVouchers,
+          }).catch(() => {});
           return savedV;
         }
       } catch (cloudErr) {
@@ -3136,12 +3278,24 @@ export default function App() {
     });
 
     // 2. Save locally in state & local storage
+    let nextOfflineVouchers: any[] = [];
     if (v.id) {
-      setAllVouchers(p => p.map(x => x.id === v.id ? newV : x));
+      setAllVouchers(p => {
+        nextOfflineVouchers = p.map(x => x.id === v.id ? newV : x);
+        return nextOfflineVouchers;
+      });
     } else {
-      setAllVouchers(p => [...p, newV]);
+      setAllVouchers(p => {
+        nextOfflineVouchers = [...p, newV];
+        return nextOfflineVouchers;
+      });
     }
     setPrintVoucher(newV);
+    companyDataFolderService.saveCompanyFolder({
+      companyCode: compCode,
+      company: activeCompany,
+      vouchers: nextOfflineVouchers,
+    }).catch(() => {});
     setSaveToast("Saved locally on PC (Offline Mode • Will auto-sync online)");
     return newV;
   };

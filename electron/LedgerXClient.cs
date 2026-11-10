@@ -46,7 +46,7 @@ namespace LedgerXClient
             string activeHost = null;
 
             // 0. Instant direct check on known Host IPs (e.g. 192.168.240.48 or loopback)
-            string[] directHosts = new string[] { "192.168.240.48", "127.0.0.1", "192.168.1.205", "192.168.240.205" };
+            string[] directHosts = new string[] { "192.168.240.48", "127.0.0.1", "192.168.240.205", "192.168.1.205" };
             foreach (string direct in directHosts)
             {
                 if (IsHostAlive(direct, 45454))
@@ -141,7 +141,7 @@ namespace LedgerXClient
                 using (TcpClient client = new TcpClient())
                 {
                     var result = client.BeginConnect(ip, port, null, null);
-                    bool success = result.AsyncWaitHandle.WaitOne(400);
+                    bool success = result.AsyncWaitHandle.WaitOne(1000);
                     if (!success) return false;
                     client.EndConnect(result);
                     return true;
@@ -258,7 +258,7 @@ namespace LedgerXClient
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = browser;
-                psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --start-fullscreen --no-default-browser-check --no-first-run", url, profileDir);
+                psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run", url, profileDir);
                 psi.WindowStyle = ProcessWindowStyle.Maximized;
                 psi.UseShellExecute = true;
                 Process.Start(psi);

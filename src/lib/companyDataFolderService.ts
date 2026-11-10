@@ -44,13 +44,13 @@ export function getBridgeBaseUrl(): string {
         localStorage.setItem('ledgerx_lan_host_ip', hostParam.trim());
         return `http://${hostParam.trim()}:45454`;
       }
-    } catch (e) {}
+    } catch (e) { }
     try {
       const savedHost = localStorage.getItem('ledgerx_lan_host_ip');
       if (savedHost && savedHost !== 'localhost' && savedHost !== '127.0.0.1') {
         return `http://${savedHost}:45454`;
       }
-    } catch (e) {}
+    } catch (e) { }
     if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && !window.location.hostname.includes('vercel.app') && !window.location.hostname.includes('ledgerxerp.com')) {
       return `http://${window.location.hostname}:45454`;
     }
@@ -117,7 +117,7 @@ class CompanyDataFolderService {
             return json.nextCode;
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 2. Calculate from existingCompanies and cached codes
@@ -173,7 +173,7 @@ class CompanyDataFolderService {
       try {
         await (window as any).desktopBridge.openDataFolder(companyCode);
         return true;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 2. C# Launcher HTTP bridge (test both 127.0.0.1 and localhost)
@@ -189,7 +189,7 @@ class CompanyDataFolderService {
         });
         clearTimeout(timeoutId);
         if (res.ok) return true;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 3. Local Next.js API (if running local Next server)
@@ -199,7 +199,7 @@ class CompanyDataFolderService {
       const res = await fetch(`/api/local-data/open-folder${q}`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (res.ok) return true;
-    } catch (e) {}
+    } catch (e) { }
 
     // 4. Browser File System Access API (Allow user to pick / open folder in Explorer dialog)
     try {
@@ -224,14 +224,14 @@ class CompanyDataFolderService {
           const j = await r.json();
           if (j.dataDir) { actualDataPath = j.dataDir; break; }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(actualDataPath);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     alert(
       `📂 Local Company Data Folder:\n\n${actualDataPath}\n\n(Path copied to clipboard!)\n\n` +
@@ -254,18 +254,30 @@ class CompanyDataFolderService {
 
     const code = (data.companyCode || this.getCompanyFolderCode(data.company)).toUpperCase();
     const existing = this.loadFromLocalCache(code);
+    let unwrappedCompany = {
+      ...(existing?.company || {}),
+      ...data.company,
+      companyCode: code,
+    };
+    for (let depth = 0; depth < 5 && unwrappedCompany && typeof unwrappedCompany === 'object'; depth++) {
+      if (unwrappedCompany.company && typeof unwrappedCompany.company === 'object' && unwrappedCompany.company !== unwrappedCompany) {
+        const inner = unwrappedCompany.company;
+        const shallow = { ...unwrappedCompany };
+        delete shallow.company;
+        unwrappedCompany = { ...inner, ...shallow };
+      } else {
+        break;
+      }
+    }
+
     const cleanData: CompanyFolderData = {
       ...existing,
       ...data,
       companyCode: code,
-      company: {
-        ...(existing?.company || {}),
-        ...data.company,
-        companyCode: code,
-      },
+      company: unwrappedCompany,
       ledgers: data.ledgers !== undefined ? data.ledgers : (existing?.ledgers || []),
       vouchers: data.vouchers !== undefined ? data.vouchers : (existing?.vouchers || []),
-      stockItems: data.stockItems !== undefined ? data.stockItems : (existing?.stockItems || []),
+      stockItems: (Array.isArray(data.stockItems) && data.stockItems.length > 0) ? data.stockItems : (existing?.stockItems || []),
       stockGroups: data.stockGroups !== undefined ? data.stockGroups : (existing?.stockGroups || []),
       units: data.units !== undefined ? data.units : (existing?.units || []),
       groups: data.groups !== undefined ? data.groups : (existing?.groups || []),
@@ -273,17 +285,17 @@ class CompanyDataFolderService {
       purchaseOrders: data.purchaseOrders !== undefined ? data.purchaseOrders : (existing?.purchaseOrders || []),
       boms: data.boms !== undefined ? data.boms : (existing?.boms || []),
       manufacturingJournals: data.manufacturingJournals !== undefined ? data.manufacturingJournals : (existing?.manufacturingJournals || []),
-      users: data.users !== undefined ? data.users : (existing?.users || []),
-      posPurchaseList: data.posPurchaseList !== undefined
+      users: (Array.isArray(data.users) && data.users.length > 0) ? data.users : (existing?.users || []),
+      posPurchaseList: (Array.isArray(data.posPurchaseList) && data.posPurchaseList.length > 0)
         ? data.posPurchaseList
-        : (existing?.posPurchaseList !== undefined
-            ? existing.posPurchaseList
-            : (() => {
-                try {
-                  const raw = localStorage.getItem(`ledgerx_pos_purchase_list_${code}`);
-                  return raw ? JSON.parse(raw) : [];
-                } catch (_) { return []; }
-              })()),
+        : ((existing?.posPurchaseList && existing.posPurchaseList.length > 0)
+          ? existing.posPurchaseList
+          : (() => {
+            try {
+              const raw = localStorage.getItem(`ledgerx_pos_purchase_list_${code}`);
+              return raw ? JSON.parse(raw) : [];
+            } catch (_) { return []; }
+          })()),
     };
 
     // 1. Electron bridge
@@ -292,7 +304,7 @@ class CompanyDataFolderService {
         await (window as any).desktopBridge.saveCompanyFolder(cleanData);
         this.saveToLocalCache(code, cleanData);
         return true;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 2. C# Launcher HTTP bridge
@@ -328,13 +340,13 @@ class CompanyDataFolderService {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(fVal, null, 2),
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
 
         this.saveToLocalCache(code, cleanData);
         return true;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 3. Local Next.js API
@@ -348,7 +360,7 @@ class CompanyDataFolderService {
         this.saveToLocalCache(code, cleanData);
         return true;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // 4. Client-side LocalStorage cache (always available fallback)
     this.saveToLocalCache(code, cleanData);
@@ -367,7 +379,7 @@ class CompanyDataFolderService {
       try {
         const data = await (window as any).desktopBridge.loadCompanyFolder(code);
         if (data && data.company) return data;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 2. C# Launcher HTTP bridge
@@ -393,7 +405,7 @@ class CompanyDataFolderService {
             return data;
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 3. Local Next.js API
@@ -403,7 +415,7 @@ class CompanyDataFolderService {
         const data = await res.json();
         if (data && data.company) return data;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // 4. LocalStorage cache fallback
     return this.loadFromLocalCache(code);
@@ -423,7 +435,7 @@ class CompanyDataFolderService {
       try {
         const res = await (window as any).desktopBridge.scanCompanyFolders();
         if (Array.isArray(res) && res.length > 0) scanned = res;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 2. C# Launcher HTTP bridge
@@ -447,6 +459,7 @@ class CompanyDataFolderService {
               }
               return {
                 companyCode: item.companyCode,
+                ...co,
                 company: {
                   ...co,
                   companyCode: item.companyCode,
@@ -455,7 +468,7 @@ class CompanyDataFolderService {
             });
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 3. Local Next.js API
@@ -468,7 +481,7 @@ class CompanyDataFolderService {
             scanned = json.companies;
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 4. Merge with LocalStorage index
@@ -496,7 +509,7 @@ class CompanyDataFolderService {
         codes.push(code);
         localStorage.setItem('ledgerx_company_folders_index', JSON.stringify(codes));
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   private loadFromLocalCache(code: string): CompanyFolderData | null {

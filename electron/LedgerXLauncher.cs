@@ -12,6 +12,9 @@ using System.Threading;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Net.NetworkInformation;
+using System.Collections;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
 
 [assembly: AssemblyTitle("LedgerX Desktop")]
 [assembly: AssemblyDescription("LedgerX Desktop Offline Accounting Client")]
@@ -193,8 +196,9 @@ namespace LedgerXLauncher
                 }
 
                 // 6. KEEP THE PROCESS AND NETWORK SERVICES ALIVE CONTINUOUSLY WITH DEDICATED MESSAGE PUMP!
-                Log("Entering Application.Run(new BackgroundHostForm())...");
-                Application.Run(new BackgroundHostForm());
+                Log("Entering Application.Run(new ApplicationContext())...");
+                ApplicationContext appContext = new ApplicationContext();
+                Application.Run(appContext);
                 Log("Application.Run exited!");
             }
             catch (Exception ex)
@@ -770,33 +774,97 @@ namespace LedgerXLauncher
                     return;
                 }
 
+                if (path == "/api/vouchers")
+                {
+                    HandleArrayMasterRequest(req, res, dataDir, "vouchers.json", "vouchers");
+                    return;
+                }
+
+                if (path == "/api/stock-items")
+                {
+                    HandleArrayMasterRequest(req, res, dataDir, "stock_items.json", "stockItems");
+                    return;
+                }
+
+                if (path == "/api/ledgers")
+                {
+                    HandleArrayMasterRequest(req, res, dataDir, "ledgers.json", "ledgers");
+                    return;
+                }
+
+                if (path == "/api/units")
+                {
+                    HandleArrayMasterRequest(req, res, dataDir, "units.json", "units");
+                    return;
+                }
+
+                if (path == "/api/stock-groups")
+                {
+                    HandleArrayMasterRequest(req, res, dataDir, "stock_groups.json", "stockGroups");
+                    return;
+                }
+
+                if (path == "/api/purchase-orders")
+                {
+                    HandleArrayMasterRequest(req, res, dataDir, "purchase_orders.json", "purchaseOrders");
+                    return;
+                }
+
                 if (path == "/api/companies")
                 {
-                    StringBuilder sb = new StringBuilder();
-                    sb.Append("{\"companies\":[");
-                    bool first = true;
+                    JavaScriptSerializer js = new JavaScriptSerializer();
+                    js.MaxJsonLength = 50 * 1024 * 1024;
+                    List<Dictionary<string, object>> companies = new List<Dictionary<string, object>>();
                     if (Directory.Exists(dataDir))
                     {
                         foreach (string dir in Directory.GetDirectories(dataDir))
                         {
                             string folderName = Path.GetFileName(dir).ToUpper();
-                            if (folderName == "TRAINING") continue; // Keep training sandbox isolated to POS Training Mode
-                            string cJson = Path.Combine(dir, "company.json");
-                            if (File.Exists(cJson))
+                            if (folderName == "TRAINING") continue;
+                            string cJsonFile = Path.Combine(dir, "company.json");
+                            if (File.Exists(cJsonFile))
                             {
                                 try
                                 {
-                                    string json = File.ReadAllText(cJson);
-                                    if (!first) sb.Append(",");
-                                    sb.Append("{\"companyCode\":\"" + folderName + "\",\"company\":" + json + "}");
-                                    first = false;
+                                    string txt = File.ReadAllText(cJsonFile);
+                                    object parsed = js.DeserializeObject(txt);
+                                    Dictionary<string, object> co = parsed as Dictionary<string, object>;
+                                    if (co != null)
+                                    {
+                                        while (co.ContainsKey("company") && co["company"] is Dictionary<string, object>)
+                                        {
+                                            Dictionary<string, object> inner = (Dictionary<string, object>)co["company"];
+                                            co.Remove("company");
+                                            foreach (var kvp in inner)
+                                            {
+                                                if (!co.ContainsKey(kvp.Key)) co[kvp.Key] = kvp.Value;
+                                            }
+                                        }
+
+                                        co["companyCode"] = folderName;
+                                        if (!co.ContainsKey("id") || co["id"] == null)
+                                        {
+                                            int parsedCode;
+                                            if (int.TryParse(folderName, out parsedCode))
+                                            {
+                                                co["id"] = parsedCode - 10000 + 4;
+                                            }
+                                        }
+
+                                        Dictionary<string, object> itemWrapper = new Dictionary<string, object>(co);
+                                        itemWrapper["companyCode"] = folderName;
+                                        itemWrapper["company"] = co;
+
+                                        companies.Add(itemWrapper);
+                                    }
                                 }
                                 catch { }
                             }
                         }
                     }
-                    sb.Append("]}");
-                    WriteJsonResponse(res, sb.ToString());
+                    Dictionary<string, object> resObj = new Dictionary<string, object>();
+                    resObj["companies"] = companies;
+                    WriteJsonResponse(res, js.Serialize(resObj));
                     return;
                 }
 
@@ -857,7 +925,36 @@ namespace LedgerXLauncher
 
                         lock (_fileLock)
                         {
-                            ExtractAndWrite(body, "company", Path.Combine(cDir, "company.json"), "{}");
+                            try
+                            {
+                                JavaScriptSerializer jsComp = new JavaScriptSerializer();
+                                object parsedComp = jsComp.DeserializeObject(body);
+                                Dictionary<string, object> dComp = parsedComp as Dictionary<string, object>;
+                                if (dComp != null && dComp.ContainsKey("company") && dComp["company"] is Dictionary<string, object>)
+                                {
+                                    Dictionary<string, object> coObj = (Dictionary<string, object>)dComp["company"];
+                                    while (coObj.ContainsKey("company") && coObj["company"] is Dictionary<string, object>)
+                                    {
+                                        Dictionary<string, object> innerCo = (Dictionary<string, object>)coObj["company"];
+                                        coObj.Remove("company");
+                                        foreach (var kvp in innerCo)
+                                        {
+                                            if (!coObj.ContainsKey(kvp.Key)) coObj[kvp.Key] = kvp.Value;
+                                        }
+                                    }
+                                    coObj["companyCode"] = code;
+                                    File.WriteAllText(Path.Combine(cDir, "company.json"), jsComp.Serialize(coObj));
+                                }
+                                else
+                                {
+                                    ExtractAndWrite(body, "company", Path.Combine(cDir, "company.json"), "{}");
+                                }
+                            }
+                            catch
+                            {
+                                ExtractAndWrite(body, "company", Path.Combine(cDir, "company.json"), "{}");
+                            }
+
                             ExtractAndWrite(body, "ledgers", Path.Combine(cDir, "ledgers.json"), "[]");
                             ExtractAndWrite(body, "vouchers", Path.Combine(cDir, "vouchers.json"), "[]");
                             ExtractAndWrite(body, "stockItems", Path.Combine(cDir, "stock_items.json"), "[]");
@@ -990,6 +1087,319 @@ namespace LedgerXLauncher
                 res.OutputStream.Close();
             }
             catch { }
+        }
+
+        private static string ResolveCompanyDir(string dataDir, string code, string companyId, string body)
+        {
+            if (string.IsNullOrEmpty(code) && !string.IsNullOrEmpty(companyId))
+            {
+                code = companyId;
+            }
+            if (string.IsNullOrEmpty(code) && !string.IsNullOrEmpty(body))
+            {
+                try
+                {
+                    JavaScriptSerializer js = new JavaScriptSerializer();
+                    object parsed = js.DeserializeObject(body);
+                    Dictionary<string, object> d = parsed as Dictionary<string, object>;
+                    if (d != null)
+                    {
+                        if (d.ContainsKey("companyCode") && d["companyCode"] != null)
+                        {
+                            code = d["companyCode"].ToString();
+                        }
+                        else if (d.ContainsKey("companyId") && d["companyId"] != null)
+                        {
+                            code = d["companyId"].ToString();
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (!string.IsNullOrEmpty(code))
+            {
+                string trimmed = code.Trim().ToUpper();
+                string direct = Path.Combine(dataDir, trimmed);
+                if (Directory.Exists(direct)) return direct;
+
+                if (Directory.Exists(dataDir))
+                {
+                    foreach (string dir in Directory.GetDirectories(dataDir))
+                    {
+                        string cFile = Path.Combine(dir, "company.json");
+                        if (File.Exists(cFile))
+                        {
+                            try
+                            {
+                                string txt = File.ReadAllText(cFile);
+                                JavaScriptSerializer js = new JavaScriptSerializer();
+                                Dictionary<string, object> co = js.DeserializeObject(txt) as Dictionary<string, object>;
+                                if (co != null)
+                                {
+                                    if (co.ContainsKey("id") && co["id"] != null && co["id"].ToString() == trimmed)
+                                    {
+                                        return dir;
+                                    }
+                                    if (co.ContainsKey("companyCode") && co["companyCode"] != null && co["companyCode"].ToString().ToUpper() == trimmed)
+                                    {
+                                        return dir;
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
+                if (trimmed.Length >= 4 && char.IsDigit(trimmed[0]))
+                {
+                    try { Directory.CreateDirectory(direct); return direct; } catch { }
+                }
+            }
+
+            string defDir = Path.Combine(dataDir, "10000");
+            if (!Directory.Exists(defDir))
+            {
+                try { Directory.CreateDirectory(defDir); } catch { }
+            }
+            return defDir;
+        }
+
+        private static void HandleArrayMasterRequest(HttpListenerRequest req, HttpListenerResponse res, string dataDir, string fileName, string itemKey)
+        {
+            string code = req.QueryString["code"];
+            if (string.IsNullOrEmpty(code)) code = req.QueryString["companyCode"];
+            string companyId = req.QueryString["companyId"];
+            string body = null;
+            if (req.HttpMethod == "POST" || req.HttpMethod == "PUT" || req.HttpMethod == "DELETE")
+            {
+                using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
+                {
+                    body = reader.ReadToEnd();
+                }
+            }
+
+            string cDir = ResolveCompanyDir(dataDir, code, companyId, body);
+            if (!Directory.Exists(cDir))
+            {
+                try { Directory.CreateDirectory(cDir); } catch { }
+            }
+            string filePath = Path.Combine(cDir, fileName);
+
+            JavaScriptSerializer js = new JavaScriptSerializer();
+            js.MaxJsonLength = 50 * 1024 * 1024;
+
+            lock (_fileLock)
+            {
+                List<object> list = new List<object>();
+                if (File.Exists(filePath))
+                {
+                    try
+                    {
+                        string existing = File.ReadAllText(filePath);
+                        if (!string.IsNullOrEmpty(existing.Trim()))
+                        {
+                            object parsed = js.DeserializeObject(existing);
+                            if (parsed is object[])
+                            {
+                                list = new List<object>((object[])parsed);
+                            }
+                            else if (parsed is ArrayList)
+                            {
+                                list = new List<object>(((ArrayList)parsed).ToArray());
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                if (req.HttpMethod == "GET")
+                {
+                    Dictionary<string, object> ret = new Dictionary<string, object>();
+                    ret["success"] = true;
+                    ret[itemKey] = list;
+                    ret["companyCode"] = Path.GetFileName(cDir);
+                    WriteJsonResponse(res, js.Serialize(ret));
+                    return;
+                }
+
+                if (req.HttpMethod == "POST")
+                {
+                    object rawItem = js.DeserializeObject(body);
+                    Dictionary<string, object> itemDict = rawItem as Dictionary<string, object>;
+                    if (itemDict == null && rawItem is object[])
+                    {
+                        list = new List<object>((object[])rawItem);
+                        string tmp = filePath + ".tmp." + Guid.NewGuid().ToString("N");
+                        File.WriteAllText(tmp, js.Serialize(list));
+                        if (File.Exists(filePath)) File.Delete(filePath);
+                        File.Move(tmp, filePath);
+
+                        Dictionary<string, object> bRet = new Dictionary<string, object>();
+                        bRet["success"] = true;
+                        bRet["count"] = list.Count;
+                        bRet[itemKey] = list;
+                        WriteJsonResponse(res, js.Serialize(bRet));
+                        return;
+                    }
+
+                    if (itemDict != null)
+                    {
+                        string singleKey = itemKey.EndsWith("s") ? itemKey.Substring(0, itemKey.Length - 1) : itemKey;
+                        if (itemKey == "stockItems") singleKey = "item";
+                        if (itemKey == "stockGroups") singleKey = "group";
+
+                        if (itemDict.ContainsKey(singleKey) && itemDict[singleKey] is Dictionary<string, object>)
+                        {
+                            itemDict = (Dictionary<string, object>)itemDict[singleKey];
+                        }
+
+                        if (!itemDict.ContainsKey("id") || itemDict["id"] == null || Convert.ToInt64(itemDict["id"]) <= 0)
+                        {
+                            itemDict["id"] = DateTime.UtcNow.Ticks;
+                        }
+                        long newId = Convert.ToInt64(itemDict["id"]);
+
+                        int existingIdx = -1;
+                        for (int i = 0; i < list.Count; i++)
+                        {
+                            Dictionary<string, object> d = list[i] as Dictionary<string, object>;
+                            if (d != null && d.ContainsKey("id") && Convert.ToInt64(d["id"]) == newId)
+                            {
+                                existingIdx = i;
+                                break;
+                            }
+                        }
+
+                        if (existingIdx >= 0)
+                        {
+                            list[existingIdx] = itemDict;
+                        }
+                        else
+                        {
+                            list.Add(itemDict);
+                        }
+
+                        string tmp = filePath + ".tmp." + Guid.NewGuid().ToString("N");
+                        File.WriteAllText(tmp, js.Serialize(list));
+                        if (File.Exists(filePath)) File.Delete(filePath);
+                        File.Move(tmp, filePath);
+
+                        Dictionary<string, object> ret = new Dictionary<string, object>();
+                        ret["success"] = true;
+                        ret[singleKey] = itemDict;
+                        ret[itemKey] = itemDict;
+                        ret["voucher"] = itemDict;
+                        ret["item"] = itemDict;
+                        ret["ledger"] = itemDict;
+                        WriteJsonResponse(res, js.Serialize(ret));
+                        return;
+                    }
+                }
+
+                if (req.HttpMethod == "PUT")
+                {
+                    object rawItem = js.DeserializeObject(body);
+                    Dictionary<string, object> itemDict = rawItem as Dictionary<string, object>;
+                    if (itemDict != null)
+                    {
+                        string singleKey = itemKey.EndsWith("s") ? itemKey.Substring(0, itemKey.Length - 1) : itemKey;
+                        if (itemKey == "stockItems") singleKey = "item";
+                        if (itemKey == "stockGroups") singleKey = "group";
+
+                        if (itemDict.ContainsKey(singleKey) && itemDict[singleKey] is Dictionary<string, object>)
+                        {
+                            itemDict = (Dictionary<string, object>)itemDict[singleKey];
+                        }
+
+                        if (itemDict.ContainsKey("id") && itemDict["id"] != null)
+                        {
+                            long targetId = Convert.ToInt64(itemDict["id"]);
+                            int foundIdx = -1;
+                            for (int i = 0; i < list.Count; i++)
+                            {
+                                Dictionary<string, object> d = list[i] as Dictionary<string, object>;
+                                if (d != null && d.ContainsKey("id") && Convert.ToInt64(d["id"]) == targetId)
+                                {
+                                    foundIdx = i;
+                                    break;
+                                }
+                            }
+
+                            if (foundIdx >= 0)
+                            {
+                                Dictionary<string, object> existingDict = list[foundIdx] as Dictionary<string, object>;
+                                foreach (var kvp in itemDict)
+                                {
+                                    existingDict[kvp.Key] = kvp.Value;
+                                }
+                                list[foundIdx] = existingDict;
+                            }
+                            else
+                            {
+                                list.Add(itemDict);
+                            }
+
+                            string tmp = filePath + ".tmp." + Guid.NewGuid().ToString("N");
+                            File.WriteAllText(tmp, js.Serialize(list));
+                            if (File.Exists(filePath)) File.Delete(filePath);
+                            File.Move(tmp, filePath);
+
+                            Dictionary<string, object> ret = new Dictionary<string, object>();
+                            ret["success"] = true;
+                            object finalObj = (foundIdx >= 0 ? list[foundIdx] : itemDict);
+                            ret[singleKey] = finalObj;
+                            ret[itemKey] = finalObj;
+                            ret["voucher"] = finalObj;
+                            ret["item"] = finalObj;
+                            ret["ledger"] = finalObj;
+                            WriteJsonResponse(res, js.Serialize(ret));
+                            return;
+                        }
+                    }
+                }
+
+                if (req.HttpMethod == "DELETE")
+                {
+                    long delId = 0;
+                    if (!string.IsNullOrEmpty(req.QueryString["id"]))
+                    {
+                        long.TryParse(req.QueryString["id"], out delId);
+                    }
+                    if (delId == 0 && !string.IsNullOrEmpty(body))
+                    {
+                        try
+                        {
+                            object parsed = js.DeserializeObject(body);
+                            Dictionary<string, object> d = parsed as Dictionary<string, object>;
+                            if (d != null && d.ContainsKey("id") && d["id"] != null)
+                            {
+                                long.TryParse(d["id"].ToString(), out delId);
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (delId > 0)
+                    {
+                        list.RemoveAll(x => {
+                            Dictionary<string, object> d = x as Dictionary<string, object>;
+                            return d != null && d.ContainsKey("id") && Convert.ToInt64(d["id"]) == delId;
+                        });
+
+                        string tmp = filePath + ".tmp." + Guid.NewGuid().ToString("N");
+                        File.WriteAllText(tmp, js.Serialize(list));
+                        if (File.Exists(filePath)) File.Delete(filePath);
+                        File.Move(tmp, filePath);
+
+                        WriteJsonResponse(res, "{\"success\":true,\"deleted\":" + delId + "}");
+                        return;
+                    }
+                }
+            }
+
+            WriteJsonResponse(res, "{\"success\":true}");
         }
 
         private static void ExtractAndWrite(string json, string key, string targetFile, string defVal)

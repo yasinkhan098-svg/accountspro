@@ -39,7 +39,7 @@ if (!fs.existsSync(downloadsDir)) {
 }
 
 console.log('\n=== Step 2: Compiling LedgerX.exe with embedded Win32 Icon & Manifest ===');
-const launcherCmd = `"${cscPath}" /target:winexe /optimize+ /win32icon:"${icoPath}" /win32manifest:"${manifestPath}" /out:"${launcherExePath}" "${launcherCsPath}"`;
+const launcherCmd = `"${cscPath}" /target:winexe /optimize+ /r:System.Web.Extensions.dll /win32icon:"${icoPath}" /win32manifest:"${manifestPath}" /out:"${launcherExePath}" "${launcherCsPath}"`;
 console.log('Executing:', launcherCmd);
 execSync(launcherCmd, { stdio: 'inherit' });
 
