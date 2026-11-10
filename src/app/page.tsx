@@ -2609,10 +2609,11 @@ export default function App() {
                 nextStockItems = p.map(x => x.id === targetItem.id ? finalItem : x);
                 return nextStockItems;
               });
+              const companyStockUpdated = nextStockItems.filter(si => isCoMatch(si, activeCompany));
               companyDataFolderService.saveCompanyFolder({
                 companyCode: compCode,
                 company: activeCompany,
-                stockItems: nextStockItems,
+                stockItems: companyStockUpdated,
               }).catch(() => {});
               return finalItem;
             } else {
@@ -2632,10 +2633,11 @@ export default function App() {
           nextStockOffline = p.map(x => x.id === targetItem.id ? updated : x);
           return nextStockOffline;
         });
+        const companyStockOffline = nextStockOffline.filter(si => isCoMatch(si, activeCompany));
         companyDataFolderService.saveCompanyFolder({
           companyCode: compCode,
           company: activeCompany,
-          stockItems: nextStockOffline,
+          stockItems: companyStockOffline,
         }).catch(() => {});
         offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: updated, companyId: cid });
         if (!isInitializingRef.current) {
@@ -2841,10 +2843,11 @@ export default function App() {
                 nextItems = [...p, finalItem];
                 return nextItems;
               });
+              const companyStockCreated = nextItems.filter(si => isCoMatch(si, activeCompany));
               companyDataFolderService.saveCompanyFolder({
                 companyCode: compCode,
                 company: activeCompany,
-                stockItems: nextItems,
+                stockItems: companyStockCreated,
               }).catch(() => {});
               return finalItem;
             } else {
@@ -2863,10 +2866,11 @@ export default function App() {
           nextItemsOffline = [...p, localItem];
           return nextItemsOffline;
         });
+        const companyStockCreatedOffline = nextItemsOffline.filter(si => isCoMatch(si, activeCompany));
         companyDataFolderService.saveCompanyFolder({
           companyCode: compCode,
           company: activeCompany,
-          stockItems: nextItemsOffline,
+          stockItems: companyStockCreatedOffline,
         }).catch(() => {});
         offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
         if (!isInitializingRef.current) {

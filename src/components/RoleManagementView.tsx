@@ -376,6 +376,11 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                 </span>
                 <span style={{ fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '1px 6px', borderRadius: 4, fontWeight: 'bold' }}>UDP 45455 BEACON</span>
               </div>
+              <div style={{ fontSize: 11, color: '#0369a1', marginTop: 5, background: '#e0f2fe', padding: '4px 8px', borderRadius: 4, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🌐 Browser URL:</span>
+                <code style={{ color: '#0369a1', background: '#fff', padding: '1px 5px', borderRadius: 3, border: '1px solid #bae6fd' }}>{hostInfo?.lanUrl ? `${hostInfo.lanUrl}/?lan_client=1` : 'http://192.168.240.48:45454/?lan_client=1'}</code>
+                <span style={{ fontSize: 10, color: '#64748b', fontWeight: 'normal' }}>(Port 45454 is required)</span>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>

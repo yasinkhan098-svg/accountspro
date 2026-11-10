@@ -305,6 +305,56 @@ class CompanyDataFolderService {
       posPurchaseList: data.posPurchaseList !== undefined ? data.posPurchaseList : (existing?.posPurchaseList || []),
     };
 
+    // Bi-directional Auto-Sync between stockItems and posPurchaseList:
+    if (Array.isArray(cleanData.stockItems) && cleanData.stockItems.length > 0 && (!cleanData.posPurchaseList || cleanData.posPurchaseList.length === 0)) {
+      cleanData.posPurchaseList = cleanData.stockItems.map((si: any, idx: number) => ({
+        id: si.id || Date.now() + idx,
+        sNo: idx + 1,
+        name: si.name,
+        purchasePrice: Number(si.purchasePrice || si.openingRate || 0),
+        newPurchasePrice: 0,
+        expiryDate: si.expiryDate || '',
+        cessPerc: Number(si.cessPerc || si.cessRate || 0),
+        openingStock: Number(si.openingStock ?? si.openingQty ?? si.stock ?? 0),
+        barcode: String(si.barcode || si.partNumber || si.alias || '').trim() || String(8900000000 + (si.id || idx)),
+        mrp: Number(si.mrp || 0),
+        discountPerc: Number(si.defaultDiscount || si.discountPerc || 0),
+        discountAmt: Number(si.discountAmt || 0),
+        retailSalePrice: Number(si.retailSalePrice || si.rateInclTax || si.mrp || 0),
+        unit: si.unit || si.unitName || 'PCS',
+        gstRate: Number(si.gstRate || 18),
+        variant: si.variant || (Array.isArray(si.variants) && si.variants[0]) || '',
+        variants: si.variants || (si.variant ? [si.variant] : []),
+        companyCode: code,
+        companyId: unwrappedCompany?.id || code,
+      }));
+    } else if (Array.isArray(cleanData.posPurchaseList) && cleanData.posPurchaseList.length > 0 && (!cleanData.stockItems || cleanData.stockItems.length === 0)) {
+      cleanData.stockItems = cleanData.posPurchaseList.map((p: any, idx: number) => ({
+        id: p.id || Date.now() + idx,
+        companyId: unwrappedCompany?.id || code,
+        companyCode: code,
+        name: p.name,
+        alias: p.barcode || '',
+        partNumber: p.barcode || '',
+        barcode: p.barcode || '',
+        groupName: p.variant || 'Primary',
+        categoryName: 'Primary',
+        unit: p.unit || 'PCS',
+        unitName: p.unit || 'PCS',
+        gstRate: Number(p.gstRate || 18),
+        cessRate: Number(p.cessPerc || 0),
+        mrp: Number(p.mrp || 0),
+        retailSalePrice: Number(p.retailSalePrice || p.mrp || 0),
+        rateInclTax: Number(p.retailSalePrice || p.mrp || 0),
+        openingQty: Number(p.openingStock || 0),
+        openingRate: Number(p.purchasePrice || 0),
+        openingValue: Number(p.openingStock || 0) * Number(p.purchasePrice || 0),
+        variant: p.variant || '',
+        variants: p.variants || (p.variant ? [p.variant] : []),
+        expiryDate: p.expiryDate || '',
+      }));
+    }
+
     // 1. Electron bridge
     if ((window as any).desktopBridge?.saveCompanyFolder) {
       try {
@@ -381,6 +431,101 @@ class CompanyDataFolderService {
     return true;
   }
 
+  private normalizeFolderData(code: string, data: any): CompanyFolderData {
+    if (!data) return data;
+    let co = data.company;
+    for (let depth = 0; depth < 5 && co && typeof co === 'object'; depth++) {
+      if (co.company && typeof co.company === 'object' && co.company !== co) {
+        const inner = co.company;
+        const shallow = { ...co };
+        delete shallow.company;
+        co = { ...inner, ...shallow };
+      } else {
+        break;
+      }
+    }
+    data.company = co;
+
+    let stockItems = Array.isArray(data.stockItems) ? [...data.stockItems] : [];
+    let posPurchaseList = Array.isArray(data.posPurchaseList) ? [...data.posPurchaseList] : [];
+
+    // 1. If posPurchaseList is empty but stockItems has items, synthesize posPurchaseList
+    if (posPurchaseList.length === 0 && stockItems.length > 0) {
+      posPurchaseList = stockItems.map((si, idx) => ({
+        id: si.id || Date.now() + idx,
+        sNo: idx + 1,
+        name: si.name,
+        purchasePrice: Number(si.purchasePrice || si.openingRate || 0),
+        newPurchasePrice: 0,
+        expiryDate: si.expiryDate || '',
+        cessPerc: Number(si.cessPerc || si.cessRate || 0),
+        openingStock: Number(si.openingStock ?? si.openingQty ?? si.stock ?? 0),
+        barcode: String(si.barcode || si.partNumber || si.alias || '').trim() || String(8900000000 + (si.id || idx)),
+        mrp: Number(si.mrp || 0),
+        discountPerc: Number(si.defaultDiscount || si.discountPerc || 0),
+        discountAmt: Number(si.discountAmt || 0),
+        retailSalePrice: Number(si.retailSalePrice || si.rateInclTax || si.mrp || 0),
+        unit: si.unit || si.unitName || 'PCS',
+        gstRate: Number(si.gstRate || 18),
+        variant: si.variant || (Array.isArray(si.variants) && si.variants[0]) || '',
+        variants: si.variants || (si.variant ? [si.variant] : []),
+        companyCode: code,
+        companyId: co?.id || code,
+      }));
+    }
+
+    // 2. If stockItems is empty but posPurchaseList has items, synthesize stockItems
+    if (stockItems.length === 0 && posPurchaseList.length > 0) {
+      stockItems = posPurchaseList.map((p, idx) => ({
+        id: p.id || Date.now() + idx,
+        companyId: co?.id || code,
+        companyCode: code,
+        name: p.name,
+        alias: p.barcode || '',
+        partNumber: p.barcode || '',
+        barcode: p.barcode || '',
+        groupName: p.variant || 'Primary',
+        categoryName: 'Primary',
+        unit: p.unit || 'PCS',
+        unitName: p.unit || 'PCS',
+        gstRate: Number(p.gstRate || 18),
+        cessRate: Number(p.cessPerc || 0),
+        mrp: Number(p.mrp || 0),
+        retailSalePrice: Number(p.retailSalePrice || p.mrp || 0),
+        rateInclTax: Number(p.retailSalePrice || p.mrp || 0),
+        openingQty: Number(p.openingStock || 0),
+        openingRate: Number(p.purchasePrice || 0),
+        openingValue: Number(p.openingStock || 0) * Number(p.purchasePrice || 0),
+        variant: p.variant || '',
+        variants: p.variants || (p.variant ? [p.variant] : []),
+        expiryDate: p.expiryDate || '',
+      }));
+    }
+
+    // 3. Stamp every item with companyCode and companyId
+    stockItems = stockItems.map(si => ({
+      ...si,
+      companyCode: code,
+      companyId: si.companyId || co?.id || code,
+    }));
+    posPurchaseList = posPurchaseList.map(p => ({
+      ...p,
+      companyCode: code,
+      companyId: p.companyId || co?.id || code,
+    }));
+
+    data.stockItems = stockItems;
+    data.posPurchaseList = posPurchaseList;
+
+    try {
+      if (typeof window !== 'undefined' && posPurchaseList.length > 0) {
+        localStorage.setItem(`ledgerx_pos_purchase_list_${code}`, JSON.stringify(posPurchaseList));
+      }
+    } catch (_) {}
+
+    return data;
+  }
+
   /**
    * Loads a company's data from its numbered folder (e.g. "10001")
    */
@@ -392,31 +537,27 @@ class CompanyDataFolderService {
     if ((window as any).desktopBridge?.loadCompanyFolder) {
       try {
         const data = await (window as any).desktopBridge.loadCompanyFolder(code);
-        if (data && data.company) return data;
+        if (data && data.company) {
+          const norm = this.normalizeFolderData(code, data);
+          this.saveToLocalCache(code, norm);
+          return norm;
+        }
       } catch (e) { }
     }
 
     // 2. C# Launcher HTTP bridge
     if (await this.checkBridge()) {
       try {
-        const res = await fetch(`${this.getBridgeUrl()}/api/company?code=${encodeURIComponent(code)}`);
+        const res = await fetch(`${this.getBridgeUrl()}/api/company?code=${encodeURIComponent(code)}&_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store' },
+        });
         if (res.ok) {
           const data = await res.json();
           if (data && data.company) {
-            let co = data.company;
-            for (let depth = 0; depth < 5 && co && typeof co === 'object'; depth++) {
-              if (co.company && typeof co.company === 'object' && co.company !== co) {
-                const inner = co.company;
-                const shallow = { ...co };
-                delete shallow.company;
-                co = { ...inner, ...shallow };
-              } else {
-                break;
-              }
-            }
-            data.company = co;
-            this.saveToLocalCache(code, data);
-            return data;
+            const norm = this.normalizeFolderData(code, data);
+            this.saveToLocalCache(code, norm);
+            return norm;
           }
         }
       } catch (e) { }
@@ -424,15 +565,22 @@ class CompanyDataFolderService {
 
     // 3. Local Next.js API
     try {
-      const res = await fetch(`/api/local-data/company?code=${encodeURIComponent(code)}`);
+      const res = await fetch(`/api/local-data/company?code=${encodeURIComponent(code)}&_t=${Date.now()}`, {
+        cache: 'no-store',
+      });
       if (res.ok) {
         const data = await res.json();
-        if (data && data.company) return data;
+        if (data && data.company) {
+          const norm = this.normalizeFolderData(code, data);
+          this.saveToLocalCache(code, norm);
+          return norm;
+        }
       }
     } catch (e) { }
 
     // 4. LocalStorage cache fallback
-    return this.loadFromLocalCache(code);
+    const cached = this.loadFromLocalCache(code);
+    return cached ? this.normalizeFolderData(code, cached) : null;
   }
 
   /**

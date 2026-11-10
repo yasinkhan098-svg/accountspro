@@ -174,11 +174,30 @@ export default function PurchasePOSListView({
         console.warn("API save error:", err);
       }
 
-      // C. Save to C# Launcher Bridge and Local Company Folder
+      // C. Save to C# Launcher Bridge and Local Company Folder (both posPurchaseList AND stockItems!)
       try {
+        const convertedStockItems = stampedItems.map((it: any) => ({
+          id: it.id,
+          name: it.name,
+          companyId: companyId,
+          companyCode: companyCode,
+          barcode: it.barcode || '',
+          mrp: Number(it.mrp) || 0,
+          retailSalePrice: Number(it.retailSalePrice) || 0,
+          openingStock: Number(it.openingStock) || 0,
+          openingRate: Number(it.purchasePrice || it.newPurchasePrice) || 0,
+          unit: it.unit || 'Nos',
+          gstRate: Number(it.gstRate) || 18,
+          cessPerc: Number(it.cessPerc) || 0,
+          expiryDate: it.expiryDate || '',
+          variant: it.variant || '',
+          variants: it.variants || (it.variant ? [it.variant] : []),
+        }));
+
         await companyDataFolderService.saveCompanyFolder({
           companyCode,
           posPurchaseList: stampedItems,
+          stockItems: convertedStockItems,
         });
       } catch (err) {
         console.warn("Folder service save error:", err);
@@ -230,7 +249,7 @@ export default function PurchasePOSListView({
   }, [persistChanges]);
 
   // Helper to build list by combining stock items with saved data
-  const buildItemsList = useCallback((savedData: any[]): POSPurchaseItem[] => {
+  const buildItemsList = useCallback((savedData: any[], explicitStockItems?: any[]): POSPurchaseItem[] => {
     const assignedBarcodes: string[] = [];
     const savedMap = new Map<string, any>();
 
@@ -257,10 +276,17 @@ export default function PurchasePOSListView({
       if (s.name) savedMap.set(String(s.name).trim().toLowerCase(), s);
     });
 
+    const effectiveStock = (Array.isArray(explicitStockItems) && explicitStockItems.length > 0)
+      ? explicitStockItems
+      : (Array.isArray(stockItems) ? stockItems : []);
+
     // 1. Process items from stockItems strictly belonging to this company
-    const scopedStockItems = (stockItems || []).filter(si => {
+    const scopedStockItems = effectiveStock.filter(si => {
       if (!companyId && !companyCode) return false;
-      return matchCo(si.companyId, si.companyCode);
+      if (si.companyId || si.companyCode) {
+        return matchCo(si.companyId, si.companyCode);
+      }
+      return true;
     });
 
     const built: POSPurchaseItem[] = scopedStockItems.map((si, idx) => {
@@ -390,11 +416,39 @@ export default function PurchasePOSListView({
     // B. Fetch fresh data directly from Host PC company folder
     companyDataFolderService.loadCompanyFolder(companyCode).then(folder => {
       if (folder) {
+        const folderStock = Array.isArray(folder.stockItems) ? folder.stockItems : [];
         const folderList = Array.isArray(folder.posPurchaseList) ? folder.posPurchaseList : [];
-        const freshBuilt = buildItemsList(folderList);
+        const freshBuilt = buildItemsList(folderList, folderStock);
         setItems(freshBuilt);
         if (typeof window !== 'undefined') {
           localStorage.setItem(storageKey, JSON.stringify(freshBuilt));
+        }
+        if (freshBuilt.length > 0 && onStockUpdated) {
+          const convertedStock = freshBuilt.map(b => ({
+            id: b.id,
+            companyId: companyId || companyCode,
+            companyCode: companyCode,
+            name: b.name,
+            alias: b.barcode || '',
+            partNumber: b.barcode || '',
+            barcode: b.barcode || '',
+            groupName: b.variant || 'Primary',
+            categoryName: 'Primary',
+            unit: b.unit || 'PCS',
+            unitName: b.unit || 'PCS',
+            gstRate: Number(b.gstRate || 18),
+            cessRate: Number(b.cessPerc || 0),
+            mrp: Number(b.mrp || 0),
+            retailSalePrice: Number(b.retailSalePrice || b.mrp || 0),
+            rateInclTax: Number(b.retailSalePrice || b.mrp || 0),
+            openingQty: Number(b.openingStock || 0),
+            openingRate: Number(b.purchasePrice || 0),
+            openingValue: Number(b.openingStock || 0) * Number(b.purchasePrice || 0),
+            variant: b.variant || '',
+            variants: b.variants || (b.variant ? [b.variant] : []),
+            expiryDate: b.expiryDate || '',
+          }));
+          onStockUpdated(convertedStock);
         }
         return;
       }
@@ -415,7 +469,7 @@ export default function PurchasePOSListView({
           console.warn("Could not fetch remote purchase list:", err);
         });
     }).catch(() => {});
-  }, [storageKey, companyCode, companyId, buildItemsList]);
+  }, [storageKey, companyCode, companyId, buildItemsList, onStockUpdated]);
 
   // 4B. Live Reactive Sync: When stockItems prop updates (e.g. user altered item unit or name in Masters), update items immediately!
   useEffect(() => {

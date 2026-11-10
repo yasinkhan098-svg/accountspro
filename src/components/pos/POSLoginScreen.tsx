@@ -112,12 +112,15 @@ export default function POSLoginScreen({
 
         if (mounted) {
           setRegisteredUsers(filteredList);
-          // Auto-fill first cashier or admin username if available
-          const exists = filteredList.some(u => u.username.toLowerCase() === cashierId.toLowerCase());
-          if (!exists && filteredList.length > 0) {
-            setCashierId(filteredList[0].username);
+          // Auto-fill first cashier or operator or admin username if available
+          if (filteredList.length > 0) {
+            const defaultUser = filteredList.find(u => !u.isAdmin) || filteredList[0];
+            setCashierId(defaultUser.username);
             setPassword('');
             setActiveField('password');
+          } else {
+            setCashierId('');
+            setPassword('');
           }
         }
       } catch (err) {}

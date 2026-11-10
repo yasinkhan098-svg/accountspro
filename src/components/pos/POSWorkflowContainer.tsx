@@ -171,10 +171,8 @@ export default function POSWorkflowContainer({
     const hasReports = Boolean(perms?.reports && Object.values(perms.reports).some(Boolean));
     const hasMasters = Boolean(perms?.masters && Object.values(perms.masters).some(Boolean));
 
-    // Multi-feature accounting operator / Manager / Admin (e.g. amir001):
-    const hasBroadAccounting = isAdmin || (generalAccountingCount >= 2 && (hasRegisters || hasReports || hasMasters)) || (canPOS && generalAccountingCount >= 1 && (hasRegisters || hasReports));
-
-    if (hasBroadAccounting) {
+    // 1. Full Administrator: opens Gateway of LedgerX
+    if (isAdmin) {
       if (onOpenGateway) {
         onOpenGateway();
         return;
@@ -183,53 +181,61 @@ export default function POSWorkflowContainer({
       return;
     }
 
-    if (!canPOS) {
-      // Dedicated single-function non-POS operators:
-      if (canPurchase) {
-        onOpenVoucher ? onOpenVoucher('Purchase') : onBack();
-        return;
-      }
-      if (canSales) {
-        onOpenVoucher ? onOpenVoucher('Sales') : onBack();
-        return;
-      }
-      if (canPayment) {
-        onOpenVoucher ? onOpenVoucher('Payment') : onBack();
-        return;
-      }
-      if (canReceipt) {
-        onOpenVoucher ? onOpenVoucher('Receipt') : onBack();
-        return;
-      }
-      if (canContra) {
-        onOpenVoucher ? onOpenVoucher('Contra') : onBack();
-        return;
-      }
-      if (canPurchasePOSList) {
-        setWorkflowState('PURCHASE_POS_LIST');
-        return;
-      }
-      if (onOpenGateway) {
-        onOpenGateway();
-        return;
-      }
-      onBack();
+    // 2. Client Terminal / Cashier: If user has POS Sale permission, stay strictly in POS Terminal!
+    if (canPOS) {
+      setWorkflowState('SALES');
       return;
     }
 
-    // Dedicated pure POS Cashier:
-    setWorkflowState('SALES');
+    // 3. Restricted user with ONLY Purchase POS List (and no POS Sale)
+    if (canPurchasePOSList && !canPurchase && !canSales && !canPayment && !canReceipt) {
+      setWorkflowState('PURCHASE_POS_LIST');
+      return;
+    }
+
+    // 4. Dedicated single-function non-POS operators:
+    if (canPurchase) {
+      onOpenVoucher ? onOpenVoucher('Purchase') : onBack();
+      return;
+    }
+    if (canSales) {
+      onOpenVoucher ? onOpenVoucher('Sales') : onBack();
+      return;
+    }
+    if (canPayment) {
+      onOpenVoucher ? onOpenVoucher('Payment') : onBack();
+      return;
+    }
+    if (canReceipt) {
+      onOpenVoucher ? onOpenVoucher('Receipt') : onBack();
+      return;
+    }
+    if (canContra) {
+      onOpenVoucher ? onOpenVoucher('Contra') : onBack();
+      return;
+    }
+
+    // 5. Broad accounting manager without full admin:
+    if (onOpenGateway) {
+      onOpenGateway();
+      return;
+    }
+    onBack();
   };
 
   const handleExit = () => {
-    if (!permissionGuard.isClientSession()) {
-      permissionGuard.setCurrentUser(null);
-      if (typeof window !== 'undefined') {
-        try { localStorage.removeItem('ledgerx_active_lan_user'); } catch (_) { }
-      }
-    }
     setIsTrainingMode(false);
     setTrainingPkg(null);
+    if (permissionGuard.isClientSession() || (cashierUser && !cashierUser.isAdmin)) {
+      setCashierUser(null);
+      permissionGuard.setCurrentUser(null);
+      setWorkflowState('LOGIN');
+      return;
+    }
+    permissionGuard.setCurrentUser(null);
+    if (typeof window !== 'undefined') {
+      try { localStorage.removeItem('ledgerx_active_lan_user'); } catch (_) { }
+    }
     onBack();
   };
 
@@ -292,7 +298,13 @@ export default function POSWorkflowContainer({
         availableCompanies={isTrainingMode ? [] : availableCompanies}
         stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : (localStockItems && localStockItems.length > 0 ? localStockItems : stockItems)}
         vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : (localVouchers && localVouchers.length > 0 ? localVouchers : vouchers)}
-        onBack={() => setWorkflowState('SALES')}
+        onBack={() => {
+          if (cashierUser && !cashierUser.isAdmin && !cashierUser.permissions?.vouchers?.['POS Sale']) {
+            handleLogoutToLogin();
+            return;
+          }
+          setWorkflowState('SALES');
+        }}
         onStockUpdated={(updated) => {
           if (isTrainingMode && trainingPkg) {
             const newPkg = { ...trainingPkg, stockItems: updated };

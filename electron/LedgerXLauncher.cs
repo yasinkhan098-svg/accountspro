@@ -822,7 +822,7 @@ namespace LedgerXLauncher
                     return;
                 }
 
-                if (path == "/api/companies")
+                if (path == "/api/companies" || path == "/api/company/scan")
                 {
                     JavaScriptSerializer js = new JavaScriptSerializer();
                     js.MaxJsonLength = 50 * 1024 * 1024;
@@ -1094,6 +1094,9 @@ namespace LedgerXLauncher
             {
                 byte[] buf = Encoding.UTF8.GetBytes(json);
                 res.ContentType = "application/json; charset=utf-8";
+                res.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate");
+                res.Headers.Add("Pragma", "no-cache");
+                res.Headers.Add("Expires", "0");
                 res.ContentLength64 = buf.Length;
                 res.OutputStream.Write(buf, 0, buf.Length);
                 res.OutputStream.Close();

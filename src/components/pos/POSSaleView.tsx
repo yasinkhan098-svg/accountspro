@@ -228,31 +228,41 @@ export default function POSSaleView({
 
   // Active Purchase POS List (Stock, MRP, Barcodes, Retail Prices, Expiry & Discounts)
   const [activePOSPurchaseList, setActivePOSPurchaseList] = useState<any[]>(posPurchaseList || []);
+  const [localStockItemsState, setLocalStockItemsState] = useState<any[]>(stockItems || []);
 
   useEffect(() => {
-    if (Array.isArray(posPurchaseList)) {
+    if (stockItems && stockItems.length > 0) setLocalStockItemsState(stockItems);
+  }, [stockItems]);
+
+  useEffect(() => {
+    if (Array.isArray(posPurchaseList) && posPurchaseList.length > 0) {
       setActivePOSPurchaseList(posPurchaseList);
-      if (posPurchaseList.length > 0) return;
+      return;
     }
     // Fallback load from LocalStorage and disk
     try {
       const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setActivePOSPurchaseList(parsed);
-          if (parsed.length > 0) return;
+          return;
         }
       }
     } catch (_) { }
+
     companyDataFolderService.loadCompanyFolder(companyCode).then(f => {
-      if (f?.posPurchaseList && Array.isArray(f.posPurchaseList)) {
-        setActivePOSPurchaseList(f.posPurchaseList);
-      } else {
-        setActivePOSPurchaseList([]);
+      if (f) {
+        if (f.posPurchaseList && Array.isArray(f.posPurchaseList) && f.posPurchaseList.length > 0) {
+          setActivePOSPurchaseList(f.posPurchaseList);
+        }
+        if (f.stockItems && Array.isArray(f.stockItems) && f.stockItems.length > 0) {
+          setLocalStockItemsState(f.stockItems);
+          onStockUpdated?.(f.stockItems);
+        }
       }
     }).catch(() => { });
-  }, [posPurchaseList, companyCode]);
+  }, [posPurchaseList, companyCode, onStockUpdated]);
 
   // Unified Catalog: Stock items merged with Purchase POS List strictly for this company
   // Guarantees that every item in POS Sale (and barcode scanning) uses Retail Sale Price, MRP & Discount from Purchase POS List
@@ -270,13 +280,20 @@ export default function POSSaleView({
       return false;
     };
 
-    const list = (Array.isArray(stockItems) ? stockItems : []).filter(si => {
+    const effectiveStock = (localStockItemsState && localStockItemsState.length > 0) ? localStockItemsState : (stockItems || []);
+    const list = (Array.isArray(effectiveStock) ? effectiveStock : []).filter(si => {
       if (!company?.id && !companyCode) return false;
-      return matchCo(si.companyId, si.companyCode);
+      if (si.companyId || si.companyCode) {
+        return matchCo(si.companyId, si.companyCode);
+      }
+      return true;
     });
     const posList = (Array.isArray(activePOSPurchaseList) ? activePOSPurchaseList : []).filter((p: any) => {
       if (!company?.id && !companyCode) return false;
-      return matchCo(p.companyId, p.companyCode);
+      if (p.companyCode && targetCode && String(p.companyCode).toUpperCase().trim() !== targetCode) {
+        return false;
+      }
+      return true;
     });
 
     const merged = list.map(si => {

@@ -75,3 +75,4 @@ for (let c = 10001; c <= 10006; c++) {
   console.log(code, 'default users saved');
 }
 console.log('All companies initialized with users successfully');
+

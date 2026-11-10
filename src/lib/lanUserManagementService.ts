@@ -137,9 +137,10 @@ class LANUserManagementService {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
+      const res = await fetch(`/api/lan/users?code=${encodeURIComponent(code)}&_t=${Date.now()}`, {
         signal: controller.signal,
         cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store' },
       });
       clearTimeout(timeoutId);
       if (res.ok) {
@@ -153,14 +154,35 @@ class LANUserManagementService {
     // 2. Query local C# bridge if running on desktop port 45454 (also reads disk)
     try {
       const bridgeUrl = getBridgeBaseUrl();
-      // On LAN client: origin = http://192.168.240.48:45454, bridgeUrl = same
-      // So we try both: direct bridge AND via relative path (already done above)
-      // Only try if bridge URL differs from origin (avoids double fetch on main PC)
-      if (bridgeUrl && bridgeUrl !== window.location.origin) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}&_t=${Date.now()}`, {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store' },
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.users) && json.users.length > 0) {
+          for (const u of json.users) {
+            if (u && u.username && !freshServerUsers.some(f => f.username.toLowerCase() === u.username.toLowerCase())) {
+              freshServerUsers.push(u);
+            }
+          }
+        }
+      }
+    } catch (_) { }
+
+    // 2.5 Query bridge company folder directly if freshServerUsers is still empty
+    if (freshServerUsers.length === 0) {
+      try {
+        const bridgeUrl = getBridgeBaseUrl();
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
-        const res = await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
+        const res = await fetch(`${bridgeUrl}/api/company?code=${encodeURIComponent(code)}&_t=${Date.now()}`, {
           signal: controller.signal,
+          cache: 'no-store',
         });
         clearTimeout(timeoutId);
         if (res.ok) {
@@ -169,31 +191,30 @@ class LANUserManagementService {
             freshServerUsers.push(...json.users);
           }
         }
-      }
-    } catch (_) { }
+      } catch (_) { }
+    }
 
     // 3. If we got fresh data from server/bridge, use it as AUTHORITATIVE source
-    //    Merge with localStorage only to pick up any locally-created users not yet pushed to server
     const localCached = this.loadFromLocalStorage(code);
     const memCached = this.companyUsersCache.get(code) || [];
 
-    // Build merged map: start with localStorage (lowest priority), then override with fresh server data
+    // Build merged map: fresh server data wins 100%; fallback to cache only if offline/empty
     const mergedMap = new Map<string, LANUser>();
 
-    // Add localStorage cached users first (lowest priority - stale)
-    for (const u of [...localCached, ...memCached]) {
-      if (u && u.username) {
-        const key = u.username.trim().toLowerCase();
-        mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
+    if (freshServerUsers.length > 0) {
+      for (const u of freshServerUsers) {
+        if (u && u.username) {
+          const key = u.username.trim().toLowerCase();
+          mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
+        }
       }
-    }
-
-    // Override with fresh server/bridge users (highest priority - from disk)
-    for (const u of freshServerUsers) {
-      if (u && u.username) {
-        const key = u.username.trim().toLowerCase();
-        // Fresh server data wins: overwrite any stale cached version
-        mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
+    } else {
+      // Offline fallback
+      for (const u of [...localCached, ...memCached]) {
+        if (u && u.username) {
+          const key = u.username.trim().toLowerCase();
+          mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
+        }
       }
     }
 
@@ -252,10 +273,10 @@ class LANUserManagementService {
       });
     } catch (_) { }
 
-    // 2. C# Bridge
+    // 2. C# Bridge (always post directly to bridge)
     try {
       const bridgeUrl = getBridgeBaseUrl();
-      if (bridgeUrl && bridgeUrl !== window.location.origin) {
+      if (bridgeUrl) {
         await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -275,19 +296,11 @@ class LANUserManagementService {
 
     if (typeof window === 'undefined') return true;
 
-    // 1. Send to local Next.js Server API
-    try {
-      await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyCode: code, users }),
-      });
-    } catch (_) { }
+    const bridgeUrl = getBridgeBaseUrl();
 
-    // 2. Send to local C# bridge
+    // 1. Send to C# bridge directly
     try {
-      const bridgeUrl = getBridgeBaseUrl();
-      if (bridgeUrl && bridgeUrl !== window.location.origin) {
+      if (bridgeUrl) {
         await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -296,13 +309,24 @@ class LANUserManagementService {
       }
     } catch (_) { }
 
-    // 3. Fallback: direct save-file endpoint
+    // 2. Send to relative API endpoint
     try {
-      await fetch(`/api/save-file?code=${encodeURIComponent(code)}&file=users.json`, {
+      await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(users, null, 2),
+        body: JSON.stringify({ companyCode: code, users }),
       });
+    } catch (_) { }
+
+    // 3. Fallback: direct save-file endpoint on bridge
+    try {
+      if (bridgeUrl) {
+        await fetch(`${bridgeUrl}/api/save-file?code=${encodeURIComponent(code)}&file=users.json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(users, null, 2),
+        });
+      }
     } catch (_) { }
 
     return true;

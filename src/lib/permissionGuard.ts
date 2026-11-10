@@ -249,6 +249,13 @@ class PermissionGuardService {
       } catch (e) {}
       return true;
     }
+    if (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.hostname.includes('vercel.app') && !window.location.hostname.includes('ledgerxerp.com')) {
+      try {
+        sessionStorage.setItem('ledgerx_is_lan_client', '1');
+        sessionStorage.setItem('ledgerx_is_client_mode', '1');
+      } catch (e) {}
+      return true;
+    }
     return Boolean(sessionStorage.getItem('ledgerx_is_lan_client')) ||
            Boolean(sessionStorage.getItem('ledgerx_is_online_client')) ||
            Boolean(sessionStorage.getItem('ledgerx_is_client_mode'));
@@ -456,7 +463,18 @@ class PermissionGuardService {
       if (lower === 'ledger' && !lower.includes('register')) return !!perms.masters?.createLedger || !!perms.masters?.alterLedger;
       if (lower === 'stock item') return !!perms.masters?.createStockItem || !!perms.masters?.alterStockItem;
 
-      return true;
+      if (lower.includes('chart of accounts')) return false;
+      if (lower.includes('data exchange')) return false;
+      if (lower.includes('banking')) return !!perms.modules?.BankStatement;
+      if (lower.includes('bom') || lower.includes('manufacturing')) return !!perms.modules?.BOM || !!perms.modules?.Manufacturing;
+      if (lower.includes('purchase order')) return !!perms.modules?.PurchaseOrder;
+      if (lower.includes('display more reports') || lower.includes('more reports')) {
+        return (!!perms.reports && Object.values(perms.reports).some(Boolean)) ||
+               (!!perms.registers && Object.values(perms.registers).some(Boolean));
+      }
+
+      // Default for any other unpermitted item: strictly false for restricted users!
+      return false;
     }
 
     if (!this.isRestrictedSession()) return true;
