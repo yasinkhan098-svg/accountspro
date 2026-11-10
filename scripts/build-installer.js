@@ -17,6 +17,7 @@ const electronDir = path.join(__dirname, '../electron');
 const downloadsDir = path.join(__dirname, '../public/downloads');
 const icoPath = path.join(electronDir, 'app.ico');
 const manifestPath = path.join(electronDir, 'app.manifest');
+const installerManifestPath = path.join(electronDir, 'installer.manifest');
 const launcherCsPath = path.join(electronDir, 'LedgerXLauncher.cs');
 const installerCsPath = path.join(electronDir, 'Installer.cs');
 const launcherExePath = path.join(downloadsDir, 'LedgerX.exe');
@@ -765,7 +766,7 @@ fs.writeFileSync(installerCsPath, installerContent, 'utf-8');
 console.log('Successfully written electron/Installer.cs (0 bytes Base64 string literals)');
 
 console.log('\n=== Step 4: Compiling LedgerX-Setup.exe with embedded resources & manifest ===');
-const setupCmd = `"${cscPath}" /target:winexe /optimize+ /win32icon:"${icoPath}" /win32manifest:"${manifestPath}" /resource:"${launcherExePath}",LedgerXLauncher.exe /resource:"${icoPath}",app.ico /out:"${setupExePath}" "${installerCsPath}"`;
+const setupCmd = `"${cscPath}" /target:winexe /optimize+ /win32icon:"${icoPath}" /win32manifest:"${installerManifestPath}" /resource:"${launcherExePath}",LedgerXLauncher.exe /resource:"${icoPath}",app.ico /out:"${setupExePath}" "${installerCsPath}"`;
 console.log('Executing:', setupCmd);
 execSync(setupCmd, { stdio: 'inherit' });
 

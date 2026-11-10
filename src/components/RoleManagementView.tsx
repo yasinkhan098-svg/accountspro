@@ -397,7 +397,15 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                   🚀 Download Client Setup (.exe)
                 </a>
               </div>
-              <div style={{ textAlign: 'right', fontSize: 11 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, marginTop: 4 }}>
+                <a
+                  href="/downloads/Fix-Host-Firewall.bat"
+                  download="Fix-Host-Firewall.bat"
+                  style={{ color: '#d97706', textDecoration: 'underline', fontWeight: 600 }}
+                  title="Run this on Main PC if Client gets ERR_CONNECTION_TIMED_OUT"
+                >
+                  🛡️ Fix Windows Firewall (.bat)
+                </a>
                 <a 
                   href="/downloads/LedgerX-Client.exe" 
                   download="LedgerX-Client.exe" 

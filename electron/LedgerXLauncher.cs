@@ -161,6 +161,23 @@ namespace LedgerXLauncher
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
+                // Auto-start registration with Windows Startup (HKCU\Software\Microsoft\Windows\CurrentVersion\Run)
+                try
+                {
+                    using (RegistryKey runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+                    {
+                        if (runKey != null)
+                        {
+                            string myExe = Assembly.GetExecutingAssembly().Location;
+                            if (File.Exists(myExe))
+                            {
+                                runKey.SetValue("LedgerXHostService", "\"" + myExe + "\" --service");
+                            }
+                        }
+                    }
+                }
+                catch { }
+
                 _trayIcon = new NotifyIcon();
                 try
                 {
@@ -174,6 +191,8 @@ namespace LedgerXLauncher
                 _trayIcon.Text = "LedgerX Host Service (Port 45454 Active)";
                 _trayIcon.Visible = true;
 
+                HostServiceContext hostContext = new HostServiceContext(_trayIcon);
+
                 ContextMenu trayMenu = new ContextMenu();
                 trayMenu.MenuItems.Add("Open LedgerX Desktop", (s, e) => LaunchBrowser(FindBrowserExecutable(), launchUrl, profileDir));
                 trayMenu.MenuItems.Add("Open Company Data Folder", (s, e) => {
@@ -181,8 +200,7 @@ namespace LedgerXLauncher
                 });
                 trayMenu.MenuItems.Add("-");
                 trayMenu.MenuItems.Add("Exit LedgerX Host Service", (s, e) => {
-                    try { _trayIcon.Visible = false; _trayIcon.Dispose(); } catch { }
-                    Application.Exit();
+                    hostContext.Terminate();
                 });
 
                 _trayIcon.ContextMenu = trayMenu;
@@ -195,9 +213,9 @@ namespace LedgerXLauncher
                     LaunchBrowser(browserPath, launchUrl, profileDir);
                 }
 
-                // 6. KEEP THE PROCESS AND NETWORK SERVICES ALIVE CONTINUOUSLY WITH DEDICATED MESSAGE PUMP!
-                Log("Entering Application.Run() (Standard persistent message loop)...");
-                Application.Run();
+                // 6. KEEP THE PROCESS AND NETWORK SERVICES ALIVE CONTINUOUSLY WITH PERSISTENT APPLICATION CONTEXT!
+                Log("Entering Application.Run(hostContext) (Persistent Message Loop)...");
+                Application.Run(hostContext);
                 Log("Application.Run exited!");
             }
             catch (Exception ex)
@@ -514,7 +532,7 @@ namespace LedgerXLauncher
         {
             try
             {
-                // Write Fix-Host-Firewall.bat for 1-click manual remediation
+                // Write self-elevating Fix-Host-Firewall.bat for 1-click manual remediation
                 try
                 {
                     string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -522,39 +540,34 @@ namespace LedgerXLauncher
                     string batPath = Path.Combine(exeDir, "Fix-Host-Firewall.bat");
                     string batContent =
                         "@echo off\r\n" +
-                        "echo =====================================================\r\n" +
-                        "echo LedgerX Desktop - Windows Firewall LAN Configuration\r\n" +
-                        "echo =====================================================\r\n" +
+                        "NET SESSION >nul 2>&1\r\n" +
+                        "IF %ERRORLEVEL% NEQ 0 (\r\n" +
+                        "    echo Requesting Administrator privileges to enable Windows Firewall rules...\r\n" +
+                        "    powershell -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process cmd -ArgumentList '/c \\\"\\\"%~f0\\\"\\\"' -Verb RunAs\"\r\n" +
+                        "    exit /b\r\n" +
+                        ")\r\n" +
+                        "echo ========================================================\r\n" +
+                        "echo   LedgerX Accounting Host - Windows Firewall Rules\r\n" +
+                        "echo ========================================================\r\n" +
                         "netsh advfirewall firewall delete rule name=\"LedgerX Accounting Host (TCP)\" >nul 2>&1\r\n" +
                         "netsh advfirewall firewall delete rule name=\"LedgerX Discovery Beacon (UDP)\" >nul 2>&1\r\n" +
                         "netsh advfirewall firewall add rule name=\"LedgerX Accounting Host (TCP)\" dir=in action=allow protocol=TCP localport=45454 profile=any\r\n" +
                         "netsh advfirewall firewall add rule name=\"LedgerX Discovery Beacon (UDP)\" dir=in action=allow protocol=UDP localport=45455 profile=any\r\n" +
-                        "echo.\r\n" +
-                        "echo Inbound Port 45454 (TCP) and 45455 (UDP) are now enabled on ALL network profiles!\r\n" +
-                        "pause\r\n";
+                        "echo [SUCCESS] Windows Firewall rules enabled! Inbound Port 45454 and 45455 are allowed.\r\n" +
+                        "timeout /t 5\r\n";
                     File.WriteAllText(batPath, batContent);
+
+                    try
+                    {
+                        string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                        if (!string.IsNullOrEmpty(desktop) && Directory.Exists(desktop))
+                        {
+                            File.WriteAllText(Path.Combine(desktop, "Fix-Host-Firewall.bat"), batContent);
+                        }
+                    }
+                    catch { }
                 }
                 catch { }
-
-                Process p = new Process();
-                p.StartInfo.FileName = "netsh";
-                p.StartInfo.Arguments = "advfirewall firewall show rule name=\"LedgerX Accounting Host (TCP)\"";
-                p.StartInfo.CreateNoWindow = true;
-                p.StartInfo.UseShellExecute = false;
-                p.StartInfo.RedirectStandardOutput = true;
-                p.Start();
-                string outText = p.StandardOutput.ReadToEnd();
-                p.WaitForExit();
-
-                if (string.IsNullOrEmpty(outText) || !outText.Contains("LedgerX Accounting Host (TCP)"))
-                {
-                    ProcessStartInfo psi = new ProcessStartInfo();
-                    psi.FileName = "powershell.exe";
-                    psi.Arguments = "-NoProfile -WindowStyle Hidden -Command \"Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\\\"LedgerX Accounting Host (TCP)\\\" dir=in action=allow protocol=TCP localport=45454 profile=any' -Verb RunAs; Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\\\"LedgerX Discovery Beacon (UDP)\\\" dir=in action=allow protocol=UDP localport=45455 profile=any' -Verb RunAs\"";
-                    psi.WindowStyle = ProcessWindowStyle.Hidden;
-                    psi.UseShellExecute = true;
-                    Process.Start(psi);
-                }
             }
             catch { }
         }
@@ -1468,6 +1481,29 @@ namespace LedgerXLauncher
             }
 
             return null;
+        }
+    }
+
+    public class HostServiceContext : ApplicationContext
+    {
+        private NotifyIcon _tray;
+        public HostServiceContext(NotifyIcon tray)
+        {
+            _tray = tray;
+        }
+
+        public void Terminate()
+        {
+            try
+            {
+                if (_tray != null)
+                {
+                    _tray.Visible = false;
+                    _tray.Dispose();
+                }
+            }
+            catch { }
+            ExitThread();
         }
     }
 
