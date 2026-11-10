@@ -2062,7 +2062,7 @@ export default function App() {
 
   // Fetch Companies from Backend with Auth Guard + scan local folders offline
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated || permissionGuard.isClientSession()) {
       const fetchCompanies = async () => {
         // Offline: use cached local companies from scanned folders
         if (!navigator.onLine) {
