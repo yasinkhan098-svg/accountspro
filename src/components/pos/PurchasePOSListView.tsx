@@ -234,11 +234,25 @@ export default function PurchasePOSListView({
     const assignedBarcodes: string[] = [];
     const savedMap = new Map<string, any>();
 
+    const targetCode = String(companyCode || company?.companyCode || company?.code || '').toUpperCase().trim();
+    const targetId = Number(companyId || company?.id);
+
+    const matchCo = (cId: any, cCode: any) => {
+      const scCode = String(cCode || '').toUpperCase().trim();
+      const scId = Number(cId);
+      if (targetCode && scCode && scCode === targetCode) return true;
+      if (targetId && scId && targetId === scId) return true;
+      if (targetCode && scId && String(scId) === targetCode) return true;
+      if (targetId && scCode && String(targetId) === scCode) return true;
+      return false;
+    };
+
     // Index saved items by ID and by lowercased name (strictly for this company)
     (savedData || []).forEach(s => {
       if (!s) return;
-      if (s.companyId && companyId && Number(s.companyId) !== Number(companyId)) return;
-      if (s.companyCode && companyCode && String(s.companyCode).toUpperCase().trim() !== companyCode) return;
+      if (s.companyCode || s.companyId) {
+        if (!matchCo(s.companyId, s.companyCode)) return;
+      }
       if (s.id !== undefined) savedMap.set(String(s.id), s);
       if (s.name) savedMap.set(String(s.name).trim().toLowerCase(), s);
     });
@@ -246,9 +260,7 @@ export default function PurchasePOSListView({
     // 1. Process items from stockItems strictly belonging to this company
     const scopedStockItems = (stockItems || []).filter(si => {
       if (!companyId && !companyCode) return false;
-      if (si.companyCode && companyCode && String(si.companyCode).toUpperCase().trim() === companyCode) return true;
-      if (si.companyId && companyId && Number(si.companyId) === Number(companyId)) return true;
-      return false;
+      return matchCo(si.companyId, si.companyCode);
     });
 
     const built: POSPurchaseItem[] = scopedStockItems.map((si, idx) => {
@@ -322,8 +334,9 @@ export default function PurchasePOSListView({
     // 2. Also preserve any custom inserted items that were in savedData but not in stockItems
     (savedData || []).forEach(s => {
       if (!s) return;
-      if (s.companyId && companyId && Number(s.companyId) !== Number(companyId)) return;
-      if (s.companyCode && companyCode && String(s.companyCode).toUpperCase().trim() !== companyCode) return;
+      if (s.companyCode || s.companyId) {
+        if (!matchCo(s.companyId, s.companyCode)) return;
+      }
       const alreadyIncluded = built.some(b => b.id === s.id || b.name.trim().toLowerCase() === (s.name || '').trim().toLowerCase());
       if (!alreadyIncluded && s.name) {
         built.push({
@@ -374,27 +387,33 @@ export default function PurchasePOSListView({
     const initialBuilt = buildItemsList(cachedList);
     setItems(initialBuilt);
 
-    // B. Fetch fresh data from Database & Local API
-    const fetchApiUrl = `/api/pos/purchase-list?companyCode=${encodeURIComponent(companyCode)}&companyId=${companyId}`;
-    fetch(fetchApiUrl)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.items)) {
-          const companySpecificItems = data.items.filter((it: any) => {
-            if (it.companyId && companyId && Number(it.companyId) !== Number(companyId)) return false;
-            if (it.companyCode && companyCode && String(it.companyCode).toUpperCase().trim() !== companyCode) return false;
-            return true;
-          });
-          const freshBuilt = buildItemsList(companySpecificItems);
-          setItems(freshBuilt);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(storageKey, JSON.stringify(freshBuilt));
-          }
+    // B. Fetch fresh data directly from Host PC company folder
+    companyDataFolderService.loadCompanyFolder(companyCode).then(folder => {
+      if (folder && folder.posPurchaseList && Array.isArray(folder.posPurchaseList) && folder.posPurchaseList.length > 0) {
+        const freshBuilt = buildItemsList(folder.posPurchaseList);
+        setItems(freshBuilt);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(storageKey, JSON.stringify(freshBuilt));
         }
-      })
-      .catch(err => {
-        console.warn("Could not fetch remote purchase list:", err);
-      });
+        return;
+      }
+      // Fallback to API if folder empty
+      const fetchApiUrl = `/api/pos/purchase-list?companyCode=${encodeURIComponent(companyCode)}&companyId=${companyId}`;
+      fetch(fetchApiUrl)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.items)) {
+            const freshBuilt = buildItemsList(data.items);
+            setItems(freshBuilt);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(storageKey, JSON.stringify(freshBuilt));
+            }
+          }
+        })
+        .catch(err => {
+          console.warn("Could not fetch remote purchase list:", err);
+        });
+    }).catch(() => {});
   }, [storageKey, companyCode, companyId, buildItemsList]);
 
   // 4B. Live Reactive Sync: When stockItems prop updates (e.g. user altered item unit or name in Masters), update items immediately!

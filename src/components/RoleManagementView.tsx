@@ -228,7 +228,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
           Journal: false,
           'Sales Quotation': true,
           'POS Sale': true,
-          'Purchase POS List': false,
+          'Purchase POS List': true,
         },
         registers: {
           'Purchase Register': false,

@@ -51,6 +51,19 @@ export default function POSWorkflowContainer({
   const [isTrainingMode, setIsTrainingMode] = useState(false);
   const [trainingPkg, setTrainingPkg] = useState<TrainingDataPackage | null>(null);
   const [posPurchaseList, setPosPurchaseList] = useState<any[]>([]);
+  const [localStockItems, setLocalStockItems] = useState<any[]>(stockItems || []);
+  const [localLedgers, setLocalLedgers] = useState<any[]>(ledgers || []);
+  const [localVouchers, setLocalVouchers] = useState<any[]>(vouchers || []);
+
+  useEffect(() => {
+    if (stockItems && stockItems.length > 0) setLocalStockItems(stockItems);
+  }, [stockItems]);
+  useEffect(() => {
+    if (ledgers && ledgers.length > 0) setLocalLedgers(ledgers);
+  }, [ledgers]);
+  useEffect(() => {
+    if (vouchers && vouchers.length > 0) setLocalVouchers(vouchers);
+  }, [vouchers]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -81,11 +94,20 @@ export default function POSWorkflowContainer({
       // Check company folder service
       try {
         const folder = await companyDataFolderService.loadCompanyFolder(companyCode);
-        if (!isCancelled) {
-          if (folder?.posPurchaseList && Array.isArray(folder.posPurchaseList)) {
+        if (!isCancelled && folder) {
+          if (folder.posPurchaseList && Array.isArray(folder.posPurchaseList)) {
             setPosPurchaseList(folder.posPurchaseList);
           } else if (!loaded) {
             setPosPurchaseList([]);
+          }
+          if (folder.stockItems && Array.isArray(folder.stockItems) && folder.stockItems.length > 0) {
+            setLocalStockItems(folder.stockItems);
+          }
+          if (folder.ledgers && Array.isArray(folder.ledgers) && folder.ledgers.length > 0) {
+            setLocalLedgers(folder.ledgers);
+          }
+          if (folder.vouchers && Array.isArray(folder.vouchers) && folder.vouchers.length > 0) {
+            setLocalVouchers(folder.vouchers);
           }
         }
       } catch (_) { }
@@ -99,6 +121,7 @@ export default function POSWorkflowContainer({
     const finalCo = targetCompany || activeCompanyState || company;
     setActiveCompanyState(finalCo);
     setCashierUser(user);
+    permissionGuard.setCurrentUser(user);
 
     if (user?.isTrainingMode) {
       setIsTrainingMode(true);
@@ -111,49 +134,83 @@ export default function POSWorkflowContainer({
     setIsTrainingMode(false);
     setTrainingPkg(null);
 
-    if (targetCompany && targetCompany.id !== company?.id) {
-      onSwitchCompany?.(targetCompany);
-    }
-
-    // Immediately load target company's complete disk folder data (Stock, Purchase POS List, Vouchers)
     const code = companyDataFolderService.getCompanyFolderCode(finalCo, availableCompanies);
+    let diskFolder: any = null;
     try {
-      const folder = await companyDataFolderService.loadCompanyFolder(code);
-      if (folder) {
-        onStockUpdated?.(Array.isArray(folder.stockItems) ? folder.stockItems : []);
-        setPosPurchaseList(Array.isArray(folder.posPurchaseList) ? folder.posPurchaseList : []);
-        onVouchersUpdated?.(Array.isArray(folder.vouchers) ? folder.vouchers : []);
-      } else {
-        onStockUpdated?.([]);
-        setPosPurchaseList([]);
-        onVouchersUpdated?.([]);
+      diskFolder = await companyDataFolderService.loadCompanyFolder(code);
+      if (diskFolder) {
+        const diskStock = Array.isArray(diskFolder.stockItems) ? diskFolder.stockItems : [];
+        const diskPurchaseList = Array.isArray(diskFolder.posPurchaseList) ? diskFolder.posPurchaseList : [];
+        const diskLedgers = Array.isArray(diskFolder.ledgers) ? diskFolder.ledgers : [];
+        const diskVouchers = Array.isArray(diskFolder.vouchers) ? diskFolder.vouchers : [];
+
+        setLocalStockItems(diskStock);
+        setPosPurchaseList(diskPurchaseList);
+        setLocalLedgers(diskLedgers);
+        setLocalVouchers(diskVouchers);
+
+        onStockUpdated?.(diskStock);
+        onVouchersUpdated?.(diskVouchers);
       }
     } catch (_) { }
 
-    // Smart routing based on user permissions:
-    // 1. If user does NOT have POS Sale permission, route directly to their allowed screen!
-    if (!permissionGuard.canAccessVoucher('POS Sale') && !user.isAdmin) {
-      if (permissionGuard.canAccessVoucher('Purchase')) {
+    const diskCo = (diskFolder && diskFolder.company) ? { ...diskFolder.company, companyCode: code, code } : finalCo;
+    if (onSwitchCompany) {
+      await onSwitchCompany(diskCo);
+    }
+
+    // Smart role-based routing:
+    const perms = user?.permissions;
+    const isAdmin = Boolean(user?.isAdmin);
+    const canPOS = isAdmin || Boolean(perms?.vouchers?.['POS Sale']);
+    const canPurchasePOSList = isAdmin || Boolean(perms?.vouchers?.['Purchase POS List']) || Boolean(perms?.vouchers?.Purchase);
+    const canPurchase = isAdmin || Boolean(perms?.vouchers?.Purchase);
+    const canSales = isAdmin || Boolean(perms?.vouchers?.Sales);
+    const canPayment = isAdmin || Boolean(perms?.vouchers?.Payment);
+    const canReceipt = isAdmin || Boolean(perms?.vouchers?.Receipt);
+    const canContra = isAdmin || Boolean(perms?.vouchers?.Contra);
+    const canJournal = isAdmin || Boolean(perms?.vouchers?.Journal);
+
+    const generalAccountingCount = [canPurchase, canSales, canPayment, canReceipt, canContra, canJournal].filter(Boolean).length;
+    const hasRegisters = Boolean(perms?.registers && Object.values(perms.registers).some(Boolean));
+    const hasReports = Boolean(perms?.reports && Object.values(perms.reports).some(Boolean));
+    const hasMasters = Boolean(perms?.masters && Object.values(perms.masters).some(Boolean));
+
+    // Multi-feature accounting operator / Manager / Admin (e.g. amir001):
+    const hasBroadAccounting = isAdmin || (generalAccountingCount >= 2 && (hasRegisters || hasReports || hasMasters)) || (canPOS && generalAccountingCount >= 1 && (hasRegisters || hasReports));
+
+    if (hasBroadAccounting) {
+      if (onOpenGateway) {
+        onOpenGateway();
+        return;
+      }
+      onBack();
+      return;
+    }
+
+    if (!canPOS) {
+      // Dedicated single-function non-POS operators:
+      if (canPurchase) {
         onOpenVoucher ? onOpenVoucher('Purchase') : onBack();
         return;
       }
-      if (permissionGuard.canAccessVoucher('Sales')) {
+      if (canSales) {
         onOpenVoucher ? onOpenVoucher('Sales') : onBack();
         return;
       }
-      if (permissionGuard.canAccessVoucher('Payment')) {
+      if (canPayment) {
         onOpenVoucher ? onOpenVoucher('Payment') : onBack();
         return;
       }
-      if (permissionGuard.canAccessVoucher('Contra')) {
-        onOpenVoucher ? onOpenVoucher('Contra') : onBack();
-        return;
-      }
-      if (permissionGuard.canAccessVoucher('Receipt')) {
+      if (canReceipt) {
         onOpenVoucher ? onOpenVoucher('Receipt') : onBack();
         return;
       }
-      if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') || permissionGuard.canAccessVoucher('Purchase POS List')) {
+      if (canContra) {
+        onOpenVoucher ? onOpenVoucher('Contra') : onBack();
+        return;
+      }
+      if (canPurchasePOSList) {
         setWorkflowState('PURCHASE_POS_LIST');
         return;
       }
@@ -165,7 +222,7 @@ export default function POSWorkflowContainer({
       return;
     }
 
-    // 2. User has POS Sale permission (or isAdmin):
+    // Dedicated pure POS Cashier:
     setWorkflowState('SALES');
   };
 
@@ -196,14 +253,21 @@ export default function POSWorkflowContainer({
 
   const handleOpenPOSList = () => {
     if (isTrainingMode) {
-      // In training mode, cashier is always allowed to practice and inspect training POS list
       setWorkflowState('PURCHASE_POS_LIST');
       return;
     }
 
-    if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST') && permissionGuard.canAccessVoucher('Purchase POS List')) {
-      // Always switch to internal PURCHASE_POS_LIST state so the cashier session is preserved
-      // and pressing Escape returns smoothly step-by-step to SALES screen without logging out!
+    const perms = (cashierUser as any)?.permissions || permissionGuard.getCurrentUser()?.permissions;
+    const isAllowed = Boolean(
+      cashierUser?.isAdmin ||
+      permissionGuard.getCurrentUser()?.isAdmin ||
+      perms?.vouchers?.['Purchase POS List'] ||
+      perms?.vouchers?.Purchase ||
+      permissionGuard.canAccessVoucher('Purchase POS List') ||
+      permissionGuard.canAccessScreen('PURCHASE_POS_LIST')
+    );
+
+    if (isAllowed) {
       setWorkflowState('PURCHASE_POS_LIST');
     } else {
       alert('Access Denied: You do not have permission to access Purchase POS List.');
@@ -231,16 +295,17 @@ export default function POSWorkflowContainer({
       <PurchasePOSListView
         company={isTrainingMode ? (trainingPkg?.company || TRAINING_COMPANY) : (activeCompanyState || company)}
         availableCompanies={isTrainingMode ? [] : availableCompanies}
-        stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : stockItems}
-        vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : vouchers}
+        stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : (localStockItems && localStockItems.length > 0 ? localStockItems : stockItems)}
+        vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : (localVouchers && localVouchers.length > 0 ? localVouchers : vouchers)}
         onBack={() => setWorkflowState('SALES')}
         onStockUpdated={(updated) => {
           if (isTrainingMode && trainingPkg) {
             const newPkg = { ...trainingPkg, stockItems: updated };
             setTrainingPkg(newPkg);
             posTrainingService.persistToDisk(newPkg);
-          } else if (onStockUpdated) {
-            onStockUpdated(updated);
+          } else {
+            setLocalStockItems(updated);
+            if (onStockUpdated) onStockUpdated(updated);
           }
         }}
       />
@@ -251,10 +316,10 @@ export default function POSWorkflowContainer({
     <POSSaleView
       company={isTrainingMode ? (trainingPkg?.company || TRAINING_COMPANY) : (activeCompanyState || company)}
       availableCompanies={isTrainingMode ? [] : availableCompanies}
-      stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : stockItems}
+      stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : (localStockItems && localStockItems.length > 0 ? localStockItems : stockItems)}
       posPurchaseList={posPurchaseList}
-      ledgers={isTrainingMode ? (trainingPkg?.ledgers || []) : ledgers}
-      vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : vouchers}
+      ledgers={isTrainingMode ? (trainingPkg?.ledgers || []) : (localLedgers && localLedgers.length > 0 ? localLedgers : ledgers)}
+      vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : (localVouchers && localVouchers.length > 0 ? localVouchers : vouchers)}
       cashierUser={cashierUser || undefined}
       onBack={handleExit}
       onLogoutToLogin={handleLogoutToLogin}
@@ -263,8 +328,9 @@ export default function POSWorkflowContainer({
           const newPkg = { ...trainingPkg, stockItems: updated };
           setTrainingPkg(newPkg);
           posTrainingService.persistToDisk(newPkg);
-        } else if (onStockUpdated) {
-          onStockUpdated(updated);
+        } else {
+          setLocalStockItems(updated);
+          if (onStockUpdated) onStockUpdated(updated);
         }
       }}
       onVouchersUpdated={(updated) => {
@@ -272,8 +338,9 @@ export default function POSWorkflowContainer({
           const newPkg = { ...trainingPkg, vouchers: updated };
           setTrainingPkg(newPkg);
           posTrainingService.persistToDisk(newPkg);
-        } else if (onVouchersUpdated) {
-          onVouchersUpdated(updated);
+        } else {
+          setLocalVouchers(updated);
+          if (onVouchersUpdated) onVouchersUpdated(updated);
         }
       }}
       onOpenPurchasePOSList={handleOpenPOSList}

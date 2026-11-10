@@ -2138,11 +2138,25 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
+  // Helper to reliably match an entity's company across 5-digit folder codes (e.g. "10000") and internal DB IDs (e.g. 4)
+  const isCoMatch = (obj: any, activeCo: any): boolean => {
+    if (!activeCo || !obj) return false;
+    const targetId = Number(activeCo.id);
+    const targetCode = String(activeCo.companyCode || (activeCo as any).code || '').trim().toUpperCase();
+    const cId = Number(obj.companyId);
+    const cCode = String(obj.companyCode || obj.code || '').trim().toUpperCase();
+    if (targetCode && cCode && targetCode === cCode) return true;
+    if (targetId && cId && targetId === cId) return true;
+    if (targetCode && cId && String(cId) === targetCode) return true;
+    if (targetId && cCode && String(targetId) === cCode) return true;
+    return false;
+  };
+
   // DERIVED DATA FOR ACTIVE COMPANY
   const ledgers        = useMemo(() => {
     if (!activeCompany) return [];
     return allLedgers.filter(l => 
-      Number(l.companyId) === Number(activeCompany.id) && 
+      isCoMatch(l, activeCompany) && 
       !TALLY_GROUPS.includes(l.name)
     );
   }, [allLedgers, activeCompany]);
@@ -2153,9 +2167,9 @@ export default function App() {
     // User requested that in 'Under' list, only standard groups should be selectable, not user-created ones.
     return standard;
   }, [allGroups, activeCompany]);
-  const stockGroups    = useMemo(() => activeCompany ? allStockGroups.filter(sg => Number(sg.companyId) === Number(activeCompany.id)) : [], [allStockGroups, activeCompany]);
-  const stockCategories = useMemo(() => activeCompany ? allStockCategories.filter(sc => Number(sc.companyId) === Number(activeCompany.id)) : [], [allStockCategories, activeCompany]);
-  const stockItems     = useMemo(() => activeCompany ? allStockItems.filter(si => Number(si.companyId) === Number(activeCompany.id)) : [], [allStockItems, activeCompany]);
+  const stockGroups    = useMemo(() => activeCompany ? allStockGroups.filter(sg => isCoMatch(sg, activeCompany)) : [], [allStockGroups, activeCompany]);
+  const stockCategories = useMemo(() => activeCompany ? allStockCategories.filter(sc => isCoMatch(sc, activeCompany)) : [], [allStockCategories, activeCompany]);
+  const stockItems     = useMemo(() => activeCompany ? allStockItems.filter(si => isCoMatch(si, activeCompany)) : [], [allStockItems, activeCompany]);
   const units          = useMemo(() => {
     const list: UnitData[] = [];
     const seen = new Set<string>();
@@ -2180,15 +2194,15 @@ export default function App() {
     };
 
     if (activeCompany) {
-      allUnits.filter(u => Number(u.companyId) === Number(activeCompany.id)).forEach(addUnit);
+      allUnits.filter(u => isCoMatch(u, activeCompany)).forEach(addUnit);
     }
     allUnits.filter(u => Number(u.companyId) === 1 || Number(u.companyId) === -1).forEach(addUnit);
     INIT_UNITS.forEach(addUnit);
 
     return list;
   }, [allUnits, activeCompany]);
-  const godowns        = useMemo(() => activeCompany ? allGodowns.filter(g => Number(g.companyId) === Number(activeCompany.id)) : [], [allGodowns, activeCompany]);
-  const voucherTypes   = useMemo(() => activeCompany ? allVoucherTypes.filter(vt => Number(vt.companyId) === Number(activeCompany.id)) : [], [allVoucherTypes, activeCompany]);
+  const godowns        = useMemo(() => activeCompany ? allGodowns.filter(g => isCoMatch(g, activeCompany)) : [], [allGodowns, activeCompany]);
+  const voucherTypes   = useMemo(() => activeCompany ? allVoucherTypes.filter(vt => isCoMatch(vt, activeCompany)) : [], [allVoucherTypes, activeCompany]);
   
   const prevCompanyIdRef = useRef<number | null>(null);
   useEffect(() => {
@@ -2200,11 +2214,10 @@ export default function App() {
       // Load full disk data for this company (Stock items, POS Purchase List, Vouchers, Ledgers)
       companyDataFolderService.loadCompanyFolder(compCode).then(folderData => {
         if (folderData) {
-          const cid = Number(activeCompany.id);
+          const loadedStock = Array.isArray(folderData.stockItems) ? folderData.stockItems : [];
           setAllStockItems(prev => {
-            const others = prev.filter(si => Number(si.companyId) !== cid && String(si.companyCode || '').toUpperCase() !== compCode);
-            const loaded = Array.isArray(folderData.stockItems) ? folderData.stockItems : [];
-            return [...others, ...loaded];
+            const others = prev.filter(si => !isCoMatch(si, activeCompany));
+            return [...others, ...loadedStock];
           });
           try {
             const posList = Array.isArray(folderData.posPurchaseList) ? folderData.posPurchaseList : [];
@@ -2212,13 +2225,13 @@ export default function App() {
           } catch (_) { }
           if (folderData.vouchers && folderData.vouchers.length > 0) {
             setAllVouchers(prev => {
-              const others = prev.filter(v => Number(v.companyId) !== cid);
+              const others = prev.filter(v => !isCoMatch(v, activeCompany));
               return [...others, ...folderData.vouchers];
             });
           }
           if (folderData.ledgers && folderData.ledgers.length > 0) {
             setAllLedgers(prev => {
-              const others = prev.filter(l => Number(l.companyId) !== cid);
+              const others = prev.filter(l => !isCoMatch(l, activeCompany));
               return [...others, ...folderData.ledgers];
             });
           }
@@ -2338,8 +2351,8 @@ export default function App() {
     }
   }, [activeCompany?.id, allLedgers.length, isAuthenticated]);
 
-  const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => Number(c.companyId) === Number(activeCompany.id)) : [], [allCurrencies, activeCompany]);
-  const vouchers       = useMemo(() => activeCompany ? allVouchers.filter(v => Number(v.companyId) === Number(activeCompany.id)) : [], [allVouchers, activeCompany]);
+  const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => isCoMatch(c, activeCompany)) : [], [allCurrencies, activeCompany]);
+  const vouchers       = useMemo(() => activeCompany ? allVouchers.filter(v => isCoMatch(v, activeCompany)) : [], [allVouchers, activeCompany]);
   const filteredVouchers = useMemo(() => {
     const ps = parseDate(currentPeriod.start);
     ps.setHours(0, 0, 0, 0);
@@ -2451,6 +2464,11 @@ export default function App() {
     } else {
       if (permissionGuard.isClientSession()) {
         const u = permissionGuard.getCurrentUser();
+        const hasBroadAccess = u && (u.isAdmin || (u.permissions?.reports && Object.values(u.permissions.reports).some(Boolean)) || (u.permissions?.registers && Object.values(u.permissions.registers).some(Boolean)));
+        if (hasBroadAccess) {
+          setScreen('GATEWAY_MAIN');
+          return;
+        }
         if (u && !u.isAdmin && !permissionGuard.canAccessVoucher('POS Sale')) {
           if (permissionGuard.canAccessVoucher('Purchase')) {
             setActiveVoucher('Purchase');
@@ -4956,6 +4974,11 @@ export default function App() {
                 vouchers={vouchers}
                 onBack={() => {
                   const curr = permissionGuard.getCurrentUser();
+                  const hasBroadAccess = curr && (curr.isAdmin || (curr.permissions?.reports && Object.values(curr.permissions.reports).some(Boolean)) || (curr.permissions?.registers && Object.values(curr.permissions.registers).some(Boolean)));
+                  if (hasBroadAccess) {
+                    setScreen('GATEWAY_MAIN');
+                    return;
+                  }
                   if (curr && !curr.isAdmin && !permissionGuard.canAccessVoucher('POS Sale')) {
                     if (permissionGuard.canAccessVoucher('Purchase')) {
                       setActiveVoucher('Purchase');
@@ -4975,9 +4998,6 @@ export default function App() {
                   setScreen('GATEWAY_MAIN');
                 }}
                 onOpenGateway={() => {
-                  if (permissionGuard.isClientSession()) {
-                    return;
-                  }
                   setScreen('GATEWAY_MAIN');
                 }}
                 onOpenVoucher={(type) => {
@@ -4986,15 +5006,13 @@ export default function App() {
                 }}
                 onStockUpdated={updated => {
                   setAllStockItems(prev => {
-                    const cid = Number(activeCompany?.id || 0);
-                    const others = prev.filter(si => Number(si.companyId) !== cid);
+                    const others = prev.filter(si => !isCoMatch(si, activeCompany));
                     return [...others, ...updated];
                   });
                 }}
                 onVouchersUpdated={updated => {
                   setAllVouchers(prev => {
-                    const cid = Number(activeCompany?.id || 0);
-                    const others = prev.filter(v => Number(v.companyId) !== cid);
+                    const others = prev.filter(v => !isCoMatch(v, activeCompany));
                     return [...others, ...updated];
                   });
                 }}
@@ -5002,18 +5020,30 @@ export default function App() {
                   if (!targetCo) return;
                   const code = companyDataFolderService.getCompanyFolderCode(targetCo, companies);
                   const folderData = await companyDataFolderService.loadCompanyFolder(code);
+                  const diskCo = (folderData && folderData.company)
+                    ? { ...folderData.company, companyCode: code, code }
+                    : { ...targetCo, companyCode: code, code };
                   if (folderData) {
                     if (folderData.stockItems?.length) {
-                      setAllStockItems(p => [...p.filter(si => Number(si.companyId) !== Number(targetCo.id)), ...folderData.stockItems]);
+                      setAllStockItems(p => [...p.filter(si => !isCoMatch(si, diskCo)), ...folderData.stockItems]);
                     }
                     if (folderData.ledgers?.length) {
-                      setAllLedgers(p => [...p.filter(l => Number(l.companyId) !== Number(targetCo.id)), ...folderData.ledgers]);
+                      setAllLedgers(p => [...p.filter(l => !isCoMatch(l, diskCo)), ...folderData.ledgers]);
                     }
                     if (folderData.vouchers?.length) {
-                      setAllVouchers(p => [...p.filter(v => Number(v.companyId) !== Number(targetCo.id)), ...folderData.vouchers]);
+                      setAllVouchers(p => [...p.filter(v => !isCoMatch(v, diskCo)), ...folderData.vouchers]);
+                    }
+                    if (folderData.posPurchaseList?.length) {
+                      try {
+                        localStorage.setItem(`ledgerx_pos_purchase_list_${code}`, JSON.stringify(folderData.posPurchaseList));
+                      } catch (_) { }
                     }
                   }
-                  setActiveCompany(targetCo);
+                  setCompanies(prev => {
+                    const exists = prev.some(c => c && (c.id === diskCo.id || c.companyCode === code));
+                    return exists ? prev : [...prev, diskCo];
+                  });
+                  setActiveCompany(diskCo);
                 }}
               />
             )}

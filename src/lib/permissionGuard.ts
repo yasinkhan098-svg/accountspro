@@ -281,6 +281,12 @@ class PermissionGuardService {
     if (this.currentUser.isAdmin) return true;
 
     const vKey = voucherType as keyof VoucherPermissions;
+    if (vKey === 'Purchase POS List') {
+      if (this.currentUser.permissions?.vouchers?.['Purchase POS List'] !== undefined) {
+        return !!this.currentUser.permissions?.vouchers?.['Purchase POS List'];
+      }
+      return !!this.currentUser.permissions?.vouchers?.Purchase;
+    }
     return !!this.currentUser.permissions?.vouchers?.[vKey];
   }
 
@@ -297,7 +303,10 @@ class PermissionGuardService {
 
     switch (screen) {
       case 'PURCHASE_POS_LIST':
-        return !!perms.vouchers?.['Purchase POS List'];
+        if (perms.vouchers?.['Purchase POS List'] !== undefined) {
+          return !!perms.vouchers?.['Purchase POS List'];
+        }
+        return !!perms.vouchers?.Purchase;
       case 'POS_SALE':
         return !!perms.vouchers?.['POS Sale'] || !!perms.vouchers?.Sales;
       case 'BALANCE_SHEET':
@@ -393,7 +402,10 @@ class PermissionGuardService {
 
       // Specific Purchase POS List permission (MUST be checked before generic 'pos')
       if (lower.includes('purchase pos list') || lower === 'pos list' || lower.includes('pos list')) {
-        return !!perms.vouchers?.['Purchase POS List'];
+        if (perms.vouchers?.['Purchase POS List'] !== undefined) {
+          return !!perms.vouchers?.['Purchase POS List'];
+        }
+        return !!perms.vouchers?.Purchase;
       }
 
       // Vouchers / POS Sale

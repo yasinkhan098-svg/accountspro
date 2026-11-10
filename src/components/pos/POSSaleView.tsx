@@ -69,9 +69,12 @@ export default function POSSaleView({
     if (cashierUser?.isAdmin || (cashierUser as any)?.isAdmin || currentUser?.isAdmin) return true;
     const perms = (cashierUser as any)?.permissions || currentUser?.permissions;
     if (perms && perms.vouchers) {
-      return !!perms.vouchers['Purchase POS List'];
+      if (perms.vouchers['Purchase POS List'] !== undefined) {
+        return !!perms.vouchers['Purchase POS List'];
+      }
+      if (perms.vouchers['Purchase']) return true;
     }
-    return false;
+    return permissionGuard.canAccessVoucher('Purchase POS List') || permissionGuard.canAccessScreen('PURCHASE_POS_LIST');
   };
 
   // POS Core State
@@ -254,16 +257,27 @@ export default function POSSaleView({
   // Unified Catalog: Stock items merged with Purchase POS List strictly for this company
   // Guarantees that every item in POS Sale (and barcode scanning) uses Retail Sale Price, MRP & Discount from Purchase POS List
   const catalogItems = useMemo(() => {
+    const targetCode = String(companyCode || company?.companyCode || company?.code || '').toUpperCase().trim();
+    const targetId = Number(company?.id);
+
+    const matchCo = (cId: any, cCode: any) => {
+      const scCode = String(cCode || '').toUpperCase().trim();
+      const scId = Number(cId);
+      if (targetCode && scCode && scCode === targetCode) return true;
+      if (targetId && scId && targetId === scId) return true;
+      if (targetCode && scId && String(scId) === targetCode) return true;
+      if (targetId && scCode && String(targetId) === scCode) return true;
+      return false;
+    };
+
     const list = (Array.isArray(stockItems) ? stockItems : []).filter(si => {
       if (!company?.id && !companyCode) return false;
-      if (si.companyCode && companyCode && String(si.companyCode).toUpperCase().trim() === companyCode) return true;
-      if (si.companyId && company?.id && Number(si.companyId) === Number(company.id)) return true;
-      return false;
+      return matchCo(si.companyId, si.companyCode);
     });
     const posList = (Array.isArray(activePOSPurchaseList) ? activePOSPurchaseList : []).filter((p: any) => {
       if (!company?.id && !companyCode) return false;
-      if (p.companyCode && companyCode && String(p.companyCode).toUpperCase().trim() === companyCode) return true;
-      if (p.companyId && company?.id && Number(p.companyId) === Number(company.id)) return true;
+      if (matchCo(p.companyId, p.companyCode)) return true;
+      if (!p.companyCode && !p.companyId) return true;
       return false;
     });
 
@@ -324,6 +338,7 @@ export default function POSSaleView({
           discountAmt,
           retailSalePrice,
           openingQty: Number(p.openingStock) || 0,
+          stock: Number(p.openingStock) || 0,
           gstRate: Number(p.gstRate) || 18,
           hsnCode: p.hsnCode || '',
           expiryDate: p.expiryDate || '',
@@ -334,20 +349,20 @@ export default function POSSaleView({
     });
 
     return merged;
-  }, [stockItems, activePOSPurchaseList]);
+  }, [stockItems, activePOSPurchaseList, company?.id, companyCode]);
 
-  // Filter items: Only positive stock (> 0) shown in both Sale POS and Rubic POS
-  const positiveStockItems = useMemo(() => {
-    return catalogItems
-      .map(item => ({
-        ...item,
-        name: String(item.name || item.itemName || item.title || '').trim(),
-        _calculatedStock: getItemStock(item)
-      }))
-      .filter(item => item._calculatedStock > 0);
+  // Display items: Displays all catalog and Purchase POS List items with calculated live stock
+  const posDisplayItems = useMemo(() => {
+    return catalogItems.map(item => ({
+      ...item,
+      name: String(item.name || item.itemName || item.title || '').trim(),
+      _calculatedStock: getItemStock(item),
+    }));
   }, [catalogItems, getItemStock]);
 
-  // Rubic POS Stock Items: Strictly filtered to items present in Purchase POS List (Stock > 0)
+  const positiveStockItems = posDisplayItems;
+
+  // Rubic POS Stock Items: Strictly filtered to items present in Purchase POS List (or catalog items)
   const rubicStockItems = useMemo(() => {
     if (Array.isArray(activePOSPurchaseList) && activePOSPurchaseList.length > 0) {
       const purchaseIds = new Set<string>();
@@ -361,17 +376,18 @@ export default function POSSaleView({
         if (pName) purchaseNames.add(pName);
       });
 
-      return positiveStockItems.filter(item => {
+      const matched = posDisplayItems.filter(item => {
         const iName = String(item.name || item.itemName || '').trim().toLowerCase();
         const idMatch = item.id && purchaseIds.has(String(item.id));
         const barcodeMatch = item.barcode && purchaseBarcodes.has(String(item.barcode).trim().toLowerCase());
         const nameMatch = iName && purchaseNames.has(iName);
         return idMatch || barcodeMatch || nameMatch;
       });
+      if (matched.length > 0) return matched;
     }
 
-    return positiveStockItems;
-  }, [positiveStockItems, activePOSPurchaseList]);
+    return posDisplayItems;
+  }, [posDisplayItems, activePOSPurchaseList]);
 
   // All unique variants available in Rubic POS items with item counts
   const rubicVariantsData = useMemo(() => {
@@ -791,13 +807,18 @@ export default function POSSaleView({
     }
 
     // Step 9: Base POS Counter screen is reached!
+    const hasGateway = Boolean(cashierUser?.isAdmin || currentUser?.isAdmin || (currentUser?.permissions?.reports && Object.values(currentUser.permissions.reports).some(Boolean)));
     const confirmLogout = confirm(
       cart.length > 0
-        ? 'Current POS cart has items.\n\nDo you want to discard cart and Log Out from POS Counter?'
-        : 'Do you want to Log Out from POS Counter?'
+        ? (hasGateway ? 'Current POS cart has items.\n\nDo you want to discard cart and return to Menu / Gateway?' : 'Current POS cart has items.\n\nDo you want to discard cart and Log Out from POS Counter?')
+        : (hasGateway ? 'Do you want to return to Menu / Gateway?' : 'Do you want to Log Out from POS Counter?')
     );
     if (confirmLogout) {
-      handlePerformLogout();
+      if (hasGateway && onBack) {
+        onBack();
+      } else {
+        handlePerformLogout();
+      }
     }
   }, [
     managingImageItem,
