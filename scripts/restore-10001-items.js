@@ -96,3 +96,4 @@ fs.writeFileSync(path.join(dir10001, 'pos_purchase_list.json'), JSON.stringify(h
 fs.writeFileSync(path.join(dir10001, 'stock_items.json'), JSON.stringify(hardwareStockItems, null, 2), 'utf8');
 
 console.log('Restored hardware items to 10001/pos_purchase_list.json and 10001/stock_items.json');
+

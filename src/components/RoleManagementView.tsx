@@ -1,11 +1,11 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { 
-  LANUser, 
-  UserPermissions, 
-  DEFAULT_ADMIN_PERMISSIONS, 
+import {
+  LANUser,
+  UserPermissions,
+  DEFAULT_ADMIN_PERMISSIONS,
   DEFAULT_OPERATOR_PERMISSIONS,
-  permissionGuard 
+  permissionGuard
 } from '@/lib/permissionGuard';
 import { lanUserManagementService, HostLANInfo } from '@/lib/lanUserManagementService';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
@@ -17,8 +17,8 @@ interface RoleManagementViewProps {
 }
 
 export default function RoleManagementView({ goBack, availableCompanies = [], activeCompany }: RoleManagementViewProps) {
-  const activeCompanyCode = activeCompany 
-    ? companyDataFolderService.getCompanyFolderCode(activeCompany, availableCompanies) 
+  const activeCompanyCode = activeCompany
+    ? companyDataFolderService.getCompanyFolderCode(activeCompany, availableCompanies)
     : lanUserManagementService.getActiveCompanyCode();
   const activeCompanyName = activeCompany?.name || 'Current Company';
 
@@ -308,12 +308,12 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#f8fafc', color: '#1e293b', fontFamily: 'Segoe UI, sans-serif' }}>
-      
+
       {/* Top Header */}
       <div style={{ background: '#0f3c64', color: '#fff', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button 
-            onClick={goBack} 
+          <button
+            onClick={goBack}
             style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
           >
             ← Esc Back
@@ -332,7 +332,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button 
+          <button
             onClick={handleCreateNew}
             style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 'bold', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 4px rgba(16,185,129,0.3)' }}
           >
@@ -350,10 +350,10 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
 
       {/* Scrollable Container */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-        
+
         {/* Multi-User Connectivity Hub (Dual: LAN + Online Cloud) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 14, marginBottom: 20 }}>
-          
+
           {/* 1. Offline LAN Client Card */}
           <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
@@ -385,7 +385,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button 
+                <button
                   onClick={copyLANLink}
                   style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
                   title="Copy LAN URL to paste into client computer's browser"
@@ -393,7 +393,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                   {copied ? '✓ Copied!' : '📋 Copy LAN Link'}
                 </button>
 
-                <a 
+                <a
                   href="/downloads/LedgerX-Client-Setup.exe"
                   download="LedgerX-Client-Setup.exe"
                   style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flex: 1.4, justifyContent: 'center', boxShadow: '0 2px 4px rgba(16,185,129,0.3)' }}
@@ -411,9 +411,9 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                 >
                   🛡️ Fix Windows Firewall (.bat)
                 </a>
-                <a 
-                  href="/downloads/LedgerX-Client.exe" 
-                  download="LedgerX-Client.exe" 
+                <a
+                  href="/downloads/LedgerX-Client.exe"
+                  download="LedgerX-Client.exe"
                   style={{ color: '#64748b', textDecoration: 'underline' }}
                   title="Download raw portable exe without installer"
                 >
@@ -445,7 +445,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <button 
+              <button
                 onClick={copyOnlineLink}
                 style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
                 title="Copy Web Client URL to paste into remote browser"
@@ -453,7 +453,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                 {copiedOnline ? '✓ Copied!' : '📋 Copy Web Link'}
               </button>
 
-              <a 
+              <a
                 href="/downloads/LedgerX-Online-Client.exe"
                 download="LedgerX-Online-Client.exe"
                 style={{ background: '#0891b2', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flex: 1.3, justifyContent: 'center' }}
@@ -472,7 +472,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
             <div>
               <b>Logged in as:</b> <span style={{ color: '#b45309', fontWeight: 'bold' }}>{activeLanUser.fullName} (@{activeLanUser.username})</span> • Role: <b>{activeLanUser.isAdmin ? '👑 Administrator (Full Access)' : '🔒 Restricted Role'}</b>
             </div>
-            <button 
+            <button
               onClick={() => {
                 permissionGuard.setCurrentUser(null);
                 showToastMsg('Switched back to Primary Admin session.');
@@ -506,19 +506,19 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
             </thead>
             <tbody>
               {users.map((u, i) => {
-                const allowedVouchers = u.isAdmin 
-                  ? 'All Vouchers' 
+                const allowedVouchers = u.isAdmin
+                  ? 'All Vouchers'
                   : Object.entries(u.permissions?.vouchers || {})
-                      .filter(([_, v]) => v)
-                      .map(([k]) => k)
-                      .join(', ') || 'None';
+                    .filter(([_, v]) => v)
+                    .map(([k]) => k)
+                    .join(', ') || 'None';
 
-                const allowedReports = u.isAdmin 
-                  ? 'All Reports & Financials' 
+                const allowedReports = u.isAdmin
+                  ? 'All Reports & Financials'
                   : Object.entries(u.permissions?.reports || {})
-                      .filter(([_, v]) => v)
-                      .map(([k]) => k)
-                      .join(', ') || 'None';
+                    .filter(([_, v]) => v)
+                    .map(([k]) => k)
+                    .join(', ') || 'None';
 
                 return (
                   <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
@@ -556,7 +556,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                        <button 
+                        <button
                           onClick={() => {
                             permissionGuard.setCurrentUser(u);
                             showToastMsg(`Switched session to "${u.username}". Testing restrictions in real-time.`);
@@ -566,14 +566,14 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                         >
                           🧪 Test Role
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleEdit(u)}
                           style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
                         >
                           ✏️ Edit
                         </button>
                         {u.username.toLowerCase() !== 'admin' && (
-                          <button 
+                          <button
                             onClick={() => handleDelete(u)}
                             style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
                           >
@@ -594,7 +594,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
           <div style={{ background: '#fff', borderRadius: 10, width: 780, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #cbd5e1' }}>
-            
+
             {/* Modal Header */}
             <div style={{ background: '#0f3c64', color: '#fff', padding: '14px 20px', borderRadius: '10px 10px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 16, fontWeight: 'bold' }}>
@@ -605,12 +605,12 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
 
             {/* Modal Body */}
             <form onSubmit={handleSave} style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-              
+
               {/* Active Company Scope Badge */}
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '8px 14px', marginBottom: 14, fontSize: 12, color: '#1e40af', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>🏢 Managing Access For: <b>{activeCompanyName}</b></span>
                 <span style={{ background: '#dbeafe', padding: '2px 8px', borderRadius: 4, fontWeight: 'bold', fontFamily: 'monospace' }}>
-                  Folder: {activeCompanyCode}
+                  Code: [{activeCompanyCode}]
                 </span>
               </div>
 
@@ -618,9 +618,9 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18, background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Username (Login ID) *</label>
-                  <input 
-                    type="text" 
-                    value={formUsername} 
+                  <input
+                    type="text"
+                    value={formUsername}
                     onChange={e => setFormUsername(e.target.value)}
                     required
                     placeholder="e.g. rahul_pur, amit_sales"
@@ -630,9 +630,9 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
 
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Full Name / Department</label>
-                  <input 
-                    type="text" 
-                    value={formFullName} 
+                  <input
+                    type="text"
+                    value={formFullName}
                     onChange={e => setFormFullName(e.target.value)}
                     placeholder="e.g. Rahul Sharma (Purchase Executive)"
                     style={{ width: '100%', padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13 }}
@@ -641,9 +641,9 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
 
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Password (Optional / Plain)</label>
-                  <input 
-                    type="password" 
-                    value={formPassword} 
+                  <input
+                    type="password"
+                    value={formPassword}
                     onChange={e => setFormPassword(e.target.value)}
                     placeholder="Leave blank for passwordless LAN login"
                     style={{ width: '100%', padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13 }}
@@ -652,9 +652,9 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 20, paddingTop: 20 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', fontWeight: 600, color: '#0f3c64' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={formIsAdmin} 
+                    <input
+                      type="checkbox"
+                      checked={formIsAdmin}
                       onChange={e => setFormIsAdmin(e.target.checked)}
                       style={{ width: 16, height: 16 }}
                     />
@@ -662,9 +662,9 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                   </label>
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', fontWeight: 600, color: '#166534' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={formIsActive} 
+                    <input
+                      type="checkbox"
+                      checked={formIsActive}
                       onChange={e => setFormIsActive(e.target.checked)}
                       style={{ width: 16, height: 16 }}
                     />
@@ -680,33 +680,33 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                     <div style={{ fontWeight: 'bold', fontSize: 14, color: '#0f3c64' }}>
                       🛡️ Granular Role & Access Control (Tick what this user can do)
                     </div>
-                    
+
                     {/* Quick Preset Buttons */}
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button 
-                        type="button" 
-                        onClick={() => applyPreset('purchase_only')} 
+                      <button
+                        type="button"
+                        onClick={() => applyPreset('purchase_only')}
                         style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: 4, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
                       >
                         ⚡ Purchase Only
                       </button>
-                      <button 
-                        type="button" 
-                        onClick={() => applyPreset('sales_only')} 
+                      <button
+                        type="button"
+                        onClick={() => applyPreset('sales_only')}
                         style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 4, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
                       >
                         ⚡ Sales Only
                       </button>
-                      <button 
-                        type="button" 
-                        onClick={() => applyPreset('all')} 
+                      <button
+                        type="button"
+                        onClick={() => applyPreset('all')}
                         style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}
                       >
                         Select All
                       </button>
-                      <button 
-                        type="button" 
-                        onClick={() => applyPreset('clear')} 
+                      <button
+                        type="button"
+                        onClick={() => applyPreset('clear')}
                         style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}
                       >
                         Clear All
@@ -763,13 +763,13 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                           { key: 'POS Sale', label: '🛒 POS Sale (Retail Touch Counter)', highlight: '#059669' },
                           { key: 'Purchase POS List', label: '📋 Purchase POS List (Stock, MRP, Barcode & Labels)', highlight: '#d97706' },
                         ].map(v => (
-                          <label 
+                          <label
                             key={v.key}
-                            style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 8, 
-                              padding: '8px 10px', 
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '8px 10px',
                               background: formPerms.vouchers[v.key as keyof UserPermissions['vouchers']] ? '#f0fdf4' : '#f8fafc',
                               border: `1px solid ${formPerms.vouchers[v.key as keyof UserPermissions['vouchers']] ? '#86efac' : '#e2e8f0'}`,
                               borderRadius: 4,
@@ -778,7 +778,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                               fontWeight: 600
                             }}
                           >
-                            <input 
+                            <input
                               type="checkbox"
                               checked={!!formPerms.vouchers[v.key as keyof UserPermissions['vouchers']]}
                               onChange={() => toggleVoucherPerm(v.key as any)}
@@ -806,13 +806,13 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                           { key: 'GSTReports', label: 'GSTR-1 & GSTR-3B Tax Filing Summaries' },
                           { key: 'AuditTrail', label: 'Audit Trail & Edit Logs' },
                         ].map(r => (
-                          <label 
+                          <label
                             key={r.key}
-                            style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 8, 
-                              padding: '10px 12px', 
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 12px',
                               background: formPerms.reports[r.key as keyof UserPermissions['reports']] ? '#f0fdf4' : '#f8fafc',
                               border: `1px solid ${formPerms.reports[r.key as keyof UserPermissions['reports']] ? '#86efac' : '#e2e8f0'}`,
                               borderRadius: 4,
@@ -821,7 +821,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                               fontWeight: 600
                             }}
                           >
-                            <input 
+                            <input
                               type="checkbox"
                               checked={!!formPerms.reports[r.key as keyof UserPermissions['reports']]}
                               onChange={() => toggleReportPerm(r.key as any)}
@@ -850,13 +850,13 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                           { key: 'Credit Note Register', label: 'Credit Note Register' },
                           { key: 'Quotation Register', label: 'Sales Quotation Register' },
                         ].map(reg => (
-                          <label 
+                          <label
                             key={reg.key}
-                            style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 8, 
-                              padding: '8px 12px', 
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '8px 12px',
                               background: formPerms.registers[reg.key as keyof UserPermissions['registers']] ? '#f0fdf4' : '#f8fafc',
                               border: `1px solid ${formPerms.registers[reg.key as keyof UserPermissions['registers']] ? '#86efac' : '#e2e8f0'}`,
                               borderRadius: 4,
@@ -865,7 +865,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                               fontWeight: 600
                             }}
                           >
-                            <input 
+                            <input
                               type="checkbox"
                               checked={!!formPerms.registers[reg.key as keyof UserPermissions['registers']]}
                               onChange={() => toggleRegisterPerm(reg.key as any)}
@@ -888,13 +888,13 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                           { key: 'BankStatement', label: 'Bank Statement Entry & Reconciliation' },
                           { key: 'PurchaseOrder', label: 'Purchase Order Module (PO Entry & Register)' },
                         ].map(m => (
-                          <label 
+                          <label
                             key={m.key}
-                            style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 8, 
-                              padding: '10px 12px', 
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 12px',
                               background: formPerms.modules[m.key as keyof UserPermissions['modules']] ? '#f0fdf4' : '#f8fafc',
                               border: `1px solid ${formPerms.modules[m.key as keyof UserPermissions['modules']] ? '#86efac' : '#e2e8f0'}`,
                               borderRadius: 4,
@@ -903,7 +903,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                               fontWeight: 600
                             }}
                           >
-                            <input 
+                            <input
                               type="checkbox"
                               checked={!!formPerms.modules[m.key as keyof UserPermissions['modules']]}
                               onChange={() => toggleModulePerm(m.key as any)}
@@ -928,13 +928,13 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                           { key: 'deleteMaster', label: 'Allow Deleting Master Accounts (Alt+D)' },
                           { key: 'deleteVoucher', label: 'Allow Deleting Vouchers (Alt+D)' },
                         ].map(act => (
-                          <label 
+                          <label
                             key={act.key}
-                            style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 8, 
-                              padding: '10px 12px', 
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 12px',
                               background: formPerms.masters[act.key as keyof UserPermissions['masters']] ? '#f0fdf4' : '#f8fafc',
                               border: `1px solid ${formPerms.masters[act.key as keyof UserPermissions['masters']] ? '#86efac' : '#e2e8f0'}`,
                               borderRadius: 4,
@@ -943,7 +943,7 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                               fontWeight: 600
                             }}
                           >
-                            <input 
+                            <input
                               type="checkbox"
                               checked={!!formPerms.masters[act.key as keyof UserPermissions['masters']]}
                               onChange={() => toggleMasterPerm(act.key as any)}
@@ -960,14 +960,14 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
 
               {/* Modal Footer */}
               <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowModal(false)}
                   style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 4, padding: '8px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 24px', fontWeight: 'bold', fontSize: 13, cursor: 'pointer', boxShadow: '0 2px 4px rgba(16,185,129,0.3)' }}
                 >

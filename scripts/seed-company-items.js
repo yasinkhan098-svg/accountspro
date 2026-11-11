@@ -172,9 +172,13 @@ const dataDirs = [
 ];
 
 for (const base of dataDirs) {
+  // 10001: Aiman Hardware
   // 10001: Aiman Hardware - only if empty or missing
   const d10001 = path.join(base, '10001');
   if (fs.existsSync(d10001)) {
+    fs.writeFileSync(path.join(d10001, 'pos_purchase_list.json'), JSON.stringify(hardwareItems, null, 2), 'utf-8');
+    fs.writeFileSync(path.join(d10001, 'stock_items.json'), JSON.stringify(hardwareItems.map(toStockItem), null, 2), 'utf-8');
+    console.log("Updated 10001 at", d10001);
     const p10001 = path.join(d10001, 'pos_purchase_list.json');
     if (!fs.existsSync(p10001) || fs.readFileSync(p10001, 'utf8').trim().length <= 4) {
       fs.writeFileSync(p10001, JSON.stringify(hardwareItems, null, 2), 'utf-8');
@@ -183,9 +187,13 @@ for (const base of dataDirs) {
     }
   }
 
+  // 10002: Aiman Traders
   // 10002: Aiman Traders - only if empty or missing
   const d10002 = path.join(base, '10002');
   if (fs.existsSync(d10002)) {
+    fs.writeFileSync(path.join(d10002, 'pos_purchase_list.json'), JSON.stringify(tradersItems, null, 2), 'utf-8');
+    fs.writeFileSync(path.join(d10002, 'stock_items.json'), JSON.stringify(tradersItems.map(toStockItem), null, 2), 'utf-8');
+    console.log("Updated 10002 at", d10002);
     const p10002 = path.join(d10002, 'pos_purchase_list.json');
     if (!fs.existsSync(p10002) || fs.readFileSync(p10002, 'utf8').trim().length <= 4) {
       fs.writeFileSync(p10002, JSON.stringify(tradersItems, null, 2), 'utf-8');

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { generateBarcodeSvg, generateNextUniqueBarcode, printBarcodeLabels, BarcodeLabelData, BarcodePrintLayout } from '@/lib/pos/barcodeGenerator';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
 import { resolveUnitString } from '@/lib/unitResolver';
+import { permissionGuard } from '@/lib/permissionGuard';
 
 export interface POSPurchaseItem {
   id: number;
@@ -397,17 +398,21 @@ export default function PurchasePOSListView({
     prevCompanyCodeRef.current = companyCode;
     isInitializedRef.current = true;
 
-    // A. Read LocalStorage cache first
+    const isClient = permissionGuard.isClientSession();
+
+    // A. Read LocalStorage cache first (ONLY for standalone main PC, NEVER in client session)
     let cachedList: any[] = [];
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          cachedList = parsed;
+    if (!isClient) {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            cachedList = parsed;
+          }
         }
-      }
-    } catch (e) { }
+      } catch (e) { }
+    }
 
     // Initialize with cached list or stock items
     const initialBuilt = buildItemsList(cachedList);
@@ -420,7 +425,7 @@ export default function PurchasePOSListView({
         const folderList = Array.isArray(folder.posPurchaseList) ? folder.posPurchaseList : [];
         const freshBuilt = buildItemsList(folderList, folderStock);
         setItems(freshBuilt);
-        if (typeof window !== 'undefined') {
+        if (!isClient && typeof window !== 'undefined') {
           localStorage.setItem(storageKey, JSON.stringify(freshBuilt));
         }
         if (freshBuilt.length > 0 && onStockUpdated) {

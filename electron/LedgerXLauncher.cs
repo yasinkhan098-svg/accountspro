@@ -621,6 +621,31 @@ namespace LedgerXLauncher
                     return;
                 }
 
+                if (path == "/api/company/last-modified" && req.HttpMethod == "GET")
+                {
+                    string code = req.QueryString["code"];
+                    if (string.IsNullOrEmpty(code)) code = req.QueryString["companyCode"];
+                    if (string.IsNullOrEmpty(code)) code = "10000";
+                    code = code.ToUpper().Trim();
+
+                    string cDir = Path.Combine(dataDir, code);
+                    long maxTicks = 0;
+                    if (Directory.Exists(cDir))
+                    {
+                        foreach (string f in Directory.GetFiles(cDir, "*.json"))
+                        {
+                            try
+                            {
+                                long ticks = File.GetLastWriteTimeUtc(f).Ticks;
+                                if (ticks > maxTicks) maxTicks = ticks;
+                            }
+                            catch { }
+                        }
+                    }
+                    WriteJsonResponse(res, "{\"success\":true,\"code\":\"" + code + "\",\"lastModified\":" + maxTicks + "}");
+                    return;
+                }
+
                 if (path == "/api/lan/users" && req.HttpMethod == "GET")
                 {
                     string code = req.QueryString["code"];
@@ -1083,6 +1108,9 @@ namespace LedgerXLauncher
 
                         byte[] fileBytes = File.ReadAllBytes(targetFile);
                         res.ContentType = mime;
+                        res.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+                        res.Headers.Add("Pragma", "no-cache");
+                        res.Headers.Add("Expires", "0");
                         res.ContentLength64 = fileBytes.Length;
                         res.StatusCode = 200;
                         res.OutputStream.Write(fileBytes, 0, fileBytes.Length);
@@ -1106,7 +1134,7 @@ namespace LedgerXLauncher
             {
                 byte[] buf = Encoding.UTF8.GetBytes(json);
                 res.ContentType = "application/json; charset=utf-8";
-                res.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate");
+                res.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
                 res.Headers.Add("Pragma", "no-cache");
                 res.Headers.Add("Expires", "0");
                 res.ContentLength64 = buf.Length;

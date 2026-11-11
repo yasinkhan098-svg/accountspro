@@ -4,7 +4,7 @@
  * Isolated 100% per company!
  */
 
-import { LANUser, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_OPERATOR_PERMISSIONS } from './permissionGuard';
+import { permissionGuard, LANUser, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_OPERATOR_PERMISSIONS } from './permissionGuard';
 import { getBridgeBaseUrl } from './companyDataFolderService';
 
 export interface HostLANInfo {
@@ -195,10 +195,11 @@ class LANUserManagementService {
     }
 
     // 3. If we got fresh data from server/bridge, use it as AUTHORITATIVE source
-    const localCached = this.loadFromLocalStorage(code);
+    const isClient = permissionGuard.isClientSession();
+    const localCached = isClient ? [] : this.loadFromLocalStorage(code);
     const memCached = this.companyUsersCache.get(code) || [];
 
-    // Build merged map: fresh server data wins 100%; fallback to cache only if offline/empty
+    // Build merged map: fresh server data wins 100%; fallback to cache only if offline/empty on Main PC
     const mergedMap = new Map<string, LANUser>();
 
     if (freshServerUsers.length > 0) {
@@ -208,8 +209,8 @@ class LANUserManagementService {
           mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
         }
       }
-    } else {
-      // Offline fallback
+    } else if (!isClient) {
+      // Offline fallback only for Main PC
       for (const u of [...localCached, ...memCached]) {
         if (u && u.username) {
           const key = u.username.trim().toLowerCase();
@@ -260,9 +261,9 @@ class LANUserManagementService {
 
     const finalList = Array.from(companyScopedMap.values());
     this.companyUsersCache.set(code, finalList);
-    // IMPORTANT: Only save to localStorage if we have fresh server data
-    // This prevents stale localStorage from persisting bad cached users
-    if (freshServerUsers.length > 0) {
+    // IMPORTANT: Only save to localStorage if we have fresh server data and NOT in client session
+    // This prevents stale localStorage from persisting bad cached users on client terminals
+    if (freshServerUsers.length > 0 && !isClient) {
       this.saveToLocalStorage(code, finalList);
     }
 

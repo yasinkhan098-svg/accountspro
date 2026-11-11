@@ -234,22 +234,28 @@ export default function POSSaleView({
     if (stockItems && stockItems.length > 0) setLocalStockItemsState(stockItems);
   }, [stockItems]);
 
+  const lastSyncedTicksRef = useRef<number>(0);
+
   useEffect(() => {
+    const isClient = permissionGuard.isClientSession();
+
     if (Array.isArray(posPurchaseList) && posPurchaseList.length > 0) {
       setActivePOSPurchaseList(posPurchaseList);
       return;
     }
-    // Fallback load from LocalStorage and disk
-    try {
-      const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
-      if (local) {
-        const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setActivePOSPurchaseList(parsed);
-          return;
+    // Fallback load from LocalStorage only on standalone Main PC offline
+    if (!isClient) {
+      try {
+        const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setActivePOSPurchaseList(parsed);
+            return;
+          }
         }
-      }
-    } catch (_) { }
+      } catch (_) { }
+    }
 
     companyDataFolderService.loadCompanyFolder(companyCode).then(f => {
       if (f) {
@@ -263,6 +269,48 @@ export default function POSSaleView({
       }
     }).catch(() => { });
   }, [posPurchaseList, companyCode, onStockUpdated]);
+
+  // Real-Time Heartbeat Sync: Polls Host PC for live stock / item / rate changes every 2 seconds
+  useEffect(() => {
+    if (isTrainingMode) return;
+    let isSubscribed = true;
+
+    const checkLiveUpdates = async () => {
+      try {
+        const bridgeUrl = companyDataFolderService.getBridgeUrl();
+        const res = await fetch(`${bridgeUrl}/api/company/last-modified?code=${encodeURIComponent(companyCode)}&_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store' },
+        });
+        if (res.ok && isSubscribed) {
+          const json = await res.json();
+          const ticks = Number(json.lastModified || 0);
+          if (ticks > 0 && lastSyncedTicksRef.current > 0 && ticks > lastSyncedTicksRef.current) {
+            // Data was updated on Main PC! Silently refresh in memory
+            const f = await companyDataFolderService.loadCompanyFolder(companyCode);
+            if (f && isSubscribed) {
+              if (Array.isArray(f.stockItems) && f.stockItems.length > 0) {
+                setLocalStockItemsState(f.stockItems);
+                onStockUpdated?.(f.stockItems);
+              }
+              if (Array.isArray(f.posPurchaseList) && f.posPurchaseList.length > 0) {
+                setActivePOSPurchaseList(f.posPurchaseList);
+              }
+            }
+          }
+          lastSyncedTicksRef.current = Math.max(lastSyncedTicksRef.current, ticks);
+        }
+      } catch (_) { }
+    };
+
+    const intervalId = setInterval(checkLiveUpdates, 2000);
+    checkLiveUpdates();
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(intervalId);
+    };
+  }, [companyCode, isTrainingMode, onStockUpdated]);
 
   // Unified Catalog: Stock items merged with Purchase POS List strictly for this company
   // Guarantees that every item in POS Sale (and barcode scanning) uses Retail Sale Price, MRP & Discount from Purchase POS List

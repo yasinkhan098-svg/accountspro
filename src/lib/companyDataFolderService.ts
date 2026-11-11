@@ -14,6 +14,8 @@
  * into another user's "data" folder, scanning automatically loads and runs that company!
  */
 
+import { permissionGuard } from './permissionGuard';
+
 export interface CompanyFolderData {
   companyCode: string;
   company: any;
@@ -431,7 +433,9 @@ class CompanyDataFolderService {
           }
         }
 
-        this.saveToLocalCache(code, cleanData);
+        if (!permissionGuard.isClientSession()) {
+          this.saveToLocalCache(code, cleanData);
+        }
         return true;
       } catch (e) { }
     }
@@ -444,13 +448,17 @@ class CompanyDataFolderService {
         body: JSON.stringify(cleanData),
       });
       if (res.ok) {
-        this.saveToLocalCache(code, cleanData);
+        if (!permissionGuard.isClientSession()) {
+          this.saveToLocalCache(code, cleanData);
+        }
         return true;
       }
     } catch (e) { }
 
-    // 4. Client-side LocalStorage cache (always available fallback)
-    this.saveToLocalCache(code, cleanData);
+    // 4. Client-side LocalStorage cache (always available fallback for main host offline only)
+    if (!permissionGuard.isClientSession()) {
+      this.saveToLocalCache(code, cleanData);
+    }
     return true;
   }
 
@@ -555,6 +563,7 @@ class CompanyDataFolderService {
   public async loadCompanyFolder(companyCode: string): Promise<CompanyFolderData | null> {
     if (typeof window === 'undefined') return null;
     const code = companyCode.toUpperCase();
+    const isClient = permissionGuard.isClientSession();
 
     // 1. Electron bridge
     if ((window as any).desktopBridge?.loadCompanyFolder) {
@@ -562,7 +571,7 @@ class CompanyDataFolderService {
         const data = await (window as any).desktopBridge.loadCompanyFolder(code);
         if (data && data.company) {
           const norm = this.normalizeFolderData(code, data);
-          this.saveToLocalCache(code, norm);
+          if (!isClient) this.saveToLocalCache(code, norm);
           return norm;
         }
       } catch (e) { }
@@ -579,7 +588,7 @@ class CompanyDataFolderService {
           const data = await res.json();
           if (data && data.company) {
             const norm = this.normalizeFolderData(code, data);
-            this.saveToLocalCache(code, norm);
+            if (!isClient) this.saveToLocalCache(code, norm);
             return norm;
           }
         }
@@ -595,15 +604,18 @@ class CompanyDataFolderService {
         const data = await res.json();
         if (data && data.company) {
           const norm = this.normalizeFolderData(code, data);
-          this.saveToLocalCache(code, norm);
+          if (!isClient) this.saveToLocalCache(code, norm);
           return norm;
         }
       }
     } catch (e) { }
 
-    // 4. LocalStorage cache fallback
-    const cached = this.loadFromLocalCache(code);
-    return cached ? this.normalizeFolderData(code, cached) : null;
+    // 4. LocalStorage cache fallback (Disabled for client session - guarantees pure shared folder live data)
+    if (!isClient) {
+      const cached = this.loadFromLocalCache(code);
+      return cached ? this.normalizeFolderData(code, cached) : null;
+    }
+    return null;
   }
 
   /**
@@ -669,13 +681,15 @@ class CompanyDataFolderService {
       } catch (e) { }
     }
 
-    // 4. Merge with LocalStorage index
-    const cachedCodes = this.getAllCachedCodes();
-    for (const code of cachedCodes) {
-      if (!scanned.some(s => s.companyCode.toUpperCase() === code.toUpperCase())) {
-        const cached = this.loadFromLocalCache(code);
-        if (cached && cached.company) {
-          scanned.push({ companyCode: code, company: cached.company });
+    // 4. Merge with LocalStorage index (ONLY for standalone main PC, NEVER in client session)
+    if (!permissionGuard.isClientSession()) {
+      const cachedCodes = this.getAllCachedCodes();
+      for (const code of cachedCodes) {
+        if (!scanned.some(s => s.companyCode.toUpperCase() === code.toUpperCase())) {
+          const cached = this.loadFromLocalCache(code);
+          if (cached && cached.company) {
+            scanned.push({ companyCode: code, company: cached.company });
+          }
         }
       }
     }

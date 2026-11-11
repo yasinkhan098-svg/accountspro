@@ -152,3 +152,4 @@ fs.writeFileSync(path.join(dir10000, 'pos_purchase_list.json'), JSON.stringify(a
 fs.writeFileSync(path.join(dir10000, 'stock_items.json'), JSON.stringify(aimanPolymersStockItems, null, 2), 'utf8');
 
 console.log('Restored 16 real items to 10000/pos_purchase_list.json and 10000/stock_items.json');
+
