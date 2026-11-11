@@ -367,7 +367,8 @@ class LANUserManagementService {
   public async deleteUser(id: string, companyCode?: string): Promise<boolean> {
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
     const users = await this.getUsers(code);
-    const filtered = users.filter(u => u.id !== id);
+    const cleanTarget = (id || '').trim().toLowerCase();
+    const filtered = users.filter(u => u.id !== id && u.username.toLowerCase() !== cleanTarget);
     return this.saveUsers(filtered, code);
   }
 

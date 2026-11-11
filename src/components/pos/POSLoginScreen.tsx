@@ -84,7 +84,7 @@ export default function POSLoginScreen({
             });
           }
         }
-      } catch (_) {}
+      } catch (_) { }
     })();
     return () => {
       mounted = false;
@@ -106,28 +106,51 @@ export default function POSLoginScreen({
   // Load company users on mount and whenever selectedCode changes
   useEffect(() => {
     let mounted = true;
-    (async () => {
+
+    const fetchUsers = async (isInitial = false) => {
       try {
         const uList = await lanUserManagementService.getUsers(selectedCode, activeTargetCompany?.name);
         const validList = Array.isArray(uList) ? uList : [];
 
         if (mounted) {
-          setRegisteredUsers(validList);
-          // Auto-fill first cashier or operator or admin username if available
-          if (validList.length > 0) {
-            const defaultUser = validList.find(u => !u.isAdmin) || validList[0];
-            setCashierId(defaultUser.username);
-            setPassword('');
-            setActiveField('password');
-          } else {
-            setCashierId('');
-            setPassword('');
+          setRegisteredUsers(prev => {
+            const prevStr = JSON.stringify(prev.map(u => ({ id: u.id, u: u.username, p: u.password, a: u.isActive, perms: u.permissions })));
+            const newStr = JSON.stringify(validList.map(u => ({ id: u.id, u: u.username, p: u.password, a: u.isActive, perms: u.permissions })));
+            if (prevStr !== newStr) {
+              return validList;
+            }
+            return prev;
+          });
+
+          if (isInitial) {
+            if (validList.length > 0) {
+              const defaultUser = validList.find(u => !u.isAdmin) || validList[0];
+              setCashierId(defaultUser.username);
+              setPassword('');
+              setActiveField('password');
+            } else {
+              setCashierId('');
+              setPassword('');
+            }
           }
         }
-      } catch (err) {}
-    })();
+      } catch (err) { }
+    };
+
+    fetchUsers(true);
+
+    // Heartbeat auto-sync: Poll every 2.5 seconds for live user additions/edits/deletions on Main PC
+    const pollInterval = setInterval(() => {
+      fetchUsers(false);
+    }, 2500);
+
+    const handleFocus = () => fetchUsers(false);
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       mounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [selectedCode, activeTargetCompany]);
 
@@ -229,8 +252,8 @@ export default function POSLoginScreen({
       if (activeTraining) {
         const matchedTrn = TRAINING_USERS.find(
           u => u.username.toLowerCase() === cleanId ||
-               u.id.toLowerCase() === cleanId ||
-               (u.fullName && u.fullName.toLowerCase() === cleanId)
+            u.id.toLowerCase() === cleanId ||
+            (u.fullName && u.fullName.toLowerCase() === cleanId)
         ) || {
           id: `train_${cleanId || 'cashier1'}`,
           username: cleanId || 'trainee1',
@@ -244,9 +267,9 @@ export default function POSLoginScreen({
 
         try {
           if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen?.().catch(() => {});
+            document.documentElement.requestFullscreen?.().catch(() => { });
           }
-        } catch (e) {}
+        } catch (e) { }
 
         const userObj = {
           ...matchedTrn,
@@ -259,7 +282,7 @@ export default function POSLoginScreen({
             sessionStorage.setItem('ledgerx_pos_session_password', cleanPwd);
             sessionStorage.setItem('ledgerx_pos_session_user', JSON.stringify(userObj));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         permissionGuard.setCurrentUser(userObj);
         onLoginSuccess(userObj);
@@ -269,7 +292,7 @@ export default function POSLoginScreen({
       // 1. Live Store Authentication: Check in loaded registered users of current store
       let matched = registeredUsers.find(
         u => u && (
-          u.username.toLowerCase() === cleanId || 
+          u.username.toLowerCase() === cleanId ||
           u.id.toLowerCase() === cleanId ||
           (u.fullName && u.fullName.toLowerCase() === cleanId)
         )
@@ -339,7 +362,7 @@ export default function POSLoginScreen({
               setSelectedCode(code);
               break;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
       }
 
@@ -365,9 +388,9 @@ export default function POSLoginScreen({
         // Match found!
         try {
           if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen?.().catch(() => {});
+            document.documentElement.requestFullscreen?.().catch(() => { });
           }
-        } catch (e) {}
+        } catch (e) { }
 
         const userObj = {
           ...matched,
@@ -388,7 +411,7 @@ export default function POSLoginScreen({
             sessionStorage.setItem('ledgerx_pos_session_password', cleanPwd);
             sessionStorage.setItem('ledgerx_pos_session_user', JSON.stringify(userObj));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         permissionGuard.setCurrentUser(userObj);
         onLoginSuccess(userObj, finalTargetCompany);
@@ -432,7 +455,7 @@ export default function POSLoginScreen({
             sessionStorage.setItem('ledgerx_pos_session_password', cleanPwd);
             sessionStorage.setItem('ledgerx_pos_session_user', JSON.stringify(userObj));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         permissionGuard.setCurrentUser(userObj);
         onLoginSuccess(userObj, finalTargetCompany);
@@ -583,11 +606,11 @@ export default function POSLoginScreen({
             onClick={() => {
               try {
                 if (!document.fullscreenElement) {
-                  document.documentElement.requestFullscreen?.().catch(() => {});
+                  document.documentElement.requestFullscreen?.().catch(() => { });
                 } else {
-                  document.exitFullscreen?.().catch(() => {});
+                  document.exitFullscreen?.().catch(() => { });
                 }
-              } catch (e) {}
+              } catch (e) { }
             }}
             title="Toggle Fullscreen Mode (F11)"
             style={{
@@ -608,7 +631,7 @@ export default function POSLoginScreen({
             onClick={() => {
               if (permissionGuard.isClientSession()) {
                 if (confirm('Close POS terminal window?')) {
-                  try { window.close(); } catch(e) {}
+                  try { window.close(); } catch (e) { }
                 }
               } else {
                 onExit();
@@ -783,7 +806,7 @@ export default function POSLoginScreen({
                           }}
                           style={{
                             padding: '5px 12px',
-                            background: isSelected 
+                            background: isSelected
                               ? (isTrainingMode ? 'linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%)' : 'linear-gradient(180deg, #0f3c64 0%, #09233a 100%)')
                               : '#ffffff',
                             color: isSelected ? '#ffffff' : (isTrainingMode ? '#1d4ed8' : '#0f3c64'),
@@ -876,7 +899,7 @@ export default function POSLoginScreen({
                             const firstCashier = uList.find(u => !u.isAdmin) || uList[0];
                             if (firstCashier) setCashierId(firstCashier.username);
                           }
-                        } catch (_) {}
+                        } catch (_) { }
                       }}
                       title="Sync live companies & users from Main Host PC"
                       style={{
@@ -1046,8 +1069,8 @@ export default function POSLoginScreen({
               style={{
                 width: '100%',
                 padding: '11px',
-                background: isTrainingMode 
-                  ? 'linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%)' 
+                background: isTrainingMode
+                  ? 'linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%)'
                   : 'linear-gradient(180deg, #2e7d32 0%, #1b5e20 100%)',
                 color: '#ffffff',
                 border: 'none',
@@ -1077,8 +1100,8 @@ export default function POSLoginScreen({
               style={{
                 width: '100%',
                 padding: '10px',
-                background: isTrainingMode 
-                  ? 'linear-gradient(180deg, #0284c7 0%, #0369a1 100%)' 
+                background: isTrainingMode
+                  ? 'linear-gradient(180deg, #0284c7 0%, #0369a1 100%)'
                   : 'linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%)',
                 color: '#ffffff',
                 border: 'none',
