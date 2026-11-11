@@ -78,18 +78,20 @@ export default function POSWorkflowContainer({
         return;
       }
 
-      // Live mode: check localStorage first
+      // Live mode: check localStorage first (only for standalone main PC)
       let loaded = false;
-      try {
-        const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
-        if (local) {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed)) {
-            if (!isCancelled) setPosPurchaseList(parsed);
-            if (parsed.length > 0) loaded = true;
+      if (!permissionGuard.isClientSession()) {
+        try {
+          const local = localStorage.getItem(`ledgerx_pos_purchase_list_${companyCode}`);
+          if (local) {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed)) {
+              if (!isCancelled) setPosPurchaseList(parsed);
+              if (parsed.length > 0) loaded = true;
+            }
           }
-        }
-      } catch (_) { }
+        } catch (_) { }
+      }
 
       // Check company folder service
       try {

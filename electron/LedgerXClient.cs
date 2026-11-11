@@ -254,13 +254,16 @@ namespace LedgerXClient
             string profileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LedgerXClientProfile");
             if (!Directory.Exists(profileDir)) Directory.CreateDirectory(profileDir);
 
-            // Clean browser disk cache to guarantee fresh live execution without re-downloading/re-installing
+            // Clean browser disk cache, service workers, and local storage to guarantee fresh live execution without re-downloading/re-installing
             try
             {
                 string[] cacheSubDirs = new string[] {
                     Path.Combine(profileDir, "Default", "Cache"),
                     Path.Combine(profileDir, "Default", "Code Cache"),
-                    Path.Combine(profileDir, "Default", "GPUCache")
+                    Path.Combine(profileDir, "Default", "GPUCache"),
+                    Path.Combine(profileDir, "Default", "Service Worker"),
+                    Path.Combine(profileDir, "Default", "Local Storage"),
+                    Path.Combine(profileDir, "Default", "IndexedDB")
                 };
                 foreach (string d in cacheSubDirs)
                 {
@@ -279,7 +282,7 @@ namespace LedgerXClient
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = browser;
-                psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --disable-cache --disk-cache-size=1 --media-cache-size=1 --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
+                psi.Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --disable-application-cache --disable-cache --disk-cache-size=1 --media-cache-size=1 --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
                 psi.WindowStyle = ProcessWindowStyle.Maximized;
                 psi.UseShellExecute = true;
                 Process.Start(psi);

@@ -63,6 +63,9 @@ export default function POSLoginScreen({
             id: item.company?.id || item.companyCode,
           }));
           setCompaniesList(prev => {
+            if (permissionGuard.isClientSession()) {
+              return normalized;
+            }
             const map = new Map();
             for (const c of prev) {
               const code = companyDataFolderService.getCompanyFolderCode(c, prev);
@@ -73,6 +76,13 @@ export default function POSLoginScreen({
             }
             return Array.from(map.values());
           });
+
+          if (permissionGuard.isClientSession() && normalized.length > 0) {
+            setSelectedCode(curr => {
+              const exists = normalized.some(n => n.companyCode === curr);
+              return exists ? curr : normalized[0].companyCode;
+            });
+          }
         }
       } catch (_) {}
     })();
@@ -99,33 +109,13 @@ export default function POSLoginScreen({
     (async () => {
       try {
         const uList = await lanUserManagementService.getUsers(selectedCode, activeTargetCompany?.name);
-        const filteredList = (Array.isArray(uList) ? uList : []).filter(u => {
-          if (!u || !u.username) return false;
-          if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
-            return u.assignedCompanyCodes.some(c => {
-              const sc = String(c).trim().toUpperCase();
-              if (sc === selectedCode.trim().toUpperCase()) return true;
-              if (selectedCode === '10000' && (sc === '4' || sc === '1')) return true;
-              if (selectedCode === '10001' && (sc === '5' || sc === '2')) return true;
-              if (selectedCode === '10002' && (sc === '6' || sc === '3')) return true;
-              return false;
-            });
-          }
-          if (u.companyCode) {
-            const uc = String(u.companyCode).trim().toUpperCase();
-            if (uc === selectedCode.trim().toUpperCase()) return true;
-            if (selectedCode === '10000' && (uc === '4' || uc === '1')) return true;
-            if (selectedCode === '10001' && (uc === '5' || uc === '2')) return true;
-            if (selectedCode === '10002' && (uc === '6' || uc === '3')) return true;
-          }
-          return true;
-        });
+        const validList = Array.isArray(uList) ? uList : [];
 
         if (mounted) {
-          setRegisteredUsers(filteredList);
+          setRegisteredUsers(validList);
           // Auto-fill first cashier or operator or admin username if available
-          if (filteredList.length > 0) {
-            const defaultUser = filteredList.find(u => !u.isAdmin) || filteredList[0];
+          if (validList.length > 0) {
+            const defaultUser = validList.find(u => !u.isAdmin) || validList[0];
             setCashierId(defaultUser.username);
             setPassword('');
             setActiveField('password');
@@ -290,29 +280,9 @@ export default function POSLoginScreen({
       // 1.5 Deep live lookup in current store first
       if (!matched) {
         const freshUsers = await lanUserManagementService.getUsers(selectedCode, activeTargetCompany?.name);
-        const filteredFresh = (Array.isArray(freshUsers) ? freshUsers : []).filter(u => {
-          if (!u || !u.username) return false;
-          if (Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0) {
-            return u.assignedCompanyCodes.some(c => {
-              const sc = String(c).trim().toUpperCase();
-              if (sc === selectedCode.trim().toUpperCase()) return true;
-              if (selectedCode === '10000' && (sc === '4' || sc === '1')) return true;
-              if (selectedCode === '10001' && (sc === '5' || sc === '2')) return true;
-              if (selectedCode === '10002' && (sc === '6' || sc === '3')) return true;
-              return false;
-            });
-          }
-          if (u.companyCode) {
-            const uc = String(u.companyCode).trim().toUpperCase();
-            if (uc === selectedCode.trim().toUpperCase()) return true;
-            if (selectedCode === '10000' && (uc === '4' || uc === '1')) return true;
-            if (selectedCode === '10001' && (uc === '5' || uc === '2')) return true;
-            if (selectedCode === '10002' && (uc === '6' || uc === '3')) return true;
-          }
-          return true;
-        });
+        const validFresh = Array.isArray(freshUsers) ? freshUsers : [];
 
-        matched = filteredFresh.find(
+        matched = validFresh.find(
           u => u && (
             u.username.toLowerCase() === cleanId ||
             u.id.toLowerCase() === cleanId ||
@@ -320,11 +290,7 @@ export default function POSLoginScreen({
           )
         );
         if (matched) {
-          setRegisteredUsers(prev => {
-            const m = new Map(prev.map(p => [p.username.toLowerCase(), p]));
-            m.set(matched!.username.toLowerCase(), matched!);
-            return Array.from(m.values());
-          });
+          setRegisteredUsers(validFresh);
         }
       }
 
@@ -886,9 +852,47 @@ export default function POSLoginScreen({
                   <label style={{ fontSize: 12, fontWeight: 'bold', color: '#0f3c64', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span>🏢 Select Company:</span>
                   </label>
-                  <span style={{ fontSize: 10, color: '#0284c7', fontWeight: 'bold', background: '#e0f2fe', padding: '1px 6px', borderRadius: 4 }}>
-                    Code: {selectedCode}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: '#0284c7', fontWeight: 'bold', background: '#e0f2fe', padding: '1px 6px', borderRadius: 4 }}>
+                      Code: {selectedCode}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const scanned = await companyDataFolderService.scanCompanyFolders();
+                          if (scanned && scanned.length > 0) {
+                            const normalized = scanned.map(item => ({
+                              ...item.company,
+                              companyCode: item.companyCode,
+                              name: item.company?.name || `Company ${item.companyCode}`,
+                              id: item.company?.id || item.companyCode,
+                            }));
+                            setCompaniesList(normalized);
+                          }
+                          const uList = await lanUserManagementService.getUsers(selectedCode);
+                          if (Array.isArray(uList)) {
+                            setRegisteredUsers(uList);
+                            const firstCashier = uList.find(u => !u.isAdmin) || uList[0];
+                            if (firstCashier) setCashierId(firstCashier.username);
+                          }
+                        } catch (_) {}
+                      }}
+                      title="Sync live companies & users from Main Host PC"
+                      style={{
+                        background: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        padding: '1px 6px',
+                        cursor: 'pointer',
+                        color: '#0f3c64',
+                        fontWeight: 600,
+                      }}
+                    >
+                      🔄 Live Sync
+                    </button>
+                  </div>
                 </div>
                 <select
                   value={selectedCode}
