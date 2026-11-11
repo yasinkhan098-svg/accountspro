@@ -388,7 +388,21 @@ export default function PurchasePOSListView({
       }
     });
 
-    return built;
+    // 3. Strict Deduplication: Ensure each item appears exactly once by unique trimmed lowercase name
+    const dedupedBuilt: POSPurchaseItem[] = [];
+    const seenNames = new Set<string>();
+    for (const item of built) {
+      if (!item || !item.name) continue;
+      const cleanName = item.name.trim().toLowerCase();
+      if (seenNames.has(cleanName)) continue;
+      seenNames.add(cleanName);
+      dedupedBuilt.push({
+        ...item,
+        sNo: dedupedBuilt.length + 1,
+      });
+    }
+
+    return dedupedBuilt;
   }, [stockItems, companyId, companyCode, calculateLiveStock, resolvePurchasePrices]);
 
   // 4. Initial and company-change load from LocalStorage and Database API

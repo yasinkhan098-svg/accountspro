@@ -411,7 +411,18 @@ export default function POSSaleView({
       }
     });
 
-    return merged;
+    // Strict Deduplication: Ensure each item in POS Sale catalog is 100% unique by name
+    const uniqueCatalog: typeof merged = [];
+    const seenCatalogNames = new Set<string>();
+    for (const it of merged) {
+      if (!it || !it.name) continue;
+      const clean = it.name.trim().toLowerCase();
+      if (seenCatalogNames.has(clean)) continue;
+      seenCatalogNames.add(clean);
+      uniqueCatalog.push(it);
+    }
+
+    return uniqueCatalog;
   }, [stockItems, activePOSPurchaseList, company?.id, companyCode]);
 
   // Display items: Displays all catalog and Purchase POS List items with calculated live stock

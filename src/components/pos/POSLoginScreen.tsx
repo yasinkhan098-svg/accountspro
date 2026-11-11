@@ -57,31 +57,36 @@ export default function POSLoginScreen({
       try {
         const scanned = await companyDataFolderService.scanCompanyFolders();
         if (mounted && scanned && scanned.length > 0) {
-          const normalized = scanned.map(item => ({
-            ...item.company,
-            companyCode: item.companyCode,
-            name: item.company?.name || `Company ${item.companyCode}`,
-            id: item.company?.id || item.companyCode,
-          }));
-          setCompaniesList(prev => {
-            if (permissionGuard.isClientSession()) {
-              return normalized;
-            }
-            const map = new Map();
-            for (const c of prev) {
-              const code = companyDataFolderService.getCompanyFolderCode(c, prev);
-              map.set(code, c);
-            }
-            for (const c of normalized) {
-              map.set(c.companyCode, c);
-            }
-            return Array.from(map.values());
-          });
+          // Strict deduplication by 5-digit companyCode AND company name
+          const seenCodes = new Set<string>();
+          const seenNames = new Set<string>();
+          const dedupedList: any[] = [];
 
-          if (permissionGuard.isClientSession() && normalized.length > 0) {
+          for (const item of scanned) {
+            const code = String(item.companyCode || '').toUpperCase().trim();
+            const rawName = String(item.company?.name || `Company ${code}`).trim();
+            const normName = rawName.toLowerCase();
+
+            if (code && seenCodes.has(code)) continue;
+            if (normName && seenNames.has(normName)) continue;
+
+            if (code) seenCodes.add(code);
+            if (normName) seenNames.add(normName);
+
+            dedupedList.push({
+              ...item.company,
+              companyCode: code,
+              name: rawName,
+              id: item.company?.id || code,
+            });
+          }
+
+          setCompaniesList(dedupedList);
+
+          if (dedupedList.length > 0) {
             setSelectedCode(curr => {
-              const exists = normalized.some(n => n.companyCode === curr);
-              return exists ? curr : normalized[0].companyCode;
+              const exists = dedupedList.some(n => n.companyCode === curr);
+              return exists ? curr : dedupedList[0].companyCode;
             });
           }
         }
@@ -957,14 +962,24 @@ export default function POSLoginScreen({
                   }}
                 >
                   {companiesList && companiesList.length > 0 ? (
-                    companiesList.map(c => {
-                      const cCode = companyDataFolderService.getCompanyFolderCode(c, companiesList);
-                      return (
-                        <option key={cCode || c.id} value={cCode}>
-                          [{cCode}] {c.name || 'Company ' + cCode}
-                        </option>
-                      );
-                    })
+                    (() => {
+                      const seenOptionCodes = new Set<string>();
+                      return companiesList
+                        .filter(c => {
+                          const cCode = companyDataFolderService.getCompanyFolderCode(c, companiesList);
+                          if (seenOptionCodes.has(cCode)) return false;
+                          seenOptionCodes.add(cCode);
+                          return true;
+                        })
+                        .map(c => {
+                          const cCode = companyDataFolderService.getCompanyFolderCode(c, companiesList);
+                          return (
+                            <option key={cCode || c.id} value={cCode}>
+                              [{cCode}] {c.name || 'Company ' + cCode}
+                            </option>
+                          );
+                        });
+                    })()
                   ) : (
                     <option value={selectedCode}>[{selectedCode}] {activeTargetCompany?.name || 'Main Retail'}</option>
                   )}

@@ -384,6 +384,36 @@ class CompanyDataFolderService {
       }));
     }
 
+    // Strict Deduplication: Never allow duplicate stockItems or posPurchaseList in saveCompanyFolder
+    if (Array.isArray(cleanData.stockItems)) {
+      const uniqueStock: any[] = [];
+      const seenStock = new Set<string>();
+      for (const si of cleanData.stockItems) {
+        if (!si || !si.name) continue;
+        const n = String(si.name).trim().toLowerCase();
+        if (seenStock.has(n)) continue;
+        seenStock.add(n);
+        uniqueStock.push(si);
+      }
+      cleanData.stockItems = uniqueStock;
+    }
+
+    if (Array.isArray(cleanData.posPurchaseList)) {
+      const uniquePOS: any[] = [];
+      const seenPOS = new Set<string>();
+      for (const p of cleanData.posPurchaseList) {
+        if (!p || !p.name) continue;
+        const n = String(p.name).trim().toLowerCase();
+        if (seenPOS.has(n)) continue;
+        seenPOS.add(n);
+        uniquePOS.push({
+          ...p,
+          sNo: uniquePOS.length + 1,
+        });
+      }
+      cleanData.posPurchaseList = uniquePOS;
+    }
+
     // 1. Electron bridge
     if ((window as any).desktopBridge?.saveCompanyFolder) {
       try {
@@ -563,6 +593,36 @@ class CompanyDataFolderService {
         variants: p.variants || (p.variant ? [p.variant] : []),
         expiryDate: p.expiryDate || '',
       }));
+    }
+
+    // Strict Deduplication in loadCompanyFolder: Never allow duplicate stockItems or posPurchaseList
+    if (Array.isArray(stockItems)) {
+      const uniqueStock: any[] = [];
+      const seenStock = new Set<string>();
+      for (const si of stockItems) {
+        if (!si || !si.name) continue;
+        const n = String(si.name).trim().toLowerCase();
+        if (seenStock.has(n)) continue;
+        seenStock.add(n);
+        uniqueStock.push(si);
+      }
+      stockItems = uniqueStock;
+    }
+
+    if (Array.isArray(posPurchaseList)) {
+      const uniquePOS: any[] = [];
+      const seenPOS = new Set<string>();
+      for (const p of posPurchaseList) {
+        if (!p || !p.name) continue;
+        const n = String(p.name).trim().toLowerCase();
+        if (seenPOS.has(n)) continue;
+        seenPOS.add(n);
+        uniquePOS.push({
+          ...p,
+          sNo: uniquePOS.length + 1,
+        });
+      }
+      posPurchaseList = uniquePOS;
     }
 
     // 3. Stamp every item with companyCode and companyId
