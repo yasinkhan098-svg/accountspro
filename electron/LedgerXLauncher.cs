@@ -917,6 +917,23 @@ namespace LedgerXLauncher
                     return;
                 }
 
+                if (path == "/api/company/delete" || (path == "/api/company" && req.HttpMethod == "DELETE"))
+                {
+                    string code = req.QueryString["code"];
+                    if (string.IsNullOrEmpty(code)) code = req.QueryString["companyCode"];
+                    if (!string.IsNullOrEmpty(code))
+                    {
+                        code = code.ToUpper().Trim();
+                        string cDir = Path.Combine(dataDir, code);
+                        if (Directory.Exists(cDir))
+                        {
+                            try { Directory.Delete(cDir, true); } catch { }
+                        }
+                    }
+                    WriteJsonResponse(res, "{\"success\":true}");
+                    return;
+                }
+
                 if (path == "/api/company" && req.HttpMethod == "GET")
                 {
                     string code = req.QueryString["code"];

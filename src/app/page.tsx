@@ -2471,18 +2471,8 @@ export default function App() {
           setScreen('GATEWAY_MAIN');
           return;
         }
-        if (u && !u.isAdmin && !permissionGuard.canAccessVoucher('POS Sale')) {
-          if (permissionGuard.canAccessVoucher('Purchase')) {
-            setActiveVoucher('Purchase');
-            setScreen('VOUCHER_ENTRY');
-            return;
-          }
-          if (permissionGuard.canAccessVoucher('Sales')) {
-            setActiveVoucher('Sales');
-            setScreen('VOUCHER_ENTRY');
-            return;
-          }
-        }
+        // In client session, exit from root screen gracefully logs out or returns to login
+        permissionGuard.setCurrentUser(null);
         setScreen('POS_SALE');
         return;
       }
@@ -3096,6 +3086,12 @@ export default function App() {
       setAllCurrencies(p => p.filter(x => Number(x.companyId) !== Number(id)));
       setAllGodowns(p => p.filter(x => Number(x.companyId) !== Number(id)));
       setAllStockCategories(p => p.filter(x => Number(x.companyId) !== Number(id)));
+
+      const targetCo = companies.find(c => Number(c.id) === Number(id));
+      if (targetCo) {
+        const compCode = companyDataFolderService.getCompanyFolderCode(targetCo, companies);
+        companyDataFolderService.deleteCompanyFolder(compCode);
+      }
 
       if (activeCompany && Number(activeCompany.id) === Number(id)) {
         const remaining = companies.filter(c => Number(c.id) !== Number(id));
@@ -5008,6 +5004,7 @@ export default function App() {
                 }}
                 onOpenVoucher={(type) => {
                   setActiveVoucher(type as VoucherTypeKey);
+                  setHistory(h => [...h, 'POS_SALE']);
                   setScreen('VOUCHER_ENTRY');
                 }}
                 onStockUpdated={updated => {

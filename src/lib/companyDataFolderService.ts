@@ -462,6 +462,38 @@ class CompanyDataFolderService {
     return true;
   }
 
+  /**
+   * Deletes a company data folder both locally and from C# bridge
+   */
+  public async deleteCompanyFolder(companyCode: string): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+    const code = (companyCode || '').toUpperCase().trim();
+    if (!code) return false;
+
+    // 1. Remove from localStorage
+    try {
+      localStorage.removeItem(`ledgerx_company_folder_${code}`);
+      const indexRaw = localStorage.getItem('ledgerx_company_folders_index');
+      if (indexRaw) {
+        const codes: string[] = JSON.parse(indexRaw);
+        const filtered = codes.filter(c => c.toUpperCase() !== code);
+        localStorage.setItem('ledgerx_company_folders_index', JSON.stringify(filtered));
+      }
+    } catch (_) {}
+
+    // 2. Remove from C# bridge
+    try {
+      const bridgeUrl = this.getBridgeUrl();
+      if (bridgeUrl) {
+        await fetch(`${bridgeUrl}/api/company/delete?code=${encodeURIComponent(code)}`, {
+          method: 'POST',
+        });
+      }
+    } catch (_) {}
+
+    return true;
+  }
+
   private normalizeFolderData(code: string, data: any): CompanyFolderData {
     if (!data) return data;
     let co = data.company;
