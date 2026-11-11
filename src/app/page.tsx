@@ -1633,6 +1633,8 @@ export default function App() {
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [currentPeriod, setCurrentPeriod] = useState(() => getStored('currentPeriod', { start: '01-Apr-2026', end: '31-Mar-2027' }));
   const [showPeriod, setShowPeriod] = useState(false);
+  const isDiskLoadingRef = useRef(false);
+  const lastDiskTicksRef = useRef<number>(0);
 
   // SYNC DATA WITH USER SESSION
   useEffect(() => {
@@ -1998,6 +2000,10 @@ export default function App() {
 
     // Save individual company to its numbered folder e.g. data/10001/ (Tally-Style)
     if (activeCompany && activeCompany.id) {
+      if (isDiskLoadingRef.current) {
+        isDiskLoadingRef.current = false;
+        return;
+      }
       const code = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
       const cLedgers = allLedgers.filter(l => Number(l.companyId) === Number(activeCompany.id));
       const cVouchers = allVouchers.filter(v => Number(v.companyId) === Number(activeCompany.id));
@@ -2031,6 +2037,67 @@ export default function App() {
       });
     }
   }, [companies, allLedgers, allGroups, allStockGroups, allStockCategories, allStockItems, allUnits, allGodowns, allVoucherTypes, allCurrencies, allVouchers, activeCompany, currentPeriod, isMounted, isAuthenticated, currentUser?.id]);
+
+  // Bidirectional Live Disk Heartbeat Sync:
+  // Detects when a Client machine creates or updates vouchers, stock items, or ledgers on the Main PC disk,
+  // and silently updates Main PC's screen in real time!
+  useEffect(() => {
+    if (!activeCompany) return;
+    const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
+    let isSubscribed = true;
+
+    const checkLiveDiskUpdates = async () => {
+      try {
+        const bridgeUrl = companyDataFolderService.getBridgeUrl();
+        const res = await fetch(`${bridgeUrl}/api/company/last-modified?code=${encodeURIComponent(compCode)}&_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store' },
+        });
+        if (res.ok && isSubscribed) {
+          const json = await res.json();
+          const ticks = Number(json.lastModified || 0);
+          if (ticks > 0 && lastDiskTicksRef.current > 0 && ticks > lastDiskTicksRef.current) {
+            // Disk folder was modified (e.g. by LAN Client or background process)
+            const folder = await companyDataFolderService.loadCompanyFolder(compCode);
+            if (folder && isSubscribed) {
+              isDiskLoadingRef.current = true;
+              if (Array.isArray(folder.vouchers) && folder.vouchers.length > 0) {
+                setAllVouchers(prev => {
+                  const others = prev.filter(v => !isCoMatch(v, activeCompany));
+                  return [...others, ...folder.vouchers];
+                });
+              }
+              if (Array.isArray(folder.stockItems) && folder.stockItems.length > 0) {
+                setAllStockItems(prev => {
+                  const others = prev.filter(si => !isCoMatch(si, activeCompany));
+                  return [...others, ...folder.stockItems];
+                });
+              }
+              if (Array.isArray(folder.ledgers) && folder.ledgers.length > 0) {
+                setAllLedgers(prev => {
+                  const others = prev.filter(l => !isCoMatch(l, activeCompany));
+                  return [...others, ...folder.ledgers];
+                });
+              }
+            }
+          }
+          lastDiskTicksRef.current = Math.max(lastDiskTicksRef.current, ticks);
+        }
+      } catch (_) { }
+    };
+
+    const intervalId = setInterval(checkLiveDiskUpdates, 3000);
+    checkLiveDiskUpdates();
+
+    const handleFocus = () => checkLiveDiskUpdates();
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [activeCompany?.id, companies]);
 
   // Periodically Check Session (Single Session Enforcement - Online Only)
   useEffect(() => {
