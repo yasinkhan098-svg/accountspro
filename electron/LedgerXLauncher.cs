@@ -336,6 +336,29 @@ namespace LedgerXLauncher
                 proxy.Start();
                 Log("RunListener: TCP proxy listening successfully on port " + frontPort);
 
+                // Also attempt to bind to default HTTP Port 80 so client PC can just type http://<IP> without typing :45454!
+                try
+                {
+                    TcpListener proxy80 = new TcpListener(IPAddress.Any, 80);
+                    proxy80.Start();
+                    Log("RunListener: Default HTTP port 80 proxy active!");
+                    Thread t80 = new Thread(() =>
+                    {
+                        while (true)
+                        {
+                            try
+                            {
+                                TcpClient c80 = proxy80.AcceptTcpClient();
+                                ThreadPool.QueueUserWorkItem((st) => ForwardClient(c80, backendPort));
+                            }
+                            catch { break; }
+                        }
+                    });
+                    t80.IsBackground = true;
+                    t80.Start();
+                }
+                catch { }
+
                 while (true)
                 {
                     try
