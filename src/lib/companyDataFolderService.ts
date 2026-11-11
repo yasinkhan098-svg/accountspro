@@ -595,6 +595,85 @@ class CompanyDataFolderService {
       }));
     }
 
+    // 2B. If BOTH stockItems and posPurchaseList are empty, synthesize from data.vouchers
+    if (stockItems.length === 0 && posPurchaseList.length === 0 && Array.isArray(data.vouchers) && data.vouchers.length > 0) {
+      const extractedMap = new Map<string, any>();
+      data.vouchers.forEach((v: any) => {
+        if (Array.isArray(v.inventoryEntries)) {
+          v.inventoryEntries.forEach((ie: any) => {
+            if (!ie || !ie.itemName) return;
+            const key = String(ie.itemName).trim().toLowerCase();
+            if (!extractedMap.has(key)) {
+              extractedMap.set(key, {
+                name: String(ie.itemName).trim(),
+                qty: Number(ie.qty || 0),
+                rate: Number(ie.rate || 0),
+                amount: Number(ie.amount || 0),
+                unit: ie.unit || 'PCS',
+              });
+            } else {
+              const existing = extractedMap.get(key);
+              existing.qty += Number(ie.qty || 0);
+            }
+          });
+        }
+      });
+
+      if (extractedMap.size > 0) {
+        let idx = 0;
+        extractedMap.forEach((item) => {
+          idx++;
+          const itemId = Date.now() + idx;
+          const barcode = `890000${String(code).padStart(5, '0')}${String(idx).padStart(3, '0')}`;
+          stockItems.push({
+            id: itemId,
+            companyId: co?.id || code,
+            companyCode: code,
+            name: item.name,
+            alias: barcode,
+            partNumber: barcode,
+            barcode: barcode,
+            groupName: 'Primary',
+            categoryName: 'Primary',
+            unit: item.unit,
+            unitName: item.unit,
+            gstRate: 18,
+            cessRate: 0,
+            mrp: Math.round(item.rate * 1.2 * 100) / 100,
+            retailSalePrice: item.rate,
+            rateInclTax: item.rate,
+            openingQty: item.qty,
+            openingRate: item.rate,
+            openingValue: item.qty * item.rate,
+            variant: '',
+            variants: [],
+            expiryDate: '',
+          });
+          posPurchaseList.push({
+            id: itemId,
+            sNo: idx,
+            name: item.name,
+            purchasePrice: item.rate,
+            newPurchasePrice: 0,
+            expiryDate: '',
+            cessPerc: 0,
+            openingStock: item.qty,
+            barcode: barcode,
+            mrp: Math.round(item.rate * 1.2 * 100) / 100,
+            discountPerc: 0,
+            discountAmt: 0,
+            retailSalePrice: item.rate,
+            unit: item.unit,
+            gstRate: 18,
+            variant: '',
+            variants: [],
+            companyCode: code,
+            companyId: co?.id || code,
+          });
+        });
+      }
+    }
+
     // Strict Deduplication in loadCompanyFolder: Never allow duplicate stockItems or posPurchaseList
     if (Array.isArray(stockItems)) {
       const uniqueStock: any[] = [];

@@ -330,7 +330,17 @@ export default function POSSaleView({
 
     const effectiveStock = (localStockItemsState && localStockItemsState.length > 0) ? localStockItemsState : (stockItems || []);
     const list = (Array.isArray(effectiveStock) ? effectiveStock : []).filter(si => {
+      if (!si) return false;
+      if (localStockItemsState && localStockItemsState.length > 0) {
+        if (si.companyCode && targetCode && String(si.companyCode).toUpperCase().trim() !== targetCode) {
+          return false;
+        }
+        return true;
+      }
       if (!company?.id && !companyCode) return false;
+      if (si.companyCode && targetCode && String(si.companyCode).toUpperCase().trim() === targetCode) {
+        return true;
+      }
       if (si.companyId || si.companyCode) {
         return matchCo(si.companyId, si.companyCode);
       }
@@ -1465,9 +1475,40 @@ export default function POSSaleView({
           background-size: 28px 28px !important;
           animation: installStripes 0.7s linear infinite !important;
         }
+        @media (max-height: 800px) {
+          .pos-header-bar {
+            padding: 4px 12px !important;
+            min-height: 42px !important;
+          }
+          .pos-cart-row {
+            height: 34px !important;
+          }
+          .pos-stats-block {
+            padding: 4px 8px !important;
+          }
+          .pos-ribbon-bar {
+            padding: 4px 8px !important;
+            gap: 5px !important;
+          }
+        }
+        @media (max-width: 1024px) {
+          .pos-header-bar {
+            padding: 4px 10px !important;
+          }
+          .pos-right-panel {
+            flex: 0 0 300px !important;
+            min-width: 260px !important;
+            max-width: 320px !important;
+          }
+          .pos-ribbon-bar {
+            overflow-x: auto !important;
+            flex-wrap: nowrap !important;
+          }
+        }
       `}</style>
       {/* ==================== 1. TOP HEADER BAR (MAROON / BURGUNDY) ==================== */}
       <div
+        className="pos-header-bar"
         style={{
           background: 'linear-gradient(180deg, #7b1824 0%, #61111c 100%)',
           color: '#ffffff',
@@ -1952,6 +1993,7 @@ export default function POSSaleView({
 
           {/* ==================== HORIZONTAL ACTION RIBBON (MATCHING POSS2 PHOTO) ==================== */}
           <div
+            className="pos-ribbon-bar"
             style={{
               background: 'linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%)',
               padding: '8px 12px',
@@ -2142,6 +2184,7 @@ export default function POSSaleView({
 
         {/* ========== RIGHT PANEL: QUICK PILLS + SELECTED ITEM CONTROLS + NUMPAD ========== */}
         <div
+          className="pos-right-panel"
           style={{
             flex: '0 0 clamp(320px, 35vw, 480px)',
             minWidth: 320,

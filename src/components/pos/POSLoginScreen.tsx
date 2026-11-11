@@ -505,6 +505,92 @@ export default function POSLoginScreen({
         overflow: 'hidden',
       }}
     >
+      <style>{`
+        @media (max-height: 850px) {
+          .pos-login-center-wrapper {
+            padding: 8px 16px !important;
+            gap: 20px !important;
+            max-width: 860px !important;
+          }
+          .pos-login-medallion {
+            width: 200px !important;
+            height: 200px !important;
+            padding: 6px !important;
+          }
+          .pos-login-card {
+            padding: 12px 16px !important;
+            gap: 8px !important;
+            width: 350px !important;
+          }
+          .pos-login-numpad {
+            gap: 5px !important;
+            margin-top: 4px !important;
+          }
+          .pos-login-touch-btn {
+            height: 36px !important;
+            font-size: 15px !important;
+            border-radius: 6px !important;
+          }
+          .pos-login-field-input {
+            padding: 6px 10px !important;
+            font-size: 13px !important;
+          }
+          .pos-login-action-btn {
+            padding: 8px !important;
+            font-size: 13px !important;
+          }
+        }
+        @media (max-height: 720px) {
+          .pos-login-center-wrapper {
+            padding: 4px 10px !important;
+            gap: 12px !important;
+            max-width: 800px !important;
+          }
+          .pos-login-medallion {
+            width: 150px !important;
+            height: 150px !important;
+            padding: 4px !important;
+          }
+          .pos-login-card {
+            padding: 8px 12px !important;
+            gap: 5px !important;
+            width: 320px !important;
+          }
+          .pos-login-numpad {
+            gap: 4px !important;
+            margin-top: 3px !important;
+          }
+          .pos-login-touch-btn {
+            height: 28px !important;
+            font-size: 13px !important;
+          }
+          .pos-login-field-input {
+            padding: 4px 8px !important;
+            font-size: 12px !important;
+          }
+          .pos-login-action-btn {
+            padding: 6px !important;
+            font-size: 12px !important;
+          }
+        }
+        @media (max-width: 850px) {
+          .pos-login-center-wrapper {
+            flex-direction: column !important;
+            overflow-y: auto !important;
+            gap: 12px !important;
+            padding: 10px !important;
+            max-width: 100% !important;
+          }
+          .pos-login-medallion {
+            width: 140px !important;
+            height: 140px !important;
+          }
+          .pos-login-card {
+            width: 100% !important;
+            max-width: 380px !important;
+          }
+        }
+      `}</style>
       {/* 1. TOP HEADER BAR (BROWN/GOLD METALLIC AS IN POSS1 PHOTO) */}
       <div
         style={{
@@ -683,6 +769,7 @@ export default function POSLoginScreen({
         }}
       >
         <div
+          className="pos-login-center-wrapper"
           style={{
             width: '100%',
             maxWidth: 960,
@@ -704,6 +791,7 @@ export default function POSLoginScreen({
           >
             {/* Outer Circular Medallion */}
             <div
+              className="pos-login-medallion"
               style={{
                 width: 290,
                 height: 290,
@@ -872,6 +960,7 @@ export default function POSLoginScreen({
 
           {/* RIGHT HALF: LOGIN INPUTS + TOUCH NUMPAD (MATCHING POSS1 PHOTO) */}
           <div
+            className="pos-login-card"
             style={{
               width: 380,
               background: '#f8fafc',
@@ -1000,6 +1089,7 @@ export default function POSLoginScreen({
               <input
                 ref={cashierInputRef}
                 type="text"
+                className="pos-login-field-input"
                 value={cashierId}
                 onChange={e => setCashierId(e.target.value)}
                 onFocus={() => setActiveField('cashierId')}
@@ -1033,6 +1123,7 @@ export default function POSLoginScreen({
                 <input
                   ref={passwordInputRef}
                   type="password"
+                  className="pos-login-field-input"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   onFocus={() => setActiveField('password')}
@@ -1090,6 +1181,7 @@ export default function POSLoginScreen({
             {/* ACTION BUTTON 1: GREEN SIGN IN BUTTON */}
             <button
               type="button"
+              className="pos-login-action-btn"
               onClick={() => handleSignIn(isTrainingMode)}
               disabled={loading}
               style={{
@@ -1114,6 +1206,7 @@ export default function POSLoginScreen({
             {/* ACTION BUTTON 2: BLUE TRAINING MODE BUTTON */}
             <button
               type="button"
+              className="pos-login-action-btn"
               onClick={() => {
                 if (!isTrainingMode) {
                   handleModeSwitch(true);
@@ -1144,6 +1237,7 @@ export default function POSLoginScreen({
 
             {/* TOUCH NUMERIC KEYPAD (MATCHING EXACT POSS1 KEYPAD: 7 8 9 NO / 4 5 6 < / 1 2 3 C / . 0 Enter) */}
             <div
+              className="pos-login-numpad"
               style={{
                 marginTop: 6,
                 display: 'grid',
@@ -1154,6 +1248,7 @@ export default function POSLoginScreen({
               {/* Row 1 */}
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('7')}
                 style={touchBtnStyle}
               >
@@ -1161,6 +1256,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('8')}
                 style={touchBtnStyle}
               >
@@ -1168,6 +1264,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('9')}
                 style={touchBtnStyle}
               >
@@ -1175,6 +1272,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('NO')}
                 style={{
                   ...touchBtnStyle,
@@ -1189,6 +1287,7 @@ export default function POSLoginScreen({
               {/* Row 2 */}
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('4')}
                 style={touchBtnStyle}
               >
@@ -1196,6 +1295,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('5')}
                 style={touchBtnStyle}
               >
@@ -1203,6 +1303,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('6')}
                 style={touchBtnStyle}
               >
@@ -1210,6 +1311,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('<')}
                 style={{
                   ...touchBtnStyle,
@@ -1224,6 +1326,7 @@ export default function POSLoginScreen({
               {/* Row 3 */}
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('1')}
                 style={touchBtnStyle}
               >
@@ -1231,6 +1334,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('2')}
                 style={touchBtnStyle}
               >
@@ -1238,6 +1342,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('3')}
                 style={touchBtnStyle}
               >
@@ -1245,6 +1350,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('C')}
                 style={{
                   ...touchBtnStyle,
@@ -1259,6 +1365,7 @@ export default function POSLoginScreen({
               {/* Row 4 */}
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('.')}
                 style={touchBtnStyle}
               >
@@ -1266,6 +1373,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('0')}
                 style={touchBtnStyle}
               >
@@ -1273,6 +1381,7 @@ export default function POSLoginScreen({
               </button>
               <button
                 type="button"
+                className="pos-login-touch-btn"
                 onClick={() => handleNumpadKey('Enter')}
                 style={{
                   ...touchBtnStyle,

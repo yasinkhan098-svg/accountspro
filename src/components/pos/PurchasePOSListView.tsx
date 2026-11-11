@@ -270,7 +270,9 @@ export default function PurchasePOSListView({
     // Index saved items by ID and by lowercased name (strictly for this company)
     (savedData || []).forEach(s => {
       if (!s) return;
-      if (s.companyCode || s.companyId) {
+      if (explicitStockItems && explicitStockItems.length > 0) {
+        if (s.companyCode && targetCode && String(s.companyCode).toUpperCase().trim() !== targetCode) return;
+      } else if (s.companyCode || s.companyId) {
         if (!matchCo(s.companyId, s.companyCode)) return;
       }
       if (s.id !== undefined) savedMap.set(String(s.id), s);
@@ -283,7 +285,18 @@ export default function PurchasePOSListView({
 
     // 1. Process items from stockItems strictly belonging to this company
     const scopedStockItems = effectiveStock.filter(si => {
+      if (!si) return false;
+      // If explicitStockItems was passed directly from loaded company folder, trust it
+      if (explicitStockItems && explicitStockItems.length > 0) {
+        if (si.companyCode && targetCode && String(si.companyCode).toUpperCase().trim() !== targetCode) {
+          return false;
+        }
+        return true;
+      }
       if (!companyId && !companyCode) return false;
+      if (si.companyCode && targetCode && String(si.companyCode).toUpperCase().trim() === targetCode) {
+        return true;
+      }
       if (si.companyId || si.companyCode) {
         return matchCo(si.companyId, si.companyCode);
       }
@@ -361,7 +374,9 @@ export default function PurchasePOSListView({
     // 2. Also preserve any custom inserted items that were in savedData but not in stockItems
     (savedData || []).forEach(s => {
       if (!s) return;
-      if (s.companyCode || s.companyId) {
+      if (explicitStockItems && explicitStockItems.length > 0) {
+        if (s.companyCode && targetCode && String(s.companyCode).toUpperCase().trim() !== targetCode) return;
+      } else if (s.companyCode || s.companyId) {
         if (!matchCo(s.companyId, s.companyCode)) return;
       }
       const alreadyIncluded = built.some(b => b.id === s.id || b.name.trim().toLowerCase() === (s.name || '').trim().toLowerCase());
@@ -870,10 +885,50 @@ export default function PurchasePOSListView({
         .pos-purchase-table tbody td {
           border-bottom: 1px solid #e2e8f0;
         }
+        @media (max-width: 1280px) {
+          .pos-purchase-header-wrap {
+            padding: 6px 12px !important;
+            min-height: 48px !important;
+          }
+          .pos-purchase-title-h1 {
+            font-size: 15px !important;
+          }
+          .pos-purchase-actions-wrap {
+            gap: 6px !important;
+          }
+          .pos-purchase-search-input {
+            width: 180px !important;
+            padding: 6px 10px !important;
+            min-height: 34px !important;
+            font-size: 12px !important;
+          }
+          .pos-purchase-action-btn {
+            padding: 6px 10px !important;
+            min-height: 34px !important;
+            font-size: 11px !important;
+          }
+        }
+        @media (max-width: 900px) {
+          .pos-purchase-header-wrap {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+          }
+          .pos-purchase-actions-wrap {
+            flex-wrap: wrap !important;
+            width: 100% !important;
+            justify-content: flex-start !important;
+          }
+          .pos-purchase-search-input {
+            flex: 1 1 100% !important;
+            width: 100% !important;
+          }
+        }
       `}</style>
 
       {/* ==================== 1. TOP HEADER & TOOLBAR ==================== */}
       <div
+        className="pos-purchase-header-wrap"
         style={{
           background: 'linear-gradient(180deg, #1e3a5f 0%, #152942 100%)',
           color: '#ffffff',
@@ -891,7 +946,7 @@ export default function PurchasePOSListView({
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
             onClick={onBack}
-            className="pos-touch-btn"
+            className="pos-touch-btn pos-purchase-action-btn"
             style={{
               background: '#334155',
               color: '#ffffff',
@@ -910,7 +965,7 @@ export default function PurchasePOSListView({
             ← Back (Esc)
           </button>
           <div>
-            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 900, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h1 className="pos-purchase-title-h1" style={{ margin: 0, fontSize: 18, fontWeight: 900, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>📋</span> Purchase POS List & Barcode Master
             </h1>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
@@ -921,9 +976,10 @@ export default function PurchasePOSListView({
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="pos-purchase-actions-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <input
             type="text"
+            className="pos-purchase-search-input"
             placeholder="🔍 Search product or barcode..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
@@ -943,7 +999,7 @@ export default function PurchasePOSListView({
 
           <button
             onClick={handleAutoGenerateMissingBarcodes}
-            className="pos-touch-btn"
+            className="pos-touch-btn pos-purchase-action-btn"
             title="Generate unique barcodes for items without barcode"
             style={{
               background: '#0284c7',
@@ -966,7 +1022,7 @@ export default function PurchasePOSListView({
 
           <button
             onClick={() => setShowBulkPrintModal(true)}
-            className="pos-touch-btn"
+            className="pos-touch-btn pos-purchase-action-btn"
             title="Print barcode labels for all items"
             style={{
               background: '#7c3aed',
@@ -989,7 +1045,7 @@ export default function PurchasePOSListView({
 
           <button
             onClick={handleInsertRow}
-            className="pos-touch-btn"
+            className="pos-touch-btn pos-purchase-action-btn"
             style={{
               background: '#16a34a',
               color: '#ffffff',
@@ -1012,7 +1068,7 @@ export default function PurchasePOSListView({
           <button
             onClick={handleManualSave}
             disabled={isSaving}
-            className="pos-touch-btn"
+            className="pos-touch-btn pos-purchase-action-btn"
             style={{
               background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
               color: '#ffffff',
