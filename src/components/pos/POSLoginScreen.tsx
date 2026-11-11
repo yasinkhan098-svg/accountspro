@@ -49,10 +49,11 @@ export default function POSLoginScreen({
     }
   }, [companyCode]);
 
-  // Scan Host PC disk for all companies immediately (especially crucial for zero-setup LAN clients)
+  // Scan Host PC disk for all companies immediately & poll live so additions/deletions on Main PC reflect instantly
   useEffect(() => {
     let mounted = true;
-    (async () => {
+
+    const scanCompanies = async () => {
       try {
         const scanned = await companyDataFolderService.scanCompanyFolders();
         if (mounted && scanned && scanned.length > 0) {
@@ -85,9 +86,19 @@ export default function POSLoginScreen({
           }
         }
       } catch (_) { }
-    })();
+    };
+
+    scanCompanies();
+
+    // Heartbeat auto-poll for live company changes (creation / deletion on Main PC)
+    const interval = setInterval(scanCompanies, 4000);
+    const handleFocus = () => scanCompanies();
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       mounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
