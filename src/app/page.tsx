@@ -13021,11 +13021,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0,border:'1px solid #aaa'}}
                 onKeyDown={e=>modalKeyDown(e,'party-detail-modal',()=>{
                   setShowPartyDetails(false);
-                  if (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') {
-                    focusRefAfterModal();
-                  } else {
-                    setShowDispatch(true);
-                  }
+                  setShowDispatch(true);
                 })}
               >
                 {/* LEFT: Buyer / Supplier */}
@@ -13097,11 +13093,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <button className="party-detail-modal-accept-btn" style={{background:'#1c5282',color:'white',border:'none',padding:'6px 22px',cursor:'pointer',fontWeight:'bold',fontSize:12}}
                 onClick={()=>{
                   setShowPartyDetails(false);
-                  if (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note') {
-                    focusRefAfterModal();
-                  } else {
-                    setShowDispatch(true);
-                  }
+                  setShowDispatch(true);
                 }}>
                 ✓ Accept (A)
               </button>
@@ -13119,7 +13111,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         <div className="modal-overlay" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div className="modal-box dispatch-detail-modal-container" style={{background:'#f0f4f8',border:'2px solid #1c5282',width:760,boxShadow:'0 8px 30px rgba(0,0,0,0.35)'}}>
             <div style={{background:'#1c5282',color:'white',padding:'9px 18px',fontWeight:'bold',fontSize:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span>Dispatch Details</span>
+              <span>{activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Receipt / Transportation Details' : 'Dispatch Details'}</span>
               <span style={{fontSize:11,opacity:0.8}}>Enter: Next Field | Backspace: Prev | Esc: Skip</span>
             </div>
             <div 
@@ -13129,8 +13121,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             >
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',columnGap:24,rowGap:10}}>
                 {[
-                  [['Delivery Note No(s)','deliveryNoteNo'], ['Dispatch Doc No.','dispatchDocNo']],
-                  [['Dispatched through','dispatchedThrough'], ['Destination','destination']],
+                  [[activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Receipt Note No(s)' : 'Delivery Note No(s)','deliveryNoteNo'], [activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'LR / Receipt Doc No.' : 'Dispatch Doc No.','dispatchDocNo']],
+                  [[activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Received through' : 'Dispatched through','dispatchedThrough'], ['Destination','destination']],
                   [['Carrier Name/Agent','carrierNameAgent'], ['Motor Vehicle No.','motorVehicleNo']],
                   [['Bill of Lading/LR-RR No.','billOfLadingNo'], ['Date','billOfLadingDate']],
                 ].map(([left, right], ri) => (
@@ -17444,9 +17436,9 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>{isPurchaseType?'Purchase Order No.':'Buyer\'s Order No.'}<br/><b>{pd?.buyerOrderNo || '—'}</b></div>
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Dated<br/><b>{pd?.buyerOrderDate || '—'}</b></div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatch Doc No.<br/><b>{dd?.dispatchDocNo || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>{isPurchaseType ? 'LR / Receipt Doc No.' : 'Dispatch Doc No.'}<br/><b>{dd?.dispatchDocNo || '—'}</b></div>
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Motor Vehicle No.<br/><b>{dd?.motorVehicleNo || '—'}</b></div>
-            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>Dispatched through<br/><b>{dd?.dispatchedThrough || '—'}</b></div>
+            <div style={{padding:'5px 10px', borderRight:'1px solid #000', borderBottom:'1px solid #000'}}>{isPurchaseType ? 'Received through' : 'Dispatched through'}<br/><b>{dd?.dispatchedThrough || '—'}</b></div>
             <div style={{padding:'5px 10px', borderBottom:'1px solid #000'}}>Destination<br/><b>{dd?.destination || '—'}</b></div>
             <div style={{padding:'5px 10px', borderRight:'1px solid #000', gridColumn:'span 2', minHeight:60}}>Carrier Name/Agent<br/><b>{dd?.carrierNameAgent || '—'}</b> &nbsp;&nbsp; Terms of Delivery: <b>{pd?.termsOfDelivery || '—'}</b></div>
           </div>
