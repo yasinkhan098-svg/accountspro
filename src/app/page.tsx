@@ -2809,6 +2809,15 @@ export default function App() {
           return false;
         }
 
+        const compName = (data.name || targetItem?.name || '').trim();
+        const compCountry = (data.country || targetItem?.country || '').trim();
+        const compGstin = (data.gstin || targetItem?.gstin || '').trim();
+        const compCur = (data.currencySymbol || data.baseCurrencySymbol || data.currency || targetItem?.currencySymbol || '').trim();
+        if (!compName || !compCountry || !compGstin || !compCur) {
+          alert('Cannot save blank company! Company Name, Country, Tax Registration Number, and Currency are required.');
+          return false;
+        }
+
         const curSym = data.currencySymbol || data.baseCurrencySymbol || targetItem.currencySymbol || targetItem.baseCurrencySymbol || '₹';
         const curName = data.currencyName || data.formalName || targetItem.currencyName || targetItem.formalName || 'Indian Rupee';
         const updated = { 
@@ -3059,6 +3068,15 @@ export default function App() {
         return localSG;
       }
       else if (type === 'company') {
+        const compName = (data.name || '').trim();
+        const compCountry = (data.country || '').trim();
+        const compGstin = (data.gstin || '').trim();
+        const compCur = (data.currencySymbol || data.baseCurrencySymbol || data.currency || '').trim();
+        if (!compName || !compCountry || !compGstin || !compCur) {
+          alert('Cannot save blank company! Company Name, Country, Tax Registration Number, and Currency are required.');
+          return false;
+        }
+
         if ((saveMaster as any)._savingCompany) {
           console.warn('Company save already in progress, ignoring duplicate call.');
           return false;
@@ -3838,14 +3856,18 @@ export default function App() {
             prefillWithZero: fsv('vt-zero') === 'Yes'
           };
         } else if (screen === 'COMPANY_CREATION') {
-          const name = fv('c-name'); if (!name) { alert('Company Name is required!'); return; }
+          const name = fv('c-name'); if (!name) { alert('Company Name is required!'); document.getElementById('c-name')?.focus(); return; }
           const origName = (alterItem?.name || '').trim().toLowerCase();
-          if (name.trim().toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!alterItem || (String(c.id) !== String(alterItem.id) && Number(c.id) !== Number(alterItem.id))))) { alert(`Company "${name}" already exists!`); return; }
+          if (name.trim().toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!alterItem || (String(c.id) !== String(alterItem.id) && Number(c.id) !== Number(alterItem.id))))) { alert(`Company "${name}" already exists!`); document.getElementById('c-name')?.focus(); return; }
           const logoEl = document.querySelector('img[alt="Preview"]') as HTMLImageElement;
-          const countryVal = fv('c-country') || alterItem?.country || 'India';
-          const curSym = fv('c-currency') || alterItem?.currencySymbol || alterItem?.baseCurrencySymbol || (COUNTRY_CURRENCY[countryVal]?.symbol) || '₹';
-          const curName = fv('c-formal') || alterItem?.currencyName || alterItem?.formalName || (COUNTRY_CURRENCY[countryVal]?.name) || 'Indian Rupee';
+          const countryVal = fv('c-country');
+          if (!countryVal) { alert('Country is required! Please select a Country.'); document.getElementById('c-country')?.focus(); return; }
           const taxInfo = getCompanyTaxInfo({ country: countryVal, taxName: alterItem?.taxName });
+          const taxNo = fv('c-gstin');
+          if (!taxNo) { alert(`Tax Registration Number (${taxInfo.taxIdLabel}) is required! Please enter ${taxInfo.taxIdLabel}.`); document.getElementById('c-gstin')?.focus(); return; }
+          const curSym = fv('c-currency');
+          if (!curSym) { alert('Base Currency Symbol is required! Please enter or select a Currency.'); document.getElementById('c-currency')?.focus(); return; }
+          const curName = fv('c-formal') || alterItem?.currencyName || alterItem?.formalName || (COUNTRY_CURRENCY[countryVal]?.name) || 'Indian Rupee';
           type = 'company'; data = { 
             name, address: fv('c-addr'), state: fv('c-state'), country: countryVal, gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
             registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'), upiId: (fv('c-upi') || '').trim().toLowerCase(),
@@ -7020,7 +7042,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         </div>
         {[['Company Name','c-name','text',360,true],['Mailing Name','c-mail','text',360,false]].map(([label,id,type,w,bold],i)=>(
           <div key={i} className="form-row">
-            <label style={{width:160}}>{label as string}</label><span className="colon">:</span>
+            <label style={{width:160}}>{label as string} {i===0 && <span style={{color:'red'}}>*</span>}</label><span className="colon">:</span>
             <input id={id as string} ref={i===0?ref:undefined} autoFocus={i===0} type="text" className="form-input"
               style={{width:w as number,fontWeight:bold?'bold':'normal'}} defaultValue={activeAlterItem?.[(id as string).replace('c-','')]||activeAlterItem?.[id==='c-mail'?'mailingName':'']||''} 
               onInput={e=>{
@@ -7048,7 +7070,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         ))}
         <div className="form-row"><label style={{width:160}}>Address</label><span className="colon">:</span><textarea id="c-addr" className="form-input" style={{height:60,width:320}} defaultValue={activeAlterItem?.address||''}/></div>
         <div className="form-row">
-          <label style={{width:160}}>Country</label><span className="colon">:</span>
+          <label style={{width:160}}>Country <span style={{color:'red'}}>*</span></label><span className="colon">:</span>
           <input id="c-country" type="text" className="form-input" style={{width:200}}
             onFocus={e=>{setFocusFld('country');setFilter(e.target.value);}}
             onInput={e=>{
@@ -7141,7 +7163,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
           </select>
         </div>
         <div className="form-row">
-          <label style={{width:220}}>{currentTaxInfo.taxIdLabel}</label>
+          <label style={{width:220}}>{currentTaxInfo.taxIdLabel} <span style={{color:'red'}}>*</span></label>
           <span className="colon">:</span>
           <input 
             id="c-gstin" 
@@ -7257,7 +7279,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
           <div className="form-row"><label style={{width:220}}>Password</label><span className="colon">:</span><input id="c-pwd" type="password" className="form-input" style={{width:160}} defaultValue={activeAlterItem?.password||''} /></div>
         )}
         <div className="form-section-title">Currency</div>
-        <div className="form-row"><label style={{width:220}}>Base Currency Symbol</label><span className="colon">:</span>
+        <div className="form-row"><label style={{width:220}}>Base Currency Symbol <span style={{color:'red'}}>*</span></label><span className="colon">:</span>
           <input id="c-currency" type="text" className="form-input" style={{width:60}} defaultValue={activeAlterItem?.currencySymbol || activeAlterItem?.baseCurrencySymbol || activeAlterItem?.currency || (COUNTRY_CURRENCY[selCo]?.symbol) || '₹'}
             onFocus={e=>{setFocusFld('currency');setFilter(e.target.value);}}
             onInput={e=>setFilter((e.target as HTMLInputElement).value)}
@@ -7294,10 +7316,26 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               if (name.toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || (String(c.id) !== String(activeAlterItem.id) && Number(c.id) !== Number(activeAlterItem.id))))) {
                 alert(`Company "${name}" already exists!`); document.getElementById('c-name')?.focus(); return;
               }
-              const pickedCur = ((document.getElementById('c-currency') as HTMLInputElement)?.value || '').trim() || (activeAlterItem?.currencySymbol || activeAlterItem?.baseCurrencySymbol || '₹');
-              const pickedFormal = ((document.getElementById('c-formal') as HTMLInputElement)?.value || '').trim() || (activeAlterItem?.currencyName || activeAlterItem?.formalName || 'Indian Rupee');
-              const coCountry = ((document.getElementById('c-country') as HTMLInputElement)?.value || '').trim() || 'India';
+              const coCountry = ((document.getElementById('c-country') as HTMLInputElement)?.value || '').trim();
+              if (!coCountry) { 
+                alert('Country is required! Please select a Country.'); 
+                document.getElementById('c-country')?.focus(); 
+                return; 
+              }
               const taxInfo = getCompanyTaxInfo({ country: coCountry, taxName: activeAlterItem?.taxName });
+              const taxNo = ((document.getElementById('c-gstin') as HTMLInputElement)?.value || '').trim();
+              if (!taxNo) { 
+                alert(`Tax Registration Number (${taxInfo.taxIdLabel}) is required! Please enter ${taxInfo.taxIdLabel}.`); 
+                document.getElementById('c-gstin')?.focus(); 
+                return; 
+              }
+              const pickedCur = ((document.getElementById('c-currency') as HTMLInputElement)?.value || '').trim();
+              if (!pickedCur) { 
+                alert('Base Currency Symbol is required! Please enter or select a Currency.'); 
+                document.getElementById('c-currency')?.focus(); 
+                return; 
+              }
+              const pickedFormal = ((document.getElementById('c-formal') as HTMLInputElement)?.value || '').trim() || (COUNTRY_CURRENCY[coCountry]?.name) || 'Indian Rupee';
               const d = {
                 name,
                 mailingName: (document.getElementById('c-mail') as HTMLInputElement).value,
