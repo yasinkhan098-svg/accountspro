@@ -11,6 +11,8 @@ interface POSPaymentModalProps {
   billNo?: string;
   ledgers?: any[];
   currencySymbol?: string;
+  taxName?: string;
+  taxIdLabel?: string;
   onConfirmPayment: (payment: POSPaymentDetails, customer: POSCustomer) => void;
 }
 
@@ -23,6 +25,8 @@ export default function POSPaymentModal({
   billNo = '0001',
   ledgers = [],
   currencySymbol = '₹',
+  taxName = 'Tax',
+  taxIdLabel = 'GSTIN',
   onConfirmPayment,
 }: POSPaymentModalProps) {
   const [payMode, setPayMode] = useState<'Cash' | 'UPI_QR' | 'Split' | 'Card' | 'Credit'>('Cash');
@@ -224,7 +228,7 @@ export default function POSPaymentModal({
             </div>
             <div style={{ textAlign: 'right', fontSize: 12, color: '#f1f5f9' }}>
               <div>Total Items: <b>{totals.itemsCount}</b> (Qty: <b>{totals.totalQty}</b>)</div>
-              <div>Tax (GST): <b>{currencySymbol}{totals.totalTax.toFixed(2)}</b></div>
+              <div>Tax ({taxName || 'Tax'}): <b>{currencySymbol}{totals.totalTax.toFixed(2)}</b></div>
             </div>
           </div>
 

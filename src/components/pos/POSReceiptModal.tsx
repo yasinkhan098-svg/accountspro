@@ -1,6 +1,7 @@
 "use client";
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { POSCartItem, POSCartTotals, POSCustomer, POSPaymentDetails, posService } from '@/lib/pos/posService';
+import { getCompanyTaxInfo } from '@/lib/taxEngine';
 
 interface POSReceiptModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export default function POSReceiptModal({
   const receiptRef = useRef<HTMLDivElement>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const currencySymbol = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
+  const companyTax = useMemo(() => getCompanyTaxInfo(company), [company]);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -296,33 +298,35 @@ export default function POSReceiptModal({
                 CIN NO : U01100MH1999PLC120563
               </div>
               <div style={{ fontSize: 9 }}>
-                GSTIN- {company?.gstin || '05AABCR1718E1ZU'}
+                {companyTax.taxIdLabel}- {company?.gstin || (companyTax.isIndiaGst ? '05AABCR1718E1ZU' : '—')}
               </div>
-              <div style={{ fontSize: 9 }}>
-                FSSAI Lic No -12622012000067
-              </div>
+              {companyTax.isIndiaGst && (
+                <div style={{ fontSize: 9 }}>
+                  FSSAI Lic No -12622012000067
+                </div>
+              )}
             </div>
 
-            {/* 2. SAVINGS BANNER (EXACT REPLICA FROM PHOTO) */}
+            {/* 2. SAVINGS BANNER */}
             <div style={{ textAlign: 'center', margin: '8px 0', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '4px 0' }}>
               <div style={{ fontSize: 13, fontWeight: 'bold' }}>
-                You have saved Rs.{totals.discountAmount > 0 ? totals.discountAmount.toFixed(2) : '150.00'}
+                You have saved {currencySymbol}{totals.discountAmount > 0 ? totals.discountAmount.toFixed(2) : '150.00'}
               </div>
             </div>
 
             {/* 3. TAX INVOICE META */}
             <div style={{ textAlign: 'center', marginBottom: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 'bold' }}>TAX INVOICE</div>
+              <div style={{ fontSize: 12, fontWeight: 'bold' }}>{companyTax.taxName.toUpperCase()} INVOICE</div>
               <div style={{ fontSize: 9 }}>xxxxxxxxxxxxx Original for Recipient xxxxxxxxxxxxx</div>
             </div>
 
             <div style={{ fontSize: 9, marginBottom: 4 }}>
-              <div>Place of Supply & State Code: {company?.stateCode || '05 UK'}</div>
+              <div>Place of Supply & State Code: {company?.stateCode || (companyTax.isIndiaGst ? '05 UK' : (company?.country || '—'))}</div>
               <div>Customer Type: {customer?.gstin ? 'B2B Registered' : 'URP'}</div>
               {customer?.name && customer.name !== 'Cash Customer' && (
                 <div>Customer Name: {customer.name} {customer.mobile ? `(${customer.mobile})` : ''}</div>
               )}
-              {customer?.gstin && <div>Customer GSTIN: {customer.gstin}</div>}
+              {customer?.gstin && <div>Customer {companyTax.taxIdLabel}: {customer.gstin}</div>}
               {customer?.walkInDelivery && <div>Delivery: Walk in Delivery</div>}
             </div>
 
@@ -453,43 +457,83 @@ export default function POSReceiptModal({
 
             <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 
-            {/* 6. GST BREAKUP DETAILS TABLE (EXACT REPLICA FROM PHOTO) */}
-            <div style={{ textAlign: 'center', fontSize: 8, fontWeight: 'bold', marginBottom: 4 }}>
-              -------GST Breakup Details--------Amount (INR)
-            </div>
+            {/* 6. TAX BREAKUP DETAILS TABLE */}
+            {companyTax.isIndiaGst ? (
+              <>
+                <div style={{ textAlign: 'center', fontSize: 8, fontWeight: 'bold', marginBottom: 4 }}>
+                  -------GST Breakup Details--------Amount ({currencySymbol})
+                </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, fontWeight: 'bold', marginBottom: 2 }}>
-              <span style={{ width: '12%' }}>GST<br />IND</span>
-              <span style={{ width: '22%', textAlign: 'right' }}>Taxable<br />Amount</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>CGST</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>SGST</span>
-              <span style={{ width: '12%', textAlign: 'right' }}>CESS</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>Total<br />Amount</span>
-            </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, fontWeight: 'bold', marginBottom: 2 }}>
+                  <span style={{ width: '12%' }}>GST<br />IND</span>
+                  <span style={{ width: '22%', textAlign: 'right' }}>Taxable<br />Amount</span>
+                  <span style={{ width: '18%', textAlign: 'right' }}>CGST</span>
+                  <span style={{ width: '18%', textAlign: 'right' }}>SGST</span>
+                  <span style={{ width: '12%', textAlign: 'right' }}>CESS</span>
+                  <span style={{ width: '18%', textAlign: 'right' }}>Total<br />Amount</span>
+                </div>
 
-            <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
+                <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
 
-            {Object.entries(gstGroups).map(([rate, g], i) => (
-              <div key={rate} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginBottom: 2 }}>
-                <span style={{ width: '12%' }}>{i + 1}</span>
-                <span style={{ width: '22%', textAlign: 'right' }}>{g.taxable.toFixed(2)}</span>
-                <span style={{ width: '18%', textAlign: 'right' }}>{g.cgst.toFixed(2)}</span>
-                <span style={{ width: '18%', textAlign: 'right' }}>{g.sgst.toFixed(2)}</span>
-                <span style={{ width: '12%', textAlign: 'right' }}>0.00</span>
-                <span style={{ width: '18%', textAlign: 'right' }}>{g.total.toFixed(2)}</span>
-              </div>
-            ))}
+                {Object.entries(gstGroups).map(([rate, g], i) => (
+                  <div key={rate} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginBottom: 2 }}>
+                    <span style={{ width: '12%' }}>{i + 1}</span>
+                    <span style={{ width: '22%', textAlign: 'right' }}>{g.taxable.toFixed(2)}</span>
+                    <span style={{ width: '18%', textAlign: 'right' }}>{g.cgst.toFixed(2)}</span>
+                    <span style={{ width: '18%', textAlign: 'right' }}>{g.sgst.toFixed(2)}</span>
+                    <span style={{ width: '12%', textAlign: 'right' }}>0.00</span>
+                    <span style={{ width: '18%', textAlign: 'right' }}>{g.total.toFixed(2)}</span>
+                  </div>
+                ))}
 
-            <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
+                <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, fontWeight: 'bold' }}>
-              <span style={{ width: '12%' }}>Total</span>
-              <span style={{ width: '22%', textAlign: 'right' }}>{totals.totalTaxable.toFixed(2)}</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>{totals.totalCgst.toFixed(2)}</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>{totals.totalSgst.toFixed(2)}</span>
-              <span style={{ width: '12%', textAlign: 'right' }}>0.00</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>{totals.grandTotal.toFixed(2)}</span>
-            </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, fontWeight: 'bold' }}>
+                  <span style={{ width: '12%' }}>Total</span>
+                  <span style={{ width: '22%', textAlign: 'right' }}>{totals.totalTaxable.toFixed(2)}</span>
+                  <span style={{ width: '18%', textAlign: 'right' }}>{totals.totalCgst.toFixed(2)}</span>
+                  <span style={{ width: '18%', textAlign: 'right' }}>{totals.totalSgst.toFixed(2)}</span>
+                  <span style={{ width: '12%', textAlign: 'right' }}>0.00</span>
+                  <span style={{ width: '18%', textAlign: 'right' }}>{totals.grandTotal.toFixed(2)}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ textAlign: 'center', fontSize: 8, fontWeight: 'bold', marginBottom: 4 }}>
+                  -------{companyTax.taxName} Breakup Details--------Amount ({currencySymbol})
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, fontWeight: 'bold', marginBottom: 2 }}>
+                  <span style={{ width: '15%' }}>Rate</span>
+                  <span style={{ width: '30%', textAlign: 'right' }}>Taxable<br />Amount</span>
+                  <span style={{ width: '25%', textAlign: 'right' }}>{companyTax.taxName}<br />Amount</span>
+                  <span style={{ width: '30%', textAlign: 'right' }}>Total<br />Amount</span>
+                </div>
+
+                <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
+
+                {Object.entries(gstGroups).map(([rate, g]) => {
+                  const lineTax = g.cgst + g.sgst;
+                  return (
+                    <div key={rate} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginBottom: 2 }}>
+                      <span style={{ width: '15%' }}>{rate}%</span>
+                      <span style={{ width: '30%', textAlign: 'right' }}>{g.taxable.toFixed(2)}</span>
+                      <span style={{ width: '25%', textAlign: 'right' }}>{lineTax.toFixed(2)}</span>
+                      <span style={{ width: '30%', textAlign: 'right' }}>{g.total.toFixed(2)}</span>
+                    </div>
+                  );
+                })}
+
+                <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, fontWeight: 'bold' }}>
+                  <span style={{ width: '15%' }}>Total</span>
+                  <span style={{ width: '30%', textAlign: 'right' }}>{totals.totalTaxable.toFixed(2)}</span>
+                  <span style={{ width: '25%', textAlign: 'right' }}>{totals.totalTax.toFixed(2)}</span>
+                  <span style={{ width: '30%', textAlign: 'right' }}>{totals.grandTotal.toFixed(2)}</span>
+                </div>
+              </>
+            )}
 
             <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 

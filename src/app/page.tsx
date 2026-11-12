@@ -28,6 +28,7 @@ import UserSwitchModal from '@/components/UserSwitchModal';
 import { permissionGuard, LANUser } from '@/lib/permissionGuard';
 import { lanUserManagementService } from '@/lib/lanUserManagementService';
 import { resolveUnitString } from '@/lib/unitResolver';
+import { getCompanyTaxInfo, getItemTaxRate, getItemTaxName } from '@/lib/taxEngine';
 import {
   computeBaseFinancials,
 
@@ -111,6 +112,9 @@ interface StockCategory { id: number; companyId: number; name: string; alias?: s
 interface StockItem {
   id: number; companyId: number; name: string; alias?: string; under: string; category?: string;
   unit: any; unitName?: string; altUnit?: any; gstRate: number; hsnCode?: string;
+  taxName?: string;
+  taxRate?: number;
+  taxApplicable?: string;
   openingQty: number; openingRate: number; openingVal?: number; groupName?: string; categoryName?: string;
   showInclTax?: boolean;
   showAmtInclTax?: boolean;
@@ -153,6 +157,8 @@ interface Company {
   formalName?: string;
   currency?: string;
   decimalPlaces?: number;
+  taxName?: string;
+  taxStructure?: 'dual' | 'single';
 }
 type UserRole = 'Admin' | 'Accountant' | 'Data Entry' | 'Viewer';
 interface AppUser { id: number; username: string; role: UserRole; email?: string; }
@@ -166,7 +172,7 @@ interface VoucherEntry {
   narration?: string; 
 }
 
-interface InventoryEntry { id: number; itemId: number; stockItemId?: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; discountPerc?: number; discountAmt?: number; taxableAmount?: number; gstRate: number; hsnCode?: string; altQty?: string; stockItem?: StockItem; desc1?: string; desc2?: string; desc3?: string; entryType?: string; }
+interface InventoryEntry { id: number; itemId: number; stockItemId?: number; itemName: string; qty: number; rate: number; rateInclTax: number; amountInclTax: number; unit: string; amount: number; discountPerc?: number; discountAmt?: number; taxableAmount?: number; gstRate: number; taxRate?: number; taxName?: string; hsnCode?: string; altQty?: string; stockItem?: StockItem; desc1?: string; desc2?: string; desc3?: string; entryType?: string; }
 
 interface VoucherRow {
   itemId: number;
@@ -181,6 +187,8 @@ interface VoucherRow {
   discountAmt?: number;
   taxableAmount?: number;
   gstRate: number;
+  taxRate?: number;
+  taxName?: string;
   hsnCode?: string;
   desc1?: string;
   desc2?: string;
@@ -3773,6 +3781,12 @@ export default function App() {
           const selectedUnitSymbol = matchedUnit ? (matchedUnit.symbol || matchedUnit.name) : unitName;
           const selectedUnitId = matchedUnit && matchedUnit.id > 0 ? matchedUnit.id : undefined;
 
+          const companyTax = getCompanyTaxInfo(activeCompany);
+          const rawTaxRate = fv('item-gst');
+          const numTaxRate = rawTaxRate !== '' ? round2(parseFloat(rawTaxRate)) : (companyTax.isIndiaGst ? 18 : 0);
+          const taxNameVal = alterItem?.taxName || companyTax.taxName;
+          const taxAppVal = fsv('item-gst-app') || 'Applicable';
+
           type = 'stockItem'; data = { 
             name, alias: fv('item-alias'), 
             under: fv('item-under') || 'Primary', 
@@ -3783,9 +3797,12 @@ export default function App() {
             altUnit: fv('item-altunit') || 'Not Applicable',
             showInclTax: (document.getElementById('item-show-incl-tax') as HTMLSelectElement)?.value === 'Yes',
             showAmtInclTax: (document.getElementById('item-show-amt-incl-tax') as HTMLSelectElement)?.value === 'Yes',
-            gstRate: fv('item-gst') ? round2(parseFloat(fv('item-gst'))) : 18, 
+            gstRate: numTaxRate,
+            taxRate: numTaxRate,
+            taxName: taxNameVal,
             hsnCode: fv('item-hsn'), 
-            gstApplicable: fsv('item-gst-app'),
+            gstApplicable: taxAppVal,
+            taxApplicable: taxAppVal,
             typeOfSupply: fsv('item-supply-type'),
             costingMethod: fsv('item-costing'),
             marketValuationMethod: fsv('item-market'),
@@ -3827,6 +3844,7 @@ export default function App() {
           const countryVal = fv('c-country') || alterItem?.country || 'India';
           const curSym = fv('c-currency') || alterItem?.currencySymbol || alterItem?.baseCurrencySymbol || (COUNTRY_CURRENCY[countryVal]?.symbol) || '₹';
           const curName = fv('c-formal') || alterItem?.currencyName || alterItem?.formalName || (COUNTRY_CURRENCY[countryVal]?.name) || 'Indian Rupee';
+          const taxInfo = getCompanyTaxInfo({ country: countryVal });
           type = 'company'; data = { 
             name, address: fv('c-addr'), state: fv('c-state'), country: countryVal, gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
             registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'), upiId: (fv('c-upi') || '').trim().toLowerCase(),
@@ -3836,6 +3854,8 @@ export default function App() {
             currencyName: curName,
             formalName: curName,
             currency: curSym,
+            taxName: alterItem?.taxName || taxInfo.taxName,
+            taxStructure: taxInfo.structure,
             securityControl: fsv('c-sec-ctrl') === 'Yes', password: fv('c-pwd'),
             showMobile: (document.getElementById('chk-print-mob') as HTMLInputElement)?.checked ?? true,
             showEmail: (document.getElementById('chk-print-email') as HTMLInputElement)?.checked ?? true,
@@ -7206,12 +7226,14 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               }
               const pickedCur = ((document.getElementById('c-currency') as HTMLInputElement)?.value || '').trim() || (activeAlterItem?.currencySymbol || activeAlterItem?.baseCurrencySymbol || '₹');
               const pickedFormal = ((document.getElementById('c-formal') as HTMLInputElement)?.value || '').trim() || (activeAlterItem?.currencyName || activeAlterItem?.formalName || 'Indian Rupee');
+              const coCountry = ((document.getElementById('c-country') as HTMLInputElement)?.value || '').trim() || 'India';
+              const taxInfo = getCompanyTaxInfo({ country: coCountry });
               const d = {
                 name,
                 mailingName: (document.getElementById('c-mail') as HTMLInputElement).value,
                 address: (document.getElementById('c-addr') as HTMLTextAreaElement).value,
                 state: (document.getElementById('c-state') as HTMLInputElement).value,
-                country: (document.getElementById('c-country') as HTMLInputElement).value,
+                country: coCountry,
                 pinCode: (document.getElementById('c-pin') as HTMLInputElement).value,
                 telephone: (document.getElementById('c-telephone') as HTMLInputElement).value,
                 mobile: (document.getElementById('c-mob') as HTMLInputElement).value,
@@ -7233,6 +7255,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
                 currencyName: pickedFormal,
                 formalName: pickedFormal,
                 currency: pickedCur,
+                taxName: activeAlterItem?.taxName || taxInfo.taxName,
+                taxStructure: taxInfo.structure,
                 securityControl: (document.getElementById('c-sec-ctrl') as HTMLSelectElement)?.value === 'Yes',
                 password: (document.getElementById('c-pwd') as HTMLInputElement)?.value || '',
                 showMobile: showMob,
@@ -7983,6 +8007,14 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
   const [sel,setSel]=useState(0);
   const [nameFilter, setNameFilter]=useState('');
   const [nameSel, setNameSel]=useState(0);
+  const companyTax = useMemo(() => getCompanyTaxInfo(activeCompany), [activeCompany]);
+  const itemTaxLabel = activeAlterItem?.taxName || companyTax.taxLabel;
+  const initialTaxRate = activeAlterItem?.taxRate !== undefined && activeAlterItem?.taxRate !== null
+    ? String(activeAlterItem.taxRate)
+    : (activeAlterItem?.gstRate !== undefined && activeAlterItem?.gstRate !== null
+        ? String(activeAlterItem.gstRate)
+        : (companyTax.isIndiaGst ? '18' : ''));
+
   const [showInclTax, setShowInclTax] = useState(activeAlterItem?.showInclTax ?? false);
   const [showAmtInclTax, setShowAmtInclTax] = useState(activeAlterItem?.showAmtInclTax ?? false);
   const [enableDescription, setEnableDescription] = useState(activeAlterItem?.enableDescription ?? false);
@@ -8133,7 +8165,10 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
       setCurrentUnit(u);
     }
     if(hsnEl) hsnEl.value=it.hsnCode||'';
-    if(gstEl) gstEl.value=String(it.gstRate || 18);
+    if(gstEl) {
+      const rVal = (it as any).taxRate !== undefined && (it as any).taxRate !== null ? (it as any).taxRate : it.gstRate;
+      gstEl.value = (rVal !== undefined && rVal !== null && rVal !== '') ? String(rVal) : '';
+    }
     if(oqtyEl) { oqtyEl.value=String(it.openingQty || 0); setOQty(it.openingQty || 0); }
     if(orateEl) { orateEl.value=String(it.openingRate || 0); setORate(it.openingRate || 0); }
     setShowInclTax(it.showInclTax ?? false);
@@ -8324,8 +8359,8 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
             </div>
             <div className="form-row"><label style={{width:140}}>HSN/SAC Code</label><span className="colon">:</span>
               <input id="item-hsn" type="text" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.hsnCode||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
-            <div className="form-row"><label style={{width:140}}>GST Rate (%)</label><span className="colon">:</span>
-              <input id="item-gst" type="text" className="form-input" style={{width:80,textAlign:'right'}} defaultValue={activeAlterItem?.gstRate||'18'} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/><span style={{marginLeft:5}}>%</span></div>
+            <div className="form-row"><label style={{width:140}}>{itemTaxLabel} Rate (%)</label><span className="colon">:</span>
+              <input id="item-gst" type="text" className="form-input" style={{width:80,textAlign:'right'}} defaultValue={initialTaxRate} placeholder="0" onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/><span style={{marginLeft:5}}>%</span></div>
             <div className="form-row">
               <label style={{width:140}}>Show Incl. Tax Rate</label><span className="colon">:</span>
               <select id="item-show-incl-tax" className="form-input" style={{width:80}} value={showInclTax ? 'Yes' : 'No'} onChange={e=>setShowInclTax(e.target.value==='Yes')} onKeyDown={handleGlobalKeyDown}>
@@ -8370,7 +8405,7 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
         </div>
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Statutory Details</b>
-          <div className="form-row"><label style={{width:200}}>GST Applicable</label><span className="colon">:</span><select id="item-gst-app" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.gstApplicable||'Applicable'} onKeyDown={handleGlobalKeyDown}><option>Applicable</option><option>Not Applicable</option></select></div>
+          <div className="form-row"><label style={{width:200}}>{itemTaxLabel} Applicable</label><span className="colon">:</span><select id="item-gst-app" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.taxApplicable||activeAlterItem?.gstApplicable||'Applicable'} onKeyDown={handleGlobalKeyDown}><option>Applicable</option><option>Not Applicable</option></select></div>
           <div className="form-row"><label style={{width:200}}>Type of Supply</label><span className="colon">:</span><select id="item-supply-type" className="form-input" style={{width:140}} defaultValue={activeAlterItem?.typeOfSupply||'Goods'} onKeyDown={handleGlobalKeyDown}><option>Goods</option><option>Services</option></select></div>
           <b style={{display:'block',margin:'20px 0 10px',textDecoration:'underline',fontSize:13,borderTop:'1px solid #eee',paddingTop:12}}>Costing / Pricing</b>
           <div className="form-row"><label style={{width:200}}>Costing Method</label><span className="colon">:</span><select id="item-costing" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.costingMethod||'Average Cost'} onKeyDown={handleGlobalKeyDown}><option>Average Cost</option><option>FIFO</option><option>LIFO</option><option>Standard Cost</option></select></div>
@@ -8521,9 +8556,12 @@ function StockItemCreationForm({activeAlterItem,stockGroups,stockCategories,unit
               descLine1: enableDescription ? descLine1 : false,
               descLine2: enableDescription ? descLine2 : false,
               descLine3: enableDescription ? descLine3 : false,
-              gstRate: fv('item-gst') ? parseFloat(fv('item-gst')) : 18, 
+              gstRate: fv('item-gst') !== '' ? parseFloat(fv('item-gst')) : (companyTax.isIndiaGst ? 18 : 0),
+              taxRate: fv('item-gst') !== '' ? parseFloat(fv('item-gst')) : (companyTax.isIndiaGst ? 18 : 0),
+              taxName: activeAlterItem?.taxName || companyTax.taxName,
               hsnCode: fv('item-hsn'), 
-              gstApplicable: fsv('item-gst-app'),
+              gstApplicable: fsv('item-gst-app') || 'Applicable',
+              taxApplicable: fsv('item-gst-app') || 'Applicable',
               typeOfSupply: fsv('item-supply-type'),
               costingMethod: fsv('item-costing'),
               marketValuationMethod: fsv('item-market'),
@@ -10543,13 +10581,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         setTimeout(() => document.getElementById(`acc-amt-${rowIdx}-${type}`)?.focus(), 100);
       } else if (field === 'item' && rowIdx !== undefined) {
         const nr = [...rows];
-        const gst = newItem.gstRate || 18;
+        const coTax = getCompanyTaxInfo(activeCompany);
+        const gst = getItemTaxRate(newItem) || (coTax.isIndiaGst ? 18 : 0);
+        const tName = getItemTaxName(newItem, activeCompany);
         nr[rowIdx] = {
           ...nr[rowIdx],
           itemId: newItem.id,
           itemName: newItem.name,
           unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.symbol || (newItem.unit as any)?.name || 'Nos',
           gstRate: gst,
+          taxRate: gst,
+          taxName: tName,
           hsnCode: newItem.hsnCode || '',
           rateInclTax: (nr[rowIdx].rate || 0) * (1 + gst / 100),
           amountInclTax: (nr[rowIdx].amount || 0) * (1 + gst / 100)
@@ -10559,14 +10601,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       }
       onAltCReturnHandled(); // Tell App we've handled it
     }
-  }, [altCReturnContext]);
+  }, [altCReturnContext, activeCompany]);
   const itemSubtotal = rows.reduce((s: number, r: any) => s + (r.itemName && r.amount ? r.amount : 0), 0);
 
-  // ===== TALLY PRIME GST LOGIC: CGST+SGST (same state) vs IGST (different state) =====
+  // ===== MULTI-COUNTRY DYNAMIC TAX LOGIC =====
+  const companyTaxInfo = useMemo(() => getCompanyTaxInfo(activeCompany), [activeCompany]);
   const companyState = (activeCompany?.state || '').toLowerCase().trim();
   const partyLedger = ledgers.find(l => l.name === partyName);
   const partyState = (partyLedger?.state || '').toLowerCase().trim();
-  const isInterState = partyState !== '' && companyState !== '' && partyState !== companyState;
+  const isInterState = companyTaxInfo.isIndiaGst && partyState !== '' && companyState !== '' && partyState !== companyState;
 
   // 1. Calculate Additional Expenses/Discounts that affect Taxable Subtotal (excluding Round Off)
   const addlTaxableAdjustment = useMemo(() => {
@@ -10583,35 +10626,53 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   // Net Taxable Subtotal (Item Subtotal + Additional Expenses - Additional Discounts)
   const netTaxableSubtotal = Math.max(0, itemSubtotal + addlTaxableAdjustment);
 
-  // Item-wise GST breakdown (grouped by gstRate, calculated on Net Taxable Subtotal)
+  // Item-wise Tax breakdown (grouped by rate and taxName, calculated on Net Taxable Subtotal)
   const gstBreakdown = useMemo(() => {
-    const map = new Map<number, { taxableAmt: number; gstRate: number }>();
+    const map = new Map<string, { taxableAmt: number; gstRate: number; taxName: string }>();
     const activeRows = rows.filter(r => r.itemName && r.amount > 0);
     const totalItemSub = activeRows.reduce((sum, r) => sum + r.amount, 0);
 
     activeRows.forEach(r => {
-      const existing = map.get(r.gstRate) || { taxableAmt: 0, gstRate: r.gstRate };
+      const effectiveRate = r.taxRate !== undefined ? r.taxRate : (r.gstRate !== undefined ? r.gstRate : 0);
+      const effectiveName = (r as any).taxName || companyTaxInfo.taxName;
+      const mapKey = `${effectiveName}_${effectiveRate}`;
+      const existing = map.get(mapKey) || { taxableAmt: 0, gstRate: effectiveRate, taxName: effectiveName };
       existing.taxableAmt += r.amount;
-      map.set(r.gstRate, existing);
+      map.set(mapKey, existing);
     });
 
     return Array.from(map.values()).map(g => {
       const ratio = totalItemSub > 0 ? (g.taxableAmt / totalItemSub) : 0;
       const netTaxableForGroup = Math.max(0, g.taxableAmt + (addlTaxableAdjustment * ratio));
-      return {
-        ...g,
-        netTaxableAmt: netTaxableForGroup,
-        cgst: isInterState ? 0 : round2(netTaxableForGroup * g.gstRate / 200),
-        sgst: isInterState ? 0 : round2(netTaxableForGroup * g.gstRate / 200),
-        igst: isInterState ? round2(netTaxableForGroup * g.gstRate / 100) : 0,
-      };
+      if (companyTaxInfo.isIndiaGst) {
+        return {
+          ...g,
+          netTaxableAmt: netTaxableForGroup,
+          cgst: isInterState ? 0 : round2(netTaxableForGroup * g.gstRate / 200),
+          sgst: isInterState ? 0 : round2(netTaxableForGroup * g.gstRate / 200),
+          igst: isInterState ? round2(netTaxableForGroup * g.gstRate / 100) : 0,
+          taxAmount: round2(netTaxableForGroup * g.gstRate / 100),
+        };
+      } else {
+        const singleTaxAmt = round2(netTaxableForGroup * g.gstRate / 100);
+        return {
+          ...g,
+          netTaxableAmt: netTaxableForGroup,
+          cgst: 0,
+          sgst: 0,
+          igst: 0,
+          taxAmount: singleTaxAmt,
+        };
+      }
     });
-  }, [rows, isInterState, addlTaxableAdjustment]);
+  }, [rows, isInterState, addlTaxableAdjustment, companyTaxInfo]);
 
-  const totalCgst = gstBreakdown.reduce((s: number, g: any) => s + g.cgst, 0);
-  const totalSgst = gstBreakdown.reduce((s: number, g: any) => s + g.sgst, 0);
-  const totalIgst = gstBreakdown.reduce((s: number, g: any) => s + g.igst, 0);
-  const totalTax = totalCgst + totalSgst + totalIgst;
+  const totalCgst = companyTaxInfo.isIndiaGst ? gstBreakdown.reduce((s: number, g: any) => s + (g.cgst || 0), 0) : 0;
+  const totalSgst = companyTaxInfo.isIndiaGst ? gstBreakdown.reduce((s: number, g: any) => s + (g.sgst || 0), 0) : 0;
+  const totalIgst = companyTaxInfo.isIndiaGst ? gstBreakdown.reduce((s: number, g: any) => s + (g.igst || 0), 0) : 0;
+  const totalTax = companyTaxInfo.isIndiaGst
+    ? (totalCgst + totalSgst + totalIgst)
+    : gstBreakdown.reduce((s: number, g: any) => s + (g.taxAmount || 0), 0);
 
   // Additional charges/discounts excluding Round Off
   const otherAddlTotal = useMemo(() => {
@@ -10791,7 +10852,9 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         nr.push({itemId:0,itemName:'',qty:0,rate:0,rateInclTax:0,amountInclTax:0,unit:'Nos',amount:0,discountPerc:0,discountAmt:0,taxableAmount:0,gstRate:18,hsnCode:''});
       }
     }
-    const gst = it.gstRate || 18;
+    const coTax = getCompanyTaxInfo(activeCompany);
+    const gst = getItemTaxRate(it) || (coTax.isIndiaGst ? 18 : 0);
+    const tName = getItemTaxName(it, activeCompany);
     nr[idx]={
       ...nr[idx],
       itemId:it.id || 0,
@@ -10799,6 +10862,8 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
       unit: resolveUnitString(it, units),
       discountPerc: round2(it.defaultDiscount || 0),
       gstRate: round2(gst),
+      taxRate: round2(gst),
+      taxName: tName,
       hsnCode:it.hsnCode || '',
       rateInclTax: round2((nr[idx].rate || 0) * (1 + gst / 100)),
       amountInclTax: round2((nr[idx].amount || 0) * (1 + gst / 100))
@@ -11881,13 +11946,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                             activeAlterItem: it,
                             onCreated: (newItem) => {
                               const nr = [...rows];
-                              const gst = newItem.gstRate || 18;
+                              const coTax = getCompanyTaxInfo(activeCompany);
+                              const gst = getItemTaxRate(newItem) || (coTax.isIndiaGst ? 18 : 0);
+                              const tName = getItemTaxName(newItem, activeCompany);
                               nr[idx] = {
                                 ...nr[idx],
                                 itemId: newItem.id,
                                 itemName: newItem.name,
                                 unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.symbol || (newItem.unit as any)?.name || 'Nos',
                                 gstRate: gst,
+                                taxRate: gst,
+                                taxName: tName,
                                 hsnCode: newItem.hsnCode || '',
                                 rateInclTax: (nr[idx].rate || 0) * (1 + gst / 100),
                                 amountInclTax: (nr[idx].amount || 0) * (1 + gst / 100)
@@ -11914,13 +11983,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                           fieldType: 'stockItem',
                           onCreated: (newItem) => {
                             const nr = [...rows];
-                            const gst = newItem.gstRate || 18;
+                            const coTax = getCompanyTaxInfo(activeCompany);
+                            const gst = getItemTaxRate(newItem) || (coTax.isIndiaGst ? 18 : 0);
+                            const tName = getItemTaxName(newItem, activeCompany);
                             nr[idx] = {
                               ...nr[idx],
                               itemId: newItem.id,
                               itemName: newItem.name,
                               unit: typeof newItem.unit === 'string' ? newItem.unit : (newItem.unit as any)?.symbol || (newItem.unit as any)?.name || 'Nos',
                               gstRate: gst,
+                              taxRate: gst,
+                              taxName: tName,
                               hsnCode: newItem.hsnCode || '',
                               rateInclTax: (nr[idx].rate || 0) * (1 + gst / 100),
                               amountInclTax: (nr[idx].amount || 0) * (1 + gst / 100)
@@ -12215,42 +12288,56 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <span style={{width:130,textAlign:'right',fontWeight:'bold'}}>{curSym} {fmt(itemSubtotal)}</span>
             </div>
 
-            {/* State indicator */}
-            {partyName && partyLedger?.state && (
+            {/* State indicator (Only for Indian GST) */}
+            {companyTaxInfo.isIndiaGst && partyName && partyLedger?.state && (
               <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginBottom:6,fontSize:11}}>
                 <span style={{background:isInterState?'#fff3e0':'#e8f5e9',padding:'2px 10px',border:`1px solid ${isInterState?'#ff9800':'#4caf50'}`,borderRadius:2,fontWeight:'bold',color:isInterState?'#e65100':'#2e7d32'}}>
                   {isInterState ? `⚡ INTER-STATE (${activeCompany?.state} → ${partyLedger.state}) — IGST` : `✓ INTRA-STATE (${activeCompany?.state}) — CGST + SGST`}
                 </span>
               </div>
             )}
-            {/* Item-wise GST breakdown */}
-            {gstBreakdown.map((g, gi) => {
-              const displayTaxable = (g as any).netTaxableAmt !== undefined ? (g as any).netTaxableAmt : g.taxableAmt;
-              return (
-                <div key={gi} style={{marginBottom:4}}>
-                  {isInterState ? (
-                    <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                      <span style={{fontSize:12,color:'#555'}}>IGST @ {g.gstRate}% on {curSym}{fmt(displayTaxable)}:</span>
-                      <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.igst)}</span>
-                    </div>
-                  ) : (
-                    <>
+            {/* Item-wise Tax breakdown */}
+            {companyTaxInfo.isIndiaGst ? (
+              gstBreakdown.map((g, gi) => {
+                const displayTaxable = (g as any).netTaxableAmt !== undefined ? (g as any).netTaxableAmt : g.taxableAmt;
+                return (
+                  <div key={gi} style={{marginBottom:4}}>
+                    {isInterState ? (
                       <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                        <span style={{fontSize:12,color:'#555'}}>CGST @ {g.gstRate/2}% on {curSym}{fmt(displayTaxable)}:</span>
-                        <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.cgst)}</span>
+                        <span style={{fontSize:12,color:'#555'}}>IGST @ {g.gstRate}% on {curSym}{fmt(displayTaxable)}:</span>
+                        <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.igst)}</span>
                       </div>
-                      <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                        <span style={{fontSize:12,color:'#555'}}>SGST @ {g.gstRate/2}% on {curSym}{fmt(displayTaxable)}:</span>
-                        <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.sgst)}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
+                    ) : (
+                      <>
+                        <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
+                          <span style={{fontSize:12,color:'#555'}}>CGST @ {g.gstRate/2}% on {curSym}{fmt(displayTaxable)}:</span>
+                          <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.cgst)}</span>
+                        </div>
+                        <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
+                          <span style={{fontSize:12,color:'#555'}}>SGST @ {g.gstRate/2}% on {curSym}{fmt(displayTaxable)}:</span>
+                          <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.sgst)}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              gstBreakdown.map((g, gi) => {
+                const displayTaxable = (g as any).netTaxableAmt !== undefined ? (g as any).netTaxableAmt : g.taxableAmt;
+                const taxName = (g as any).taxName || companyTaxInfo.taxName;
+                const taxAmt = (g as any).taxAmount || 0;
+                return (
+                  <div key={gi} style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:4}}>
+                    <span style={{fontSize:12,color:'#555'}}>{taxName} @ {g.gstRate}% on {curSym}{fmt(displayTaxable)}:</span>
+                    <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(taxAmt)}</span>
+                  </div>
+                );
+              })
+            )}
             {totalTax > 0 && (
               <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:4,borderTop:'1px dashed #ccc',paddingTop:4}}>
-                <span style={{fontSize:12,fontWeight:'bold',color:'#555'}}>Total Tax:</span>
+                <span style={{fontSize:12,fontWeight:'bold',color:'#555'}}>Total Tax ({companyTaxInfo.taxName}):</span>
                 <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold'}}>{curSym} {fmt(totalTax)}</span>
               </div>
             )}
@@ -12691,13 +12778,17 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   // Proper object return
                   if(focus.field==='item' && focus.rowIdx!==undefined){
                     const nr=[...rows];
-                    const gst = newItem.gstRate || 18;
+                    const coTax = getCompanyTaxInfo(activeCompany);
+                    const gst = getItemTaxRate(newItem) || (coTax.isIndiaGst ? 18 : 0);
+                    const tName = getItemTaxName(newItem, activeCompany);
                     nr[focus.rowIdx] = {
                       ...nr[focus.rowIdx],
                       itemId: newItem.id,
                       itemName: newItem.name,
                       unit: resolveUnitString(newItem, units),
                       gstRate: gst,
+                      taxRate: gst,
+                      taxName: tName,
                       hsnCode: newItem.hsnCode || '',
                       rateInclTax: (nr[focus.rowIdx].rate || 0) * (1 + gst / 100)
                     };
@@ -16810,6 +16901,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
   vouchers:Voucher[];company:Company | null;companies?:Company[];printVoucher:Voucher|null;ledgers:Ledger[];onSelectVoucher:(v:Voucher)=>void;onBack?:()=>void;
 }) {
   const printCurSym = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
+  const companyTaxInfo = useMemo(() => getCompanyTaxInfo(company), [company]);
   const [numCopies, setNumCopies] = useState(1);
   const [showOptions, setShowOptions] = useState(true);
   const [tempCopies, setTempCopies] = useState(1);
@@ -17204,7 +17296,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <>
                   <div style={{fontWeight:'bold', fontSize:12}}>{pd?.shipName || v.partyName}</div>
                   <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.shipAddress || pd?.buyerAddress || partyLedger?.address || '—'}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.shipGstin || pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{marginTop:2, fontSize:10}}>{companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{pd?.shipGstin || pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
                   <div style={{fontSize:10}}>State Name : {pd?.shipState || pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.shipState || pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               )}
@@ -17216,7 +17308,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                   <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Supplier (Bill from)</div>
                   <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
                   <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || partyLedger?.address || '—'}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{marginTop:2, fontSize:10}}>{companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
                   <div style={{fontSize:10}}>State Name : {pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               ) : (
@@ -17225,7 +17317,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                   <div style={{fontSize:9, fontWeight:'bold', color:'#333'}}>Buyer (Bill to)</div>
                   <div style={{fontWeight:'bold', fontSize:12}}>{v.partyName}</div>
                   <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{pd?.buyerAddress || partyLedger?.address || '—'}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
+                  <div style={{marginTop:2, fontSize:10}}>{companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{pd?.buyerGstin || partyLedger?.gstin || '—'}</b></div>
                   <div style={{fontSize:10}}>State Name : {pd?.buyerState || partyLedger?.state || '—'}, Code : {stateCode(pd?.buyerState || partyLedger?.state || '')}</div>
                 </>
               )}
@@ -17357,56 +17449,93 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
           <div style={{fontWeight:'bold', fontSize:11}}>{numberToWords(v.total)}</div>
         </div>
 
-        {/* HSN SUMMARY TABLE (Professional Logic) */}
+        {/* HSN / TAX SUMMARY TABLE */}
         <div style={{borderBottom:'1px solid #000'}}>
-          <table style={{width:'100%', borderCollapse:'collapse', fontSize:9}}>
-            <thead>
-              <tr>
-                <th style={{...tdH, fontSize:9}} rowSpan={2}>HSN/SAC</th>
-                <th style={{...tdH, fontSize:9}} rowSpan={2}>Taxable<br/>Value</th>
-                <th style={{...tdH, fontSize:9}} colSpan={2}>Central Tax</th>
-                <th style={{...tdH, fontSize:9}} colSpan={2}>State Tax</th>
-                <th style={{...tdH, fontSize:9}} colSpan={2}>Integrated Tax</th>
-                <th style={{...tdH, fontSize:9}} rowSpan={2}>Total<br/>Tax Amount</th>
-              </tr>
-              <tr>
-                <th style={{...tdH, fontSize:9}}>Rate</th>
-                <th style={{...tdH, fontSize:9}}>Amount</th>
-                <th style={{...tdH, fontSize:9}}>Rate</th>
-                <th style={{...tdH, fontSize:9}}>Amount</th>
-                <th style={{...tdH, fontSize:9}}>Rate</th>
-                <th style={{...tdH, fontSize:9}}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hsnRows.map((hr, idx) => (
-                <tr key={idx}>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.hsnCode}</td>
-                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.taxable)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.rate/2 + '%') : (isInterState ? '—' : '0%')}</td>
-                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? (hr.rate/2 + '%') : (isInterState ? '—' : '0%')}</td>
-                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.sgst)}</td>
-                  <td style={{...tdB, textAlign:'center'}}>{hr.igst > 0 ? (hr.rate + '%') : (isInterState ? hr.rate + '%' : '0%')}</td>
-                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.igst)}</td>
-                  <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst + hr.sgst + hr.igst)}</td>
+          {companyTaxInfo.isIndiaGst ? (
+            <table style={{width:'100%', borderCollapse:'collapse', fontSize:9}}>
+              <thead>
+                <tr>
+                  <th style={{...tdH, fontSize:9}} rowSpan={2}>HSN/SAC</th>
+                  <th style={{...tdH, fontSize:9}} rowSpan={2}>Taxable<br/>Value</th>
+                  <th style={{...tdH, fontSize:9}} colSpan={2}>Central Tax</th>
+                  <th style={{...tdH, fontSize:9}} colSpan={2}>State Tax</th>
+                  <th style={{...tdH, fontSize:9}} colSpan={2}>Integrated Tax</th>
+                  <th style={{...tdH, fontSize:9}} rowSpan={2}>Total<br/>Tax Amount</th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{fontWeight:'bold'}}>
-                <td style={{...tdB, textAlign:'right'}}>Total</td>
-                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.taxable,0))}</td>
-                <td style={tdB}/>
-                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.cgst,0))}</td>
-                <td style={tdB}/>
-                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.sgst,0))}</td>
-                <td style={tdB}/>
-                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.igst,0))}</td>
-                <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.cgst+r.sgst+r.igst,0))}</td>
-              </tr>
-            </tfoot>
-          </table>
+                <tr>
+                  <th style={{...tdH, fontSize:9}}>Rate</th>
+                  <th style={{...tdH, fontSize:9}}>Amount</th>
+                  <th style={{...tdH, fontSize:9}}>Rate</th>
+                  <th style={{...tdH, fontSize:9}}>Amount</th>
+                  <th style={{...tdH, fontSize:9}}>Rate</th>
+                  <th style={{...tdH, fontSize:9}}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hsnRows.map((hr, idx) => (
+                  <tr key={idx}>
+                    <td style={{...tdB, textAlign:'center'}}>{hr.hsnCode}</td>
+                    <td style={{...tdB, textAlign:'right'}}>{fmt(hr.taxable)}</td>
+                    <td style={{...tdB, textAlign:'center'}}>{hr.cgst > 0 ? (hr.rate/2 + '%') : (isInterState ? '—' : '0%')}</td>
+                    <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst)}</td>
+                    <td style={{...tdB, textAlign:'center'}}>{hr.sgst > 0 ? (hr.rate/2 + '%') : (isInterState ? '—' : '0%')}</td>
+                    <td style={{...tdB, textAlign:'right'}}>{fmt(hr.sgst)}</td>
+                    <td style={{...tdB, textAlign:'center'}}>{hr.igst > 0 ? (hr.rate + '%') : (isInterState ? hr.rate + '%' : '0%')}</td>
+                    <td style={{...tdB, textAlign:'right'}}>{fmt(hr.igst)}</td>
+                    <td style={{...tdB, textAlign:'right'}}>{fmt(hr.cgst + hr.sgst + hr.igst)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{fontWeight:'bold'}}>
+                  <td style={{...tdB, textAlign:'right'}}>Total</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.taxable,0))}</td>
+                  <td style={tdB}/>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.cgst,0))}</td>
+                  <td style={tdB}/>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.sgst,0))}</td>
+                  <td style={tdB}/>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.igst,0))}</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.cgst+r.sgst+r.igst,0))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          ) : (
+            <table style={{width:'100%', borderCollapse:'collapse', fontSize:9}}>
+              <thead>
+                <tr>
+                  <th style={{...tdH, fontSize:9}}>HSN / Tariff Code</th>
+                  <th style={{...tdH, fontSize:9, textAlign:'right'}}>Taxable Value</th>
+                  <th style={{...tdH, fontSize:9, textAlign:'center'}}>{companyTaxInfo.taxName} Rate</th>
+                  <th style={{...tdH, fontSize:9, textAlign:'right'}}>{companyTaxInfo.taxName} Amount</th>
+                  <th style={{...tdH, fontSize:9, textAlign:'right'}}>Total Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hsnRows.map((hr, idx) => {
+                  const lineTax = hr.cgst + hr.sgst + hr.igst;
+                  return (
+                    <tr key={idx}>
+                      <td style={{...tdB, textAlign:'center'}}>{hr.hsnCode || '—'}</td>
+                      <td style={{...tdB, textAlign:'right'}}>{fmt(hr.taxable)}</td>
+                      <td style={{...tdB, textAlign:'center'}}>{hr.rate}%</td>
+                      <td style={{...tdB, textAlign:'right'}}>{fmt(lineTax)}</td>
+                      <td style={{...tdB, textAlign:'right'}}>{fmt(hr.taxable + lineTax)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{fontWeight:'bold'}}>
+                  <td style={{...tdB, textAlign:'right'}}>Total</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.taxable,0))}</td>
+                  <td style={tdB}/>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+(r.cgst+r.sgst+r.igst),0))}</td>
+                  <td style={{...tdB, textAlign:'right'}}>{fmt(hsnRows.reduce((s,r)=>s+r.taxable+(r.cgst+r.sgst+r.igst),0))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
         </div>
 
         <div style={{padding:'5px 10px', borderBottom:'1px solid #000', fontSize:9}}>

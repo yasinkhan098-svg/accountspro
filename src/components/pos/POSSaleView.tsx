@@ -20,6 +20,7 @@ import { posTrainingService } from '@/lib/pos/posTrainingService';
 import { resolveUnitString } from '@/lib/unitResolver';
 import { posAIProductImageService } from '@/lib/pos/posAIProductImageService';
 import HostServerStatusBadge from '@/components/HostServerStatusBadge';
+import { getCompanyTaxInfo, getItemTaxRate, getItemTaxName } from '@/lib/taxEngine';
 
 interface POSSaleViewProps {
   company: any;
@@ -62,6 +63,8 @@ export default function POSSaleView({
   const currencySymbol = useMemo(() => {
     return company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
   }, [company]);
+
+  const companyTax = useMemo(() => getCompanyTaxInfo(company), [company]);
 
   const currentUser = permissionGuard.getCurrentUser();
   const cashierName = cashierUser?.fullName || currentUser?.fullName || currentUser?.username || 'Cashier-01';
@@ -1005,7 +1008,7 @@ export default function POSSaleView({
   // Add item to cart (with tax-inclusive rate & resolved unit)
   const addItemToCart = (item: any, quantity = 1) => {
     const baseRate = Number(item.openingRate) || 0;
-    const gstRate = Number(item.gstRate) || 0;
+    const gstRate = getItemTaxRate(item);
     const retailPrice = Number(item.retailSalePrice);
     const rateWithTax = retailPrice > 0
       ? retailPrice
@@ -1869,7 +1872,7 @@ export default function POSSaleView({
                             )}
                             {item.barcode && <span style={{ color: '#64748b' }}>Barcode: {item.barcode}</span>}
                             {item.hsnCode && <span>HSN: {item.hsnCode}</span>}
-                            {item.gstRate !== undefined && <span>GST: {item.gstRate}%</span>}
+                            {item.gstRate !== undefined && <span>{companyTax.taxName}: {item.gstRate}%</span>}
                           </div>
                         </td>
                         <td style={{ padding: '6px', textAlign: 'center', fontSize: 14, fontWeight: 'bold' }}>
@@ -3187,6 +3190,8 @@ export default function POSSaleView({
         billNo={billNo}
         ledgers={ledgers}
         currencySymbol={currencySymbol}
+        taxName={companyTax.taxName}
+        taxIdLabel={companyTax.taxIdLabel}
         onConfirmPayment={handleConfirmPayment}
       />
 
