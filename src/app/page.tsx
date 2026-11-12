@@ -4593,7 +4593,6 @@ export default function App() {
            </button>
         </div>
         <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:12, marginRight:10}}>
-           <HostServerStatusBadge compact />
            <SyncStatusBadge companyId={activeCompany?.id} authToken={authClient.getToken() || ''} onDataMerged={handleSyncMergedData} />
            <AutoUpdateManager isDesktop={isDesktopApp} onToast={(msg) => setSaveToast(msg)} />
            <div style={{textAlign:'right'}}>
@@ -4721,8 +4720,8 @@ export default function App() {
       </div>
 
       {/* SUB NAV */}
-      <div className="sub-nav">
-        <span>
+      <div className="sub-nav" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px' }}>
+        <span style={{ display: 'flex', alignItems: 'center' }}>
           {screen==='GATEWAY_MAIN' && 'Gateway of LedgerX'}
           {['MASTER_MENU','ALTER_MENU'].includes(screen) && ('List of Masters'+(screen==='ALTER_MENU'?' (Alter)':''))}
           {screen==='DISPLAY_REPORTS_MENU' && 'Display More Reports'}
@@ -4759,7 +4758,13 @@ export default function App() {
           {screen==='OUTSTANDING_REPORT' && 'Outstanding Report'}
           {screen==='PRINT_PREVIEW' && 'Print Preview'}
         </span>
-        <span style={{float:'right',fontSize:11,opacity:0.85}}>
+
+        {/* Center: Server Status Badge (Moved from Top-Nav to Sub-Nav in green rectangle position) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <HostServerStatusBadge compact style={{ padding: '1px 8px', fontSize: 11, maxHeight: 22 }} />
+        </div>
+
+        <span style={{ fontSize:11, opacity:0.85, textAlign: 'right' }}>
           {activeCompany?.name || 'No Company Open'} &nbsp;|&nbsp; {currentDate} &nbsp;|&nbsp;
           <span style={{color:'#ffdd88'}}>Alt+C: Inline Create &nbsp; Ctrl+A: Accept &nbsp; Esc: Back</span>
         </span>
