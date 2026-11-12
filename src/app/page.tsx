@@ -6868,9 +6868,9 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
 
   useEffect(()=>{ ref.current?.focus(); },[]);
 
-  // Dedicated Escape Key handler for step-by-step exit
+  // Dedicated Escape and Ctrl+A Key handler for step-by-step exit and quick save
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
+    const handleKeys = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
@@ -6879,10 +6879,18 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         } else if (onCancel) {
           onCancel();
         }
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        e.stopPropagation();
+        setFocusFld(null);
+        const saveBtn = document.getElementById('btn-save-company') as HTMLButtonElement;
+        if (saveBtn) {
+          saveBtn.click();
+        }
       }
     };
-    window.addEventListener('keydown', handleEsc, true);
-    return () => window.removeEventListener('keydown', handleEsc, true);
+    window.addEventListener('keydown', handleKeys, true);
+    return () => window.removeEventListener('keydown', handleKeys, true);
   }, [focusedField, onCancel]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -6937,6 +6945,11 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         const fInp = document.getElementById('c-formal') as HTMLInputElement;
         if (cInp) cInp.value = coCur.symbol;
         if (fInp) fInp.value = coCur.name;
+      }
+      const states = COUNTRY_DATA[v] || [];
+      const sInp = document.getElementById('c-state') as HTMLInputElement;
+      if (sInp && states.length > 0 && !states.includes(sInp.value)) {
+        sInp.value = states[0];
       }
     } else if (focusedField==='state') {
       const inp = document.getElementById('c-state') as HTMLInputElement;
@@ -7035,15 +7048,6 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         ))}
         <div className="form-row"><label style={{width:160}}>Address</label><span className="colon">:</span><textarea id="c-addr" className="form-input" style={{height:60,width:320}} defaultValue={activeAlterItem?.address||''}/></div>
         <div className="form-row">
-          <label style={{width:160}}>State</label><span className="colon">:</span>
-          <input id="c-state" type="text" className="form-input" style={{width:200}}
-            onFocus={e=>{setFocusFld('state');setFilter(e.target.value);}}
-            onInput={e=>setFilter((e.target as HTMLInputElement).value)}
-            onBlur={()=>setTimeout(()=>setFocusFld(null),200)}
-            onKeyDown={handleKeyDown}
-            defaultValue={activeAlterItem?.state||'Uttarakhand'} autoComplete="off"/>
-        </div>
-        <div className="form-row">
           <label style={{width:160}}>Country</label><span className="colon">:</span>
           <input id="c-country" type="text" className="form-input" style={{width:200}}
             onFocus={e=>{setFocusFld('country');setFilter(e.target.value);}}
@@ -7051,11 +7055,33 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               const val = (e.target as HTMLInputElement).value;
               setFilter(val);
               setSelCo(val);
+              const states = COUNTRY_DATA[val] || [];
+              const sInp = document.getElementById('c-state') as HTMLInputElement;
+              if (sInp && states.length > 0 && !states.includes(sInp.value)) {
+                sInp.value = states[0];
+              }
             }}
-            onChange={e=>setSelCo(e.target.value)}
+            onChange={e=>{
+              const val = e.target.value;
+              setSelCo(val);
+              const states = COUNTRY_DATA[val] || [];
+              const sInp = document.getElementById('c-state') as HTMLInputElement;
+              if (sInp && states.length > 0 && !states.includes(sInp.value)) {
+                sInp.value = states[0];
+              }
+            }}
             onBlur={()=>setTimeout(()=>setFocusFld(null),200)}
             onKeyDown={handleKeyDown}
             defaultValue={selCo} autoComplete="off"/>
+        </div>
+        <div className="form-row">
+          <label style={{width:160}}>State</label><span className="colon">:</span>
+          <input id="c-state" type="text" className="form-input" style={{width:200}}
+            onFocus={e=>{setFocusFld('state');setFilter(e.target.value);}}
+            onInput={e=>setFilter((e.target as HTMLInputElement).value)}
+            onBlur={()=>setTimeout(()=>setFocusFld(null),200)}
+            onKeyDown={handleKeyDown}
+            defaultValue={activeAlterItem?.state||(COUNTRY_DATA[selCo]?.[0] || 'Uttarakhand')} autoComplete="off"/>
         </div>
         {([['Telephone','c-telephone',200]] as const).map(([label,id,w],i)=>(
           <div key={i} className="form-row"><label style={{width:160}}>{label}</label><span className="colon">:</span><input id={id} type="text" className="form-input" style={{width:w}} defaultValue={activeAlterItem?.telephone||''}/></div>
@@ -7313,6 +7339,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               };
               onSave(d);
             }}
+            id="btn-save-company"
             style={{background:'#1c5282',color:'white',border:'none',padding:'6px 25px',cursor:'pointer',fontWeight:'bold',fontSize:12,borderRadius:2}}
           >
             Accept (Ctrl+A)
