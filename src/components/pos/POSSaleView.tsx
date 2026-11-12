@@ -59,6 +59,10 @@ export default function POSSaleView({
     ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies)
     : '10000';
 
+  const currencySymbol = useMemo(() => {
+    return company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
+  }, [company]);
+
   const currentUser = permissionGuard.getCurrentUser();
   const cashierName = cashierUser?.fullName || currentUser?.fullName || currentUser?.username || 'Cashier-01';
   const isTrainingMode = Boolean(cashierUser?.isTrainingMode);
@@ -1142,17 +1146,17 @@ export default function POSSaleView({
 
   // RR Coupon Promo handler
   const handleApplyCoupon = () => {
-    const coupon = prompt('Enter Promotional / Discount Coupon Code or Amount (₹):', '150');
+    const coupon = prompt(`Enter Promotional / Discount Coupon Code or Amount (${currencySymbol}):`, '150');
     if (!coupon) return;
     const numAmt = parseFloat(coupon);
     if (!isNaN(numAmt) && numAmt > 0) {
       setPromoDiscountAmt(numAmt);
-      alert(`Applied Promo Discount: ₹${numAmt.toFixed(2)}`);
+      alert(`Applied Promo Discount: ${currencySymbol}${numAmt.toFixed(2)}`);
     } else if (coupon.toUpperCase() === 'SAVE150' || coupon.toUpperCase() === 'RELIANCE150') {
       setPromoDiscountAmt(150);
-      alert('Coupon Applied: ₹150.00 Promo Discount!');
+      alert(`Coupon Applied: ${currencySymbol}150.00 Promo Discount!`);
     } else {
-      alert(`Coupon code "${coupon}" applied successfully with ₹50 discount.`);
+      alert(`Coupon code "${coupon}" applied successfully with ${currencySymbol}50 discount.`);
       setPromoDiscountAmt(50);
     }
   };
@@ -1807,7 +1811,7 @@ export default function POSSaleView({
                   <th style={{ width: '46%', padding: '8px 12px' }}>Item Description</th>
                   <th style={{ width: '14%', padding: '8px', textAlign: 'center' }}>Qty</th>
                   <th style={{ width: '20%', padding: '8px', textAlign: 'right' }}>Price (Incl Tax)</th>
-                  <th style={{ width: '20%', padding: '8px 12px', textAlign: 'right' }}>Amt (₹)</th>
+                  <th style={{ width: '20%', padding: '8px 12px', textAlign: 'right' }}>Amt ({currencySymbol})</th>
                 </tr>
               </thead>
               <tbody>
@@ -1860,7 +1864,7 @@ export default function POSSaleView({
                             {/* Visible Item Discount Badge (exact user requirement: "aur item pr jitna discount ho apne discount ki jgah dikhe") */}
                             {(item.mrpRate > item.rateWithTax || (item.discountPerc && item.discountPerc > 0) || (item.discountAmt && item.discountAmt > 0)) && (
                               <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '1px 6px', borderRadius: 4, fontWeight: 700, fontSize: 9 }}>
-                                🏷️ MRP: ₹{item.mrpRate.toFixed(2)} • Disc: {item.discountPerc > 0 ? `${item.discountPerc.toFixed(1)}%` : `₹${item.discountAmt.toFixed(2)}`} (Save ₹{((item.mrpRate - item.rateWithTax) * item.qty).toFixed(2)})
+                                🏷️ MRP: {currencySymbol}{item.mrpRate.toFixed(2)} • Disc: {item.discountPerc > 0 ? `${item.discountPerc.toFixed(1)}%` : `${currencySymbol}${item.discountAmt.toFixed(2)}`} (Save {currencySymbol}{((item.mrpRate - item.rateWithTax) * item.qty).toFixed(2)})
                               </span>
                             )}
                             {item.barcode && <span style={{ color: '#64748b' }}>Barcode: {item.barcode}</span>}
@@ -1872,10 +1876,10 @@ export default function POSSaleView({
                           {item.qty} {item.unit}
                         </td>
                         <td style={{ padding: '6px', textAlign: 'right', fontSize: 13, fontWeight: 600 }}>
-                          ₹{item.rateWithTax.toFixed(2)}
+                          {currencySymbol}{item.rateWithTax.toFixed(2)}
                         </td>
                         <td style={{ padding: '6px 12px', textAlign: 'right', fontSize: 14, fontWeight: 'bold', color: '#0f3c64' }}>
-                          ₹{item.lineTotal.toFixed(2)}
+                          {currencySymbol}{item.lineTotal.toFixed(2)}
                         </td>
                       </tr>
                     );
@@ -1906,12 +1910,12 @@ export default function POSSaleView({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 200 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
                 <span style={{ color: '#475569' }}>Total Discount:</span>
-                <span style={{ fontWeight: 'bold' }}>₹{totals.discountAmount.toFixed(2)}</span>
+                <span style={{ fontWeight: 'bold' }}>{currencySymbol}{totals.discountAmount.toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
                 <span style={{ color: '#475569' }}>Promo Amount:</span>
                 <span style={{ fontWeight: 'bold', color: promoDiscountAmt > 0 ? '#16a34a' : '#475569' }}>
-                  {promoDiscountAmt > 0 ? `- ₹${promoDiscountAmt.toFixed(2)}` : '0.00'}
+                  {promoDiscountAmt > 0 ? `- ${currencySymbol}${promoDiscountAmt.toFixed(2)}` : '0.00'}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
@@ -1951,7 +1955,7 @@ export default function POSSaleView({
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'center' }}>
                 <span style={{ color: '#475569' }}>Total:</span>
                 <span style={{ fontSize: 18, fontWeight: 900, color: '#0f3c64' }}>
-                  ₹{totals.grandTotal.toFixed(2)}
+                  {currencySymbol}{totals.grandTotal.toFixed(2)}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2109,7 +2113,7 @@ export default function POSSaleView({
               className="pos-touch-btn"
               onClick={() => {
                 const acc = prompt('Enter Customer Mobile or Account ID for Balance Enquiry:', customerMobile);
-                if (acc) alert(`Account: ${acc}\nLoyalty ROne Balance: ₹138.35\nAvailable Credit: ₹5,000.00`);
+                if (acc) alert(`Account: ${acc}\nLoyalty ROne Balance: ${currencySymbol}138.35\nAvailable Credit: ${currencySymbol}5,000.00`);
               }}
               style={ribbonBtnStyle}
               title="Balance Enquiry"
@@ -2153,7 +2157,7 @@ export default function POSSaleView({
               title="Check Out & Settle (F12)"
             >
               <div style={{ ...ribbonIconCircleStyle, background: 'linear-gradient(145deg, #ffffff, #dcfce7)', color: '#16a34a', fontWeight: 900, fontSize: 16 }}>
-                ₹
+                {currencySymbol}
               </div>
               <span style={{ ...ribbonTextStyle, color: '#ffffff', fontWeight: 900 }}>Check Out</span>
             </button>
@@ -2467,7 +2471,7 @@ export default function POSSaleView({
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                               <span style={{ fontWeight: 800, color: '#0284c7' }}>
-                                ₹{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
+                                {currencySymbol}{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
                               </span>
                               <span style={{ fontSize: 9, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: 8 }}>
                                 Stock: {st}
@@ -2767,7 +2771,7 @@ export default function POSSaleView({
                                     overflow: 'hidden',
                                     minHeight: 122,
                                   }}
-                                  title={`${displayName} | Stock: ${st} | ₹${item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}`}
+                                  title={`${displayName} | Stock: ${st} | ${currencySymbol}${item.showInclTax || item.rateInclTax ? (item.rateInclTax || item.openingRate) : Math.round((Number(item.openingRate) || 0) * (1 + (Number(item.gstRate) || 0) / 100) * 100) / 100}`}
                                 >
                                   {/* Small Touch Camera / Upload Badge Button in top-right */}
                                   <button
@@ -2834,7 +2838,7 @@ export default function POSSaleView({
                                   {/* Price & Stock Badges */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginTop: 'auto', gap: 2, borderTop: '1px solid #f1f5f9', paddingTop: 3 }}>
                                     <span style={{ fontSize: 9.5, fontWeight: 900, color: '#0284c7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      ₹{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
+                                      {currencySymbol}{(Number(item.retailSalePrice) > 0 ? Number(item.retailSalePrice) : (Number(item.mrp) > 0 ? Number(item.mrp) : (Number(item.rateInclTax || item.openingRate) || 0))).toFixed(2)}
                                     </span>
                                     <span style={{ fontSize: 8, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '1.5px 4px', borderRadius: 4, flexShrink: 0 }}>
                                       S:{st}
@@ -3182,6 +3186,7 @@ export default function POSSaleView({
         upiVpa={company?.upiId || ''}
         billNo={billNo}
         ledgers={ledgers}
+        currencySymbol={currencySymbol}
         onConfirmPayment={handleConfirmPayment}
       />
 

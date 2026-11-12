@@ -147,6 +147,12 @@ interface Company {
   logo?: string; showLogo?: boolean; pinCode?: string;
   showDiscount?: boolean;
   companyCode?: string;
+  currencySymbol?: string;
+  currencyName?: string;
+  baseCurrencySymbol?: string;
+  formalName?: string;
+  currency?: string;
+  decimalPlaces?: number;
 }
 type UserRole = 'Admin' | 'Accountant' | 'Data Entry' | 'Viewer';
 interface AppUser { id: number; username: string; role: UserRole; email?: string; }
@@ -2283,6 +2289,20 @@ export default function App() {
       // Load full disk data for this company (Stock items, POS Purchase List, Vouchers, Ledgers)
       companyDataFolderService.loadCompanyFolder(compCode).then(folderData => {
         if (folderData) {
+          if (folderData.company) {
+            const fc = folderData.company;
+            const diskCurSym = fc.currencySymbol || fc.baseCurrencySymbol || fc.currency;
+            const diskCurName = fc.currencyName || fc.formalName;
+            if (diskCurSym) {
+              setActiveCompany(prev => prev ? {
+                ...prev,
+                currencySymbol: diskCurSym,
+                baseCurrencySymbol: diskCurSym,
+                currencyName: diskCurName || prev.currencyName || 'Indian Rupee',
+                formalName: diskCurName || prev.formalName || 'Indian Rupee',
+              } : prev);
+            }
+          }
           const loadedStock = Array.isArray(folderData.stockItems) ? folderData.stockItems : [];
           setAllStockItems(prev => {
             const others = prev.filter(si => !isCoMatch(si, activeCompany));
@@ -2421,6 +2441,9 @@ export default function App() {
   }, [activeCompany?.id, allLedgers.length, isAuthenticated]);
 
   const currencies     = useMemo(() => activeCompany ? allCurrencies.filter(c => isCoMatch(c, activeCompany)) : [], [allCurrencies, activeCompany]);
+  const activeCurrencySymbol = useMemo(() => {
+    return activeCompany?.currencySymbol || activeCompany?.baseCurrencySymbol || activeCompany?.currency || (currencies.length > 0 ? currencies[0].symbol : '₹');
+  }, [activeCompany, currencies]);
   const vouchers       = useMemo(() => activeCompany ? allVouchers.filter(v => isCoMatch(v, activeCompany)) : [], [allVouchers, activeCompany]);
   const filteredVouchers = useMemo(() => {
     const ps = parseDate(currentPeriod.start);
@@ -2777,11 +2800,28 @@ export default function App() {
           return false;
         }
 
-        const updated = { ...targetItem, ...data, id: targetItem.id };
+        const curSym = data.currencySymbol || data.baseCurrencySymbol || targetItem.currencySymbol || targetItem.baseCurrencySymbol || '₹';
+        const curName = data.currencyName || data.formalName || targetItem.currencyName || targetItem.formalName || 'Indian Rupee';
+        const updated = { 
+          ...targetItem, 
+          ...data, 
+          id: targetItem.id,
+          currencySymbol: curSym,
+          baseCurrencySymbol: curSym,
+          currencyName: curName,
+          formalName: curName,
+        };
         setCompanies(p => p.map(x => x.id === targetItem.id ? updated : x));
-        if (activeCompany && activeCompany.id === targetItem.id) {
-          setActiveCompany({ ...activeCompany, ...data });
+        if (activeCompany && (activeCompany.id === targetItem.id || activeCompany.companyCode === (targetItem.companyCode || updated.companyCode))) {
+          setActiveCompany(prev => ({ ...prev, ...updated }));
         }
+        setAllCurrencies(p => {
+          const matched = p.some(c => isCoMatch(c, updated));
+          if (matched) {
+            return p.map(c => isCoMatch(c, updated) ? { ...c, symbol: curSym, name: curName, isoCode: curSym } : c);
+          }
+          return [...p, { id: Date.now() + 200, companyId: targetItem.id, name: curName, symbol: curSym, isoCode: curSym, decimalPlaces: 2 }];
+        });
         try {
           const compCode = companyDataFolderService.getCompanyFolderCode(updated, companies);
           companyDataFolderService.saveCompanyFolder({ companyCode: compCode, company: { ...updated, companyCode: compCode } });
@@ -3030,10 +3070,16 @@ export default function App() {
               const newCo = resData.company;
               const nextCode = await companyDataFolderService.getNextCompanyCode(companies);
               newCo.companyCode = newCo.companyCode || nextCode;
+              const curSym = newCo.currencySymbol || newCo.baseCurrencySymbol || data.currencySymbol || data.baseCurrencySymbol || '₹';
+              const curName = newCo.currencyName || newCo.formalName || data.currencyName || data.formalName || 'Indian Rupee';
+              newCo.currencySymbol = curSym;
+              newCo.baseCurrencySymbol = curSym;
+              newCo.currencyName = curName;
+              newCo.formalName = curName;
               setCompanies(p => [...p, newCo]);
               setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' }))]);
               setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
-              setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
+              setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: curName, symbol: curSym, isoCode: curSym, decimalPlaces: 2 }]);
               const initialLedgers = (resData.ledgers && resData.ledgers.length > 0) ? resData.ledgers : ensureStandardLedgersList([], newCo.id).ledgers;
               setAllLedgers(p => [...p, ...initialLedgers]);
               initializedCompaniesRef.current.add(Number(newCo.id));
@@ -3065,11 +3111,21 @@ export default function App() {
 
         // Local offline company creation - Tally-style 5-digit folder (10000, 10001, 10002...)
         const nextCode = await companyDataFolderService.getNextCompanyCode(companies);
-        const localCo = { id: Date.now(), companyCode: nextCode, ...data };
+        const curSym = data.currencySymbol || data.baseCurrencySymbol || '₹';
+        const curName = data.currencyName || data.formalName || 'Indian Rupee';
+        const localCo = { 
+          id: Date.now(), 
+          companyCode: nextCode, 
+          ...data,
+          currencySymbol: curSym,
+          baseCurrencySymbol: curSym,
+          currencyName: curName,
+          formalName: curName,
+        };
         setCompanies(p => [...p, localCo]);
         setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: localCo.id, name: g, under: 'Primary' }))]);
         setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: localCo.id, name: v, type: v, abbreviation: v.slice(0,3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
-        setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: localCo.id, name: "Indian Rupee", symbol: "₹", isoCode: "INR", decimalPlaces: 2 }]);
+        setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: localCo.id, name: curName, symbol: curSym, isoCode: curSym, decimalPlaces: 2 }]);
         const localLedgers = ensureStandardLedgersList([], localCo.id).ledgers;
         setAllLedgers(p => [...p, ...localLedgers]);
         initializedCompaniesRef.current.add(Number(localCo.id));
@@ -3768,10 +3824,18 @@ export default function App() {
           const origName = (alterItem?.name || '').trim().toLowerCase();
           if (name.trim().toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!alterItem || (String(c.id) !== String(alterItem.id) && Number(c.id) !== Number(alterItem.id))))) { alert(`Company "${name}" already exists!`); return; }
           const logoEl = document.querySelector('img[alt="Preview"]') as HTMLImageElement;
+          const countryVal = fv('c-country') || alterItem?.country || 'India';
+          const curSym = fv('c-currency') || alterItem?.currencySymbol || alterItem?.baseCurrencySymbol || (COUNTRY_CURRENCY[countryVal]?.symbol) || '₹';
+          const curName = fv('c-formal') || alterItem?.currencyName || alterItem?.formalName || (COUNTRY_CURRENCY[countryVal]?.name) || 'Indian Rupee';
           type = 'company'; data = { 
-            name, address: fv('c-addr'), state: fv('c-state'), country: fv('c-country'), gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
+            name, address: fv('c-addr'), state: fv('c-state'), country: countryVal, gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
             registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'), upiId: (fv('c-upi') || '').trim().toLowerCase(),
             financialYearStart: fv('c-fy-start'), booksBeginFrom: fv('c-books-start'),
+            currencySymbol: curSym,
+            baseCurrencySymbol: curSym,
+            currencyName: curName,
+            formalName: curName,
+            currency: curSym,
             securityControl: fsv('c-sec-ctrl') === 'Yes', password: fv('c-pwd'),
             showMobile: (document.getElementById('chk-print-mob') as HTMLInputElement)?.checked ?? true,
             showEmail: (document.getElementById('chk-print-email') as HTMLInputElement)?.checked ?? true,
@@ -4909,12 +4973,12 @@ export default function App() {
                     <div style={{color:'#1d4885',fontWeight:'bold',marginBottom:6}}>QUICK OVERVIEW</div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
                       <span>Cash Balance</span><span style={{fontWeight:'bold',color: cashBal >= 0 ? '#006600' : '#b45309'}}>
-                        ₹ {fmt(Math.abs(cashBal))} {cashBal >= 0 ? 'Dr' : 'Cr'}
+                        {activeCurrencySymbol} {fmt(Math.abs(cashBal))} {cashBal >= 0 ? 'Dr' : 'Cr'}
                       </span>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
                       <span>Bank Balance</span><span style={{fontWeight:'bold',color: bankBal >= 0 ? '#006600' : '#b45309'}}>
-                        ₹ {fmt(Math.abs(bankBal))} {bankBal >= 0 ? 'Dr' : 'Cr (OD)'}
+                        {activeCurrencySymbol} {fmt(Math.abs(bankBal))} {bankBal >= 0 ? 'Dr' : 'Cr (OD)'}
                       </span>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
@@ -6842,6 +6906,13 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
       if(inp) inp.value = v;
       setSelCo(v);
       inpStr = 'c-country';
+      const coCur = COUNTRY_CURRENCY[v];
+      if (coCur) {
+        const cInp = document.getElementById('c-currency') as HTMLInputElement;
+        const fInp = document.getElementById('c-formal') as HTMLInputElement;
+        if (cInp) cInp.value = coCur.symbol;
+        if (fInp) fInp.value = coCur.name;
+      }
     } else if (focusedField==='state') {
       const inp = document.getElementById('c-state') as HTMLInputElement;
       if(inp) inp.value = v;
@@ -7097,7 +7168,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         )}
         <div className="form-section-title">Currency</div>
         <div className="form-row"><label style={{width:220}}>Base Currency Symbol</label><span className="colon">:</span>
-          <input id="c-currency" type="text" className="form-input" style={{width:60}} defaultValue="₹"
+          <input id="c-currency" type="text" className="form-input" style={{width:60}} defaultValue={activeAlterItem?.currencySymbol || activeAlterItem?.baseCurrencySymbol || activeAlterItem?.currency || (COUNTRY_CURRENCY[selCo]?.symbol) || '₹'}
             onFocus={e=>{setFocusFld('currency');setFilter(e.target.value);}}
             onInput={e=>setFilter((e.target as HTMLInputElement).value)}
             onBlur={()=>setTimeout(()=>setFocusFld(null),200)}
@@ -7105,7 +7176,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
             autoComplete="off"
           />
         </div>
-        <div className="form-row"><label style={{width:220}}>Formal Name</label><span className="colon">:</span><input id="c-formal" type="text" className="form-input" style={{width:180}} defaultValue="Indian Rupee"/></div>
+        <div className="form-row"><label style={{width:220}}>Formal Name</label><span className="colon">:</span><input id="c-formal" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.currencyName || activeAlterItem?.formalName || (COUNTRY_CURRENCY[selCo]?.name) || 'Indian Rupee'}/></div>
       </div>
       
       {/* Footer / Buttons */}
@@ -7133,6 +7204,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               if (name.toLowerCase() !== origName && companies.some(c => c.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || (String(c.id) !== String(activeAlterItem.id) && Number(c.id) !== Number(activeAlterItem.id))))) {
                 alert(`Company "${name}" already exists!`); document.getElementById('c-name')?.focus(); return;
               }
+              const pickedCur = ((document.getElementById('c-currency') as HTMLInputElement)?.value || '').trim() || (activeAlterItem?.currencySymbol || activeAlterItem?.baseCurrencySymbol || '₹');
+              const pickedFormal = ((document.getElementById('c-formal') as HTMLInputElement)?.value || '').trim() || (activeAlterItem?.currencyName || activeAlterItem?.formalName || 'Indian Rupee');
               const d = {
                 name,
                 mailingName: (document.getElementById('c-mail') as HTMLInputElement).value,
@@ -7155,8 +7228,11 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
                 ifsc: (document.getElementById('c-ifsc') as HTMLInputElement).value,
                 swiftCode: (document.getElementById('c-swift') as HTMLInputElement).value,
                 upiId: ((document.getElementById('c-upi') as HTMLInputElement)?.value || '').trim().toLowerCase(),
-                currencySymbol: (document.getElementById('c-currency') as HTMLInputElement).value,
-                currencyName: (document.getElementById('c-formal') as HTMLInputElement).value,
+                currencySymbol: pickedCur,
+                baseCurrencySymbol: pickedCur,
+                currencyName: pickedFormal,
+                formalName: pickedFormal,
+                currency: pickedCur,
                 securityControl: (document.getElementById('c-sec-ctrl') as HTMLSelectElement)?.value === 'Yes',
                 password: (document.getElementById('c-pwd') as HTMLInputElement)?.value || '',
                 showMobile: showMob,
@@ -9678,6 +9754,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
   onSaveMaster?: (type: string, data: any) => Promise<any>;
   onOpenBankUpload?: () => void;
 }) {
+  const curSym = activeCompany?.currencySymbol || activeCompany?.baseCurrencySymbol || activeCompany?.currency || '₹';
   const [isScanningInvoice, setIsScanningInvoice] = useState(false);
   // Real-time internet connectivity — auto-enables scan button when internet restores
   const [isOnlineForScan, setIsOnlineForScan] = useState(
@@ -9927,7 +10004,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           entryType: entryType
         });
 
-        addlInfoSummary.push(`${addlName}: ₹${rawAmt.toFixed(2)} (${entryType})`);
+        addlInfoSummary.push(`${addlName}: ${curSym}${rawAmt.toFixed(2)} (${entryType})`);
       }
 
       if (newAddlLedgers.length > 0) {
@@ -10986,7 +11063,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
         }
         // 3a. Dr must equal Cr
         if (Math.abs(totalDr - totalCr) > 0.01) {
-          alert(`Journal Voucher is not balanced!\nTotal Debit (By): ₹${totalDr.toFixed(2)}\nTotal Credit (To): ₹${totalCr.toFixed(2)}\nDifference: ₹${Math.abs(totalDr-totalCr).toFixed(2)}\n\nPlease balance Dr = Cr before saving.`);
+          alert(`Journal Voucher is not balanced!\nTotal Debit (By): ${curSym}${totalDr.toFixed(2)}\nTotal Credit (To): ${curSym}${totalCr.toFixed(2)}\nDifference: ${curSym}${Math.abs(totalDr-totalCr).toFixed(2)}\n\nPlease balance Dr = Cr before saving.`);
           return;
         }
       } else {
@@ -11564,12 +11641,12 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 </span>
                 {odExceeded && (
                   <span style={{marginLeft:10,fontSize:10,color:'#c00',background:'#fff0f0',border:'1px solid #f66',padding:'1px 6px',borderRadius:3,fontWeight:'bold'}}>
-                    ⚠ OD Limit: ₹{fmt(pLedger!.odLimit!)} exceeded!
+                    ⚠ OD Limit: {curSym}{fmt(pLedger!.odLimit!)} exceeded!
                   </span>
                 )}
                 {pLedger?.odLimit != null && !odExceeded && (
                   <span style={{marginLeft:10,fontSize:10,color:'#555',opacity:0.75}}>
-                    (OD Limit: ₹{fmt(pLedger.odLimit)} Cr)
+                    (OD Limit: {curSym}{fmt(pLedger.odLimit)} Cr)
                   </span>
                 )}
               </div>
@@ -12135,7 +12212,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           <div style={{borderTop:`2px solid ${vc}`,background:'#f8f8f8',padding:'8px 15px'}}>
             <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:5}}>
               <span style={{fontSize:13,color:'#555'}}>Sub Total:</span>
-              <span style={{width:130,textAlign:'right',fontWeight:'bold'}}>₹ {fmt(itemSubtotal)}</span>
+              <span style={{width:130,textAlign:'right',fontWeight:'bold'}}>{curSym} {fmt(itemSubtotal)}</span>
             </div>
 
             {/* State indicator */}
@@ -12153,18 +12230,18 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 <div key={gi} style={{marginBottom:4}}>
                   {isInterState ? (
                     <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                      <span style={{fontSize:12,color:'#555'}}>IGST @ {g.gstRate}% on ₹{fmt(displayTaxable)}:</span>
-                      <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.igst)}</span>
+                      <span style={{fontSize:12,color:'#555'}}>IGST @ {g.gstRate}% on {curSym}{fmt(displayTaxable)}:</span>
+                      <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.igst)}</span>
                     </div>
                   ) : (
                     <>
                       <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                        <span style={{fontSize:12,color:'#555'}}>CGST @ {g.gstRate/2}% on ₹{fmt(displayTaxable)}:</span>
-                        <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.cgst)}</span>
+                        <span style={{fontSize:12,color:'#555'}}>CGST @ {g.gstRate/2}% on {curSym}{fmt(displayTaxable)}:</span>
+                        <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.cgst)}</span>
                       </div>
                       <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:2}}>
-                        <span style={{fontSize:12,color:'#555'}}>SGST @ {g.gstRate/2}% on ₹{fmt(displayTaxable)}:</span>
-                        <span style={{width:130,textAlign:'right',fontSize:12}}>₹ {fmt(g.sgst)}</span>
+                        <span style={{fontSize:12,color:'#555'}}>SGST @ {g.gstRate/2}% on {curSym}{fmt(displayTaxable)}:</span>
+                        <span style={{width:130,textAlign:'right',fontSize:12}}>{curSym} {fmt(g.sgst)}</span>
                       </div>
                     </>
                   )}
@@ -12174,7 +12251,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
             {totalTax > 0 && (
               <div style={{display:'flex',justifyContent:'flex-end',gap:20,marginBottom:4,borderTop:'1px dashed #ccc',paddingTop:4}}>
                 <span style={{fontSize:12,fontWeight:'bold',color:'#555'}}>Total Tax:</span>
-                <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold'}}>₹ {fmt(totalTax)}</span>
+                <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold'}}>{curSym} {fmt(totalTax)}</span>
               </div>
             )}
             {/* Round Off and other ledgers are now explicitly shown */}
@@ -12184,13 +12261,13 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   Round Off {autoRoundOffDiff < 0 ? '(-)' : '(+)'}:
                 </span>
                 <span style={{width:130,textAlign:'right',fontSize:12,fontWeight:'bold',color:autoRoundOffDiff < 0 ? '#b45309' : '#166534'}}>
-                  {autoRoundOffDiff < 0 ? `- ₹ ${fmt(Math.abs(autoRoundOffDiff))}` : `+ ₹ ${fmt(autoRoundOffDiff)}`}
+                  {autoRoundOffDiff < 0 ? `- ${curSym} ${fmt(Math.abs(autoRoundOffDiff))}` : `+ ${curSym} ${fmt(autoRoundOffDiff)}`}
                 </span>
               </div>
             )}
             <div style={{display:'flex',justifyContent:'flex-end',gap:20,borderTop:`1px solid ${vc}`,paddingTop:6}}>
               <span style={{fontSize:15,fontWeight:'bold',color:vc}}>Grand Total:</span>
-              <span style={{width:130,textAlign:'right',fontSize:18,fontWeight:'bold',color:vc}}>₹ {fmt(grandTotal)}</span>
+              <span style={{width:130,textAlign:'right',fontSize:18,fontWeight:'bold',color:vc}}>{curSym} {fmt(grandTotal)}</span>
             </div>
           </div>
         </div>
@@ -12500,10 +12577,10 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
                 <div style={{display:'flex',gap:24}}>
                   <span style={{fontSize:12,fontWeight:'bold',color:'#1a7a4a'}}>
-                    Total By (Dr): ₹ {fmt(accDr)}
+                    Total By (Dr): {curSym} {fmt(accDr)}
                   </span>
                   <span style={{fontSize:12,fontWeight:'bold',color:'#8B0000'}}>
-                    Total To (Cr): ₹ {fmt(accCr)}
+                    Total To (Cr): {curSym} {fmt(accCr)}
                   </span>
                 </div>
                 <div style={{
@@ -12515,7 +12592,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 }}>
                   {Math.abs(accDr - accCr) < 0.01
                     ? '✓ Balanced'
-                    : `Diff: ₹${fmt(Math.abs(accDr - accCr))} ${accDr > accCr ? 'Dr' : 'Cr'} excess`
+                    : `Diff: ${curSym}${fmt(Math.abs(accDr - accCr))} ${accDr > accCr ? 'Dr' : 'Cr'} excess`
                   }
                 </div>
               </div>
@@ -12530,7 +12607,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
               background:'#f5efe6'
             }}>
               <div style={{fontSize:12,fontWeight:'bold',color:'#333'}}>
-                Total Particulars: ₹ {fmt(accDr || accCr)}
+                Total Particulars: {curSym} {fmt(accDr || accCr)}
               </div>
               <div style={{
                 fontSize:16,
@@ -12540,7 +12617,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                 borderBottom:'3px double #666',
                 padding:'2px 8px'
               }}>
-                ₹ {fmt(accDr || accCr)}
+                {curSym} {fmt(accDr || accCr)}
               </div>
             </div>
           )}
@@ -16732,6 +16809,7 @@ function numberToWords(num: number): string {
 function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectVoucher,onBack}:{
   vouchers:Voucher[];company:Company | null;companies?:Company[];printVoucher:Voucher|null;ledgers:Ledger[];onSelectVoucher:(v:Voucher)=>void;onBack?:()=>void;
 }) {
+  const printCurSym = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
   const [numCopies, setNumCopies] = useState(1);
   const [showOptions, setShowOptions] = useState(true);
   const [tempCopies, setTempCopies] = useState(1);
@@ -16947,8 +17025,8 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
           <thead>
             <tr>
               <th style={{...tdH,textAlign:'left'}}>Account</th>
-              <th style={{...tdH,width:120,textAlign:'right'}}>Dr Amount (₹)</th>
-              <th style={{...tdH,width:120,textAlign:'right'}}>Cr Amount (₹)</th>
+              <th style={{...tdH,width:120,textAlign:'right'}}>Dr Amount ({printCurSym})</th>
+              <th style={{...tdH,width:120,textAlign:'right'}}>Cr Amount ({printCurSym})</th>
             </tr>
           </thead>
           <tbody>
@@ -16966,8 +17044,8 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
           <tfoot>
             <tr style={{fontWeight:'bold',borderTop:'1px solid #000'}}>
               <td style={{...tdB,textAlign:'right'}}>Total</td>
-              <td style={{...tdB,textAlign:'right',fontSize:13}}>₹ {fmt(totalDr)}</td>
-              <td style={{...tdB,textAlign:'right',fontSize:13}}>₹ {fmt(totalCr)}</td>
+              <td style={{...tdB,textAlign:'right',fontSize:13}}>{printCurSym} {fmt(totalDr)}</td>
+              <td style={{...tdB,textAlign:'right',fontSize:13}}>{printCurSym} {fmt(totalCr)}</td>
             </tr>
           </tfoot>
         </table>

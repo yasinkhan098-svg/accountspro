@@ -46,6 +46,10 @@ export default function PurchasePOSListView({
   onBack,
   onStockUpdated,
 }: PurchasePOSListViewProps) {
+  const currencySymbol = useMemo(() => {
+    return company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
+  }, [company]);
+
   const [items, setItems] = useState<POSPurchaseItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
@@ -1182,12 +1186,12 @@ export default function PurchasePOSListView({
 
                     {/* 3. Purchase Price (Initial with tax) */}
                     <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: '#334155' }}>
-                      ₹{item.purchasePrice.toFixed(2)}
+                      {currencySymbol}{item.purchasePrice.toFixed(2)}
                     </td>
 
                     {/* 4. New Purchase Price (Latest with tax from F9) */}
                     <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 'bold', color: item.newPurchasePrice > 0 ? (item.newPurchasePrice > item.purchasePrice ? '#dc2626' : '#16a34a') : '#94a3b8' }}>
-                      {item.newPurchasePrice > 0 ? `₹${item.newPurchasePrice.toFixed(2)}` : '0'}
+                      {item.newPurchasePrice > 0 ? `${currencySymbol}${item.newPurchasePrice.toFixed(2)}` : '0'}
                     </td>
 
                     {/* 5. Expiry Date (Col 1) */}
@@ -1328,7 +1332,7 @@ export default function PurchasePOSListView({
                         min="0"
                         className="pos-grid-input"
                         value={item.discountAmt || ''}
-                        placeholder="₹0"
+                        placeholder={`${currencySymbol}0`}
                         onChange={e => handleUpdateItem(item.id, 'discountAmt', parseFloat(e.target.value) || 0)}
                         onBlur={handleCellBlur}
                         onKeyDown={e => handleCellKeyDown(e, idx, 6)}
@@ -1814,8 +1818,8 @@ export default function PurchasePOSListView({
                 }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 'bold', borderTop: '1px solid #cbd5e1', paddingTop: 4, marginTop: 4 }}>
-                <span style={{ color: '#64748b' }}>MRP: ₹{printModalItem.mrp.toFixed(2)}</span>
-                <span style={{ color: '#0284c7', fontWeight: 900 }}>OUR: ₹{printModalItem.retailSalePrice.toFixed(2)}</span>
+                <span style={{ color: '#64748b' }}>MRP: {currencySymbol}{printModalItem.mrp.toFixed(2)}</span>
+                <span style={{ color: '#0284c7', fontWeight: 900 }}>OUR: {currencySymbol}{printModalItem.retailSalePrice.toFixed(2)}</span>
               </div>
               <div style={{ fontSize: 9, color: '#64748b', marginTop: 2 }}>
                 {printModalItem.expiryDate ? `EXP: ${printModalItem.expiryDate}` : 'Incl. of all taxes'}

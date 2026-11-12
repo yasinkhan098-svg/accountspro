@@ -10,6 +10,7 @@ interface POSPaymentModalProps {
   upiVpa?: string;
   billNo?: string;
   ledgers?: any[];
+  currencySymbol?: string;
   onConfirmPayment: (payment: POSPaymentDetails, customer: POSCustomer) => void;
 }
 
@@ -21,6 +22,7 @@ export default function POSPaymentModal({
   upiVpa = '',
   billNo = '0001',
   ledgers = [],
+  currencySymbol = '₹',
   onConfirmPayment,
 }: POSPaymentModalProps) {
   const [payMode, setPayMode] = useState<'Cash' | 'UPI_QR' | 'Split' | 'Card' | 'Credit'>('Cash');
@@ -100,12 +102,12 @@ export default function POSPaymentModal({
     if (e) e.preventDefault();
 
     if (payMode === 'Cash' && cashTendered < totals.grandTotal) {
-      alert(`Tendered cash (₹${cashTendered}) is less than Total (₹${totals.grandTotal})!`);
+      alert(`Tendered cash (${currencySymbol}${cashTendered}) is less than Total (${currencySymbol}${totals.grandTotal})!`);
       return;
     }
 
     if (payMode === 'Split' && splitCash + splitUpi !== totals.grandTotal) {
-      alert(`Split Cash (₹${splitCash}) + UPI (₹${splitUpi}) must equal Total (₹${totals.grandTotal})!`);
+      alert(`Split Cash (${currencySymbol}${splitCash}) + UPI (${currencySymbol}${splitUpi}) must equal Total (${currencySymbol}${totals.grandTotal})!`);
       return;
     }
 
@@ -212,17 +214,17 @@ export default function POSPaymentModal({
                 Net Amount Payable
               </div>
               <div style={{ fontSize: 32, fontWeight: 900, color: '#ffffff' }}>
-                ₹{totals.grandTotal.toFixed(2)}
+                {currencySymbol}{totals.grandTotal.toFixed(2)}
               </div>
               {totals.discountAmount > 0 && (
                 <div style={{ fontSize: 11, color: '#86efac', fontWeight: 600 }}>
-                  ★ You saved ₹{totals.discountAmount.toFixed(2)} on this bill
+                  ★ You saved {currencySymbol}{totals.discountAmount.toFixed(2)} on this bill
                 </div>
               )}
             </div>
             <div style={{ textAlign: 'right', fontSize: 12, color: '#f1f5f9' }}>
               <div>Total Items: <b>{totals.itemsCount}</b> (Qty: <b>{totals.totalQty}</b>)</div>
-              <div>Tax (GST): <b>₹{totals.totalTax.toFixed(2)}</b></div>
+              <div>Tax (GST): <b>{currencySymbol}{totals.totalTax.toFixed(2)}</b></div>
             </div>
           </div>
 
@@ -265,7 +267,7 @@ export default function POSPaymentModal({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', color: '#334155', marginBottom: 4 }}>
-                    Cash Received (₹) *
+                    Cash Received ({currencySymbol}) *
                   </label>
                   <input
                     type="number"
@@ -286,7 +288,7 @@ export default function POSPaymentModal({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', color: '#334155', marginBottom: 4 }}>
-                    Change Return to Customer (₹)
+                    Change Return to Customer ({currencySymbol})
                   </label>
                   <div
                     style={{
@@ -299,7 +301,7 @@ export default function POSPaymentModal({
                       borderRadius: 6,
                     }}
                   >
-                    ₹{changeDue.toFixed(2)}
+                    {currencySymbol}{changeDue.toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -322,7 +324,7 @@ export default function POSPaymentModal({
                       cursor: 'pointer',
                     }}
                   >
-                    ₹{amt}
+                    {currencySymbol}{amt}
                   </button>
                 ))}
                 <button
@@ -339,7 +341,7 @@ export default function POSPaymentModal({
                     cursor: 'pointer',
                   }}
                 >
-                  Exact (₹{totals.grandTotal})
+                  Exact ({currencySymbol}{totals.grandTotal})
                 </button>
               </div>
             </div>
@@ -426,7 +428,7 @@ export default function POSPaymentModal({
                     </div>
                   )}
                   <div style={{ fontSize: 11, color: '#0f3c64', marginTop: 4, fontWeight: 'bold' }}>
-                    Scan to Pay ₹{totals.grandTotal.toFixed(2)}
+                    Scan to Pay {currencySymbol}{totals.grandTotal.toFixed(2)}
                   </div>
                   {activeUpiVpa && (
                     <div style={{ fontSize: 9, color: '#059669', fontWeight: 600, marginTop: 2, wordBreak: 'break-all', maxWidth: 160 }}>
@@ -524,7 +526,7 @@ export default function POSPaymentModal({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', color: '#334155', marginBottom: 4 }}>
-                    💵 Cash Portion (₹)
+                    💵 Cash Portion ({currencySymbol})
                   </label>
                   <input
                     type="number"
@@ -548,7 +550,7 @@ export default function POSPaymentModal({
 
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', color: '#334155', marginBottom: 4 }}>
-                    📱 Remaining by UPI QR (₹)
+                    📱 Remaining by UPI QR ({currencySymbol})
                   </label>
                   <div
                     style={{
@@ -561,7 +563,7 @@ export default function POSPaymentModal({
                       borderRadius: 6,
                     }}
                   >
-                    ₹{splitUpi.toFixed(2)}
+                    {currencySymbol}{splitUpi.toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -580,14 +582,14 @@ export default function POSPaymentModal({
                   </div>
                 )}
                 <div style={{ fontSize: 12, color: '#334155' }}>
-                  <div>Dynamic QR for remaining: <b>₹{splitUpi.toFixed(2)}</b></div>
+                  <div>Dynamic QR for remaining: <b>{currencySymbol}{splitUpi.toFixed(2)}</b></div>
                   {activeUpiVpa && (
                     <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, marginTop: 2 }}>
                       Pay to: {activeUpiVpa}
                     </div>
                   )}
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                    Customer scans to pay balance while giving ₹{splitCash.toFixed(2)} in cash.
+                    Customer scans to pay balance while giving {currencySymbol}{splitCash.toFixed(2)} in cash.
                   </div>
                 </div>
               </div>

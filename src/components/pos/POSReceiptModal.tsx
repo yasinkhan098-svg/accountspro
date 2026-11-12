@@ -31,6 +31,7 @@ export default function POSReceiptModal({
 }: POSReceiptModalProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const currencySymbol = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -362,7 +363,7 @@ export default function POSReceiptModal({
                       {it.hsnCode || '732393'} {it.name}
                       {it.mrpRate > it.rateWithTax && (
                         <div style={{ fontSize: 7.5, color: '#16a34a', fontWeight: 'normal' }}>
-                          MRP: ₹{it.mrpRate.toFixed(2)} (Save ₹{((it.mrpRate - it.rateWithTax) * it.qty).toFixed(2)})
+                          MRP: {currencySymbol}{it.mrpRate.toFixed(2)} (Save {currencySymbol}{((it.mrpRate - it.rateWithTax) * it.qty).toFixed(2)})
                         </div>
                       )}
                     </span>
@@ -531,7 +532,7 @@ export default function POSReceiptModal({
               <div style={{ fontSize: 8, lineHeight: 1.4, marginTop: 2 }}>
                 <div><b>Payee:</b> {storeName}</div>
                 {hasUpi && <div><b>UPI ID:</b> {company.upiId.trim().toLowerCase()}</div>}
-                <div><b>Bill Amount:</b> ₹{totals.grandTotal.toFixed(2)}</div>
+                <div><b>Bill Amount:</b> {currencySymbol}{totals.grandTotal.toFixed(2)}</div>
                 <div><b>Bill No:</b> {billNo}</div>
                 {payment && (payment.mode === 'UPI_QR' || payment.mode === 'Split') && (
                   <div style={{ fontWeight: 'bold', color: '#000', marginTop: 2, fontSize: 8 }}>

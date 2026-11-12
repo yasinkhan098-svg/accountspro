@@ -97,6 +97,21 @@ export default function POSWorkflowContainer({
       try {
         const folder = await companyDataFolderService.loadCompanyFolder(companyCode);
         if (!isCancelled && folder) {
+          if (folder.company) {
+            setActiveCompanyState((prev: any) => {
+              const base = prev || company || {};
+              const curSym = folder.company.currencySymbol || folder.company.baseCurrencySymbol || folder.company.currency || base.currencySymbol || '₹';
+              const curName = folder.company.currencyName || folder.company.formalName || base.currencyName || 'Indian Rupee';
+              return {
+                ...base,
+                ...folder.company,
+                currencySymbol: curSym,
+                baseCurrencySymbol: curSym,
+                currencyName: curName,
+                formalName: curName,
+              };
+            });
+          }
           setPosPurchaseList(Array.isArray(folder.posPurchaseList) ? folder.posPurchaseList : []);
           setLocalStockItems(Array.isArray(folder.stockItems) ? folder.stockItems : []);
           setLocalLedgers(Array.isArray(folder.ledgers) ? folder.ledgers : []);
@@ -151,7 +166,15 @@ export default function POSWorkflowContainer({
       }
     } catch (_) { }
 
-    const diskCo = (diskFolder && diskFolder.company) ? { ...diskFolder.company, companyCode: code, code } : finalCo;
+    const rawCo = (diskFolder && diskFolder.company) ? { ...finalCo, ...diskFolder.company, companyCode: code, code } : finalCo;
+    const diskCo = {
+      ...rawCo,
+      currencySymbol: rawCo.currencySymbol || rawCo.baseCurrencySymbol || rawCo.currency || '₹',
+      baseCurrencySymbol: rawCo.currencySymbol || rawCo.baseCurrencySymbol || rawCo.currency || '₹',
+      currencyName: rawCo.currencyName || rawCo.formalName || 'Indian Rupee',
+      formalName: rawCo.currencyName || rawCo.formalName || 'Indian Rupee',
+    };
+    setActiveCompanyState(diskCo);
     if (onSwitchCompany) {
       await onSwitchCompany(diskCo);
     }

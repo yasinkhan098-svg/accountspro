@@ -7,3 +7,4 @@ $Shortcut.TargetPath = $target
 $Shortcut.WorkingDirectory = 'C:\Users\yasin\AppData\Local\LedgerX'
 $Shortcut.Save()
 Write-Output "Successfully installed LedgerX into Windows Startup!"
+

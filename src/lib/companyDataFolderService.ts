@@ -299,6 +299,15 @@ class CompanyDataFolderService {
       }
     }
 
+    if (unwrappedCompany && typeof unwrappedCompany === 'object') {
+      const curSym = unwrappedCompany.currencySymbol || unwrappedCompany.baseCurrencySymbol || unwrappedCompany.currency || '₹';
+      const curName = unwrappedCompany.currencyName || unwrappedCompany.formalName || 'Indian Rupee';
+      unwrappedCompany.currencySymbol = curSym;
+      unwrappedCompany.baseCurrencySymbol = curSym;
+      unwrappedCompany.currencyName = curName;
+      unwrappedCompany.formalName = curName;
+    }
+
     // Deduplicate units strictly by name/symbol so file never bloats
     const rawUnits = data.units !== undefined ? data.units : (existing?.units || []);
     const deduplicatedUnits: any[] = [];
@@ -536,6 +545,14 @@ class CompanyDataFolderService {
       } else {
         break;
       }
+    }
+    if (co && typeof co === 'object') {
+      const curSym = co.currencySymbol || co.baseCurrencySymbol || co.currency || '₹';
+      const curName = co.currencyName || co.formalName || 'Indian Rupee';
+      co.currencySymbol = curSym;
+      co.baseCurrencySymbol = curSym;
+      co.currencyName = curName;
+      co.formalName = curName;
     }
     data.company = co;
 

@@ -898,7 +898,7 @@ namespace LedgerXLauncher
                             {
                                 try
                                 {
-                                    string txt = File.ReadAllText(cJsonFile);
+                                    string txt = File.ReadAllText(cJsonFile, Encoding.UTF8);
                                     object parsed = js.DeserializeObject(txt);
                                     Dictionary<string, object> co = parsed as Dictionary<string, object>;
                                     if (co != null)
@@ -970,19 +970,19 @@ namespace LedgerXLauncher
                         return;
                     }
 
-                    string cJson = File.Exists(Path.Combine(cDir, "company.json")) ? File.ReadAllText(Path.Combine(cDir, "company.json")) : "{}";
-                    string lJson = File.Exists(Path.Combine(cDir, "ledgers.json")) ? File.ReadAllText(Path.Combine(cDir, "ledgers.json")) : "[]";
-                    string vJson = File.Exists(Path.Combine(cDir, "vouchers.json")) ? File.ReadAllText(Path.Combine(cDir, "vouchers.json")) : "[]";
-                    string sJson = File.Exists(Path.Combine(cDir, "stock_items.json")) ? File.ReadAllText(Path.Combine(cDir, "stock_items.json")) : "[]";
-                    string sgJson = File.Exists(Path.Combine(cDir, "stock_groups.json")) ? File.ReadAllText(Path.Combine(cDir, "stock_groups.json")) : "[]";
-                    string uJson = File.Exists(Path.Combine(cDir, "units.json")) ? File.ReadAllText(Path.Combine(cDir, "units.json")) : "[]";
-                    string gJson = File.Exists(Path.Combine(cDir, "groups.json")) ? File.ReadAllText(Path.Combine(cDir, "groups.json")) : "[]";
-                    string vtJson = File.Exists(Path.Combine(cDir, "voucher_types.json")) ? File.ReadAllText(Path.Combine(cDir, "voucher_types.json")) : "[]";
-                    string poJson = File.Exists(Path.Combine(cDir, "purchase_orders.json")) ? File.ReadAllText(Path.Combine(cDir, "purchase_orders.json")) : "[]";
-                    string bomJson = File.Exists(Path.Combine(cDir, "boms.json")) ? File.ReadAllText(Path.Combine(cDir, "boms.json")) : "[]";
-                    string mjJson = File.Exists(Path.Combine(cDir, "manufacturing_journals.json")) ? File.ReadAllText(Path.Combine(cDir, "manufacturing_journals.json")) : "[]";
-                    string usrJson = File.Exists(Path.Combine(cDir, "users.json")) ? File.ReadAllText(Path.Combine(cDir, "users.json")) : "[]";
-                    string posListJson = File.Exists(Path.Combine(cDir, "pos_purchase_list.json")) ? File.ReadAllText(Path.Combine(cDir, "pos_purchase_list.json")) : "[]";
+                    string cJson = File.Exists(Path.Combine(cDir, "company.json")) ? File.ReadAllText(Path.Combine(cDir, "company.json"), Encoding.UTF8) : "{}";
+                    string lJson = File.Exists(Path.Combine(cDir, "ledgers.json")) ? File.ReadAllText(Path.Combine(cDir, "ledgers.json"), Encoding.UTF8) : "[]";
+                    string vJson = File.Exists(Path.Combine(cDir, "vouchers.json")) ? File.ReadAllText(Path.Combine(cDir, "vouchers.json"), Encoding.UTF8) : "[]";
+                    string sJson = File.Exists(Path.Combine(cDir, "stock_items.json")) ? File.ReadAllText(Path.Combine(cDir, "stock_items.json"), Encoding.UTF8) : "[]";
+                    string sgJson = File.Exists(Path.Combine(cDir, "stock_groups.json")) ? File.ReadAllText(Path.Combine(cDir, "stock_groups.json"), Encoding.UTF8) : "[]";
+                    string uJson = File.Exists(Path.Combine(cDir, "units.json")) ? File.ReadAllText(Path.Combine(cDir, "units.json"), Encoding.UTF8) : "[]";
+                    string gJson = File.Exists(Path.Combine(cDir, "groups.json")) ? File.ReadAllText(Path.Combine(cDir, "groups.json"), Encoding.UTF8) : "[]";
+                    string vtJson = File.Exists(Path.Combine(cDir, "voucher_types.json")) ? File.ReadAllText(Path.Combine(cDir, "voucher_types.json"), Encoding.UTF8) : "[]";
+                    string poJson = File.Exists(Path.Combine(cDir, "purchase_orders.json")) ? File.ReadAllText(Path.Combine(cDir, "purchase_orders.json"), Encoding.UTF8) : "[]";
+                    string bomJson = File.Exists(Path.Combine(cDir, "boms.json")) ? File.ReadAllText(Path.Combine(cDir, "boms.json"), Encoding.UTF8) : "[]";
+                    string mjJson = File.Exists(Path.Combine(cDir, "manufacturing_journals.json")) ? File.ReadAllText(Path.Combine(cDir, "manufacturing_journals.json"), Encoding.UTF8) : "[]";
+                    string usrJson = File.Exists(Path.Combine(cDir, "users.json")) ? File.ReadAllText(Path.Combine(cDir, "users.json"), Encoding.UTF8) : "[]";
+                    string posListJson = File.Exists(Path.Combine(cDir, "pos_purchase_list.json")) ? File.ReadAllText(Path.Combine(cDir, "pos_purchase_list.json"), Encoding.UTF8) : "[]";
 
                     string jsonOut = string.Format(
                         "{{\"success\":true,\"companyCode\":\"{0}\",\"company\":{1},\"ledgers\":{2},\"vouchers\":{3},\"stockItems\":{4},\"stockGroups\":{5},\"units\":{6},\"groups\":{7},\"voucherTypes\":{8},\"purchaseOrders\":{9},\"boms\":{10},\"manufacturingJournals\":{11},\"users\":{12},\"posPurchaseList\":{13}}}",
@@ -994,7 +994,8 @@ namespace LedgerXLauncher
 
                 if (path == "/api/company" && req.HttpMethod == "POST")
                 {
-                    using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
+                    Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;
+                    using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
                     {
                         string body = reader.ReadToEnd();
                         string code = "10000";
@@ -1032,7 +1033,7 @@ namespace LedgerXLauncher
                                         }
                                     }
                                     coObj["companyCode"] = code;
-                                    File.WriteAllText(Path.Combine(cDir, "company.json"), jsComp.Serialize(coObj));
+                                    File.WriteAllText(Path.Combine(cDir, "company.json"), jsComp.Serialize(coObj), Encoding.UTF8);
                                 }
                                 else
                                 {
@@ -1078,7 +1079,8 @@ namespace LedgerXLauncher
 
                 if (path == "/api/pos/purchase-list" && req.HttpMethod == "POST")
                 {
-                    using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
+                    Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;
+                    using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
                     {
                         string body = reader.ReadToEnd();
                         string code = "10000";
@@ -1227,7 +1229,7 @@ namespace LedgerXLauncher
                         {
                             try
                             {
-                                string txt = File.ReadAllText(cFile);
+                                string txt = File.ReadAllText(cFile, Encoding.UTF8);
                                 JavaScriptSerializer js = new JavaScriptSerializer();
                                 Dictionary<string, object> co = js.DeserializeObject(txt) as Dictionary<string, object>;
                                 if (co != null)
@@ -1269,7 +1271,8 @@ namespace LedgerXLauncher
             string body = null;
             if (req.HttpMethod == "POST" || req.HttpMethod == "PUT" || req.HttpMethod == "DELETE")
             {
-                using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
+                Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;
+                using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
                 {
                     body = reader.ReadToEnd();
                 }
@@ -1541,7 +1544,7 @@ namespace LedgerXLauncher
                                                     return;
                                                 }
                                             }
-                                            File.WriteAllText(targetFile, extracted);
+                                            File.WriteAllText(targetFile, extracted, Encoding.UTF8);
                                             return;
                                         }
                                     }
@@ -1550,7 +1553,7 @@ namespace LedgerXLauncher
                         }
                     }
                 }
-                if (!File.Exists(targetFile)) File.WriteAllText(targetFile, defVal);
+                if (!File.Exists(targetFile)) File.WriteAllText(targetFile, defVal, Encoding.UTF8);
             }
             catch { }
         }
