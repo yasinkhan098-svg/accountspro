@@ -998,6 +998,7 @@ export default function App() {
 
     const cleanScreen = screen.replace(/_/g, ' ');
     const reportTitle = cleanScreen === 'GATEWAY MAIN' ? 'FINANCIAL REPORT' : cleanScreen.toUpperCase();
+    const activeCoTax = getCompanyTaxInfo(activeCompany);
 
     // Build the Excel HTML content
     let excelHtml = `
@@ -1020,7 +1021,7 @@ export default function App() {
         <table>
           <tr><td colspan="${table.rows[0].cells.length}" class="header-title">${activeCompany?.name || 'LEDGERX COMPANY'}</td></tr>
           <tr><td colspan="${table.rows[0].cells.length}" class="header-sub">${activeCompany?.address || ''}</td></tr>
-          <tr><td colspan="${table.rows[0].cells.length}" class="header-sub">GSTIN: ${activeCompany?.gstin || ''} | Phone: ${activeCompany?.telephone || ''}</td></tr>
+          <tr><td colspan="${table.rows[0].cells.length}" class="header-sub">${activeCoTax.isIndiaGst ? 'GSTIN' : activeCoTax.taxIdLabel}: ${activeCompany?.gstin || ''} | Phone: ${activeCompany?.telephone || ''}</td></tr>
           <tr><td colspan="${table.rows[0].cells.length}" class="header-sub" style="color:#d9534f; font-weight:bold;">Financial Year: ${activeCompany?.financialYearStart || '2026-27'}</td></tr>
           <tr><td colspan="${table.rows[0].cells.length}"></td></tr>
           <tr><td colspan="${table.rows[0].cells.length}" class="report-title">${reportTitle}</td></tr>
@@ -3844,7 +3845,7 @@ export default function App() {
           const countryVal = fv('c-country') || alterItem?.country || 'India';
           const curSym = fv('c-currency') || alterItem?.currencySymbol || alterItem?.baseCurrencySymbol || (COUNTRY_CURRENCY[countryVal]?.symbol) || '₹';
           const curName = fv('c-formal') || alterItem?.currencyName || alterItem?.formalName || (COUNTRY_CURRENCY[countryVal]?.name) || 'Indian Rupee';
-          const taxInfo = getCompanyTaxInfo({ country: countryVal });
+          const taxInfo = getCompanyTaxInfo({ country: countryVal, taxName: alterItem?.taxName });
           type = 'company'; data = { 
             name, address: fv('c-addr'), state: fv('c-state'), country: countryVal, gstin: fv('c-gstin'), pan: fv('c-pan'), mobile: fv('c-mob'), telephone: fv('c-telephone'), email: fv('c-email'), website: fv('c-web'), pinCode: fv('c-pin'),
             registrationType: fsv('c-reg-type'), bankName: fv('c-bank-name'), bankHolderName: fv('c-bank-holder'), accountNo: fv('c-acc-no'), ifsc: fv('c-ifsc'), swiftCode: fv('c-swift'), upiId: (fv('c-upi') || '').trim().toLowerCase(),
@@ -3856,6 +3857,8 @@ export default function App() {
             currency: curSym,
             taxName: alterItem?.taxName || taxInfo.taxName,
             taxStructure: taxInfo.structure,
+            taxIdLabel: taxInfo.taxIdLabel,
+            secondaryIdLabel: taxInfo.secondaryIdLabel,
             securityControl: fsv('c-sec-ctrl') === 'Yes', password: fv('c-pwd'),
             showMobile: (document.getElementById('chk-print-mob') as HTMLInputElement)?.checked ?? true,
             showEmail: (document.getElementById('chk-print-email') as HTMLInputElement)?.checked ?? true,
@@ -6861,6 +6864,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
   const [logo, setLogo] = useState(activeAlterItem?.logo || null);
   const [showLogo, setShowLogo] = useState(activeAlterItem?.showLogo ?? false);
 
+  const currentTaxInfo = useMemo(() => getCompanyTaxInfo({ country: selCo, taxName: activeAlterItem?.taxName }), [selCo, activeAlterItem]);
+
   useEffect(()=>{ ref.current?.focus(); },[]);
 
   // Dedicated Escape Key handler for step-by-step exit
@@ -7042,7 +7047,12 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
           <label style={{width:160}}>Country</label><span className="colon">:</span>
           <input id="c-country" type="text" className="form-input" style={{width:200}}
             onFocus={e=>{setFocusFld('country');setFilter(e.target.value);}}
-            onInput={e=>setFilter((e.target as HTMLInputElement).value)}
+            onInput={e=>{
+              const val = (e.target as HTMLInputElement).value;
+              setFilter(val);
+              setSelCo(val);
+            }}
+            onChange={e=>setSelCo(e.target.value)}
             onBlur={()=>setTimeout(()=>setFocusFld(null),200)}
             onKeyDown={handleKeyDown}
             defaultValue={selCo} autoComplete="off"/>
@@ -7095,30 +7105,64 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         <div className="form-row"><label style={{width:220}}>Financial year begins from</label><span className="colon">:</span><input id="c-fy-start" type="text" className="form-input" style={{width:120}} defaultValue={activeAlterItem?.financialYearStart||"1-Apr-2026"}/></div>
         <div className="form-row"><label style={{width:220}}>Books beginning from</label><span className="colon">:</span><input id="c-books-start" type="text" className="form-input" style={{width:120}} defaultValue={activeAlterItem?.booksBeginFrom||"1-Apr-2026"}/></div>
         <div className="form-section-title">Statutory Information</div>
-        <div className="form-row"><label style={{width:220}}>Registration Type</label><span className="colon">:</span><select id="c-reg-type" className="form-input" style={{width:160}} defaultValue={activeAlterItem?.registrationType||'Regular'}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
-        <div className="form-row"><label style={{width:220}}>GSTIN</label><span className="colon">:</span><input id="c-gstin" type="text" className="form-input" style={{width:200, textTransform: 'uppercase'}} defaultValue={activeAlterItem?.gstin||''} onInput={e => {
-          e.currentTarget.value = e.currentTarget.value.toUpperCase();
-          const gst = e.currentTarget.value.trim();
-          if (gst.length >= 12) {
-            const panEl = document.getElementById('c-pan') as HTMLInputElement;
-            if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
-          }
-        }} onBlur={e => {
-          const gst = (e.currentTarget.value || '').trim().toUpperCase();
-          if (gst.length >= 12) {
-            const panEl = document.getElementById('c-pan') as HTMLInputElement;
-            if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
-          }
-        }} onKeyDown={e => {
-          if (e.key === 'Enter') {
-            const gst = (e.currentTarget.value || '').trim().toUpperCase();
-            if (gst.length >= 12) {
-              const panEl = document.getElementById('c-pan') as HTMLInputElement;
-              if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
-            }
-          }
-        }}/></div>
-        <div className="form-row"><label style={{width:220}}>PAN No.</label><span className="colon">:</span><input id="c-pan" type="text" className="form-input" style={{width:140, textTransform: 'uppercase'}} onInput={e => e.currentTarget.value = e.currentTarget.value.toUpperCase()} defaultValue={activeAlterItem?.pan||''}/></div>
+        <div className="form-row">
+          <label style={{width:220}}>Registration Type</label>
+          <span className="colon">:</span>
+          <select id="c-reg-type" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType || (currentTaxInfo.regTypes[0] || 'Regular')}>
+            {currentTaxInfo.regTypes.map((rt: string) => (
+              <option key={rt} value={rt}>{rt}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-row">
+          <label style={{width:220}}>{currentTaxInfo.taxIdLabel}</label>
+          <span className="colon">:</span>
+          <input 
+            id="c-gstin" 
+            type="text" 
+            className="form-input" 
+            style={{width:220, textTransform: 'uppercase'}} 
+            defaultValue={activeAlterItem?.gstin || ''} 
+            placeholder={currentTaxInfo.taxIdPlaceholder || ''}
+            onInput={e => {
+              e.currentTarget.value = e.currentTarget.value.toUpperCase();
+              const gst = e.currentTarget.value.trim();
+              if (currentTaxInfo.isIndiaGst && gst.length >= 12) {
+                const panEl = document.getElementById('c-pan') as HTMLInputElement;
+                if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
+              }
+            }} 
+            onBlur={e => {
+              const gst = (e.currentTarget.value || '').trim().toUpperCase();
+              if (currentTaxInfo.isIndiaGst && gst.length >= 12) {
+                const panEl = document.getElementById('c-pan') as HTMLInputElement;
+                if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
+              }
+            }} 
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const gst = (e.currentTarget.value || '').trim().toUpperCase();
+                if (currentTaxInfo.isIndiaGst && gst.length >= 12) {
+                  const panEl = document.getElementById('c-pan') as HTMLInputElement;
+                  if (panEl) panEl.value = gst.substring(2, 12).toUpperCase();
+                }
+              }
+            }}
+          />
+        </div>
+        <div className="form-row">
+          <label style={{width:220}}>{currentTaxInfo.secondaryIdLabel || (currentTaxInfo.isIndiaGst ? 'PAN No.' : 'Tax / Business ID')}</label>
+          <span className="colon">:</span>
+          <input 
+            id="c-pan" 
+            type="text" 
+            className="form-input" 
+            style={{width:200, textTransform: 'uppercase'}} 
+            onInput={e => e.currentTarget.value = e.currentTarget.value.toUpperCase()} 
+            defaultValue={activeAlterItem?.pan || ''}
+            placeholder={currentTaxInfo.secondaryIdPlaceholder || ''}
+          />
+        </div>
         <div className="form-section-title">Banking Details</div>
         <div className="form-row"><label style={{width:220}}>Bank Name</label><span className="colon">:</span><input id="c-bank-name" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankName||''}/></div>
         <div className="form-row"><label style={{width:220}}>A/C Holder Name</label><span className="colon">:</span><input id="c-bank-holder" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankHolderName||''} onKeyDown={e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key)){(e.currentTarget as any).dataset.edited='1';}}}/></div>
@@ -7227,7 +7271,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               const pickedCur = ((document.getElementById('c-currency') as HTMLInputElement)?.value || '').trim() || (activeAlterItem?.currencySymbol || activeAlterItem?.baseCurrencySymbol || '₹');
               const pickedFormal = ((document.getElementById('c-formal') as HTMLInputElement)?.value || '').trim() || (activeAlterItem?.currencyName || activeAlterItem?.formalName || 'Indian Rupee');
               const coCountry = ((document.getElementById('c-country') as HTMLInputElement)?.value || '').trim() || 'India';
-              const taxInfo = getCompanyTaxInfo({ country: coCountry });
+              const taxInfo = getCompanyTaxInfo({ country: coCountry, taxName: activeAlterItem?.taxName });
               const d = {
                 name,
                 mailingName: (document.getElementById('c-mail') as HTMLInputElement).value,
@@ -7257,6 +7301,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
                 currency: pickedCur,
                 taxName: activeAlterItem?.taxName || taxInfo.taxName,
                 taxStructure: taxInfo.structure,
+                taxIdLabel: taxInfo.taxIdLabel,
+                secondaryIdLabel: taxInfo.secondaryIdLabel,
                 securityControl: (document.getElementById('c-sec-ctrl') as HTMLSelectElement)?.value === 'Yes',
                 password: (document.getElementById('c-pwd') as HTMLInputElement)?.value || '',
                 showMobile: showMob,
@@ -7457,6 +7503,7 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const [filter, setFilter] = useState('');
   const [selIdx, setSelIdx] = useState(0);
   const [selCo, setSelCo] = useState(activeAlterItem?.country||'India');
+  const partyTaxInfo = useMemo(() => getCompanyTaxInfo({ country: selCo }), [selCo]);
   const [underValue, setUnderValue] = useState<string>(activeAlterItem?.groupName||'Sundry Debtors');
   const [odLimit, setOdLimit] = useState<string>(activeAlterItem?.odLimit != null ? String(activeAlterItem.odLimit) : '');
   const listRef = useRef<HTMLDivElement>(null);
@@ -7700,7 +7747,13 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
           <div className="form-row"><label style={{width:140}}>Country</label><span className="colon">:</span>
             <input id="l-country" type="text" className="form-input" style={{width:180}}
               onFocus={()=>{setFocus('country');setFilter('');}}
-              onInput={e=>{setFilter((e.target as HTMLInputElement).value);setSelIdx(0);}}
+              onInput={e=>{
+                const v = (e.target as HTMLInputElement).value;
+                setFilter(v);
+                setSelIdx(0);
+                setSelCo(v);
+              }}
+              onChange={e=>setSelCo(e.target.value)}
               onKeyDown={handleFieldKey('country')}
               onBlur={()=>setTimeout(()=>setFocus(p=>p==='country'?null:p),200)}
               defaultValue={selCo} autoComplete="off"/>
@@ -7712,29 +7765,29 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
         <div style={{flex:1,padding:'15px 25px',background:'#fcfcfc',overflowY:'auto'}}>
           {/* Tax Registration */}
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Tax Registration</b>
-          <div className="form-row"><label style={{width:180}}>PAN/IT No.</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180,textTransform:'uppercase'}} defaultValue={activeAlterItem?.pan||''} onFocus={()=>setFocus(null)} onInput={e=>(e.currentTarget.value=e.currentTarget.value.toUpperCase())} onKeyDown={handleGlobalKeyDown}/></div>
-          <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select id="l-reg" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType||'Regular'} onKeyDown={handleGlobalKeyDown}><option>Regular</option><option>Composition</option><option>Unregistered</option><option>Consumer</option></select></div>
-          <div className="form-row"><label style={{width:180}}>GSTIN/UIN</label><span className="colon">:</span><input id="l-gst" type="text" className="form-input" style={{width:200,textTransform:'uppercase'}} defaultValue={activeAlterItem?.gstin||''} onFocus={()=>setFocus(null)}
+          <div className="form-row"><label style={{width:180}}>{partyTaxInfo.secondaryIdLabel || (partyTaxInfo.isIndiaGst ? 'PAN/IT No.' : 'Tax / Business ID')}</label><span className="colon">:</span><input id="l-pan" type="text" className="form-input" style={{width:180,textTransform:'uppercase'}} defaultValue={activeAlterItem?.pan||''} placeholder={partyTaxInfo.secondaryIdPlaceholder||''} onFocus={()=>setFocus(null)} onInput={e=>(e.currentTarget.value=e.currentTarget.value.toUpperCase())} onKeyDown={handleGlobalKeyDown}/></div>
+          <div className="form-row"><label style={{width:180}}>Registration Type</label><span className="colon">:</span><select id="l-reg" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.registrationType||(partyTaxInfo.regTypes[0]||'Regular')} onKeyDown={handleGlobalKeyDown}>{partyTaxInfo.regTypes.map((rt: string)=>(<option key={rt} value={rt}>{rt}</option>))}</select></div>
+          <div className="form-row"><label style={{width:180}}>{partyTaxInfo.taxIdLabel}</label><span className="colon">:</span><input id="l-gst" type="text" className="form-input" style={{width:200,textTransform:'uppercase'}} defaultValue={activeAlterItem?.gstin||''} placeholder={partyTaxInfo.taxIdPlaceholder||''} onFocus={()=>setFocus(null)}
             onInput={e=>{
               const v=e.currentTarget.value.toUpperCase();
               e.currentTarget.value=v;
-              syncGstToPan(v);
+              if (partyTaxInfo.isIndiaGst) syncGstToPan(v);
             }}
             onBlur={e=>{
               const v=e.currentTarget.value.toUpperCase();
               e.currentTarget.value=v;
-              syncGstToPan(v);
+              if (partyTaxInfo.isIndiaGst) syncGstToPan(v);
             }}
             onKeyDown={e=>{
               if(e.key==='Enter'){
                 const v=(e.currentTarget.value||'').toUpperCase();
                 e.currentTarget.value=v;
-                syncGstToPan(v);
+                if (partyTaxInfo.isIndiaGst) syncGstToPan(v);
               }
               handleGlobalKeyDown(e);
             }}
           /></div>
-          <div className="form-row"><label style={{width:180}}>Set/Alter GST Details</label><span className="colon">:</span><select id="l-gst-alter" className="form-input" defaultValue={activeAlterItem?.setAlterGstDetails||'No'} onKeyDown={handleGlobalKeyDown}><option>No</option><option>Yes</option></select></div>
+          <div className="form-row"><label style={{width:180}}>Set/Alter {partyTaxInfo.taxName} Details</label><span className="colon">:</span><select id="l-gst-alter" className="form-input" defaultValue={activeAlterItem?.setAlterGstDetails||'No'} onKeyDown={handleGlobalKeyDown}><option>No</option><option>Yes</option></select></div>
           <b style={{display:'block',margin:'15px 0 10px',textDecoration:'underline',fontSize:13,borderTop:'1px solid #eee',paddingTop:12}}>Banking Details</b>
           <div className="form-row"><label style={{width:180}}>Bank Name</label><span className="colon">:</span><input id="l-bank" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.bankName||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
           <div className="form-row"><label style={{width:180}}>A/C Holder Name</label><span className="colon">:</span><input id="l-bank-holder" type="text" className="form-input" style={{width:200}} defaultValue={activeAlterItem?.bankHolderName||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
@@ -12918,7 +12971,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   {([
                     [activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Supplier Name' : 'Name','buyerName'],
                     ['Mailing Name','buyerMailingName'],['Address','buyerAddress'],
-                    ['State','buyerState'],['Country','buyerCountry'],['GSTIN/UIN','buyerGstin'],['Place of Supply','buyerPlace'],
+                    ['State','buyerState'],['Country','buyerCountry'],[companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel,'buyerGstin'],['Place of Supply','buyerPlace'],
                     [activeVoucher === 'Purchase' || activeVoucher === 'Debit Note' ? 'Order No.' : 'Buyer\'s Order No.','buyerOrderNo'],
                     ['Dated','buyerOrderDate'],
                   ] as [string,keyof PartyDetails][]).map(([label,key],ki)=>(
@@ -12952,7 +13005,7 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
                   <div style={{fontWeight:'bold',fontSize:12,color:'#1c5282',marginBottom:8,borderBottom:'1px solid #ccc',paddingBottom:4}}>Consignee (Ship to)</div>
                   {([
                     ['Name','shipName'],['Mailing Name','shipMailingName'],['Address','shipAddress'],
-                    ['State','shipState'],['Country','shipCountry'],['GSTIN/UIN','shipGstin'],['Place of Supply','shipPlace'],
+                    ['State','shipState'],['Country','shipCountry'],[companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel,'shipGstin'],['Place of Supply','shipPlace'],
                     ['Terms of Delivery','termsOfDelivery'],
                   ] as [string,keyof PartyDetails][]).map(([label,key])=>(
                     <div key={key} style={{display:'flex',marginBottom:5,alignItems:'flex-start'}}>
@@ -17088,7 +17141,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
             )}
             <div style={{fontWeight:'bold',fontSize:14}}>{company?.name}</div>
             <div style={{fontSize:10,whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode?' - '+company.pinCode:''}</div>
-            <div style={{fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
+            <div style={{fontSize:10}}>{companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{company?.gstin}</b></div>
             <div style={{fontSize:10}}>State : {company?.state}</div>
             {company?.telephone && <div style={{fontSize:10}}>Ph: <b>{company.telephone}</b></div>}
           </div>
@@ -17109,7 +17162,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
             <span style={{fontSize:9,color:'#555'}}>{v.type==='Payment'?'To (Payee)':v.type==='Receipt'?'Received From':'Party A/c'} :</span>
             <span style={{fontWeight:'bold',fontSize:13,marginLeft:8}}>{v.partyName}</span>
             {partyLedger?.address && <span style={{fontSize:10,color:'#444',marginLeft:10}}>{partyLedger.address}</span>}
-            {partyLedger?.gstin && <span style={{fontSize:10,color:'#444',marginLeft:10}}>GSTIN: <b>{partyLedger.gstin}</b></span>}
+            {partyLedger?.gstin && <span style={{fontSize:10,color:'#444',marginLeft:10}}>{companyTaxInfo.isIndiaGst ? 'GSTIN' : companyTaxInfo.taxIdLabel}: <b>{partyLedger.gstin}</b></span>}
           </div>
         )}
         {/* Ledger Entries Table */}
@@ -17240,7 +17293,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <>
                   <div style={{fontWeight:'bold', fontSize:14}}>{v.partyName}</div>
                   {partyLedger?.address && <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{partyLedger.address}</div>}
-                  {partyLedger?.gstin && <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{partyLedger.gstin}</b></div>}
+                  {partyLedger?.gstin && <div style={{marginTop:2, fontSize:10}}>{companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{partyLedger.gstin}</b></div>}
                   {partyLedger?.state && <div style={{fontSize:10}}>State Name : {partyLedger.state}, Code : {stateCode(partyLedger.state)}</div>}
                   {partyLedger?.phone && <div style={{fontSize:10}}>Ph: <b>{partyLedger.phone}</b></div>}
                 </>
@@ -17249,7 +17302,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <>
                   <div style={{fontWeight:'bold', fontSize:14}}>{company?.name || 'Company Name'}</div>
                   <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode ? ' - ' + company.pinCode : ''}</div>
-                  <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{company?.gstin}</b></div>
+                  <div style={{marginTop:2, fontSize:10}}>{companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{company?.gstin}</b></div>
                   <div style={{fontSize:10}}>State Name : {company?.state}, Code : {stateCode(company?.state||'')}</div>
                   {company?.telephone && <div style={{fontSize:10}}>Ph: <b>{company.telephone}</b></div>}
                   {company?.showMobile && company?.mobile && <div style={{fontSize:10}}>Mob: <b>{company.mobile}</b></div>}
@@ -17288,7 +17341,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
                 <>
                   <div style={{fontWeight:'bold', fontSize:12}}>{company?.name}</div>
                   <div style={{fontSize:10, whiteSpace:'pre-wrap'}}>{company?.address}{company?.pinCode?' - '+company.pinCode:''}</div>
-                  {company?.gstin && <div style={{marginTop:2, fontSize:10}}>GSTIN/UIN : <b>{company.gstin}</b></div>}
+                  {company?.gstin && <div style={{marginTop:2, fontSize:10}}>{companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{company.gstin}</b></div>}
                   {company?.state && <div style={{fontSize:10}}>State Name : {company.state}, Code : {stateCode(company.state||'')}</div>}
                 </>
               ) : (
@@ -17579,7 +17632,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
           </div>
           <div style={{padding:'10px', textAlign:'right', display:'flex', flexDirection:'column', justifyContent:'space-between'}}>
              {isPurchaseType && company?.gstin && (
-               <div style={{fontSize:9, textAlign:'left'}}>Company's GSTIN/UIN : <b>{company.gstin}</b></div>
+               <div style={{fontSize:9, textAlign:'left'}}>Company's {companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{company.gstin}</b></div>
              )}
              <div style={{fontSize:9}}>for <b>{isPurchaseType ? v.partyName : company?.name}</b></div>
              <div style={{fontSize:9, marginBottom:10}}>Authorised Signatory</div>
@@ -17661,7 +17714,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
           {/* Top-Left GSTIN */}
           {currentCompany?.gstin && (
             <div style={{ fontSize: 11, fontWeight: 'bold' }}>
-              GSTIN : {currentCompany.gstin}
+              {companyTaxInfo.isIndiaGst ? 'GSTIN' : companyTaxInfo.taxIdLabel} : {currentCompany.gstin}
             </div>
           )}
           {/* Top-Right Logo */}
@@ -17709,7 +17762,7 @@ function PrintPreview({vouchers,company,companies,printVoucher,ledgers,onSelectV
               {partyDisplayAddress}
             </div>
             <div style={{ fontSize: 10, marginTop: 12, display: 'flex', gap: 6 }}>
-              <span style={{ width: 110 }}>GSTIN / UIN</span>
+              <span style={{ width: 110 }}>{companyTaxInfo.isIndiaGst ? 'GSTIN / UIN' : companyTaxInfo.taxIdLabel}</span>
               <span>: &nbsp;<b>{partyDisplayGstin}</b></span>
             </div>
             <div style={{ fontSize: 10, marginTop: 2, display: 'flex', gap: 6 }}>

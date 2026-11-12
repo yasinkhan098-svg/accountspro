@@ -15,6 +15,7 @@
  */
 
 import { permissionGuard } from './permissionGuard';
+import { getCompanyTaxInfo } from './taxEngine';
 
 export interface CompanyFolderData {
   companyCode: string;
@@ -306,6 +307,11 @@ class CompanyDataFolderService {
       unwrappedCompany.baseCurrencySymbol = curSym;
       unwrappedCompany.currencyName = curName;
       unwrappedCompany.formalName = curName;
+      const taxInfo = getCompanyTaxInfo(unwrappedCompany);
+      unwrappedCompany.taxName = unwrappedCompany.taxName || taxInfo.taxName;
+      unwrappedCompany.taxStructure = unwrappedCompany.taxStructure || taxInfo.structure;
+      unwrappedCompany.taxIdLabel = unwrappedCompany.taxIdLabel || taxInfo.taxIdLabel;
+      unwrappedCompany.secondaryIdLabel = unwrappedCompany.secondaryIdLabel || taxInfo.secondaryIdLabel;
     }
 
     // Deduplicate units strictly by name/symbol so file never bloats
@@ -557,6 +563,11 @@ class CompanyDataFolderService {
       co.baseCurrencySymbol = curSym;
       co.currencyName = curName;
       co.formalName = curName;
+      const taxInfo = getCompanyTaxInfo(co);
+      co.taxName = co.taxName || taxInfo.taxName;
+      co.taxStructure = co.taxStructure || taxInfo.structure;
+      co.taxIdLabel = co.taxIdLabel || taxInfo.taxIdLabel;
+      co.secondaryIdLabel = co.secondaryIdLabel || taxInfo.secondaryIdLabel;
     }
     data.company = co;
 
