@@ -47,6 +47,8 @@ namespace LedgerXLauncher
                 // AppData for config/profile (safe, always writable)
                 string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string appDir = Path.Combine(localApp, "LedgerX");
+                string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
                 string configFile = Path.Combine(appDir, "config.json");
                 string profileDir = Path.Combine(appDir, "Profile");
 
@@ -62,8 +64,12 @@ namespace LedgerXLauncher
                     try { File.WriteAllText(configFile, args[0].Trim()); } catch { }
                 }
 
-                // Default target URL
-                string targetUrl = "https://www.ledgerxerp.com";
+                string localWww = Path.Combine(appDir, "www");
+                if (!Directory.Exists(localWww)) localWww = Path.Combine(exeDir, "www");
+                bool hasLocalWww = File.Exists(Path.Combine(localWww, "index.html"));
+                string targetUrl = hasLocalWww
+                    ? "http://127.0.0.1:45454"
+                    : "https://www.ledgerxerp.com";
 
                 if (File.Exists(configFile))
                 {
@@ -72,15 +78,31 @@ namespace LedgerXLauncher
                         string[] lines = File.ReadAllLines(configFile);
                         if (lines.Length > 0 && lines[0].Trim().StartsWith("http"))
                         {
-                            targetUrl = lines[0].Trim();
+                            string cfgUrl = lines[0].Trim();
+                            if (hasLocalWww)
+                            {
+                                if (cfgUrl.Contains("127.0.0.1") || cfgUrl.Contains("45454"))
+                                {
+                                    targetUrl = cfgUrl;
+                                }
+                                else
+                                {
+                                    targetUrl = "http://127.0.0.1:45454";
+                                    try { File.WriteAllText(configFile, targetUrl); } catch { }
+                                }
+                            }
+                            else
+                            {
+                                targetUrl = cfgUrl;
+                            }
                         }
                     }
                     catch { }
                 }
 
-                if (targetUrl.Contains("localhost") && !IsServerAlive("localhost", 3000))
+                if (hasLocalWww && !targetUrl.Contains("45454"))
                 {
-                    targetUrl = "https://www.ledgerxerp.com";
+                    targetUrl = "http://127.0.0.1:45454";
                     try { File.WriteAllText(configFile, targetUrl); } catch { }
                 }
 
@@ -132,7 +154,7 @@ namespace LedgerXLauncher
 
                 // PRIMARY INSTANCE: Start Background Host Services
                 try { File.AppendAllText(logFile, DateTime.Now.ToString("s") + " - Primary instance continuing to start services...\n"); } catch { }
-                string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                if (string.IsNullOrEmpty(exeDir)) exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
                 if (string.IsNullOrEmpty(exeDir)) exeDir = AppDomain.CurrentDomain.BaseDirectory;
                 string dataDir = Path.Combine(exeDir, "data");
                 try
@@ -216,7 +238,8 @@ namespace LedgerXLauncher
                 // 6. KEEP THE PROCESS AND NETWORK SERVICES ALIVE CONTINUOUSLY WITH PERSISTENT APPLICATION CONTEXT!
                 Log("Entering Application.Run(hostContext) (Persistent Message Loop)...");
                 Application.Run(hostContext);
-                Log("Application.Run exited!");
+                Log("Application.Run exited, entering fallback keepalive loop...");
+                while (true) Thread.Sleep(10000);
             }
             catch (Exception ex)
             {
@@ -882,6 +905,202 @@ namespace LedgerXLauncher
                     return;
                 }
 
+                if (path == "/api/companies" && req.HttpMethod == "POST")
+                {
+                    Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;
+                    using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
+                    {
+                        string body = reader.ReadToEnd();
+                        JavaScriptSerializer js = new JavaScriptSerializer();
+                        js.MaxJsonLength = 50 * 1024 * 1024;
+                        Dictionary<string, object> co = null;
+                        try
+                        {
+                            object parsed = js.DeserializeObject(body);
+                            co = parsed as Dictionary<string, object>;
+                            if (co != null && co.ContainsKey("company") && co["company"] is Dictionary<string, object>)
+                            {
+                                co = (Dictionary<string, object>)co["company"];
+                            }
+                        }
+                        catch { }
+
+                        if (co == null) co = new Dictionary<string, object>();
+
+                        // Determine 5-digit company code:
+                        string code = "";
+                        if (co.ContainsKey("companyCode") && co["companyCode"] != null)
+                        {
+                            string cStr = co["companyCode"].ToString().Trim().ToUpper();
+                            if (System.Text.RegularExpressions.Regex.IsMatch(cStr, @"^\d{5}$")) code = cStr;
+                        }
+
+                        if (string.IsNullOrEmpty(code))
+                        {
+                            int maxCode = 9999;
+                            if (Directory.Exists(dataDir))
+                            {
+                                foreach (string dir in Directory.GetDirectories(dataDir))
+                                {
+                                    string fn = Path.GetFileName(dir).ToUpper();
+                                    int cVal;
+                                    if (int.TryParse(fn, out cVal) && cVal >= 10000 && cVal <= 99999)
+                                    {
+                                        if (cVal > maxCode) maxCode = cVal;
+                                    }
+                                }
+                            }
+                            code = (maxCode < 10000 ? 10000 : maxCode + 1).ToString();
+                        }
+
+                        int parsedCodeVal = 10000;
+                        int.TryParse(code, out parsedCodeVal);
+                        int numericId = parsedCodeVal - 10000 + 4;
+                        if (!co.ContainsKey("id") || co["id"] == null)
+                        {
+                            co["id"] = numericId;
+                        }
+
+                        co["companyCode"] = code;
+                        co["code"] = code;
+
+                        string cDir = Path.Combine(dataDir, code);
+                        if (!Directory.Exists(cDir)) Directory.CreateDirectory(cDir);
+
+                        // Save company.json
+                        File.WriteAllText(Path.Combine(cDir, "company.json"), js.Serialize(co), Encoding.UTF8);
+
+                        // Auto-generate standard ledgers
+                        List<Dictionary<string, object>> stdLedgers = new List<Dictionary<string, object>>();
+                        string[] ledgerNames = new string[] {
+                            "Cash:Cash-in-hand:Dr", "Profit & Loss A/c:Primary:Cr", "Round Off:Indirect Expenses:Dr",
+                            "Discount Given:Indirect Expenses:Dr", "Discount Received:Indirect Incomes:Cr",
+                            "Transportation Charges:Direct Expenses:Dr", "Freight Charges:Direct Expenses:Dr",
+                            "CGST Payable:Duties & Taxes:Cr", "SGST Payable:Duties & Taxes:Cr", "IGST Payable:Duties & Taxes:Cr",
+                            "Sales A/c:Sales Accounts:Cr", "Purchase A/c:Purchase Accounts:Dr"
+                        };
+                        int lid = 1;
+                        foreach (string item in ledgerNames)
+                        {
+                            string[] parts = item.Split(':');
+                            Dictionary<string, object> ld = new Dictionary<string, object>();
+                            ld["id"] = DateTime.UtcNow.Ticks + lid;
+                            ld["companyId"] = co["id"];
+                            ld["companyCode"] = code;
+                            ld["name"] = parts[0];
+                            ld["groupName"] = parts[1];
+                            ld["openingBalance"] = 0;
+                            ld["balanceType"] = parts[2];
+                            stdLedgers.Add(ld);
+                            lid++;
+                        }
+                        File.WriteAllText(Path.Combine(cDir, "ledgers.json"), js.Serialize(stdLedgers), Encoding.UTF8);
+
+                        // Standard Units
+                        List<Dictionary<string, object>> stdUnits = new List<Dictionary<string, object>>();
+                        string[] unitNames = new string[] {
+                            "Nos:Numbers:0", "Pcs:Pieces:0", "Kg:Kilogram:2", "Gms:Grams:0", "Ltr:Litre:2", "Mtr:Meter:2",
+                            "Set:Set:0", "Bdl:Bundle:0", "Cft:Cubic Feet:2", "Sqft:Square Feet:2", "Box:Boxes:0",
+                            "Dzn:Dozen:0", "Btl:Bottles:0", "Bag:Bags:0", "Tons:Metric Tons:2", "Kits:Kits:0",
+                            "Pack:Packs:0", "Rol:Rolls:0", "Ctn:Cartons:0", "Pair:Pairs:0"
+                        };
+                        int uid = 1;
+                        foreach (string item in unitNames)
+                        {
+                            string[] parts = item.Split(':');
+                            Dictionary<string, object> ud = new Dictionary<string, object>();
+                            ud["id"] = DateTime.UtcNow.Ticks + 400 + uid;
+                            ud["companyId"] = co["id"];
+                            ud["companyCode"] = code;
+                            ud["name"] = parts[0];
+                            ud["symbol"] = parts[0];
+                            ud["formalName"] = parts[1];
+                            ud["decimalPlaces"] = int.Parse(parts[2]);
+                            stdUnits.Add(ud);
+                            uid++;
+                        }
+                        File.WriteAllText(Path.Combine(cDir, "units.json"), js.Serialize(stdUnits), Encoding.UTF8);
+
+                        // Voucher types
+                        string[] vTypes = new string[] { "Sales", "Purchase", "Payment", "Receipt", "Contra", "Journal", "Credit Note", "Debit Note", "Sales Quotation" };
+                        List<Dictionary<string, object>> stdVt = new List<Dictionary<string, object>>();
+                        int vtid = 1;
+                        foreach (string vt in vTypes)
+                        {
+                            Dictionary<string, object> vd = new Dictionary<string, object>();
+                            vd["id"] = DateTime.UtcNow.Ticks + 100 + vtid;
+                            vd["companyId"] = co["id"];
+                            vd["companyCode"] = code;
+                            vd["name"] = vt;
+                            vd["type"] = vt;
+                            vd["abbreviation"] = vt.Length >= 3 ? vt.Substring(0, 3).ToUpper() : vt.ToUpper();
+                            vd["numberingMethod"] = "Automatic";
+                            vd["startNumber"] = 1;
+                            stdVt.Add(vd);
+                            vtid++;
+                        }
+                        File.WriteAllText(Path.Combine(cDir, "voucher_types.json"), js.Serialize(stdVt), Encoding.UTF8);
+
+                        File.WriteAllText(Path.Combine(cDir, "groups.json"), "[]", Encoding.UTF8);
+                        File.WriteAllText(Path.Combine(cDir, "vouchers.json"), "[]", Encoding.UTF8);
+                        File.WriteAllText(Path.Combine(cDir, "stock_items.json"), "[]", Encoding.UTF8);
+                        File.WriteAllText(Path.Combine(cDir, "stock_groups.json"), "[]", Encoding.UTF8);
+                        File.WriteAllText(Path.Combine(cDir, "purchase_orders.json"), "[]", Encoding.UTF8);
+                        File.WriteAllText(Path.Combine(cDir, "boms.json"), "[]", Encoding.UTF8);
+                        File.WriteAllText(Path.Combine(cDir, "manufacturing_journals.json"), "[]", Encoding.UTF8);
+                        File.WriteAllText(Path.Combine(cDir, "pos_purchase_list.json"), "[]", Encoding.UTF8);
+
+                        string coName = co.ContainsKey("name") && co["name"] != null ? co["name"].ToString() : ("Company " + code);
+                        string defaultUsersJson = string.Format(@"[
+  {{
+    ""id"": ""usr_admin_{0}"",
+    ""username"": ""admin"",
+    ""fullName"": ""Administrator ({1})"",
+    ""password"": """",
+    ""assignedCompanyCodes"": [""{0}""],
+    ""companyCode"": ""{0}"",
+    ""isAdmin"": true,
+    ""isActive"": true,
+    ""createdAt"": ""{2}"",
+    ""permissions"": {{
+      ""vouchers"": {{ ""Purchase"": true, ""Sales"": true, ""Payment"": true, ""Receipt"": true, ""Contra"": true, ""Journal"": true, ""Debit Note"": true, ""Credit Note"": true, ""Sales Quotation"": true, ""POS Sale"": true, ""Purchase POS List"": true }},
+      ""registers"": {{ ""Purchase Register"": true, ""Sales Register"": true, ""Day Book"": true, ""Payment Register"": true, ""Receipt Register"": true, ""Journal Register"": true, ""Contra Register"": true, ""Debit Note Register"": true, ""Credit Note Register"": true, ""Quotation Register"": true }},
+      ""modules"": {{ ""BOM"": true, ""Manufacturing"": true, ""BankStatement"": true, ""PurchaseOrder"": true }},
+      ""reports"": {{ ""BalanceSheet"": true, ""ProfitLoss"": true, ""TrialBalance"": true, ""StockSummary"": true, ""GSTReports"": true, ""AuditTrail"": true }},
+      ""masters"": {{ ""createLedger"": true, ""alterLedger"": true, ""createStockItem"": true, ""alterStockItem"": true, ""deleteMaster"": true, ""deleteVoucher"": true }}
+    }}
+  }},
+  {{
+    ""id"": ""usr_cashier_{0}"",
+    ""username"": ""cashier"",
+    ""fullName"": ""Cashier ({1})"",
+    ""password"": """",
+    ""assignedCompanyCodes"": [""{0}""],
+    ""companyCode"": ""{0}"",
+    ""isAdmin"": false,
+    ""isActive"": true,
+    ""createdAt"": ""{2}"",
+    ""permissions"": {{
+      ""vouchers"": {{ ""Purchase"": false, ""Sales"": false, ""Payment"": false, ""Receipt"": false, ""Contra"": false, ""Journal"": false, ""Debit Note"": false, ""Credit Note"": false, ""Sales Quotation"": false, ""POS Sale"": true, ""Purchase POS List"": true }},
+      ""registers"": {{ ""Purchase Register"": false, ""Sales Register"": false, ""Day Book"": false, ""Payment Register"": false, ""Receipt Register"": false, ""Journal Register"": false, ""Contra Register"": false, ""Debit Note Register"": false, ""Credit Note Register"": false, ""Quotation Register"": false }},
+      ""modules"": {{ ""BOM"": false, ""Manufacturing"": false, ""BankStatement"": false, ""PurchaseOrder"": false }},
+      ""reports"": {{ ""BalanceSheet"": false, ""ProfitLoss"": false, ""TrialBalance"": false, ""StockSummary"": false, ""GSTReports"": false, ""AuditTrail"": false }},
+      ""masters"": {{ ""createLedger"": false, ""alterLedger"": false, ""createStockItem"": false, ""alterStockItem"": false, ""deleteMaster"": false, ""deleteVoucher"": false }}
+    }}
+  }}
+]", code, coName.Replace("\"", "\\\""), DateTime.UtcNow.ToString("o"));
+                        File.WriteAllText(Path.Combine(cDir, "users.json"), defaultUsersJson, Encoding.UTF8);
+
+                        Dictionary<string, object> retObj = new Dictionary<string, object>();
+                        retObj["success"] = true;
+                        retObj["company"] = co;
+                        retObj["companyCode"] = code;
+                        retObj["ledgers"] = stdLedgers;
+                        WriteJsonResponse(res, js.Serialize(retObj));
+                        return;
+                    }
+                }
+
                 if (path == "/api/companies" || path == "/api/company/scan")
                 {
                     JavaScriptSerializer js = new JavaScriptSerializer();
@@ -998,17 +1217,28 @@ namespace LedgerXLauncher
                     using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
                     {
                         string body = reader.ReadToEnd();
-                        string code = "10000";
-                        int idx = body.IndexOf("\"companyCode\":");
-                        if (idx >= 0)
+                        string code = req.QueryString["companyCode"];
+                        if (string.IsNullOrEmpty(code)) code = req.QueryString["code"];
+                        if (string.IsNullOrEmpty(code) || !System.Text.RegularExpressions.Regex.IsMatch(code.Trim(), @"^\d{5}$"))
                         {
-                            int q1 = body.IndexOf("\"", idx + 14);
-                            int q2 = q1 >= 0 ? body.IndexOf("\"", q1 + 1) : -1;
-                            if (q1 >= 0 && q2 > q1)
+                            int idx = body.IndexOf("\"companyCode\":");
+                            if (idx < 0) idx = body.IndexOf("\"code\":");
+                            if (idx >= 0)
                             {
-                                code = body.Substring(q1 + 1, q2 - (q1 + 1)).Trim().ToUpper();
+                                int colon = body.IndexOf(":", idx);
+                                if (colon >= 0)
+                                {
+                                    int q1 = body.IndexOf("\"", colon + 1);
+                                    int q2 = q1 >= 0 ? body.IndexOf("\"", q1 + 1) : -1;
+                                    if (q1 >= 0 && q2 > q1)
+                                    {
+                                        string found = body.Substring(q1 + 1, q2 - (q1 + 1)).Trim().ToUpper();
+                                        if (System.Text.RegularExpressions.Regex.IsMatch(found, @"^\d{5}$")) code = found;
+                                    }
+                                }
                             }
                         }
+                        if (string.IsNullOrEmpty(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, @"^\d{5}$")) code = "10000";
 
                         string cDir = Path.Combine(dataDir, code);
                         if (!Directory.Exists(cDir)) Directory.CreateDirectory(cDir);

@@ -36,10 +36,7 @@ export interface CompanyFolderData {
 
 export function getBridgeBaseUrl(): string {
   if (typeof window !== 'undefined') {
-    // If hosted over HTTPS (e.g. Vercel, cloud domain) or cloud production, route to cloud API directly
-    if (window.location.protocol === 'https:' || (window.location.hostname && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('ledgerxerp.com')))) {
-      return window.location.origin;
-    }
+    // 1. Explicit LAN host URL param e.g. ?host=192.168.1.100 or ?lan_client=1&host=...
     try {
       const params = new URLSearchParams(window.location.search);
       const hostParam = params.get('host');
@@ -48,14 +45,23 @@ export function getBridgeBaseUrl(): string {
         return `http://${hostParam.trim()}:45454`;
       }
     } catch (e) { }
+
+    // 2. Saved LAN host in localStorage
     try {
       const savedHost = localStorage.getItem('ledgerx_lan_host_ip');
-      if (savedHost && savedHost !== 'localhost' && savedHost !== '127.0.0.1') {
-        return `http://${savedHost}:45454`;
+      if (savedHost && savedHost.trim() && savedHost !== 'localhost' && savedHost !== '127.0.0.1') {
+        return `http://${savedHost.trim()}:45454`;
       }
     } catch (e) { }
-    if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && !window.location.hostname.includes('vercel.app') && !window.location.hostname.includes('ledgerxerp.com')) {
+
+    // 3. Localhost or private LAN IP access (e.g. 192.168.x.x:45454 or 127.0.0.1)
+    if (window.location.hostname && !window.location.hostname.includes('vercel.app') && !window.location.hostname.includes('ledgerxerp.com')) {
       return `http://${window.location.hostname}:45454`;
+    }
+
+    // 4. Cloud HTTPS fallback if no local host or LAN host is targeted
+    if (window.location.protocol === 'https:' || (window.location.hostname && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('ledgerxerp.com')))) {
+      return window.location.origin;
     }
   }
   return 'http://127.0.0.1:45454';

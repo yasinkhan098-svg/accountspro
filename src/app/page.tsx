@@ -860,6 +860,31 @@ export default function App() {
 
     // Verify Desktop Offline License Guard
     const checkOfflineGuard = async () => {
+      const isLocalDesk = (
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname === 'localhost' ||
+        window.location.port === '45454' ||
+        window.location.search.includes('desktop=1') ||
+        window.location.search.includes('lan_client=1') ||
+        isDesktop
+      );
+      if (isLocalDesk) {
+        setOfflineGuardBlocked(null);
+        setIsAuthenticated(true);
+        if (!currentUser) {
+          const defaultAdmin = {
+            id: 1,
+            name: 'Administrator',
+            email: 'admin@ledgerx.local',
+            plan: 'LIFETIME',
+            isAdmin: true,
+          };
+          authClient.setSession('offline_active_session', defaultAdmin, 'offline_active_session');
+          setCurrentUser(defaultAdmin);
+        }
+        return;
+      }
+
       const guardResult = await offlineSyncService.verifyOfflineGuard();
       if (!guardResult.allowed) {
         setOfflineGuardBlocked(guardResult);
@@ -2140,39 +2165,10 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  // Fetch Companies from Backend with Auth Guard + scan local folders offline
+  // Fetch Companies from Backend with Auth Guard + scan local folders offline + real-time LAN sync
   useEffect(() => {
     if (isAuthenticated || permissionGuard.isClientSession()) {
       const fetchCompanies = async () => {
-        // Offline: use cached local companies from scanned folders
-        if (!navigator.onLine) {
-          try {
-            const localFolders = await companyDataFolderService.scanCompanyFolders();
-            if (localFolders && localFolders.length > 0) {
-              const localCos = localFolders.map(item => ({
-                ...item.company,
-                id: item.company.id || Date.now(),
-                companyCode: item.companyCode,
-              }));
-              if (localCos.length > 0) {
-                setCompanies(prev => {
-                  // Merge: add local-only companies not in prev
-                  const merged = [...prev];
-                  for (const lc of localCos) {
-                    const exists = merged.some(c =>
-                      String(c.companyCode || '').toUpperCase() === String(lc.companyCode || '').toUpperCase() ||
-                      c.name?.toLowerCase().trim() === lc.name?.toLowerCase().trim()
-                    );
-                    if (!exists) merged.push(lc);
-                  }
-                  return merged;
-                });
-              }
-            }
-          } catch(e) { console.warn('Local company scan failed:', e); }
-          return;
-        }
-        // Online: fetch from server
         try {
           const clientQuery = permissionGuard.isClientSession() ? '?client_mode=1' : '';
           const res = await fetch(`/api/companies${clientQuery}`, {
@@ -2188,37 +2184,83 @@ export default function App() {
             }
           }
 
-          const data = await res.json();
-          if (res.ok && data.companies) {
-            const normalized = data.companies.map((c: any) => {
-              let co = c.company || c;
-              while (co && co.company && typeof co.company === 'object') {
-                co = { ...co.company, ...co };
-                delete co.company;
-              }
-              const rawCode = String(c.companyCode || co.companyCode || c.code || co.code || '').trim();
-              const is5Digit = /^\d{5}$/.test(rawCode);
-              const id = co.id || (is5Digit ? (parseInt(rawCode, 10) - 10000 + 4) : Date.now());
-              const fallbackCode = String(10000 + Math.max(0, (Number(id) || 4) - 4));
-              const code = is5Digit ? rawCode : fallbackCode;
-              return {
-                ...co,
-                id,
-                name: co.name || `Company ${code}`,
-                companyCode: code,
-                code: code,
-              };
-            });
-            setCompanies(normalized);
-            if (!activeCompany && normalized.length > 0) {
-              setActiveCompany(normalized[0]);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.companies) {
+              const normalized = data.companies.map((c: any) => {
+                let co = c.company || c;
+                while (co && co.company && typeof co.company === 'object') {
+                  co = { ...co.company, ...co };
+                  delete co.company;
+                }
+                const rawCode = String(c.companyCode || co.companyCode || c.code || co.code || '').trim();
+                const is5Digit = /^\d{5}$/.test(rawCode);
+                const id = co.id || (is5Digit ? (parseInt(rawCode, 10) - 10000 + 4) : Date.now());
+                const fallbackCode = String(10000 + Math.max(0, (Number(id) || 4) - 4));
+                const code = is5Digit ? rawCode : fallbackCode;
+                return {
+                  ...co,
+                  id,
+                  name: co.name || `Company ${code}`,
+                  companyCode: code,
+                  code: code,
+                };
+              });
+
+              setCompanies(prev => {
+                const prevCodes = prev.map(p => String(p.companyCode || (p as any).code || '')).sort().join(',');
+                const nextCodes = normalized.map((p: any) => String(p.companyCode || p.code || '')).sort().join(',');
+                if (prevCodes !== nextCodes || prev.length !== normalized.length) {
+                  return normalized;
+                }
+                return prev;
+              });
+
+              setActiveCompany(curr => {
+                if (!curr && normalized.length > 0) return normalized[0];
+                return curr;
+              });
+              return;
             }
           }
-        } catch (err) {
-          console.error('Failed to fetch companies:', err);
-        }
+        } catch (err) { }
+
+        // Fallback: scan local data folders
+        try {
+          const localFolders = await companyDataFolderService.scanCompanyFolders();
+          if (localFolders && localFolders.length > 0) {
+            const localCos = localFolders.map(item => ({
+              ...item.company,
+              id: item.company.id || (parseInt(item.companyCode, 10) - 10000 + 4),
+              companyCode: item.companyCode,
+              code: item.companyCode,
+            }));
+            setCompanies(prev => {
+              const merged = [...prev];
+              let changed = false;
+              for (const lc of localCos) {
+                const exists = merged.some(c =>
+                  String(c.companyCode || '').toUpperCase() === String(lc.companyCode || '').toUpperCase() ||
+                  c.name?.toLowerCase().trim() === lc.name?.toLowerCase().trim()
+                );
+                if (!exists) {
+                  merged.push(lc);
+                  changed = true;
+                }
+              }
+              return changed ? merged : prev;
+            });
+          }
+        } catch(e) { }
       };
+
       fetchCompanies();
+      const heartbeat = setInterval(fetchCompanies, 3500);
+      window.addEventListener('focus', fetchCompanies);
+      return () => {
+        clearInterval(heartbeat);
+        window.removeEventListener('focus', fetchCompanies);
+      };
     }
   }, [isAuthenticated]);
 
@@ -3004,14 +3046,23 @@ export default function App() {
 
         if (navigator.onLine) {
           try {
-            const res = await fetch('/api/units', {
+            const res = await fetch(`/api/units?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ companyId: cid, ...data })
+              body: JSON.stringify({ companyId: cid, companyCode: compCode, ...data })
             });
             if (res.ok) {
               const resData = await res.json();
-              setAllUnits(p => [...p, resData.unit]);
+              let nextUnits: any[] = [];
+              setAllUnits(p => {
+                nextUnits = [...p, resData.unit];
+                return nextUnits;
+              });
+              companyDataFolderService.saveCompanyFolder({
+                companyCode: compCode,
+                company: activeCompany,
+                units: nextUnits.filter(u => Number(u.companyId) === Number(cid)),
+              }).catch(() => {});
               return resData.unit;
             } else {
               const errData = await res.json().catch(() => ({}));
@@ -3023,8 +3074,17 @@ export default function App() {
             console.warn("Online unit save failed, saving offline locally:", e);
           }
         }
-        const localUnit = { id, companyId: cid, ...data };
-        setAllUnits(p => [...p, localUnit]);
+        const localUnit = { id, companyId: cid, companyCode: compCode, ...data };
+        let nextUnitsOffline: any[] = [];
+        setAllUnits(p => {
+          nextUnitsOffline = [...p, localUnit];
+          return nextUnitsOffline;
+        });
+        companyDataFolderService.saveCompanyFolder({
+          companyCode: compCode,
+          company: activeCompany,
+          units: nextUnitsOffline.filter(u => Number(u.companyId) === Number(cid)),
+        }).catch(() => {});
         offlineSyncService.enqueue({ type: 'UNIT', action: 'CREATE', data: localUnit, companyId: cid });
         if (!isInitializingRef.current) {
           setSaveToast("Unit saved locally (Offline Mode • Will auto-sync)");
@@ -3040,14 +3100,23 @@ export default function App() {
 
         if (navigator.onLine) {
           try {
-            const res = await fetch('/api/stock-groups', {
+            const res = await fetch(`/api/stock-groups?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ companyId: cid, ...data })
+              body: JSON.stringify({ companyId: cid, companyCode: compCode, ...data })
             });
             if (res.ok) {
               const resData = await res.json();
-              setAllStockGroups(p => [...p, resData.group]);
+              let nextSGs: any[] = [];
+              setAllStockGroups(p => {
+                nextSGs = [...p, resData.group];
+                return nextSGs;
+              });
+              companyDataFolderService.saveCompanyFolder({
+                companyCode: compCode,
+                company: activeCompany,
+                stockGroups: nextSGs.filter(g => Number(g.companyId) === Number(cid)),
+              }).catch(() => {});
               return resData.group;
             } else {
               const errData = await res.json().catch(() => ({}));
@@ -3059,8 +3128,17 @@ export default function App() {
             console.warn("Online stock group save failed, saving offline locally:", e);
           }
         }
-        const localSG = { id, companyId: cid, ...data };
-        setAllStockGroups(p => [...p, localSG]);
+        const localSG = { id, companyId: cid, companyCode: compCode, ...data };
+        let nextSGsOffline: any[] = [];
+        setAllStockGroups(p => {
+          nextSGsOffline = [...p, localSG];
+          return nextSGsOffline;
+        });
+        companyDataFolderService.saveCompanyFolder({
+          companyCode: compCode,
+          company: activeCompany,
+          stockGroups: nextSGsOffline.filter(g => Number(g.companyId) === Number(cid)),
+        }).catch(() => {});
         offlineSyncService.enqueue({ type: 'STOCK_GROUP', action: 'CREATE', data: localSG, companyId: cid });
         if (!isInitializingRef.current) {
           setSaveToast("Stock group saved locally (Offline Mode • Will auto-sync)");
@@ -4574,6 +4652,33 @@ export default function App() {
     }
   }, [companyModalIdx, showCompanySelect]);
 
+  // Auto-refresh company folders list when F3 modal opens
+  useEffect(() => {
+    if (showCompanySelect) {
+      companyDataFolderService.scanCompanyFolders().then(scanned => {
+        if (scanned && scanned.length > 0) {
+          setCompanies(prev => {
+            const updated = [...prev];
+            let changed = false;
+            for (const sc of scanned) {
+              const existingIdx = updated.findIndex(u =>
+                String(u.companyCode || '').toUpperCase() === sc.companyCode.toUpperCase() ||
+                (u.name && sc.company?.name && u.name.toLowerCase().trim() === sc.company.name.toLowerCase().trim())
+              );
+              if (existingIdx >= 0) {
+                updated[existingIdx] = { ...updated[existingIdx], ...sc.company, companyCode: sc.companyCode, code: sc.companyCode };
+              } else {
+                changed = true;
+                updated.push({ ...sc.company, id: sc.company.id || (parseInt(sc.companyCode, 10) - 10000 + 4), companyCode: sc.companyCode, code: sc.companyCode });
+              }
+            }
+            return changed ? [...updated] : updated;
+          });
+        }
+      }).catch(() => {});
+    }
+  }, [showCompanySelect]);
+
   useEffect(() => {
     if (screen==='GATEWAY_MAIN') setSelectedIdx(1);
     else if (['MASTER_MENU','ALTER_MENU'].includes(screen)) setSelectedIdx(2);
@@ -4586,8 +4691,17 @@ export default function App() {
 
   if (!isMounted) return <div style={{background:'#1e2d3d', height:'100vh'}} />;
 
-  // OFFLINE LICENSE GUARD (Enforce License Activation for Offline Desktop Use)
-  if (offlineGuardBlocked) {
+  // OFFLINE LICENSE GUARD (Only enforce for remote web clients if license is missing)
+  const isLocalOfflineDesktop = typeof window !== 'undefined' && (
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === 'localhost' ||
+    window.location.port === '45454' ||
+    window.location.search.includes('desktop=1') ||
+    window.location.search.includes('lan_client=1') ||
+    offlineSyncService.isDesktopEnvironment()
+  );
+
+  if (offlineGuardBlocked && !isLocalOfflineDesktop) {
     return <OfflineLicenseGuard guardResult={offlineGuardBlocked} onActivated={() => { setOfflineGuardBlocked(null); window.location.reload(); }} />;
   }
 

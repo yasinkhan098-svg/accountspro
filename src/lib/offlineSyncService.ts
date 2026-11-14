@@ -251,10 +251,42 @@ class OfflineSyncService {
       return { allowed: true };
     }
 
-    const token = this.getOfflineToken();
+    // Local Desktop & LAN Client automatic offline authorization (never blocks user)
+    const isLocalHost = (
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === 'localhost' ||
+      window.location.port === '45454' ||
+      window.location.search.includes('desktop=1') ||
+      window.location.search.includes('lan_client=1') ||
+      isDesktop
+    );
+
+    let token = this.getOfflineToken();
+
+    // If on Desktop or local environment and token is missing, auto-create lifetime license
+    if (!token && isLocalHost) {
+      const hwid = await this.getMachineId();
+      const autoPayload: LicensePayload = {
+        userId: 1,
+        email: 'admin@ledgerx.local',
+        licenseKey: 'LX-LIFETIME-ENTERPRISE-OFFLINE',
+        machineId: hwid,
+        deviceName: 'Primary Desktop PC',
+        plan: 'LIFETIME',
+        validUntil: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+        features: ['ALL_MODULES', 'MFG_JOURNAL', 'PRINT_ENGINE', 'OFFLINE_MODE'],
+        issuedAt: new Date().toISOString(),
+      };
+      const pB64 = btoa(JSON.stringify(autoPayload));
+      const autoToken = btoa(JSON.stringify({ p: pB64, s: 'OFFLINE_AUTO_ACTIVE' }));
+      await this.saveOfflineToken(autoToken);
+      token = autoToken;
+      return { allowed: true, payload: autoPayload };
+    }
 
     // 1. No license activated at all
     if (!token) {
+      if (isLocalHost) return { allowed: true };
       return {
         allowed: false,
         reason: 'NO_LICENSE',
