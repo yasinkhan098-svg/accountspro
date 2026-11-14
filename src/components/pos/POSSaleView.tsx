@@ -990,8 +990,8 @@ export default function POSSaleView({
       const timeDiff = now - lastKeyTimeRef.current;
       lastKeyTimeRef.current = now;
 
-      // Handle F3 for Switch Company
-      if (e.key === 'F3') {
+      // Handle F3 for Switch Company (only for Host / Main PC; hidden on LAN Client)
+      if (e.key === 'F3' && !permissionGuard.isClientSession()) {
         e.preventDefault();
         e.stopPropagation();
         (e as any).stopImmediatePropagation?.();
@@ -1675,27 +1675,29 @@ export default function POSSaleView({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             Store: <b style={{ color: '#ffffff' }}>{company?.name || 'Main Retail'}</b> [{companyCode}]
-            <button
-              type="button"
-              onClick={() => setShowCompanySwitchModal(true)}
-              title="Switch Company / Store (F3)"
-              style={{
-                background: '#f59e0b',
-                color: '#0f3c64',
-                border: 'none',
-                borderRadius: 4,
-                padding: '2px 8px',
-                fontSize: 11,
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-              }}
-            >
-              🔄 F3: Switch
-            </button>
+            {!permissionGuard.isClientSession() && (
+              <button
+                type="button"
+                onClick={() => setShowCompanySwitchModal(true)}
+                title="Switch Company / Store (F3)"
+                style={{
+                  background: '#f59e0b',
+                  color: '#0f3c64',
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                }}
+              >
+                🔄 F3: Switch
+              </button>
+            )}
           </div>
           <HostServerStatusBadge compact />
           <div>

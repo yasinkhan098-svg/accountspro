@@ -797,7 +797,7 @@ export default function PurchasePOSListView({
   // Global keyboard shortcuts (Ctrl+S, F3 & Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F3') {
+      if (e.key === 'F3' && !permissionGuard.isClientSession()) {
         e.preventDefault();
         e.stopPropagation();
         (e as any).stopImmediatePropagation?.();
@@ -1016,27 +1016,29 @@ export default function PurchasePOSListView({
             </h1>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span>Company: <b style={{ color: '#38bdf8' }}>{company?.name || 'Aiman Polymers'}</b> | Code: <b>{companyCode}</b></span>
-              <button
-                type="button"
-                onClick={() => setShowCompanySwitchModal(true)}
-                title="Switch Company (F3)"
-                style={{
-                  background: '#f59e0b',
-                  color: '#0f3c64',
-                  border: 'none',
-                  borderRadius: 4,
-                  padding: '2px 8px',
-                  fontSize: 11,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                }}
-              >
-                🔄 F3: Switch
-              </button>
+              {!permissionGuard.isClientSession() && (
+                <button
+                  type="button"
+                  onClick={() => setShowCompanySwitchModal(true)}
+                  title="Switch Company (F3)"
+                  style={{
+                    background: '#f59e0b',
+                    color: '#0f3c64',
+                    border: 'none',
+                    borderRadius: 4,
+                    padding: '2px 8px',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  🔄 F3: Switch
+                </button>
+              )}
               <span>| Status: {saveStatus === 'saved' ? <b style={{ color: '#4ade80' }}>✓ Saved (DB & Local Storage)</b> : (saveStatus === 'saving' ? <b style={{ color: '#facc15' }}>Saving...</b> : <span style={{ color: '#cbd5e1' }}>Online & Offline Synced</span>)}</span>
             </div>
           </div>

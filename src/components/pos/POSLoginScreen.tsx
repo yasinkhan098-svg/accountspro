@@ -99,7 +99,14 @@ export default function POSLoginScreen({
             });
           }
 
-          setCompaniesList(dedupedList);
+          setCompaniesList(prev => {
+            const prevKeys = prev.map(p => `${p.companyCode || p.code}:${p.name}`).join('|');
+            const newKeys = dedupedList.map(p => `${p.companyCode || p.code}:${p.name}`).join('|');
+            if (prevKeys !== newKeys) {
+              return dedupedList;
+            }
+            return prev;
+          });
 
           if (dedupedList.length > 0) {
             setSelectedCode(curr => {
@@ -163,13 +170,9 @@ export default function POSLoginScreen({
               if (!cashierIdRef.current) {
                 setCashierId(defaultUser.username);
               }
-              if (!passwordRef.current) {
-                setPassword('');
-                setActiveField('password');
-              }
+              // Never wipe password while user is on the screen - keeps entered password intact!
             } else {
               if (!cashierIdRef.current) setCashierId('');
-              if (!passwordRef.current) setPassword('');
             }
           }
         }
@@ -191,7 +194,7 @@ export default function POSLoginScreen({
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [selectedCode, activeTargetCompany?.name, activeTargetCompany?.companyCode]);
+  }, [selectedCode]);
 
   // Handle hardware keyboard
   useEffect(() => {
@@ -1118,6 +1121,12 @@ export default function POSLoginScreen({
                 onChange={e => setCashierId(e.target.value)}
                 onFocus={() => setActiveField('cashierId')}
                 placeholder="Enter Cashier ID (e.g. admin)"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                data-lpignore="true"
+                data-form-type="other"
                 style={{
                   width: '100%',
                   padding: '9px 12px',
@@ -1152,6 +1161,12 @@ export default function POSLoginScreen({
                   onChange={e => setPassword(e.target.value)}
                   onFocus={() => setActiveField('password')}
                   placeholder="••••••••"
+                  autoComplete="new-password"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  data-lpignore="true"
+                  data-form-type="other"
                   style={{
                     flex: 1,
                     padding: '9px 12px',
