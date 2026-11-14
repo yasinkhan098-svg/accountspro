@@ -194,12 +194,11 @@ class LANUserManagementService {
       } catch (_) { }
     }
 
-    // 3. If we got fresh data from server/bridge, use it as AUTHORITATIVE source
-    const isClient = permissionGuard.isClientSession();
-    const localCached = isClient ? [] : this.loadFromLocalStorage(code);
+    // 3. If we got fresh data from server/bridge, use it as AUTHORITATIVE source AND cache locally
+    const localCached = this.loadFromLocalStorage(code);
     const memCached = this.companyUsersCache.get(code) || [];
 
-    // Build merged map: fresh server data wins 100%; fallback to cache only if offline/empty on Main PC
+    // Build merged map: fresh server data wins 100%; fallback to cache if server is offline or unreachable
     const mergedMap = new Map<string, LANUser>();
 
     if (freshServerUsers.length > 0) {
@@ -209,8 +208,8 @@ class LANUserManagementService {
           mergedMap.set(key, { ...u, assignedCompanyCodes: u.assignedCompanyCodes?.length ? u.assignedCompanyCodes : [code] });
         }
       }
-    } else if (!isClient) {
-      // Offline fallback only for Main PC
+    } else {
+      // Offline fallback: load cached users from localStorage/memory
       for (const u of [...localCached, ...memCached]) {
         if (u && u.username) {
           const key = u.username.trim().toLowerCase();
@@ -261,9 +260,8 @@ class LANUserManagementService {
 
     const finalList = Array.from(companyScopedMap.values());
     this.companyUsersCache.set(code, finalList);
-    // IMPORTANT: Only save to localStorage if we have fresh server data and NOT in client session
-    // This prevents stale localStorage from persisting bad cached users on client terminals
-    if (freshServerUsers.length > 0 && !isClient) {
+    // Save to local cache so Client or Host can continue working seamlessly in 100% Offline Mode
+    if (freshServerUsers.length > 0) {
       this.saveToLocalStorage(code, finalList);
     }
 

@@ -34,6 +34,11 @@ export default function POSLoginScreen({
 
   const cashierInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
+  const isFirstUserInitDone = useRef(false);
+  const passwordRef = useRef('');
+  passwordRef.current = password;
+  const cashierIdRef = useRef('');
+  cashierIdRef.current = cashierId;
 
   const [companiesList, setCompaniesList] = useState<any[]>(() => {
     return availableCompanies && availableCompanies.length > 0 ? availableCompanies : [];
@@ -41,7 +46,14 @@ export default function POSLoginScreen({
 
   useEffect(() => {
     if (availableCompanies && availableCompanies.length > 0) {
-      setCompaniesList(availableCompanies);
+      setCompaniesList(prev => {
+        const prevCodes = prev.map(p => String(p.companyCode || p.code || '')).sort().join(',');
+        const nextCodes = availableCompanies.map(p => String(p.companyCode || p.code || '')).sort().join(',');
+        if (prevCodes !== nextCodes || prev.length !== availableCompanies.length) {
+          return availableCompanies;
+        }
+        return prev;
+      });
     }
   }, [availableCompanies]);
 
@@ -144,15 +156,20 @@ export default function POSLoginScreen({
             return prev;
           });
 
-          if (isInitial) {
+          if (isInitial && !isFirstUserInitDone.current) {
+            isFirstUserInitDone.current = true;
             if (validList.length > 0) {
               const defaultUser = validList.find(u => !u.isAdmin) || validList[0];
-              setCashierId(defaultUser.username);
-              setPassword('');
-              setActiveField('password');
+              if (!cashierIdRef.current) {
+                setCashierId(defaultUser.username);
+              }
+              if (!passwordRef.current) {
+                setPassword('');
+                setActiveField('password');
+              }
             } else {
-              setCashierId('');
-              setPassword('');
+              if (!cashierIdRef.current) setCashierId('');
+              if (!passwordRef.current) setPassword('');
             }
           }
         }
@@ -174,7 +191,7 @@ export default function POSLoginScreen({
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [selectedCode, activeTargetCompany]);
+  }, [selectedCode, activeTargetCompany?.name, activeTargetCompany?.companyCode]);
 
   // Handle hardware keyboard
   useEffect(() => {
@@ -1032,6 +1049,7 @@ export default function POSLoginScreen({
                   value={selectedCode}
                   onChange={(e) => {
                     const newCode = e.target.value.toUpperCase().trim();
+                    isFirstUserInitDone.current = false;
                     setSelectedCode(newCode);
                     const targetCo = companiesList.find(c => {
                       const cCode = companyDataFolderService.getCompanyFolderCode(c, companiesList);

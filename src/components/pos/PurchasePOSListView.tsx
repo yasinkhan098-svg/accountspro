@@ -81,7 +81,7 @@ export default function PurchasePOSListView({
           }));
           setModalCompanies(list);
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [showCompanySwitchModal]);
   const [isSaving, setIsSaving] = useState(false);

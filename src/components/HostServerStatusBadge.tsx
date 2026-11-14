@@ -1,6 +1,8 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
 import { lanUserManagementService, HostLANInfo } from '@/lib/lanUserManagementService';
+import { permissionGuard } from '@/lib/permissionGuard';
+import { offlineSyncService } from '@/lib/offlineSyncService';
 
 interface HostServerStatusBadgeProps {
   className?: string;
@@ -16,6 +18,9 @@ export default function HostServerStatusBadge({
   const [showModal, setShowModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pingMs, setPingMs] = useState<number | null>(null);
+
+  const isClient = typeof window !== 'undefined' ? permissionGuard.isClientSession() : false;
+  const isDesktopHost = typeof window !== 'undefined' ? (offlineSyncService.isDesktopEnvironment() && !isClient) : false;
 
   const checkConnection = useCallback(async () => {
     const t0 = performance.now();
@@ -58,13 +63,31 @@ export default function HostServerStatusBadge({
   const primaryIp = hostInfo?.localIps?.[0] || '192.168.240.48';
   const serverName = hostInfo?.hostName || 'Accounts-PC';
 
+  // Determine Badge visual status:
+  // - Host PC: Always green (it is the Host!)
+  // - Client PC connected: Green
+  // - Client PC offline: Amber (Offline mode active, sales enabled!)
+  const badgeColor = isDesktopHost
+    ? '#10b981'
+    : (isConnected ? '#10b981' : '#f59e0b');
+
+  const badgeBg = isDesktopHost
+    ? 'linear-gradient(180deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.35) 100%)'
+    : (isConnected
+      ? 'linear-gradient(180deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.35) 100%)'
+      : 'linear-gradient(180deg, rgba(245, 158, 11, 0.25) 0%, rgba(217, 119, 6, 0.35) 100%)');
+
+  const badgeBorder = isDesktopHost
+    ? '#34d399'
+    : (isConnected ? '#34d399' : '#fbbf24');
+
   return (
     <>
       {/* 1. VISIBLE LIVE BADGE */}
       <div
         onClick={() => setShowModal(true)}
         role="button"
-        title="Click to view Host Accounting Server status & network details"
+        title={isDesktopHost ? "Main Host PC (Local Data Server)" : (isConnected ? "Connected to Host PC" : "Operating in Offline POS Mode")}
         style={{
           cursor: 'pointer',
           display: 'inline-flex',
@@ -72,13 +95,11 @@ export default function HostServerStatusBadge({
           gap: 6,
           padding: compact ? '2px 8px' : '4px 12px',
           borderRadius: 20,
-          background: isConnected
-            ? 'linear-gradient(180deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.35) 100%)'
-            : 'linear-gradient(180deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.35) 100%)',
-          border: `1px solid ${isConnected ? '#34d399' : '#f87171'}`,
-          boxShadow: isConnected
+          background: badgeBg,
+          border: `1px solid ${badgeBorder}`,
+          boxShadow: isConnected || isDesktopHost
             ? '0 0 10px rgba(16, 185, 129, 0.35)'
-            : '0 0 8px rgba(239, 68, 68, 0.3)',
+            : '0 0 8px rgba(245, 158, 11, 0.3)',
           color: '#ffffff',
           fontSize: compact ? 11 : 12,
           fontWeight: 700,
@@ -92,24 +113,29 @@ export default function HostServerStatusBadge({
             width: 8,
             height: 8,
             borderRadius: '50%',
-            background: isConnected ? '#10b981' : '#ef4444',
-            boxShadow: isConnected ? '0 0 8px #10b981' : '0 0 8px #ef4444',
+            background: badgeColor,
+            boxShadow: `0 0 8px ${badgeColor}`,
             display: 'inline-block',
           }}
         />
         <span style={{ letterSpacing: 0.2 }}>
-          {isConnected ? (
+          {isDesktopHost ? (
+            <>
+              <b>Host Server:</b> {isConnected ? 'Active' : 'Local Mode'}{' '}
+              <span style={{ opacity: 0.85, fontSize: 10 }}>({primaryIp})</span>
+            </>
+          ) : isConnected ? (
             <>
               <b>Server:</b> {serverName}{' '}
               <span style={{ opacity: 0.85, fontSize: 10 }}>({primaryIp})</span>
             </>
           ) : (
             <>
-              <b>Server:</b> <span style={{ color: '#fca5a5' }}>Searching LAN...</span>
+              <b>Terminal:</b> <span style={{ color: '#fde68a' }}>Offline Mode Active</span>
             </>
           )}
         </span>
-        {pingMs !== null && isConnected && (
+        {pingMs !== null && (isConnected || isDesktopHost) && (
           <span
             style={{
               fontSize: 9,
@@ -171,10 +197,10 @@ export default function HostServerStatusBadge({
                 <span style={{ fontSize: 24 }}>📡</span>
                 <div>
                   <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#f1f5f9' }}>
-                    Main Host Accounting Server
+                    {isDesktopHost ? 'Main Accounting Host Computer' : 'LAN Client Terminal Connection'}
                   </h3>
                   <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
-                    Dynamic DHCP LAN Auto-Discovery & Live Connection Status
+                    {isDesktopHost ? 'Primary Host Server & Local Data Store' : 'Dynamic LAN Auto-Discovery & Offline Resilience'}
                   </p>
                 </div>
               </div>
@@ -198,8 +224,10 @@ export default function HostServerStatusBadge({
             {/* Connection Banner */}
             <div
               style={{
-                background: isConnected ? '#064e3b' : '#7f1d1d',
-                border: `1px solid ${isConnected ? '#059669' : '#b91c1c'}`,
+                background: isDesktopHost
+                  ? '#064e3b'
+                  : (isConnected ? '#064e3b' : '#78350f'),
+                border: `1px solid ${isDesktopHost ? '#059669' : (isConnected ? '#059669' : '#d97706')}`,
                 borderRadius: 8,
                 padding: '12px 14px',
                 marginBottom: 18,
@@ -208,17 +236,21 @@ export default function HostServerStatusBadge({
                 gap: 12,
               }}
             >
-              <span style={{ fontSize: 28 }}>{isConnected ? '🟢' : '🔴'}</span>
+              <span style={{ fontSize: 28 }}>{isDesktopHost || isConnected ? '🟢' : '🟡'}</span>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#ffffff' }}>
-                  {isConnected
-                    ? 'CONNECTED TO MAIN HOST COMPUTER'
-                    : 'HOST COMPUTER NOT FOUND / SEARCHING'}
+                  {isDesktopHost
+                    ? 'MAIN HOST COMPUTER ACTIVE (DATA ROOT)'
+                    : (isConnected
+                      ? 'CONNECTED TO MAIN HOST COMPUTER'
+                      : 'OFFLINE POS TERMINAL ACTIVE (SALES ENABLED)')}
                 </div>
                 <div style={{ fontSize: 11, color: '#e2e8f0', marginTop: 2 }}>
-                  {isConnected
-                    ? 'This client is live and synchronized. Every voucher, sale, item, and user action is saved directly to the Host PC disk.'
-                    : 'Client is broadcasting on UDP port 45455 & scanning subnet port 45454. Ensure LedgerX Desktop is running on the main PC.'}
+                  {isDesktopHost
+                    ? 'This computer is the Main Accounting Host. All company folders (data/) are stored directly on this machine.'
+                    : (isConnected
+                      ? 'This client is live and synchronized. Every voucher, sale, item, and user action is saved directly to the Host PC disk.'
+                      : 'Host PC is temporarily offline or disconnected. All sales, barcodes, and bills work normally in 100% Offline Mode and will auto-sync when connection is restored.')}
                 </div>
               </div>
             </div>

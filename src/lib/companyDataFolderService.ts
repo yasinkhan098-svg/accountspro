@@ -488,9 +488,7 @@ class CompanyDataFolderService {
           }
         }
 
-        if (!permissionGuard.isClientSession()) {
-          this.saveToLocalCache(code, cleanData);
-        }
+        this.saveToLocalCache(code, cleanData);
         return true;
       } catch (e) { }
     }
@@ -503,17 +501,13 @@ class CompanyDataFolderService {
         body: JSON.stringify(cleanData),
       });
       if (res.ok) {
-        if (!permissionGuard.isClientSession()) {
-          this.saveToLocalCache(code, cleanData);
-        }
+        this.saveToLocalCache(code, cleanData);
         return true;
       }
     } catch (e) { }
 
-    // 4. Client-side LocalStorage cache (always available fallback for main host offline only)
-    if (!permissionGuard.isClientSession()) {
-      this.saveToLocalCache(code, cleanData);
-    }
+    // 4. Client-side LocalStorage cache (always available fallback for seamless offline operation)
+    this.saveToLocalCache(code, cleanData);
     return true;
   }
 
@@ -784,7 +778,7 @@ class CompanyDataFolderService {
         const data = await (window as any).desktopBridge.loadCompanyFolder(code);
         if (data && data.company) {
           const norm = this.normalizeFolderData(code, data);
-          if (!isClient) this.saveToLocalCache(code, norm);
+          this.saveToLocalCache(code, norm);
           return norm;
         }
       } catch (e) { }
@@ -801,7 +795,7 @@ class CompanyDataFolderService {
           const data = await res.json();
           if (data && data.company) {
             const norm = this.normalizeFolderData(code, data);
-            if (!isClient) this.saveToLocalCache(code, norm);
+            this.saveToLocalCache(code, norm);
             return norm;
           }
         }
@@ -817,18 +811,15 @@ class CompanyDataFolderService {
         const data = await res.json();
         if (data && data.company) {
           const norm = this.normalizeFolderData(code, data);
-          if (!isClient) this.saveToLocalCache(code, norm);
+          this.saveToLocalCache(code, norm);
           return norm;
         }
       }
     } catch (e) { }
 
-    // 4. LocalStorage cache fallback (Disabled for client session - guarantees pure shared folder live data)
-    if (!isClient) {
-      const cached = this.loadFromLocalCache(code);
-      return cached ? this.normalizeFolderData(code, cached) : null;
-    }
-    return null;
+    // 4. LocalStorage cache fallback (always available fallback for seamless 100% offline continuity)
+    const cached = this.loadFromLocalCache(code);
+    return cached ? this.normalizeFolderData(code, cached) : null;
   }
 
   /**
@@ -894,15 +885,13 @@ class CompanyDataFolderService {
       } catch (e) { }
     }
 
-    // 4. Merge with LocalStorage index (ONLY for standalone main PC, NEVER in client session)
-    if (!permissionGuard.isClientSession()) {
-      const cachedCodes = this.getAllCachedCodes();
-      for (const code of cachedCodes) {
-        if (!scanned.some(s => s.companyCode.toUpperCase() === code.toUpperCase())) {
-          const cached = this.loadFromLocalCache(code);
-          if (cached && cached.company) {
-            scanned.push({ companyCode: code, company: cached.company });
-          }
+    // 4. Merge with LocalStorage index (fallback when offline or bridge is unavailable)
+    const cachedCodes = this.getAllCachedCodes();
+    for (const code of cachedCodes) {
+      if (!scanned.some(s => s.companyCode.toUpperCase() === code.toUpperCase())) {
+        const cached = this.loadFromLocalCache(code);
+        if (cached && cached.company) {
+          scanned.push({ companyCode: code, company: cached.company });
         }
       }
     }

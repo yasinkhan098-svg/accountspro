@@ -241,6 +241,17 @@ class PermissionGuardService {
   public isClientSession(): boolean {
     if (typeof window === 'undefined') return false;
     const search = window.location.search;
+
+    // Explicit Main Host Desktop Parameter: Always Master Host
+    if (search.includes('desktop=1') || (typeof window !== 'undefined' && (window as any).desktopBridge?.isDesktopApp)) {
+      try {
+        sessionStorage.removeItem('ledgerx_is_lan_client');
+        sessionStorage.removeItem('ledgerx_is_online_client');
+        sessionStorage.removeItem('ledgerx_is_client_mode');
+      } catch (e) {}
+      return false;
+    }
+
     if (search.includes('lan_client=1') || search.includes('online_client=1') || search.includes('client_mode=1')) {
       try {
         sessionStorage.setItem('ledgerx_is_client_mode', '1');
