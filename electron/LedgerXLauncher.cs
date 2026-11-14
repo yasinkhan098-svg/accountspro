@@ -905,6 +905,48 @@ namespace LedgerXLauncher
                     return;
                 }
 
+                if (path == "/api/license/token" && req.HttpMethod == "GET")
+                {
+                    string tFile = Path.Combine(dataDir, "license.token");
+                    if (File.Exists(tFile))
+                    {
+                        string tok = File.ReadAllText(tFile, Encoding.UTF8).Trim();
+                        WriteJsonResponse(res, "{\"token\":\"" + tok.Replace("\"", "\\\"") + "\"}");
+                    }
+                    else
+                    {
+                        WriteJsonResponse(res, "{\"token\":\"\"}");
+                    }
+                    return;
+                }
+
+                if (path == "/api/license/token" && req.HttpMethod == "POST")
+                {
+                    Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;
+                    using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
+                    {
+                        string body = reader.ReadToEnd();
+                        string tok = "";
+                        int idx = body.IndexOf("\"token\":");
+                        if (idx >= 0)
+                        {
+                            int colon = body.IndexOf(":", idx);
+                            if (colon >= 0)
+                            {
+                                int q1 = body.IndexOf("\"", colon + 1);
+                                int q2 = q1 >= 0 ? body.IndexOf("\"", q1 + 1) : -1;
+                                if (q1 >= 0 && q2 > q1) tok = body.Substring(q1 + 1, q2 - (q1 + 1)).Trim();
+                            }
+                        }
+                        if (!string.IsNullOrEmpty(tok))
+                        {
+                            File.WriteAllText(Path.Combine(dataDir, "license.token"), tok, Encoding.UTF8);
+                        }
+                        WriteJsonResponse(res, "{\"success\":true}");
+                        return;
+                    }
+                }
+
                 if (path == "/api/companies" && req.HttpMethod == "POST")
                 {
                     Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;

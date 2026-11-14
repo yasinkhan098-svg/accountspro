@@ -858,33 +858,8 @@ export default function App() {
       }
     }
 
-    // Verify Desktop Offline License Guard
+    // Verify Desktop Offline License Guard (Strict Hardware & Expiry Verification - No Customer Bypass)
     const checkOfflineGuard = async () => {
-      const isLocalDesk = (
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname === 'localhost' ||
-        window.location.port === '45454' ||
-        window.location.search.includes('desktop=1') ||
-        window.location.search.includes('lan_client=1') ||
-        isDesktop
-      );
-      if (isLocalDesk) {
-        setOfflineGuardBlocked(null);
-        setIsAuthenticated(true);
-        if (!currentUser) {
-          const defaultAdmin = {
-            id: 1,
-            name: 'Administrator',
-            email: 'admin@ledgerx.local',
-            plan: 'LIFETIME',
-            isAdmin: true,
-          };
-          authClient.setSession('offline_active_session', defaultAdmin, 'offline_active_session');
-          setCurrentUser(defaultAdmin);
-        }
-        return;
-      }
-
       const guardResult = await offlineSyncService.verifyOfflineGuard();
       if (!guardResult.allowed) {
         setOfflineGuardBlocked(guardResult);
@@ -4691,17 +4666,8 @@ export default function App() {
 
   if (!isMounted) return <div style={{background:'#1e2d3d', height:'100vh'}} />;
 
-  // OFFLINE LICENSE GUARD (Only enforce for remote web clients if license is missing)
-  const isLocalOfflineDesktop = typeof window !== 'undefined' && (
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname === 'localhost' ||
-    window.location.port === '45454' ||
-    window.location.search.includes('desktop=1') ||
-    window.location.search.includes('lan_client=1') ||
-    offlineSyncService.isDesktopEnvironment()
-  );
-
-  if (offlineGuardBlocked && !isLocalOfflineDesktop) {
+  // OFFLINE LICENSE GUARD (Strict enforcement for all unlicensed desktop installations)
+  if (offlineGuardBlocked) {
     return <OfflineLicenseGuard guardResult={offlineGuardBlocked} onActivated={() => { setOfflineGuardBlocked(null); window.location.reload(); }} />;
   }
 

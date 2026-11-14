@@ -51,16 +51,30 @@ export default function OfflineLicenseGuard({ guardResult, onActivated }: Offlin
 
     try {
       const machineId = await offlineSyncService.getMachineId();
-      const res = await fetch('/api/license/activate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          licenseKey: licenseKey.trim().toUpperCase(),
-          machineId,
-          deviceName: 'Windows Desktop PC',
-        }),
-      });
+      const payload = {
+        email: email.trim().toLowerCase(),
+        licenseKey: licenseKey.trim().toUpperCase(),
+        machineId,
+        deviceName: 'Windows Desktop PC',
+      };
+
+      let res: Response;
+      try {
+        const targetUrl = (typeof window !== 'undefined' && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'))
+          ? 'https://www.ledgerxerp.com/api/license/activate'
+          : '/api/license/activate';
+        res = await fetch(targetUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch (cloudErr) {
+        res = await fetch('/api/license/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       const data = await res.json();
       if (!res.ok) {

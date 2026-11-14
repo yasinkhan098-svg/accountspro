@@ -205,6 +205,13 @@ class OfflineSyncService {
       if ((window as any).desktopBridge?.saveOfflineToken) {
         await (window as any).desktopBridge.saveOfflineToken(token);
       }
+      try {
+        await fetch('http://127.0.0.1:45454/api/license/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+      } catch (e) { }
       return true;
     } catch (e) {
       console.error('Failed to save offline token:', e);
@@ -233,10 +240,11 @@ class OfflineSyncService {
 
   /**
    * Evaluates if the current app is allowed to run offline.
-   * STRICT ENFORCEMENT & SEAMLESS PERSISTENCE:
+   * STRICT ENFORCEMENT & HARDWARE SECURITY:
    * 1. Browser online users are never blocked.
-   * 2. Once activated on Desktop PC, app remains 100% unlocked offline until subscription expiry!
-   * 3. Hardware fingerprint lock ensures token cannot be stolen to run on another PC.
+   * 2. LAN Client terminals connected to Host PC work under Host authorization.
+   * 3. Desktop PC Host MUST be activated with a genuine License Key.
+   * 4. Hardware fingerprint lock ensures token cannot be pirated to another PC.
    */
   public async verifyOfflineGuard(): Promise<OfflineGuardResult> {
     if (typeof window === 'undefined') {
@@ -251,42 +259,34 @@ class OfflineSyncService {
       return { allowed: true };
     }
 
-    // Local Desktop & LAN Client automatic offline authorization (never blocks user)
-    const isLocalHost = (
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname === 'localhost' ||
-      window.location.port === '45454' ||
-      window.location.search.includes('desktop=1') ||
+    // LAN Client terminals connected to licensed Host PC inherit authorization
+    if (
       window.location.search.includes('lan_client=1') ||
-      isDesktop
-    );
-
-    let token = this.getOfflineToken();
-
-    // If on Desktop or local environment and token is missing, auto-create lifetime license
-    if (!token && isLocalHost) {
-      const hwid = await this.getMachineId();
-      const autoPayload: LicensePayload = {
-        userId: 1,
-        email: 'admin@ledgerx.local',
-        licenseKey: 'LX-LIFETIME-ENTERPRISE-OFFLINE',
-        machineId: hwid,
-        deviceName: 'Primary Desktop PC',
-        plan: 'LIFETIME',
-        validUntil: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
-        features: ['ALL_MODULES', 'MFG_JOURNAL', 'PRINT_ENGINE', 'OFFLINE_MODE'],
-        issuedAt: new Date().toISOString(),
-      };
-      const pB64 = btoa(JSON.stringify(autoPayload));
-      const autoToken = btoa(JSON.stringify({ p: pB64, s: 'OFFLINE_AUTO_ACTIVE' }));
-      await this.saveOfflineToken(autoToken);
-      token = autoToken;
-      return { allowed: true, payload: autoPayload };
+      (typeof localStorage !== 'undefined' && localStorage.getItem('ledgerx_lan_client') === '1')
+    ) {
+      return { allowed: true };
     }
 
-    // 1. No license activated at all
+    // 1. Check local browser storage for license token
+    let token = this.getOfflineToken();
+
+    // 2. If token not in browser storage, attempt recovery from local disk license file via desktop bridge
+    if (!token && (isDesktop || window.location.port === '45454' || window.location.hostname === '127.0.0.1')) {
+      try {
+        const res = await fetch('http://127.0.0.1:45454/api/license/token');
+        if (res.ok) {
+          const d = await res.json();
+          if (d && d.token && d.token.trim()) {
+            localStorage.setItem(OFFLINE_TOKEN_KEY, d.token.trim());
+            localStorage.setItem('ledgerx_license_vault', d.token.trim());
+            token = d.token.trim();
+          }
+        }
+      } catch (e) { }
+    }
+
+    // 3. STRICT CHECK: No license token found -> Customer MUST activate! (NO BYPASS)
     if (!token) {
-      if (isLocalHost) return { allowed: true };
       return {
         allowed: false,
         reason: 'NO_LICENSE',
