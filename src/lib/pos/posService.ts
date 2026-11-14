@@ -577,19 +577,9 @@ export class POSService {
       },
     };
 
-    // 5. Deduct Quantities from Stock Items
-    const updatedStockItems = existingStockItems.map(si => {
-      const soldItem = items.find(it => it.itemId === si.id);
-      if (soldItem) {
-        const curQty = Number(si.openingQty) || 0;
-        const newQty = Math.max(0, Math.round((curQty - soldItem.qty) * 1000) / 1000);
-        return {
-          ...si,
-          openingQty: newQty,
-        };
-      }
-      return si;
-    });
+    // 5. Opening Stock (openingQty) is immutable and represents stock at beginning of financial year.
+    // Stock consumption is dynamically recorded and deducted via the Sales Voucher inventory entries.
+    const updatedStockItems = existingStockItems;
 
     // 6. Persist to Local Company Folder (data/<companyCode>/)
     try {

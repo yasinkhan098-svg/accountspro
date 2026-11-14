@@ -237,24 +237,39 @@ export default function POSSaleView({
 
   // Live stock calculator per item (Vouchers + Opening Qty)
   const getItemStock = useCallback((item: any): number => {
-    let stock = Number(item.openingQty) || Number(item.stock) || Number(item.openingStock) || 0;
+    let stock = Math.max(0, Number(item.openingQty !== undefined ? item.openingQty : (item.openingStock ?? item.stock ?? 0)));
+    const targetId = Number(item.id) || 0;
+    const targetName = (item.name || '').trim().toLowerCase();
+    const targetAlias = (item.alias || '').trim().toLowerCase();
+    const targetBarcode = (item.barcode || '').trim().toLowerCase();
+
     if (Array.isArray(vouchers)) {
       for (const v of vouchers) {
-        if (!v.inventoryEntries) continue;
+        if (!v || !v.inventoryEntries || !Array.isArray(v.inventoryEntries)) continue;
+        const vType = (v.type || '').trim().toLowerCase();
+
         for (const ie of v.inventoryEntries) {
-          const isMatch = ie.itemId === item.id ||
-            (ie.stockItemId && ie.stockItemId === item.id) ||
-            (ie.itemName && item.name && ie.itemName.trim().toLowerCase() === item.name.trim().toLowerCase());
+          const ieId = Number(ie.itemId || ie.stockItemId || ie.stockItem?.id) || 0;
+          const ieName = (ie.itemName || ie.stockItem?.name || '').trim().toLowerCase();
+
+          const isMatch = (ieId > 0 && targetId > 0 && ieId === targetId) ||
+            (ieName && targetName && ieName === targetName) ||
+            (ieName && targetAlias && ieName === targetAlias) ||
+            (ieName && targetBarcode && ieName === targetBarcode);
+
           if (isMatch) {
-            const q = Number(ie.qty) || 0;
-            if (v.type === 'Purchase' || v.type === 'Credit Note') {
+            const q = Math.abs(Number(ie.qty) || 0);
+            const isMfg = vType.includes('manufacturing');
+            const isMfgProd = isMfg && (ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production')));
+            const isMfgCons = isMfg && !isMfgProd;
+
+            const isInward = vType === 'purchase' || vType === 'credit note' || vType === 'sales return' || vType === 'receipt note' || isMfgProd;
+            const isOutward = vType === 'sales' || vType === 'pos sale' || vType === 'pos invoice' || vType === 'retail sale' || vType === 'debit note' || vType === 'purchase return' || isMfgCons;
+
+            if (isInward) {
               stock += q;
-            } else if (v.type === 'Sales' || v.type === 'Debit Note' || v.type === 'POS Sale') {
+            } else if (isOutward) {
               stock -= q;
-            } else if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') {
-              const isMfgProd = ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production'));
-              if (isMfgProd) stock += q;
-              else stock -= q;
             }
           }
         }

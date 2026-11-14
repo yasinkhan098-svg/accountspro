@@ -14253,34 +14253,57 @@ function ProfitLossView({
   const endDate  =currentPeriod?.end  ||'31.03.'+new Date().getFullYear();
 
   const openingStockValue = useMemo(()=>
-    stockItems.reduce((acc,it)=>acc+((it.openingQty||0)*(it.openingRate||0)),0)
+    stockItems.reduce((acc,it)=>acc+((Math.max(0, Number(it.openingQty)||0))*(Math.max(0, Number(it.openingRate)||0))),0)
   ,[stockItems]);
 
   const closingStockValue = useMemo(()=>{
     if (stockItems.length>0) {
       let totalVal=0;
       for (const it of stockItems) {
-        let qty=it.openingQty||0,totalCost=(it.openingQty||0)*(it.openingRate||0),totalInQty=it.openingQty||0;
+        const opQty = Math.max(0, Number(it.openingQty) || 0);
+        const opRate = Math.max(0, Number(it.openingRate) || 0);
+        let qty = opQty;
+        let totalCost = opQty * opRate;
+        let totalInQty = opQty;
+
         for (const v of vouchers) {
-          for (const ie of (v.inventoryEntries||[])) {
-            const matchItem = ie.itemId === it.id || (ie.stockItemId && ie.stockItemId === it.id) || (ie.itemName && ie.itemName.trim().toLowerCase() === it.name.trim().toLowerCase());
+          if (!v || !v.inventoryEntries) continue;
+          const vType = (v.type || '').trim().toLowerCase();
+
+          for (const ie of v.inventoryEntries) {
+            const ieId = Number(ie.itemId || ie.stockItemId || (ie as any).stockItem?.id) || 0;
+            const ieName = (ie.itemName || (ie as any).stockItem?.name || '').trim().toLowerCase();
+            const itName = (it.name || '').trim().toLowerCase();
+            const itAlias = ((it as any).alias || '').trim().toLowerCase();
+            const itBarcode = ((it as any).barcode || '').trim().toLowerCase();
+
+            const matchItem = 
+              (ieId > 0 && it.id > 0 && ieId === Number(it.id)) ||
+              (ieName && itName && ieName === itName) ||
+              (ieName && itAlias && ieName === itAlias) ||
+              (ieName && itBarcode && ieName === itBarcode);
+
             if (matchItem) {
-              if (v.type==='Purchase'||v.type==='Credit Note'){qty+=ie.qty||0;totalCost+=(ie.qty||0)*(ie.rate||0);totalInQty+=ie.qty||0;}
-              else if (v.type==='Sales'||v.type==='Debit Note'){qty-=ie.qty||0;}
-              else if (v.type==='Manufacturing Journal'||v.type==='Manufacturing'){
-                const isMfgProd = ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production'));
-                if (isMfgProd) {
-                  qty += ie.qty || 0;
-                  totalCost += (ie.qty || 0) * (ie.rate || 0);
-                  totalInQty += ie.qty || 0;
-                } else {
-                  qty -= ie.qty || 0; // Raw materials consumption reduces stock
-                }
+              const q = Math.abs(parseFloat(String(ie.qty || 0))) || 0;
+              const r = Math.max(0, parseFloat(String(ie.rate || 0))) || 0;
+              const isMfg = vType.includes('manufacturing');
+              const isMfgProd = isMfg && (ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production')));
+              const isMfgCons = isMfg && !isMfgProd;
+
+              const isInward = vType === 'purchase' || vType === 'credit note' || vType === 'sales return' || vType === 'receipt note' || vType === 'goods receipt' || isMfgProd;
+              const isOutward = vType === 'sales' || vType === 'pos sale' || vType === 'pos invoice' || vType === 'retail sale' || vType === 'debit note' || vType === 'purchase return' || vType === 'delivery note' || isMfgCons;
+
+              if (isInward) {
+                qty += q;
+                totalCost += q * r;
+                totalInQty += q;
+              } else if (isOutward) {
+                qty -= q;
               }
             }
           }
         }
-        totalVal+=Math.max(0,qty)*(totalInQty>0?totalCost/totalInQty:(it.openingRate||0));
+        totalVal += Math.max(0, qty) * (totalInQty > 0 ? totalCost / totalInQty : opRate);
       }
       return totalVal;
     }
@@ -16250,9 +16273,9 @@ function StockSummaryView({
     }>();
 
     for (const it of effectiveStockItems) {
-      const opQty = it.openingQty || 0;
-      const opRate = it.openingRate || 0;
-      const opVal = opQty * opRate;
+      const opQty = Math.max(0, Number(it.openingQty) || 0);
+      const opRate = Math.max(0, Number(it.openingRate) || 0);
+      const opVal = Math.max(0, Number((it as any).openingVal ?? (it as any).openingValue ?? 0)) || (opQty * opRate);
 
       let inQty = 0, inVal = 0;
       let outQty = 0, outVal = 0;
@@ -16260,32 +16283,44 @@ function StockSummaryView({
 
       for (const v of vouchers) {
         if (!v || !v.inventoryEntries) continue;
+        const vType = (v.type || '').trim().toLowerCase();
+
         for (const ie of v.inventoryEntries) {
+          const ieId = Number(ie.itemId || ie.stockItemId || (ie as any).stockItem?.id) || 0;
+          const ieName = (ie.itemName || (ie as any).stockItem?.name || '').trim().toLowerCase();
+          const itName = (it.name || '').trim().toLowerCase();
+          const itAlias = ((it as any).alias || '').trim().toLowerCase();
+          const itBarcode = ((it as any).barcode || '').trim().toLowerCase();
+
           const matchItem = 
-            (ie.itemId && it.id && Number(ie.itemId) === Number(it.id)) ||
-            (ie.stockItemId && it.id && Number(ie.stockItemId) === Number(it.id)) ||
-            (Boolean(ie.itemName && it.name && ie.itemName.trim().toLowerCase() === it.name.trim().toLowerCase()));
+            (ieId > 0 && it.id > 0 && ieId === Number(it.id)) ||
+            (ieName && itName && ieName === itName) ||
+            (ieName && itAlias && ieName === itAlias) ||
+            (ieName && itBarcode && ieName === itBarcode);
 
           if (matchItem) {
             const q = Math.abs(parseFloat(String(ie.qty || 0))) || 0;
             const r = Math.max(0, parseFloat(String(ie.rate || 0))) || 0;
-            const amt = Math.max(0, parseFloat(String(ie.amount || (q * r)))) || 0;
+            const amt = Math.max(0, parseFloat(String(ie.amount !== undefined ? ie.amount : (q * r)))) || 0;
 
-            const isMfg = v.type === 'Manufacturing Journal' || v.type === 'Manufacturing';
+            const isMfg = vType.includes('manufacturing');
             const isMfgProd = isMfg && (ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production')) || (!ie.entryType && it.under === 'Finished Goods'));
             const isMfgCons = isMfg && !isMfgProd;
 
-            const isInward = v.type === 'Purchase' || v.type === 'Credit Note' || isMfgProd;
-            const isOutward = v.type === 'Sales' || v.type === 'Debit Note' || isMfgCons;
+            // Inward: Purchase (F9), Credit Note (Sales return), Receipt Note, Goods Receipt, or Manufacturing Production
+            const isInward = vType === 'purchase' || vType === 'credit note' || vType === 'sales return' || vType === 'receipt note' || vType === 'goods receipt' || isMfgProd;
+
+            // Outward: Sales (F8), POS Sale, POS Invoice, Retail Sale, Debit Note (Purchase return), Delivery Note, or Manufacturing Consumption
+            const isOutward = vType === 'sales' || vType === 'pos sale' || vType === 'pos invoice' || vType === 'retail sale' || vType === 'debit note' || vType === 'purchase return' || vType === 'delivery note' || isMfgCons;
 
             if (isInward) {
               inQty += q;
               inVal += amt;
-              txns.push({ voucher: v, entry: { ...ie, qty: q, rate: r, amount: amt, entryType: isMfgProd ? 'Production' : ie.entryType } });
+              txns.push({ voucher: v, entry: { ...ie, qty: q, rate: r, amount: amt, entryType: isMfgProd ? 'Production' : (ie.entryType || 'Inward') } });
             } else if (isOutward) {
               outQty += q;
               outVal += amt;
-              txns.push({ voucher: v, entry: { ...ie, qty: q, rate: r, amount: amt, entryType: isMfgCons ? 'Consumption' : ie.entryType } });
+              txns.push({ voucher: v, entry: { ...ie, qty: q, rate: r, amount: amt, entryType: isMfgCons ? 'Consumption' : (ie.entryType || 'Outward') } });
             }
           }
         }
@@ -16294,11 +16329,14 @@ function StockSummaryView({
       // Sort transactions by date
       txns.sort((a,b)=>parseDate(a.voucher.date).getTime() - parseDate(b.voucher.date).getTime());
 
-      const clQty = opQty + inQty - outQty;
+      // 4 Core Columns: Opening Stock, Inwards, Outwards, Closing Stock
+      const clQty = Math.round((opQty + inQty - outQty) * 1000) / 1000;
       const totalAvailableQty = opQty + inQty;
       const totalAvailableVal = opVal + inVal;
-      const avgRate = totalAvailableQty > 0 ? (totalAvailableVal / totalAvailableQty) : (opRate > 0 ? opRate : (inQty > 0 ? inVal / inQty : 0));
-      const clVal = clQty * avgRate;
+      const avgRate = totalAvailableQty > 0 
+        ? (totalAvailableVal / totalAvailableQty) 
+        : (opRate > 0 ? opRate : (inQty > 0 && inVal > 0 ? inVal / inQty : (Number((it as any).purchasePrice || (it as any).mrp) || 0)));
+      const clVal = Math.round((clQty * avgRate) * 100) / 100;
 
       map.set(it.id, {
         item: it,
@@ -16717,11 +16755,12 @@ function StockSummaryView({
                   {(()=>{
                     let runningQty = movementData.opQty;
                     return movementData.transactions.map(({voucher: v, entry: ie}, i) => {
-                      const isMfg = v.type === 'Manufacturing Journal' || v.type === 'Manufacturing';
+                      const vType = (v.type || '').trim().toLowerCase();
+                      const isMfg = vType.includes('manufacturing');
                       const isMfgProd = isMfg && (ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production')));
                       const isMfgCons = isMfg && !isMfgProd;
-                      const isInward = v.type === 'Purchase' || v.type === 'Credit Note' || isMfgProd;
-                      const isOutward = v.type === 'Sales' || v.type === 'Debit Note' || isMfgCons;
+                      const isInward = vType === 'purchase' || vType === 'credit note' || vType === 'sales return' || vType === 'receipt note' || vType === 'goods receipt' || isMfgProd;
+                      const isOutward = vType === 'sales' || vType === 'pos sale' || vType === 'pos invoice' || vType === 'retail sale' || vType === 'debit note' || vType === 'purchase return' || vType === 'delivery note' || isMfgCons;
                       const q = ie.qty || 0;
                       if (isInward) runningQty += q;
                       else if (isOutward) runningQty -= q;

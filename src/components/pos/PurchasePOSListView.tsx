@@ -13,7 +13,9 @@ export interface POSPurchaseItem {
   newPurchasePrice: number;    // Latest purchase price with tax from recent Purchase vouchers
   expiryDate: string;          // DD/MM/YYYY
   cessPerc: number;            // CESS %
-  openingStock: number;        // Live stock available
+  openingStock: number;        // True opening stock
+  openingQty?: number;         // Initial opening stock
+  currentStock?: number;       // Live stock available
   barcode: string;             // Auto unique or scanned barcode
   mrp: number;                 // Maximum Retail Price
   discountPerc: number;        // Discount in %
@@ -212,23 +214,32 @@ export default function PurchasePOSListView({
 
       // C. Save to C# Launcher Bridge and Local Company Folder (both posPurchaseList AND stockItems!)
       try {
-        const convertedStockItems = stampedItems.map((it: any) => ({
-          id: it.id,
-          name: it.name,
-          companyId: companyId,
-          companyCode: companyCode,
-          barcode: it.barcode || '',
-          mrp: Number(it.mrp) || 0,
-          retailSalePrice: Number(it.retailSalePrice) || 0,
-          openingStock: Number(it.openingStock) || 0,
-          openingRate: Number(it.purchasePrice || it.newPurchasePrice) || 0,
-          unit: it.unit || 'Nos',
-          gstRate: Number(it.gstRate) || 18,
-          cessPerc: Number(it.cessPerc) || 0,
-          expiryDate: it.expiryDate || '',
-          variant: it.variant || '',
-          variants: it.variants || (it.variant ? [it.variant] : []),
-        }));
+        const convertedStockItems = stampedItems.map((it: any) => {
+          const originalSi = (stockItems || []).find((si: any) => si.id === it.id || (si.name && si.name.trim().toLowerCase() === (it.name || '').trim().toLowerCase()));
+          const trueOpeningQty = Math.max(0, Number(originalSi?.openingQty !== undefined ? originalSi.openingQty : (it.openingStock !== undefined ? it.openingStock : it.openingQty)) || 0);
+          const trueOpeningRate = Math.max(0, Number(originalSi?.openingRate !== undefined ? originalSi.openingRate : (it.purchasePrice || it.newPurchasePrice)) || 0);
+          return {
+            id: it.id,
+            name: it.name,
+            companyId: companyId,
+            companyCode: companyCode,
+            barcode: it.barcode || '',
+            mrp: Number(it.mrp) || 0,
+            retailSalePrice: Number(it.retailSalePrice) || 0,
+            rateInclTax: Number(it.retailSalePrice) || 0,
+            openingQty: trueOpeningQty,
+            openingStock: trueOpeningQty,
+            openingRate: trueOpeningRate,
+            openingValue: trueOpeningQty * trueOpeningRate,
+            unit: it.unit || 'Nos',
+            unitName: it.unit || 'Nos',
+            gstRate: Number(it.gstRate) || 18,
+            cessPerc: Number(it.cessPerc) || 0,
+            expiryDate: it.expiryDate || '',
+            variant: it.variant || '',
+            variants: it.variants || (it.variant ? [it.variant] : []),
+          };
+        });
 
         await companyDataFolderService.saveCompanyFolder({
           companyCode,
@@ -393,7 +404,9 @@ export default function PurchasePOSListView({
         newPurchasePrice,
         expiryDate: saved.expiryDate !== undefined ? saved.expiryDate : (si.expiryDate || ''),
         cessPerc: Number(saved.cessPerc !== undefined ? saved.cessPerc : (si.cessPerc || 0)),
-        openingStock: liveStock,
+        // openingStock holds true initial stock; currentStock holds dynamic live stock
+        openingStock: Math.max(0, Number(si.openingQty !== undefined ? si.openingQty : (saved.openingStock !== undefined ? saved.openingStock : 0))),
+        currentStock: liveStock,
         barcode,
         mrp: Math.round(mrp * 100) / 100,
         discountPerc: Math.round(discountPerc * 100) / 100,
@@ -493,30 +506,36 @@ export default function PurchasePOSListView({
           localStorage.setItem(storageKey, JSON.stringify(freshBuilt));
         }
         if (freshBuilt.length > 0 && onStockUpdated) {
-          const convertedStock = freshBuilt.map(b => ({
-            id: b.id,
-            companyId: companyId || companyCode,
-            companyCode: companyCode,
-            name: b.name,
-            alias: b.barcode || '',
-            partNumber: b.barcode || '',
-            barcode: b.barcode || '',
-            groupName: b.variant || 'Primary',
-            categoryName: 'Primary',
-            unit: b.unit || 'PCS',
-            unitName: b.unit || 'PCS',
-            gstRate: Number(b.gstRate || 18),
-            cessRate: Number(b.cessPerc || 0),
-            mrp: Number(b.mrp || 0),
-            retailSalePrice: Number(b.retailSalePrice || b.mrp || 0),
-            rateInclTax: Number(b.retailSalePrice || b.mrp || 0),
-            openingQty: Number(b.openingStock || 0),
-            openingRate: Number(b.purchasePrice || 0),
-            openingValue: Number(b.openingStock || 0) * Number(b.purchasePrice || 0),
-            variant: b.variant || '',
-            variants: b.variants || (b.variant ? [b.variant] : []),
-            expiryDate: b.expiryDate || '',
-          }));
+          const convertedStock = freshBuilt.map(b => {
+            const originalSi = folderStock.find((si: any) => si.id === b.id || (si.name && si.name.trim().toLowerCase() === (b.name || '').trim().toLowerCase()));
+            const trueOpeningQty = Math.max(0, Number(originalSi?.openingQty !== undefined ? originalSi.openingQty : (b.openingStock !== undefined ? b.openingStock : b.openingQty)) || 0);
+            const trueOpeningRate = Math.max(0, Number(originalSi?.openingRate !== undefined ? originalSi.openingRate : b.purchasePrice) || 0);
+            return {
+              id: b.id,
+              companyId: companyId || companyCode,
+              companyCode: companyCode,
+              name: b.name,
+              alias: b.barcode || '',
+              partNumber: b.barcode || '',
+              barcode: b.barcode || '',
+              groupName: b.variant || 'Primary',
+              categoryName: 'Primary',
+              unit: b.unit || 'PCS',
+              unitName: b.unit || 'PCS',
+              gstRate: Number(b.gstRate || 18),
+              cessRate: Number(b.cessPerc || 0),
+              mrp: Number(b.mrp || 0),
+              retailSalePrice: Number(b.retailSalePrice || b.mrp || 0),
+              rateInclTax: Number(b.retailSalePrice || b.mrp || 0),
+              openingQty: trueOpeningQty,
+              openingStock: trueOpeningQty,
+              openingRate: trueOpeningRate,
+              openingValue: trueOpeningQty * trueOpeningRate,
+              variant: b.variant || '',
+              variants: b.variants || (b.variant ? [b.variant] : []),
+              expiryDate: b.expiryDate || '',
+            };
+          });
           onStockUpdated(convertedStock);
         }
         return;
@@ -554,14 +573,16 @@ export default function PurchasePOSListView({
         const liveUnit = resolveUnitString(matchedSi);
         const liveStock = calculateLiveStock(matchedSi);
         const liveName = matchedSi.name || item.name;
+        const trueOpeningStock = Math.max(0, Number(matchedSi.openingQty !== undefined ? matchedSi.openingQty : matchedSi.openingStock) || 0);
 
-        if (item.unit !== liveUnit || item.openingStock !== liveStock || item.name !== liveName) {
+        if (item.unit !== liveUnit || item.openingStock !== trueOpeningStock || (item as any).currentStock !== liveStock || item.name !== liveName) {
           hasChanges = true;
           return {
             ...item,
             name: liveName,
             unit: liveUnit,
-            openingStock: liveStock,
+            openingStock: trueOpeningStock,
+            currentStock: liveStock,
           };
         }
         return item;

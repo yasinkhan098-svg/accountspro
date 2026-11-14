@@ -500,29 +500,42 @@ export function calculateDashboardAnalytics(
   let closingStockQty = 0;
 
   if (stockItems && stockItems.length > 0) {
-    openingStockVal = stockItems.reduce((acc, it) => acc + ((Number(it.openingQty) || 0) * (Number(it.openingRate) || 0)), 0);
+    openingStockVal = stockItems.reduce((acc, it) => acc + ((Math.max(0, Number(it.openingQty) || 0)) * (Math.max(0, Number(it.openingRate) || 0))), 0);
     for (const it of stockItems) {
-      let qty = Number(it.openingQty) || 0;
-      let totalCost = (Number(it.openingQty) || 0) * (Number(it.openingRate) || 0);
-      let totalInQty = Number(it.openingQty) || 0;
+      const opQty = Math.max(0, Number(it.openingQty) || 0);
+      const opRate = Math.max(0, Number(it.openingRate) || 0);
+      let qty = opQty;
+      let totalCost = opQty * opRate;
+      let totalInQty = opQty;
 
       for (const v of vouchers) {
+        if (!v || !v.inventoryEntries) continue;
+        const vType = (v.type || '').trim().toLowerCase();
+
         for (const ie of (v.inventoryEntries || [])) {
-          if (Number(ie.stockItemId || ie.itemId) === Number(it.id)) {
-            const q = Number(ie.qty) || 0;
-            const r = Number(ie.rate) || 0;
-            if (v.type === 'Purchase' || v.type === 'Credit Note') {
+          const ieId = Number(ie.itemId || ie.stockItemId || (ie as any).stockItem?.id) || 0;
+          const ieName = (ie.itemName || (ie as any).stockItem?.name || '').trim().toLowerCase();
+          const itName = (it.name || '').trim().toLowerCase();
+          const matchItem = (ieId > 0 && it.id > 0 && ieId === Number(it.id)) || (ieName && itName && ieName === itName);
+
+          if (matchItem) {
+            const q = Math.abs(Number(ie.qty) || 0);
+            const r = Math.max(0, Number(ie.rate) || 0);
+            const isInward = vType === 'purchase' || vType === 'credit note' || vType === 'sales return' || vType.includes('manufacturing');
+            const isOutward = vType === 'sales' || vType === 'pos sale' || vType === 'pos invoice' || vType === 'retail sale' || vType === 'debit note' || vType === 'purchase return';
+
+            if (isInward) {
               qty += q;
               totalCost += q * r;
               totalInQty += q;
-            } else if (v.type === 'Sales' || v.type === 'Debit Note') {
+            } else if (isOutward) {
               qty -= q;
             }
           }
         }
       }
       closingStockQty += Math.max(0, qty);
-      const avgRate = totalInQty > 0 ? totalCost / totalInQty : (Number(it.openingRate) || 0);
+      const avgRate = totalInQty > 0 ? totalCost / totalInQty : opRate;
       closingStockVal += Math.max(0, qty) * avgRate;
     }
   } else {

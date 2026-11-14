@@ -625,20 +625,8 @@ class POSTrainingService {
   }): Promise<{ success: boolean; voucher: any; updatedStock: any[] }> {
     const pkg = await this.getTrainingData();
 
-    // 1. Deduct stock from training stock items
-    const updatedStock = pkg.stockItems.map(item => {
-      const sold = params.items.find(
-        ci => ci.id === item.id || (ci.name && item.name && ci.name.trim().toLowerCase() === item.name.trim().toLowerCase())
-      );
-      if (sold) {
-        const currentQty = Number(item.openingQty) || 0;
-        return {
-          ...item,
-          openingQty: Math.max(0, currentQty - (Number(sold.qty) || 1)),
-        };
-      }
-      return item;
-    });
+    // 1. Training stock items: openingQty remains true opening stock
+    const updatedStock = pkg.stockItems;
 
     // 2. Deduct stock from training POS purchase list
     const updatedPOSList = (pkg.posPurchaseList || []).map(pi => {

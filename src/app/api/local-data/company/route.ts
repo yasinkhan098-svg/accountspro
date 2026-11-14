@@ -31,7 +31,8 @@ export async function GET(req: Request) {
       const p = path.join(folderPath, fileName);
       if (fs.existsSync(p)) {
         try {
-          return JSON.parse(fs.readFileSync(p, 'utf8'));
+          const raw = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').trim();
+          return raw ? JSON.parse(raw) : def;
         } catch (e) {
           return def;
         }
