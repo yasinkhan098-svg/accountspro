@@ -32,6 +32,7 @@ interface PurchasePOSListViewProps {
   vouchers: any[];
   onBack: () => void;
   onStockUpdated?: (updatedStock: any[]) => void;
+  onSwitchCompany?: (targetCompany: any) => void;
 }
 
 // Editable column sequence for Enter key navigation:
@@ -45,6 +46,7 @@ export default function PurchasePOSListView({
   vouchers = [],
   onBack,
   onStockUpdated,
+  onSwitchCompany,
 }: PurchasePOSListViewProps) {
   const currencySymbol = useMemo(() => {
     return company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
@@ -53,6 +55,35 @@ export default function PurchasePOSListView({
   const [items, setItems] = useState<POSPurchaseItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+
+  const [showCompanySwitchModal, setShowCompanySwitchModal] = useState(false);
+  const [modalCompanies, setModalCompanies] = useState<any[]>(availableCompanies || []);
+  const [switchSearchQuery, setSwitchSearchQuery] = useState('');
+  const [switchSelectedIdx, setSwitchSelectedIdx] = useState(0);
+
+  useEffect(() => {
+    if (availableCompanies && availableCompanies.length > 0) {
+      setModalCompanies(availableCompanies);
+    }
+  }, [availableCompanies]);
+
+  useEffect(() => {
+    if (showCompanySwitchModal) {
+      setSwitchSearchQuery('');
+      setSwitchSelectedIdx(0);
+      companyDataFolderService.scanCompanyFolders().then(scanned => {
+        if (scanned && scanned.length > 0) {
+          const list = scanned.map((s: any) => ({
+            ...s.company,
+            companyCode: s.companyCode,
+            name: s.company?.name || `Company ${s.companyCode}`,
+            id: s.company?.id || s.companyCode,
+          }));
+          setModalCompanies(list);
+        }
+      }).catch(() => {});
+    }
+  }, [showCompanySwitchModal]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty' | ''>('');
   const [printModalItem, setPrintModalItem] = useState<POSPurchaseItem | null>(null);
@@ -763,14 +794,25 @@ export default function PurchasePOSListView({
     setVariantModalItem(null);
   };
 
-  // Global keyboard shortcuts (Ctrl+S & Escape)
+  // Global keyboard shortcuts (Ctrl+S, F3 & Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F3') {
+        e.preventDefault();
+        e.stopPropagation();
+        (e as any).stopImmediatePropagation?.();
+        setShowCompanySwitchModal(true);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleManualSave();
       } else if (e.key === 'Escape') {
-        if (variantModalItem) {
+        if (showCompanySwitchModal) {
+          e.preventDefault();
+          e.stopPropagation();
+          setShowCompanySwitchModal(false);
+        } else if (variantModalItem) {
           e.preventDefault();
           e.stopPropagation();
           setVariantModalItem(null);
@@ -803,7 +845,7 @@ export default function PurchasePOSListView({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [items, variantModalItem, printModalItem, showBulkPrintModal, searchQuery, onBack]);
+  }, [items, variantModalItem, printModalItem, showBulkPrintModal, showCompanySwitchModal, searchQuery, onBack]);
 
   // Filter items
   const filteredItems = useMemo(() => {
@@ -972,9 +1014,30 @@ export default function PurchasePOSListView({
             <h1 className="pos-purchase-title-h1" style={{ margin: 0, fontSize: 18, fontWeight: 900, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>📋</span> Purchase POS List & Barcode Master
             </h1>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-              Company: <b style={{ color: '#38bdf8' }}>{company?.name || 'Aiman Polymers'}</b> | Code: <b>{companyCode}</b> |
-              Status: {saveStatus === 'saved' ? <b style={{ color: '#4ade80' }}>✓ Saved (DB & Local Storage)</b> : (saveStatus === 'saving' ? <b style={{ color: '#facc15' }}>Saving...</b> : <span style={{ color: '#cbd5e1' }}>Online & Offline Synced</span>)}
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>Company: <b style={{ color: '#38bdf8' }}>{company?.name || 'Aiman Polymers'}</b> | Code: <b>{companyCode}</b></span>
+              <button
+                type="button"
+                onClick={() => setShowCompanySwitchModal(true)}
+                title="Switch Company (F3)"
+                style={{
+                  background: '#f59e0b',
+                  color: '#0f3c64',
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                }}
+              >
+                🔄 F3: Switch
+              </button>
+              <span>| Status: {saveStatus === 'saved' ? <b style={{ color: '#4ade80' }}>✓ Saved (DB & Local Storage)</b> : (saveStatus === 'saving' ? <b style={{ color: '#facc15' }}>Saving...</b> : <span style={{ color: '#cbd5e1' }}>Online & Offline Synced</span>)}</span>
             </div>
           </div>
         </div>
@@ -1971,6 +2034,190 @@ export default function PurchasePOSListView({
                 style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#7c3aed', color: '#ffffff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
               >
                 🖨️ Generate & Print ({items.length} Labels)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: F3 Switch Company / Store ================= */}
+      {showCompanySwitchModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000000,
+            padding: 16,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCompanySwitchModal(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 10,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+              width: 520,
+              maxWidth: '95vw',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              border: '2px solid #0f3c64',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ background: '#0f3c64', color: '#ffffff', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: 900, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🏢</span> Switch Company (F3)
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCompanySwitchModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: 18, cursor: 'pointer', fontWeight: 900 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Filter Search Input */}
+            <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search company name or code..."
+                value={switchSearchQuery}
+                onChange={e => {
+                  setSwitchSearchQuery(e.target.value);
+                  setSwitchSelectedIdx(0);
+                }}
+                onKeyDown={e => {
+                  const filtered = modalCompanies.filter(c => {
+                    const q = switchSearchQuery.toLowerCase().trim();
+                    if (!q) return true;
+                    const name = (c.name || '').toLowerCase();
+                    const code = String(c.companyCode || c.code || '').toLowerCase();
+                    return name.includes(q) || code.includes(q);
+                  });
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSwitchSelectedIdx(prev => (prev + 1) % (filtered.length || 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSwitchSelectedIdx(prev => (prev - 1 + (filtered.length || 1)) % (filtered.length || 1));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const picked = filtered[switchSelectedIdx] || filtered[0];
+                    if (picked) {
+                      setShowCompanySwitchModal(false);
+                      onSwitchCompany?.(picked);
+                    }
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setShowCompanySwitchModal(false);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  border: '1.5px solid #0284c7',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            {/* Company List */}
+            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '55vh', padding: '6px 0' }}>
+              {(() => {
+                const filtered = modalCompanies.filter(c => {
+                  const q = switchSearchQuery.toLowerCase().trim();
+                  if (!q) return true;
+                  const name = (c.name || '').toLowerCase();
+                  const code = String(c.companyCode || c.code || '').toLowerCase();
+                  return name.includes(q) || code.includes(q);
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                      No companies match &quot;{switchSearchQuery}&quot;
+                    </div>
+                  );
+                }
+
+                return filtered.map((co, idx) => {
+                  const coCode = String(co.companyCode || co.code || '10000').toUpperCase().trim();
+                  const isCurrent = coCode === String(companyCode).toUpperCase().trim();
+                  const isSelected = idx === switchSelectedIdx;
+
+                  return (
+                    <div
+                      key={co.id || coCode || idx}
+                      onClick={() => {
+                        setShowCompanySwitchModal(false);
+                        onSwitchCompany?.(co);
+                      }}
+                      onMouseEnter={() => setSwitchSelectedIdx(idx)}
+                      style={{
+                        padding: '10px 18px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        background: isSelected ? '#e0f2fe' : (isCurrent ? '#f0fdf4' : 'transparent'),
+                        borderBottom: '1px solid #f1f5f9',
+                        transition: 'background 0.1s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 800, fontSize: 14, color: isCurrent ? '#166534' : '#0f172a' }}>
+                          {co.name || `Company ${coCode}`} {isCurrent && <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 900 }}>(Active)</span>}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                          Folder Code: <b style={{ color: '#0284c7' }}>{coCode}</b> {co.country ? `• ${co.country}` : ''}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, background: isCurrent ? '#22c55e' : '#0284c7', color: '#ffffff', padding: '3px 8px', borderRadius: 4, fontWeight: 800 }}>
+                          {isCurrent ? 'Current' : 'Select'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '10px 16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#64748b' }}>
+              <span>↑↓ Arrow keys to navigate • Enter to select • Esc to cancel</span>
+              <button
+                type="button"
+                onClick={() => setShowCompanySwitchModal(false)}
+                style={{
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 4,
+                  padding: '4px 12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  color: '#334155'
+                }}
+              >
+                Close (Esc)
               </button>
             </div>
           </div>

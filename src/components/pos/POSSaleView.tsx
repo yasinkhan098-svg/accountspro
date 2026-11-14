@@ -35,6 +35,7 @@ interface POSSaleViewProps {
   onStockUpdated?: (updatedStock: any[]) => void;
   onVouchersUpdated?: (updatedVouchers: any[]) => void;
   onOpenPurchasePOSList?: () => void;
+  onSwitchCompany?: (targetCompany: any) => void;
 }
 
 // AI Realistic Product Mockup Generator
@@ -55,6 +56,7 @@ export default function POSSaleView({
   onStockUpdated,
   onVouchersUpdated,
   onOpenPurchasePOSList,
+  onSwitchCompany,
 }: POSSaleViewProps) {
   const companyCode = company
     ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies)
@@ -123,6 +125,34 @@ export default function POSSaleView({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [showCompanySwitchModal, setShowCompanySwitchModal] = useState(false);
+  const [modalCompanies, setModalCompanies] = useState<any[]>(availableCompanies || []);
+  const [switchSearchQuery, setSwitchSearchQuery] = useState('');
+  const [switchSelectedIdx, setSwitchSelectedIdx] = useState(0);
+
+  useEffect(() => {
+    if (availableCompanies && availableCompanies.length > 0) {
+      setModalCompanies(availableCompanies);
+    }
+  }, [availableCompanies]);
+
+  useEffect(() => {
+    if (showCompanySwitchModal) {
+      setSwitchSearchQuery('');
+      setSwitchSelectedIdx(0);
+      companyDataFolderService.scanCompanyFolders().then(scanned => {
+        if (scanned && scanned.length > 0) {
+          const list = scanned.map((s: any) => ({
+            ...s.company,
+            companyCode: s.companyCode,
+            name: s.company?.name || `Company ${s.companyCode}`,
+            id: s.company?.id || s.companyCode,
+          }));
+          setModalCompanies(list);
+        }
+      }).catch(() => {});
+    }
+  }, [showCompanySwitchModal]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [rightViewMode, setRightViewMode] = useState<'SCANNED' | 'SALE_POS' | 'RUBIC_POS'>('SCANNED');
   const [scannedActiveItems, setScannedActiveItems] = useState<any[]>([]);
@@ -829,7 +859,13 @@ export default function POSSaleView({
   // Exits modals, sub-views, search bars, selections step-by-step.
   // NEVER kicks out to login screen directly until user explicitly confirms Log Out!
   const handleStepByStepEscape = useCallback(() => {
-    // Step 0: Is Item Image Manager Modal open?
+    // Step 0: Is Switch Company Modal open?
+    if (showCompanySwitchModal) {
+      setShowCompanySwitchModal(false);
+      return;
+    }
+
+    // Step 0B: Is Item Image Manager Modal open?
     if (managingImageItem) {
       setManagingImageItem(null);
       return;
@@ -948,11 +984,20 @@ export default function POSSaleView({
         return;
       }
 
-      if (showPaymentModal || showSecureModal || showReceiptModal || showCatalogModal) return;
+      if (showPaymentModal || showSecureModal || showReceiptModal || showCatalogModal || showCompanySwitchModal) return;
 
       const now = Date.now();
       const timeDiff = now - lastKeyTimeRef.current;
       lastKeyTimeRef.current = now;
+
+      // Handle F3 for Switch Company
+      if (e.key === 'F3') {
+        e.preventDefault();
+        e.stopPropagation();
+        (e as any).stopImmediatePropagation?.();
+        setShowCompanySwitchModal(true);
+        return;
+      }
 
       // Handle F12 or Ctrl+Enter for Quick Pay
       if (e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) {
@@ -981,7 +1026,7 @@ export default function POSSaleView({
 
     window.addEventListener('keydown', handleHardwareScan, true);
     return () => window.removeEventListener('keydown', handleHardwareScan, true);
-  }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal, handleStepByStepEscape, onBack]);
+  }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal, showCompanySwitchModal, handleStepByStepEscape, onBack]);
 
   // Process barcode lookup
   const handleProcessBarcode = (query: string) => {
@@ -1628,8 +1673,29 @@ export default function POSSaleView({
           <div>
             Cashier: <b style={{ color: '#ffffff' }}>{cashierName}</b>
           </div>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             Store: <b style={{ color: '#ffffff' }}>{company?.name || 'Main Retail'}</b> [{companyCode}]
+            <button
+              type="button"
+              onClick={() => setShowCompanySwitchModal(true)}
+              title="Switch Company / Store (F3)"
+              style={{
+                background: '#f59e0b',
+                color: '#0f3c64',
+                border: 'none',
+                borderRadius: 4,
+                padding: '2px 8px',
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+              }}
+            >
+              🔄 F3: Switch
+            </button>
           </div>
           <HostServerStatusBadge compact />
           <div>
@@ -3410,6 +3476,190 @@ export default function POSSaleView({
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: F3 Switch Company / Store ================= */}
+      {showCompanySwitchModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000000,
+            padding: 16,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCompanySwitchModal(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 10,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+              width: 520,
+              maxWidth: '95vw',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              border: '2px solid #0f3c64',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ background: '#0f3c64', color: '#ffffff', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: 900, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🏢</span> Switch Company / Store (F3)
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCompanySwitchModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: 18, cursor: 'pointer', fontWeight: 900 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Filter Search Input */}
+            <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search company name or code..."
+                value={switchSearchQuery}
+                onChange={e => {
+                  setSwitchSearchQuery(e.target.value);
+                  setSwitchSelectedIdx(0);
+                }}
+                onKeyDown={e => {
+                  const filtered = modalCompanies.filter(c => {
+                    const q = switchSearchQuery.toLowerCase().trim();
+                    if (!q) return true;
+                    const name = (c.name || '').toLowerCase();
+                    const code = String(c.companyCode || c.code || '').toLowerCase();
+                    return name.includes(q) || code.includes(q);
+                  });
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSwitchSelectedIdx(prev => (prev + 1) % (filtered.length || 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSwitchSelectedIdx(prev => (prev - 1 + (filtered.length || 1)) % (filtered.length || 1));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const picked = filtered[switchSelectedIdx] || filtered[0];
+                    if (picked) {
+                      setShowCompanySwitchModal(false);
+                      onSwitchCompany?.(picked);
+                    }
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setShowCompanySwitchModal(false);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  border: '1.5px solid #0284c7',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            {/* Company List */}
+            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '55vh', padding: '6px 0' }}>
+              {(() => {
+                const filtered = modalCompanies.filter(c => {
+                  const q = switchSearchQuery.toLowerCase().trim();
+                  if (!q) return true;
+                  const name = (c.name || '').toLowerCase();
+                  const code = String(c.companyCode || c.code || '').toLowerCase();
+                  return name.includes(q) || code.includes(q);
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                      No companies match &quot;{switchSearchQuery}&quot;
+                    </div>
+                  );
+                }
+
+                return filtered.map((co, idx) => {
+                  const coCode = String(co.companyCode || co.code || '10000').toUpperCase().trim();
+                  const isCurrent = coCode === String(companyCode).toUpperCase().trim();
+                  const isSelected = idx === switchSelectedIdx;
+
+                  return (
+                    <div
+                      key={co.id || coCode || idx}
+                      onClick={() => {
+                        setShowCompanySwitchModal(false);
+                        onSwitchCompany?.(co);
+                      }}
+                      onMouseEnter={() => setSwitchSelectedIdx(idx)}
+                      style={{
+                        padding: '10px 18px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        background: isSelected ? '#e0f2fe' : (isCurrent ? '#f0fdf4' : 'transparent'),
+                        borderBottom: '1px solid #f1f5f9',
+                        transition: 'background 0.1s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 800, fontSize: 14, color: isCurrent ? '#166534' : '#0f172a' }}>
+                          {co.name || `Company ${coCode}`} {isCurrent && <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 900 }}>(Active)</span>}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                          Folder Code: <b style={{ color: '#0284c7' }}>{coCode}</b> {co.country ? `• ${co.country}` : ''}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, background: isCurrent ? '#22c55e' : '#0284c7', color: '#ffffff', padding: '3px 8px', borderRadius: 4, fontWeight: 800 }}>
+                          {isCurrent ? 'Current' : 'Select'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '10px 16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#64748b' }}>
+              <span>↑↓ Arrow keys to navigate • Enter to select • Esc to cancel</span>
+              <button
+                type="button"
+                onClick={() => setShowCompanySwitchModal(false)}
+                style={{
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 4,
+                  padding: '4px 12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  color: '#334155'
+                }}
+              >
+                Close (Esc)
               </button>
             </div>
           </div>

@@ -2642,7 +2642,7 @@ export default function App() {
               companyDataFolderService.saveCompanyFolder({
                 companyCode: compCode,
                 company: activeCompany,
-                ledgers: nextLedgers,
+                ledgers: nextLedgers.filter(l => isCoMatch(l, activeCompany)),
               }).catch(() => {});
               return updated;
             } else {
@@ -2665,7 +2665,7 @@ export default function App() {
         companyDataFolderService.saveCompanyFolder({
           companyCode: compCode,
           company: activeCompany,
-          ledgers: nextLedgersOffline,
+          ledgers: nextLedgersOffline.filter(l => isCoMatch(l, activeCompany)),
         }).catch(() => {});
         offlineSyncService.enqueue({ type: 'LEDGER', action: 'UPDATE', data: updated, companyId: cid });
         if (!isInitializingRef.current) {
@@ -2868,7 +2868,7 @@ export default function App() {
             const res = await fetch('/api/companies', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ id: targetItem.id, ...data })
+              body: JSON.stringify({ id: targetItem.id, companyCode: compCode, code: compCode, ...data })
             });
             if (res.ok) {
               return true;
@@ -2914,7 +2914,7 @@ export default function App() {
               companyDataFolderService.saveCompanyFolder({
                 companyCode: compCode,
                 company: activeCompany,
-                ledgers: nextLedgers,
+                ledgers: nextLedgers.filter(l => isCoMatch(l, activeCompany)),
               }).catch(() => {});
               return resData.ledger;
             } else {
@@ -2937,7 +2937,7 @@ export default function App() {
         companyDataFolderService.saveCompanyFolder({
           companyCode: compCode,
           company: activeCompany,
-          ledgers: nextLedgersOffline,
+          ledgers: nextLedgersOffline.filter(l => isCoMatch(l, activeCompany)),
         }).catch(() => {});
         offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
         if (!isInitializingRef.current) {
@@ -3149,7 +3149,8 @@ export default function App() {
             if (res.ok && resData.company) {
               const newCo = resData.company;
               const nextCode = await companyDataFolderService.getNextCompanyCode(companies);
-              newCo.companyCode = newCo.companyCode || nextCode;
+              newCo.companyCode = resData.companyCode || newCo.companyCode || newCo.code || nextCode;
+              newCo.code = newCo.companyCode;
               const curSym = newCo.currencySymbol || newCo.baseCurrencySymbol || data.currencySymbol || data.baseCurrencySymbol || '₹';
               const curName = newCo.currencyName || newCo.formalName || data.currencyName || data.formalName || 'Indian Rupee';
               newCo.currencySymbol = curSym;
@@ -3362,7 +3363,7 @@ export default function App() {
     companyDataFolderService.saveCompanyFolder({
       companyCode: compCode,
       company: activeCompany,
-      vouchers: nextVouchers,
+      vouchers: nextVouchers.filter(v => isCoMatch(v, activeCompany)),
     }).catch(() => {});
     goBack();
   };
@@ -3468,7 +3469,7 @@ export default function App() {
           companyDataFolderService.saveCompanyFolder({
             companyCode: compCode,
             company: activeCompany,
-            vouchers: nextVouchers,
+            vouchers: nextVouchers.filter(v => isCoMatch(v, activeCompany)),
           }).catch(() => {});
           return savedV;
         }
@@ -3518,7 +3519,7 @@ export default function App() {
     companyDataFolderService.saveCompanyFolder({
       companyCode: compCode,
       company: activeCompany,
-      vouchers: nextOfflineVouchers,
+      vouchers: nextOfflineVouchers.filter(v => isCoMatch(v, activeCompany)),
     }).catch(() => {});
     setSaveToast("Saved locally on PC (Offline Mode • Will auto-sync online)");
     return newV;
@@ -7418,25 +7419,25 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               const pickedFormal = ((document.getElementById('c-formal') as HTMLInputElement)?.value || '').trim() || (COUNTRY_CURRENCY[coCountry]?.name) || 'Indian Rupee';
               const d = {
                 name,
-                mailingName: (document.getElementById('c-mail') as HTMLInputElement).value,
-                address: (document.getElementById('c-addr') as HTMLTextAreaElement).value,
-                state: (document.getElementById('c-state') as HTMLInputElement).value,
+                mailingName: (document.getElementById('c-mail') as HTMLInputElement)?.value || '',
+                address: (document.getElementById('c-addr') as HTMLTextAreaElement)?.value || '',
+                state: (document.getElementById('c-state') as HTMLInputElement)?.value || '',
                 country: coCountry,
-                pinCode: (document.getElementById('c-pin') as HTMLInputElement).value,
-                telephone: (document.getElementById('c-telephone') as HTMLInputElement).value,
-                mobile: (document.getElementById('c-mob') as HTMLInputElement).value,
-                email: (document.getElementById('c-email') as HTMLInputElement).value,
-                website: (document.getElementById('c-web') as HTMLInputElement).value,
-                financialYearStart: (document.getElementById('c-fy-start') as HTMLInputElement).value,
-                booksBeginFrom: (document.getElementById('c-books-start') as HTMLInputElement).value,
-                registrationType: (document.getElementById('c-reg-type') as HTMLSelectElement).value,
-                gstin: (document.getElementById('c-gstin') as HTMLInputElement).value,
-                pan: (document.getElementById('c-pan') as HTMLInputElement).value,
-                bankName: (document.getElementById('c-bank-name') as HTMLInputElement).value,
-                bankHolderName: (document.getElementById('c-bank-holder') as HTMLInputElement).value,
-                accountNo: (document.getElementById('c-acc-no') as HTMLInputElement).value,
-                ifsc: (document.getElementById('c-ifsc') as HTMLInputElement).value,
-                swiftCode: (document.getElementById('c-swift') as HTMLInputElement).value,
+                pinCode: (document.getElementById('c-pin') as HTMLInputElement)?.value || '',
+                telephone: (document.getElementById('c-telephone') as HTMLInputElement)?.value || '',
+                mobile: (document.getElementById('c-mob') as HTMLInputElement)?.value || '',
+                email: (document.getElementById('c-email') as HTMLInputElement)?.value || '',
+                website: (document.getElementById('c-web') as HTMLInputElement)?.value || '',
+                financialYearStart: (document.getElementById('c-fy-start') as HTMLInputElement)?.value || '',
+                booksBeginFrom: (document.getElementById('c-books-start') as HTMLInputElement)?.value || '',
+                registrationType: (document.getElementById('c-reg-type') as HTMLSelectElement)?.value || 'Regular',
+                gstin: (document.getElementById('c-gstin') as HTMLInputElement)?.value || '',
+                pan: (document.getElementById('c-pan') as HTMLInputElement)?.value || '',
+                bankName: (document.getElementById('c-bank-name') as HTMLInputElement)?.value || '',
+                bankHolderName: (document.getElementById('c-bank-holder') as HTMLInputElement)?.value || '',
+                accountNo: (document.getElementById('c-acc-no') as HTMLInputElement)?.value || '',
+                ifsc: (document.getElementById('c-ifsc') as HTMLInputElement)?.value || '',
+                swiftCode: (document.getElementById('c-swift') as HTMLInputElement)?.value || '',
                 upiId: ((document.getElementById('c-upi') as HTMLInputElement)?.value || '').trim().toLowerCase(),
                 currencySymbol: pickedCur,
                 baseCurrencySymbol: pickedCur,

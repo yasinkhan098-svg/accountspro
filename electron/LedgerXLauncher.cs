@@ -1143,6 +1143,127 @@ namespace LedgerXLauncher
                     }
                 }
 
+                if (path == "/api/companies" && req.HttpMethod == "PUT")
+                {
+                    Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;
+                    using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
+                    {
+                        string body = reader.ReadToEnd();
+                        JavaScriptSerializer js = new JavaScriptSerializer();
+                        js.MaxJsonLength = 50 * 1024 * 1024;
+                        Dictionary<string, object> co = null;
+                        try
+                        {
+                            object parsed = js.DeserializeObject(body);
+                            co = parsed as Dictionary<string, object>;
+                            if (co != null && co.ContainsKey("company") && co["company"] is Dictionary<string, object>)
+                            {
+                                co = (Dictionary<string, object>)co["company"];
+                            }
+                        }
+                        catch { }
+
+                        if (co == null) co = new Dictionary<string, object>();
+
+                        // Determine target company code
+                        string code = req.QueryString["code"];
+                        if (string.IsNullOrEmpty(code)) code = req.QueryString["companyCode"];
+                        if (string.IsNullOrEmpty(code) && co.ContainsKey("companyCode") && co["companyCode"] != null)
+                        {
+                            code = co["companyCode"].ToString().Trim().ToUpper();
+                        }
+                        if (string.IsNullOrEmpty(code) && co.ContainsKey("code") && co["code"] != null)
+                        {
+                            code = co["code"].ToString().Trim().ToUpper();
+                        }
+
+                        string targetIdStr = req.QueryString["id"];
+                        if (string.IsNullOrEmpty(targetIdStr) && co.ContainsKey("id") && co["id"] != null)
+                        {
+                            targetIdStr = co["id"].ToString().Trim();
+                        }
+
+                        string targetDir = null;
+                        if (!string.IsNullOrEmpty(code) && System.Text.RegularExpressions.Regex.IsMatch(code, @"^\d{5}$"))
+                        {
+                            string candidate = Path.Combine(dataDir, code);
+                            if (Directory.Exists(candidate)) targetDir = candidate;
+                        }
+
+                        if (string.IsNullOrEmpty(targetDir) && !string.IsNullOrEmpty(targetIdStr) && Directory.Exists(dataDir))
+                        {
+                            foreach (string dir in Directory.GetDirectories(dataDir))
+                            {
+                                string cJsonFile = Path.Combine(dir, "company.json");
+                                if (File.Exists(cJsonFile))
+                                {
+                                    try
+                                    {
+                                        string txt = File.ReadAllText(cJsonFile, Encoding.UTF8);
+                                        Dictionary<string, object> diskCo = js.DeserializeObject(txt) as Dictionary<string, object>;
+                                        if (diskCo != null && diskCo.ContainsKey("id") && diskCo["id"] != null && diskCo["id"].ToString().Trim() == targetIdStr)
+                                        {
+                                            targetDir = dir;
+                                            code = Path.GetFileName(dir).ToUpper();
+                                            break;
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(targetDir) && !string.IsNullOrEmpty(code))
+                        {
+                            targetDir = Path.Combine(dataDir, code);
+                            if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                        }
+
+                        if (string.IsNullOrEmpty(targetDir))
+                        {
+                            targetDir = Path.Combine(dataDir, "10000");
+                            code = "10000";
+                            if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                        }
+
+                        string finalJsonPath = Path.Combine(targetDir, "company.json");
+                        Dictionary<string, object> existingCo = new Dictionary<string, object>();
+                        if (File.Exists(finalJsonPath))
+                        {
+                            try
+                            {
+                                string txt = File.ReadAllText(finalJsonPath, Encoding.UTF8);
+                                Dictionary<string, object> loaded = js.DeserializeObject(txt) as Dictionary<string, object>;
+                                if (loaded != null) existingCo = loaded;
+                            }
+                            catch { }
+                        }
+
+                        foreach (var kvp in co)
+                        {
+                            existingCo[kvp.Key] = kvp.Value;
+                        }
+
+                        if (string.IsNullOrEmpty(code)) code = Path.GetFileName(targetDir).ToUpper();
+                        existingCo["companyCode"] = code;
+                        existingCo["code"] = code;
+                        if (!existingCo.ContainsKey("id") || existingCo["id"] == null)
+                        {
+                            int pCode;
+                            if (int.TryParse(code, out pCode)) existingCo["id"] = pCode - 10000 + 4;
+                        }
+
+                        File.WriteAllText(finalJsonPath, js.Serialize(existingCo), Encoding.UTF8);
+
+                        Dictionary<string, object> retObj = new Dictionary<string, object>();
+                        retObj["success"] = true;
+                        retObj["company"] = existingCo;
+                        retObj["companyCode"] = code;
+                        WriteJsonResponse(res, js.Serialize(retObj));
+                        return;
+                    }
+                }
+
                 if (path == "/api/companies" || path == "/api/company/scan")
                 {
                     JavaScriptSerializer js = new JavaScriptSerializer();
@@ -1201,10 +1322,55 @@ namespace LedgerXLauncher
                     return;
                 }
 
-                if (path == "/api/company/delete" || (path == "/api/company" && req.HttpMethod == "DELETE"))
+                if (path == "/api/company/delete" || ((path == "/api/company" || path == "/api/companies") && req.HttpMethod == "DELETE"))
                 {
                     string code = req.QueryString["code"];
                     if (string.IsNullOrEmpty(code)) code = req.QueryString["companyCode"];
+                    string targetId = req.QueryString["id"];
+
+                    if (string.IsNullOrEmpty(code) && req.HasEntityBody)
+                    {
+                        try
+                        {
+                            using (StreamReader reader = new StreamReader(req.InputStream, Encoding.UTF8))
+                            {
+                                string body = reader.ReadToEnd();
+                                JavaScriptSerializer js = new JavaScriptSerializer();
+                                Dictionary<string, object> d = js.DeserializeObject(body) as Dictionary<string, object>;
+                                if (d != null)
+                                {
+                                    if (d.ContainsKey("companyCode") && d["companyCode"] != null) code = d["companyCode"].ToString().Trim();
+                                    else if (d.ContainsKey("code") && d["code"] != null) code = d["code"].ToString().Trim();
+                                    else if (d.ContainsKey("id") && d["id"] != null) targetId = d["id"].ToString().Trim();
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (string.IsNullOrEmpty(code) && !string.IsNullOrEmpty(targetId) && Directory.Exists(dataDir))
+                    {
+                        JavaScriptSerializer js = new JavaScriptSerializer();
+                        foreach (string dir in Directory.GetDirectories(dataDir))
+                        {
+                            string cJsonFile = Path.Combine(dir, "company.json");
+                            if (File.Exists(cJsonFile))
+                            {
+                                try
+                                {
+                                    string txt = File.ReadAllText(cJsonFile, Encoding.UTF8);
+                                    Dictionary<string, object> diskCo = js.DeserializeObject(txt) as Dictionary<string, object>;
+                                    if (diskCo != null && diskCo.ContainsKey("id") && diskCo["id"] != null && diskCo["id"].ToString().Trim() == targetId)
+                                    {
+                                        code = Path.GetFileName(dir).ToUpper();
+                                        break;
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+
                     if (!string.IsNullOrEmpty(code))
                     {
                         code = code.ToUpper().Trim();

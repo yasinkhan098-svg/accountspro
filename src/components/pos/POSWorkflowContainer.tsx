@@ -300,6 +300,39 @@ export default function POSWorkflowContainer({
     }
   };
 
+  const handleSwitchCompanyDirectly = async (targetCo: any) => {
+    if (!targetCo) return;
+    const code = companyDataFolderService.getCompanyFolderCode(targetCo, availableCompanies);
+    let diskFolder: any = null;
+    try {
+      diskFolder = await companyDataFolderService.loadCompanyFolder(code);
+      if (diskFolder) {
+        setLocalStockItems(Array.isArray(diskFolder.stockItems) ? diskFolder.stockItems : []);
+        setLocalLedgers(Array.isArray(diskFolder.ledgers) ? diskFolder.ledgers : []);
+        setLocalVouchers(Array.isArray(diskFolder.vouchers) ? diskFolder.vouchers : []);
+        if (diskFolder.posPurchaseList?.length) {
+          setPosPurchaseList(diskFolder.posPurchaseList);
+          try {
+            localStorage.setItem(`ledgerx_pos_purchase_list_${code}`, JSON.stringify(diskFolder.posPurchaseList));
+          } catch (_) { }
+        }
+      }
+    } catch (_) { }
+
+    const rawCo = (diskFolder && diskFolder.company) ? { ...targetCo, ...diskFolder.company, companyCode: code, code } : { ...targetCo, companyCode: code, code };
+    const diskCo = {
+      ...rawCo,
+      currencySymbol: rawCo.currencySymbol || rawCo.baseCurrencySymbol || rawCo.currency || '₹',
+      baseCurrencySymbol: rawCo.currencySymbol || rawCo.baseCurrencySymbol || rawCo.currency || '₹',
+      currencyName: rawCo.currencyName || rawCo.formalName || 'Indian Rupee',
+      formalName: rawCo.currencyName || rawCo.formalName || 'Indian Rupee',
+    };
+    setActiveCompanyState(diskCo);
+    if (onSwitchCompany) {
+      await onSwitchCompany(diskCo);
+    }
+  };
+
   if (workflowState === 'LOGIN') {
     return (
       <POSLoginScreen
@@ -323,6 +356,7 @@ export default function POSWorkflowContainer({
         availableCompanies={isTrainingMode ? [] : availableCompanies}
         stockItems={isTrainingMode ? (trainingPkg?.stockItems || []) : (localStockItems && localStockItems.length > 0 ? localStockItems : stockItems)}
         vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : (localVouchers && localVouchers.length > 0 ? localVouchers : vouchers)}
+        onSwitchCompany={handleSwitchCompanyDirectly}
         onBack={() => {
           if (cashierUser && !cashierUser.isAdmin && !cashierUser.permissions?.vouchers?.['POS Sale']) {
             handleLogoutToLogin();
@@ -353,6 +387,7 @@ export default function POSWorkflowContainer({
       ledgers={isTrainingMode ? (trainingPkg?.ledgers || []) : (localLedgers && localLedgers.length > 0 ? localLedgers : ledgers)}
       vouchers={isTrainingMode ? (trainingPkg?.vouchers || []) : (localVouchers && localVouchers.length > 0 ? localVouchers : vouchers)}
       cashierUser={cashierUser || undefined}
+      onSwitchCompany={handleSwitchCompanyDirectly}
       onBack={handleExit}
       onLogoutToLogin={handleLogoutToLogin}
       onStockUpdated={(updated) => {

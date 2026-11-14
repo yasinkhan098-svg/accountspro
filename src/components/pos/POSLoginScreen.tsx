@@ -39,6 +39,12 @@ export default function POSLoginScreen({
     return availableCompanies && availableCompanies.length > 0 ? availableCompanies : [];
   });
 
+  useEffect(() => {
+    if (availableCompanies && availableCompanies.length > 0) {
+      setCompaniesList(availableCompanies);
+    }
+  }, [availableCompanies]);
+
   const [selectedCode, setSelectedCode] = useState<string>(() => {
     return (companyCode || (availableCompanies?.[0] ? companyDataFolderService.getCompanyFolderCode(availableCompanies[0], availableCompanies) : '10000')).toUpperCase().trim();
   });
