@@ -21,6 +21,7 @@ import { resolveUnitString } from '@/lib/unitResolver';
 import { posAIProductImageService } from '@/lib/pos/posAIProductImageService';
 import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 import { getCompanyTaxInfo, getItemTaxRate, getItemTaxName } from '@/lib/taxEngine';
+import { posThermalPrintService } from '@/lib/pos/posThermalPrintService';
 
 interface POSSaleViewProps {
   company: any;
@@ -124,6 +125,14 @@ export default function POSSaleView({
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [printToastMsg, setPrintToastMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (printToastMsg) {
+      const timer = setTimeout(() => setPrintToastMsg(null), 3800);
+      return () => clearTimeout(timer);
+    }
+  }, [printToastMsg]);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [showCompanySwitchModal, setShowCompanySwitchModal] = useState(false);
   const [modalCompanies, setModalCompanies] = useState<any[]>(availableCompanies || []);
@@ -1021,6 +1030,27 @@ export default function POSSaleView({
         return;
       }
 
+      // Handle Alt+P to Reprint Last Bill
+      if (e.altKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (lastCompletedBill) {
+          posThermalPrintService.directPrintReceipt({
+            billNo: lastCompletedBill.billNo,
+            company,
+            cashierName,
+            items: lastCompletedBill.items,
+            totals: lastCompletedBill.totals,
+            payment: lastCompletedBill.payment,
+            customer: lastCompletedBill.customer,
+          });
+          setPrintToastMsg(`🧾 Bill #${lastCompletedBill.billNo.replace('POS-', '')} Re-printed!`);
+        } else {
+          setPrintToastMsg('No previous bill found to reprint.');
+        }
+        return;
+      }
+
       // Barcode Gun sends keystrokes rapidly (typically < 45ms per character)
       if (e.key === 'Enter') {
         if (scanBufferRef.current.length >= 3) {
@@ -1041,7 +1071,7 @@ export default function POSSaleView({
 
     window.addEventListener('keydown', handleHardwareScan, true);
     return () => window.removeEventListener('keydown', handleHardwareScan, true);
-  }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal, showCompanySwitchModal, handleStepByStepEscape, onBack]);
+  }, [cart, showPaymentModal, showSecureModal, showReceiptModal, showCatalogModal, showCompanySwitchModal, handleStepByStepEscape, onBack, lastCompletedBill]);
 
   // Process barcode lookup
   const handleProcessBarcode = (query: string) => {
@@ -1418,14 +1448,29 @@ export default function POSSaleView({
         if (onVouchersUpdated) onVouchersUpdated([...vouchers, trnResult.voucher]);
       }
 
-      setLastCompletedBill({
+      const completedBill = {
         billNo,
         items: cart,
         totals,
         payment,
         customer: { name: customerName, mobile: customerMobile, walkInDelivery },
+      };
+      setLastCompletedBill(completedBill);
+
+      // Direct silent thermal print to local printer (no preview modal)
+      posThermalPrintService.directPrintReceipt({
+        billNo,
+        company,
+        cashierName,
+        items: cart,
+        totals,
+        payment,
+        customer: { name: customerName, mobile: customerMobile, walkInDelivery },
       });
-      setShowReceiptModal(true);
+
+      // Reset counter immediately for next customer
+      resetNewSale();
+      setPrintToastMsg(`🧾 Demo Bill #${billNo.replace('POS-', '')} Printed to Local Printer • Counter Ready!`);
       return;
     }
 
@@ -1448,16 +1493,29 @@ export default function POSSaleView({
       if (onStockUpdated) onStockUpdated(result.updatedStockItems);
       if (onVouchersUpdated) onVouchersUpdated([...vouchers, result.voucher]);
 
-      setLastCompletedBill({
+      const completedBill = {
         billNo,
+        items: cart,
+        totals,
+        payment,
+        customer,
+      };
+      setLastCompletedBill(completedBill);
+
+      // Direct silent thermal print to local printer (no preview modal)
+      posThermalPrintService.directPrintReceipt({
+        billNo,
+        company,
+        cashierName,
         items: cart,
         totals,
         payment,
         customer,
       });
 
-      // Auto-trigger receipt modal with auto-print!
-      setShowReceiptModal(true);
+      // Reset counter immediately for next customer
+      resetNewSale();
+      setPrintToastMsg(`🧾 Bill #${billNo.replace('POS-', '')} Printed to Local Printer • Ready for Next Customer!`);
     } else {
       alert(result.error || 'Failed to complete sale!');
     }
@@ -2219,6 +2277,31 @@ export default function POSSaleView({
               <div style={ribbonIconCircleStyle}>⌨️</div>
               <span style={ribbonTextStyle}>{showKeyboard ? 'Hide Keys' : 'Show Keys'}</span>
             </button>
+
+            {/* 8B. Reprint Last Bill */}
+            {lastCompletedBill && (
+              <button
+                type="button"
+                className="pos-touch-btn"
+                onClick={() => {
+                  posThermalPrintService.directPrintReceipt({
+                    billNo: lastCompletedBill.billNo,
+                    company,
+                    cashierName,
+                    items: lastCompletedBill.items,
+                    totals: lastCompletedBill.totals,
+                    payment: lastCompletedBill.payment,
+                    customer: lastCompletedBill.customer,
+                  });
+                  setPrintToastMsg(`🧾 Bill #${lastCompletedBill.billNo.replace('POS-', '')} Re-printed!`);
+                }}
+                style={ribbonBtnStyle}
+                title="Reprint Last Bill (Alt+P)"
+              >
+                <div style={{ ...ribbonIconCircleStyle, color: '#d97706' }}>🖨️</div>
+                <span style={ribbonTextStyle}>Reprint Bill</span>
+              </button>
+            )}
 
             {/* 9. Check Out */}
             <button
@@ -3680,6 +3763,55 @@ export default function POSSaleView({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Direct Silent Print Toast Notification */}
+      {printToastMsg && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+            color: '#ffffff',
+            padding: '12px 24px',
+            borderRadius: 8,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2)',
+            zIndex: 9999999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            fontWeight: 'bold',
+            fontSize: 14,
+            border: '1.5px solid #6ee7b7',
+            pointerEvents: 'auto',
+          }}
+        >
+          <span style={{ fontSize: 18 }}>🖨️</span>
+          <span>{printToastMsg}</span>
+          <button
+            type="button"
+            onClick={() => setPrintToastMsg(null)}
+            style={{
+              background: 'rgba(0, 0, 0, 0.2)',
+              border: 'none',
+              borderRadius: '50%',
+              width: 24,
+              height: 24,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: 12,
+              marginLeft: 8,
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>
