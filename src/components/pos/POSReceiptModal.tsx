@@ -3,6 +3,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { POSCartItem, POSCartTotals, POSCustomer, POSPaymentDetails, posService } from '@/lib/pos/posService';
 import { getCompanyTaxInfo } from '@/lib/taxEngine';
 import POSThermalSlip from './POSThermalSlip';
+import { posThermalPrintService } from '@/lib/pos/posThermalPrintService';
 
 interface POSReceiptModalProps {
   isOpen: boolean;
@@ -90,8 +91,20 @@ export default function POSReceiptModal({
 
   if (!isOpen) return null;
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    try {
+      await posThermalPrintService.directPrintReceipt({
+        billNo,
+        company,
+        cashierName,
+        items,
+        totals,
+        payment,
+        customer,
+      });
+    } catch (e) {
+      window.print();
+    }
   };
 
   // Group items by GST rate for the Breakup Details Table

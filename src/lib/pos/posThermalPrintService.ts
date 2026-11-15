@@ -211,15 +211,22 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
       background: #ffffff !important;
     }
     @media print {
-      body {
+      html, body {
+        width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
       }
       .pos-thermal-slip {
         width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 !important;
+        max-width: 78mm !important;
+        margin: 0 auto !important;
         padding: 1.5mm 2mm !important;
+        opacity: 1 !important;
+        visibility: visible !important;
       }
     }
   </style>
@@ -451,12 +458,12 @@ class POSThermalPrintService {
       iframe = document.createElement('iframe');
       iframe.id = iframeId;
       iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
+      iframe.style.left = '0';
+      iframe.style.top = '0';
+      iframe.style.width = '78mm';
+      iframe.style.height = '1000px';
       iframe.style.border = 'none';
-      iframe.style.opacity = '0';
+      iframe.style.opacity = '0.01'; // Very slightly visible to avoid Chromium optimizing out paint
       iframe.style.pointerEvents = 'none';
       iframe.style.zIndex = '-9999';
       document.body.appendChild(iframe);
@@ -470,20 +477,27 @@ class POSThermalPrintService {
       frameDoc.write(fullHtml);
       frameDoc.close();
 
-      // Give images a short moment to render, then trigger print
+      // Give images and DOM layout a reliable moment to paint, then trigger print
       await new Promise<void>((resolve) => {
-        setTimeout(() => {
+        const trigger = () => {
           try {
             if (iframe && iframe.contentWindow) {
               iframe.contentWindow.focus();
               iframe.contentWindow.print();
             }
           } catch (err) {
-            console.warn('Silent iframe print failed, falling back to window.print():', err);
-            try { window.print(); } catch (e) {}
+            console.warn('Silent iframe print failed:', err);
           }
           resolve();
-        }, 300);
+        };
+
+        const img = frameDoc.querySelector('img');
+        if (img && !img.complete) {
+          img.onload = () => setTimeout(trigger, 100);
+          img.onerror = () => trigger();
+        } else {
+          setTimeout(trigger, 250);
+        }
       });
 
       // Cleanup iframe after printing finishes
