@@ -393,7 +393,16 @@ namespace LedgerXSetup
                         if (runKey != null)
                         {
                             runKey.SetValue("LedgerXHost", "\"" + exePath + "\" --background");
+                            runKey.SetValue("LedgerXHostService", "\"" + exePath + "\" --service");
                         }
+                    }
+
+                    // Also place auto-start script in Startup folder for bulletproof persistence
+                    string startupFolder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                    if (!string.IsNullOrEmpty(startupFolder) && Directory.Exists(startupFolder))
+                    {
+                        string vbs = string.Format("Set WshShell = CreateObject(\"WScript.Shell\")\r\nWshShell.Run \"\"\"{0}\"\" --service\", 0, False\r\n", exePath);
+                        File.WriteAllText(Path.Combine(startupFolder, "LedgerXHostService.vbs"), vbs);
                     }
                 }
                 catch { }
@@ -649,7 +658,17 @@ namespace LedgerXSetup
                 Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\LedgerX", false);
                 using (RegistryKey runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
                 {
-                    if (runKey != null) runKey.DeleteValue("LedgerXHost", false);
+                    if (runKey != null)
+                    {
+                        runKey.DeleteValue("LedgerXHost", false);
+                        runKey.DeleteValue("LedgerXHostService", false);
+                    }
+                }
+                string startupFolder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                if (!string.IsNullOrEmpty(startupFolder))
+                {
+                    string vbsFile = Path.Combine(startupFolder, "LedgerXHostService.vbs");
+                    if (File.Exists(vbsFile)) File.Delete(vbsFile);
                 }
             }
             catch { }
