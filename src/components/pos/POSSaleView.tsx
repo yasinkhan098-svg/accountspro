@@ -12,6 +12,7 @@ import POSVirtualKeyboard from './POSVirtualKeyboard';
 import POSSecureModal from './POSSecureModal';
 import POSPaymentModal from './POSPaymentModal';
 import POSReceiptModal from './POSReceiptModal';
+import POSThermalSlip from './POSThermalSlip';
 import POSItemSearchModal from './POSItemSearchModal';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
 import { permissionGuard } from '@/lib/permissionGuard';
@@ -126,6 +127,7 @@ export default function POSSaleView({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [printToastMsg, setPrintToastMsg] = useState<string | null>(null);
+  const [directPrintQr, setDirectPrintQr] = useState<string>('');
 
   useEffect(() => {
     if (printToastMsg) {
@@ -1034,20 +1036,7 @@ export default function POSSaleView({
       if (e.altKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         e.stopPropagation();
-        if (lastCompletedBill) {
-          posThermalPrintService.directPrintReceipt({
-            billNo: lastCompletedBill.billNo,
-            company,
-            cashierName,
-            items: lastCompletedBill.items,
-            totals: lastCompletedBill.totals,
-            payment: lastCompletedBill.payment,
-            customer: lastCompletedBill.customer,
-          });
-          setPrintToastMsg(`🧾 Bill #${lastCompletedBill.billNo.replace('POS-', '')} Re-printed!`);
-        } else {
-          setPrintToastMsg('No previous bill found to reprint.');
-        }
+        handleReprintLastBill();
         return;
       }
 
@@ -1417,6 +1406,52 @@ export default function POSSaleView({
     resetNewSale();
   };
 
+  // Direct Top-Window Silent Thermal Print
+  const triggerTopWindowSilentPrint = async (billData: any) => {
+    try {
+      const storeName = company?.name || 'LedgerX Retail Limited';
+      const hasUpi = Boolean(company?.upiId && company.upiId.trim());
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const upiPayUrl = hasUpi
+        ? posService.getUpiUri({
+            vpa: company.upiId.trim(),
+            companyName: storeName,
+            amount: billData.totals.grandTotal,
+            billNo: billData.billNo,
+          })
+        : `UPI-INV:${billData.billNo}|AMT:${billData.totals.grandTotal}|GSTIN:${company?.gstin || ''}|DT:${dateStr}`;
+
+      let qr = '';
+      try {
+        qr = await posService.generateQrDataUrl(upiPayUrl, 160);
+      } catch (e) {
+        qr = posService.getQrImageUrl(upiPayUrl, 160);
+      }
+      setDirectPrintQr(qr);
+
+      // Trigger native top-window print with short delay for DOM render
+      setTimeout(() => {
+        try {
+          window.print();
+        } catch (err) {
+          console.warn('Native top window print failed:', err);
+        }
+      }, 100);
+    } catch (e) {
+      console.warn('Error preparing silent print:', e);
+    }
+  };
+
+  const handleReprintLastBill = () => {
+    if (!lastCompletedBill) {
+      setPrintToastMsg('No previous bill found to reprint.');
+      return;
+    }
+    triggerTopWindowSilentPrint(lastCompletedBill);
+    setPrintToastMsg(`🧾 Bill #${lastCompletedBill.billNo.replace('POS-', '')} Re-printed!`);
+  };
+
   // Reset for new sale
   const resetNewSale = () => {
     setCart([]);
@@ -1457,16 +1492,8 @@ export default function POSSaleView({
       };
       setLastCompletedBill(completedBill);
 
-      // Direct silent thermal print to local printer (no preview modal)
-      posThermalPrintService.directPrintReceipt({
-        billNo,
-        company,
-        cashierName,
-        items: cart,
-        totals,
-        payment,
-        customer: { name: customerName, mobile: customerMobile, walkInDelivery },
-      });
+      // Direct silent thermal print to local printer via native top-window print (no preview modal)
+      triggerTopWindowSilentPrint(completedBill);
 
       // Reset counter immediately for next customer
       resetNewSale();
@@ -1502,16 +1529,8 @@ export default function POSSaleView({
       };
       setLastCompletedBill(completedBill);
 
-      // Direct silent thermal print to local printer (no preview modal)
-      posThermalPrintService.directPrintReceipt({
-        billNo,
-        company,
-        cashierName,
-        items: cart,
-        totals,
-        payment,
-        customer,
-      });
+      // Direct silent thermal print to local printer via native top-window print (no preview modal)
+      triggerTopWindowSilentPrint(completedBill);
 
       // Reset counter immediately for next customer
       resetNewSale();
@@ -2283,18 +2302,7 @@ export default function POSSaleView({
               <button
                 type="button"
                 className="pos-touch-btn"
-                onClick={() => {
-                  posThermalPrintService.directPrintReceipt({
-                    billNo: lastCompletedBill.billNo,
-                    company,
-                    cashierName,
-                    items: lastCompletedBill.items,
-                    totals: lastCompletedBill.totals,
-                    payment: lastCompletedBill.payment,
-                    customer: lastCompletedBill.customer,
-                  });
-                  setPrintToastMsg(`🧾 Bill #${lastCompletedBill.billNo.replace('POS-', '')} Re-printed!`);
-                }}
+                onClick={handleReprintLastBill}
                 style={ribbonBtnStyle}
                 title="Reprint Last Bill (Alt+P)"
               >
@@ -3360,6 +3368,67 @@ export default function POSSaleView({
         taxIdLabel={companyTax.taxIdLabel}
         onConfirmPayment={handleConfirmPayment}
       />
+
+      {/* Direct Top-Window Hardware Thermal Print Container (100% Invisible on screen, Prints to Local Default Printer) */}
+      <style>{`
+        #pos-direct-print-container {
+          display: none !important;
+        }
+        @media print {
+          @page {
+            size: auto;
+            margin: 0mm !important;
+          }
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #pos-direct-print-container,
+          #pos-direct-print-container * {
+            visibility: visible !important;
+          }
+          #pos-direct-print-container {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 78mm !important;
+            margin: 0 auto !important;
+            padding: 2mm 3mm !important;
+            box-sizing: border-box !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+          #pos-terminal-root,
+          .pos-no-print,
+          .sidebar,
+          header,
+          nav {
+            display: none !important;
+            visibility: hidden !important;
+          }
+        }
+      `}</style>
+
+      <div id="pos-direct-print-container">
+        {lastCompletedBill && (
+          <POSThermalSlip
+            billNo={lastCompletedBill.billNo}
+            company={company}
+            cashierName={cashierName}
+            items={lastCompletedBill.items}
+            totals={lastCompletedBill.totals}
+            payment={lastCompletedBill.payment}
+            customer={lastCompletedBill.customer}
+            qrCodeDataUrl={directPrintQr}
+          />
+        )}
+      </div>
 
       {/* 3C. Thermal Receipt Print Preview (Auto Printed) */}
       {lastCompletedBill && (
