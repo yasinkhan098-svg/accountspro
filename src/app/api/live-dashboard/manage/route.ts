@@ -13,16 +13,52 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const companyId = searchParams.get('companyId');
-    if (!companyId) return NextResponse.json({ error: "Company ID is required" }, { status: 400 });
+    const requestedToken = searchParams.get('dashboardToken');
+    const companyNameParam = searchParams.get('companyName');
 
-    let company = await prisma.company.findFirst({
-      where: user.id !== -1 
-        ? { id: Number(companyId), OR: [{ userId: user.id }, { userId: null }] }
-        : { id: Number(companyId) }
-    });
-    if (!company) {
-      company = await prisma.company.findUnique({ where: { id: Number(companyId) } });
+    if (!companyId && !requestedToken && !companyNameParam) {
+      return NextResponse.json({ error: "Company ID or Token is required" }, { status: 400 });
     }
+
+    let company = null;
+    if (requestedToken) {
+      company = await prisma.company.findFirst({
+        where: { dashboardToken: requestedToken }
+      });
+    }
+
+    if (!company && companyId) {
+      company = await prisma.company.findFirst({
+        where: user.id !== -1 
+          ? { id: Number(companyId), OR: [{ userId: user.id }, { userId: null }] }
+          : { id: Number(companyId) }
+      });
+      if (!company) {
+        company = await prisma.company.findUnique({ where: { id: Number(companyId) } });
+      }
+    }
+
+    if (!company && companyNameParam) {
+      company = await prisma.company.findFirst({
+        where: { name: companyNameParam.trim(), ...(user.id !== -1 ? { userId: user.id } : {}) }
+      });
+    }
+
+    // Auto-create cloud placeholder for offline desktop company if not exists
+    if (!company && companyNameParam) {
+      const newToken = requestedToken || ('dsh_' + randomBytes(12).toString('hex'));
+      company = await prisma.company.create({
+        data: {
+          userId: user.id !== -1 ? user.id : null,
+          name: companyNameParam.trim(),
+          dashboardToken: newToken,
+          dashboardEnabled: true,
+          financialYearStart: new Date('2026-04-01'),
+          booksBeginFrom: new Date('2026-04-01'),
+        }
+      });
+    }
+
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     // Auto-generate token if not yet created

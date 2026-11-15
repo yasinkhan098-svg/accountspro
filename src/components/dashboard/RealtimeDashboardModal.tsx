@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
-import { calculateDashboardAnalytics, computeLedgerClosingBalance, getSafeVoucherTotal } from '@/lib/dashboardAnalyticsService';
+import { calculateDashboardAnalytics, computeLedgerClosingBalance, getSafeVoucherTotal, DashboardMetrics } from '@/lib/dashboardAnalyticsService';
 
 export interface DashboardProps {
   activeCompany: any;
@@ -9,6 +9,7 @@ export interface DashboardProps {
   ledgers: any[];
   stockItems?: any[];
   currentPeriod?: { start: string; end: string };
+  precalculatedSnapshot?: any;
   onClose?: () => void;
   isStandalone?: boolean;
 }
@@ -19,6 +20,7 @@ export default function RealtimeDashboardModal({
   ledgers,
   stockItems = [],
   currentPeriod,
+  precalculatedSnapshot,
   onClose,
   isStandalone = false
 }: DashboardProps) {
@@ -79,12 +81,14 @@ export default function RealtimeDashboardModal({
 
   // Load Share Data
   const loadShareData = async () => {
-    if (!activeCompany?.id) return;
+    if (!activeCompany?.id && !activeCompany?.name) return;
     setShareLoading(true);
     setShareError('');
     try {
       const token = getAuthToken();
-      const res = await fetch(`/api/live-dashboard/manage?companyId=${activeCompany.id}`, {
+      const qToken = encodeURIComponent(activeCompany.dashboardToken || '');
+      const qName = encodeURIComponent(activeCompany.name || '');
+      const res = await fetch(`/api/live-dashboard/manage?companyId=${activeCompany.id || ''}&companyName=${qName}&dashboardToken=${qToken}`, {
         headers: {
           'Authorization': token ? `Bearer ${token}` : ''
         }
@@ -92,6 +96,12 @@ export default function RealtimeDashboardModal({
       const data = await res.json();
       if (res.ok && data.success) {
         setShareData(data);
+        if (data.token) {
+          activeCompany.dashboardToken = data.token;
+          try {
+            localStorage.setItem('ledgerx_dashboard_token_' + activeCompany.id, data.token);
+          } catch (_) {}
+        }
       } else {
         setShareError(data.error || "Failed to load share settings.");
       }
@@ -174,9 +184,12 @@ export default function RealtimeDashboardModal({
   };
 
   // ─── Financial Calculations powered by real-time Dashboard Analytics Engine ───
-  const calculations = useMemo(() => {
+  const calculations: DashboardMetrics = useMemo(() => {
+    if (precalculatedSnapshot?.analytics) {
+      return precalculatedSnapshot.analytics as DashboardMetrics;
+    }
     return calculateDashboardAnalytics(ledgers, vouchers, stockItems);
-  }, [ledgers, vouchers, stockItems]);
+  }, [ledgers, vouchers, stockItems, precalculatedSnapshot]);
 
   // ─── 12-Month Trend Data for Line Charts (Apr to Mar) ───
   const trendMonths = useMemo(() => {
@@ -197,6 +210,16 @@ export default function RealtimeDashboardModal({
   }, []);
 
   const { salesTrendData, purchaseTrendData, maxSalesLakhs, maxPurchaseLakhs } = useMemo(() => {
+    type TrendPoint = { name: string; label: string; mIdx: number; val: number };
+    if (precalculatedSnapshot?.salesTrendData && precalculatedSnapshot?.purchaseTrendData) {
+      return {
+        salesTrendData: (precalculatedSnapshot.salesTrendData as TrendPoint[]),
+        purchaseTrendData: (precalculatedSnapshot.purchaseTrendData as TrendPoint[]),
+        maxSalesLakhs: Number(precalculatedSnapshot.maxSalesLakhs) || 20,
+        maxPurchaseLakhs: Number(precalculatedSnapshot.maxPurchaseLakhs) || 20,
+      };
+    }
+
     const parseVchMonth = (dateStr: string) => {
       if (!dateStr) return -1;
       const s = String(dateStr).trim();

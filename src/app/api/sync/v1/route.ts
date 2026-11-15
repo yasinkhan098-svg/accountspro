@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyLicenseToken } from '@/lib/licenseEngine';
+import { enforceStorageQuota } from '@/lib/storageQuotaService';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,36 @@ export async function POST(req: Request) {
         }
       } catch (e) {
         // Ignore DB error
+      }
+    }
+
+    // 1B. Enforce Offline Desktop Raw Data Isolation:
+    // Offline desktop software data remains strictly on local disk and is not written to cloud database tables
+    if (machineId) {
+      return NextResponse.json({
+        success: true,
+        offlineIsolated: true,
+        message: 'Offline desktop raw data isolation active. Desktop accounting data is preserved locally and not synced to cloud database.',
+        syncedAt: new Date().toISOString(),
+        pull: {
+          vouchers: [],
+          ledgers: [],
+          stockItems: [],
+          units: [],
+          stockGroups: [],
+          purchaseOrders: [],
+          boms: [],
+          manufacturingJournals: [],
+        }
+      });
+    }
+
+    // 1C. Enforce 10 MB Cloud Storage Quota with FIFO Rolling Buffer for Web Users
+    if (userId) {
+      try {
+        await enforceStorageQuota(userId);
+      } catch (quotaErr) {
+        console.warn('[SyncV1] Quota enforcement warning:', quotaErr);
       }
     }
 

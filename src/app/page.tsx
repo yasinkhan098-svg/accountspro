@@ -16,6 +16,7 @@ import AuditTrailView from '@/components/AuditTrailView';
 import { getBankStatementState } from '@/components/bank-statement/bankStatementStorage';
 import { offlineSyncService, OfflineGuardResult } from '@/lib/offlineSyncService';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
+import { executiveDashboardSyncService } from '@/lib/executiveDashboardSyncService';
 import { bomOfflineStorage } from '@/lib/bomOfflineStorage';
 import OfflineLicenseGuard from '@/components/OfflineLicenseGuard';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
@@ -2518,6 +2519,37 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  // Real-time Executive Analytical Dashboard sync (when online, sends lightweight ~15KB snapshot to cloud)
+  useEffect(() => {
+    if (!activeCompany) return;
+
+    // Debounced snapshot sync function
+    const triggerSnapshotSync = () => {
+      if (typeof window === 'undefined' || !navigator.onLine) return;
+      executiveDashboardSyncService.syncSnapshotNow(
+        activeCompany,
+        vouchers,
+        ledgers,
+        stockItems,
+        currentPeriod
+      );
+    };
+
+    // 1. Initial / periodic background sync (every 30 seconds when online)
+    const timer = setTimeout(triggerSnapshotSync, 3000);
+    const interval = setInterval(triggerSnapshotSync, 30000);
+
+    // 2. Also sync on internet reconnect
+    const handleOnline = () => triggerSnapshotSync();
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [activeCompany?.id, activeCompany?.name, vouchers.length, ledgers.length, stockItems.length]);
 
   const resetForm = (savedName: string) => {
     setSaveToast(savedName + ' saved!');

@@ -16,6 +16,7 @@ export default function LiveDashboardPage({ params }: { params: { token: string 
     ledgers: any[];
     stockItems: any[];
     currentPeriod: any;
+    snapshot?: any;
   } | null>(null);
   const [lastSynced, setLastSynced] = useState<Date>(new Date());
   const [secondsAgo, setSecondsAgo] = useState(0);
@@ -62,7 +63,8 @@ export default function LiveDashboardPage({ params }: { params: { token: string 
         vouchers: data.vouchers || [],
         ledgers: data.ledgers || [],
         stockItems: data.stockItems || [],
-        currentPeriod: data.currentPeriod
+        currentPeriod: data.currentPeriod,
+        snapshot: data.snapshot || null
       });
       setLastSynced(new Date());
       setSecondsAgo(0);
@@ -473,6 +475,7 @@ export default function LiveDashboardPage({ params }: { params: { token: string 
         ledgers={dashboardData.ledgers}
         stockItems={dashboardData.stockItems}
         currentPeriod={dashboardData.currentPeriod}
+        precalculatedSnapshot={(dashboardData as any).snapshot}
         isStandalone={true}
       />
     </div>

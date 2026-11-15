@@ -42,7 +42,8 @@ class OfflineSyncService {
       // Auto-sync heartbeat check every 30 seconds
       setInterval(() => {
         if (this.isOnline()) {
-          if (this.getPendingCount() > 0) {
+          // If desktop app, DO NOT perform raw accounting data sync with cloud!
+          if (!this.isDesktopEnvironment() && this.getPendingCount() > 0) {
             this.triggerAutoSync();
           } else {
             this.verifyOnlineLicenseHeartbeat();
@@ -379,12 +380,19 @@ class OfflineSyncService {
   }
 
   public enqueue(item: Omit<SyncQueueItem, 'id' | 'timestamp'>): SyncQueueItem {
-    const queue = this.getQueue();
     const newItem: SyncQueueItem = {
       ...item,
       id: `sq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       timestamp: new Date().toISOString(),
     };
+
+    // If running in Desktop Environment, DO NOT accumulate raw database sync items for cloud!
+    // Desktop data is stored locally in data/10001 folders and never leaks to cloud DB.
+    if (this.isDesktopEnvironment()) {
+      return newItem;
+    }
+
+    const queue = this.getQueue();
 
     // If item is a duplicate update/create of same type and ID, overwrite it
     const existingIdx = queue.findIndex(
@@ -458,6 +466,12 @@ class OfflineSyncService {
     authToken: string,
     onMergeData?: (pulled: any) => void
   ): Promise<{ success: boolean; pushedCount: number; error?: string }> {
+    // If running in Desktop Environment, raw accounting data sync is completely disabled!
+    // Raw vouchers/ledgers/inventory remain strictly on local disk.
+    if (this.isDesktopEnvironment()) {
+      return { success: true, pushedCount: 0 };
+    }
+
     if (this.syncInProgress) {
       return { success: false, pushedCount: 0, error: 'Sync already in progress' };
     }
@@ -575,6 +589,7 @@ class OfflineSyncService {
   }
 
   public async triggerAutoSync(): Promise<void> {
+    if (this.isDesktopEnvironment()) return; // Desktop app is isolated from raw cloud DB sync
     if (!this.isOnline() || this.syncInProgress) return;
     // Dispatch an event so the active view can provide companyId and token
     if (typeof window !== 'undefined') {

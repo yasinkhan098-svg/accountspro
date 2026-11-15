@@ -54,6 +54,33 @@ export async function GET(req: Request) {
       }
     }
 
+    // If pre-computed Executive Analytics Snapshot exists (from Offline Desktop App), serve immediately!
+    if ((company as any).dashboardSnapshot) {
+      try {
+        const snap = JSON.parse((company as any).dashboardSnapshot);
+        return NextResponse.json({
+          success: true,
+          requiresPin: false,
+          isSnapshot: true,
+          company: snap.company || {
+            id: company.id,
+            name: company.name,
+            currencySymbol: company.currencySymbol || '₹',
+            financialYearStart: company.financialYearStart,
+            booksBeginFrom: company.booksBeginFrom
+          },
+          currentPeriod: snap.currentPeriod,
+          snapshot: snap,
+          vouchers: snap.recentVouchers || snap.vouchers || [],
+          ledgers: snap.ledgers || [],
+          stockItems: snap.stockItems || [],
+          lastSyncedAt: (company as any).dashboardSnapshotAt || snap.lastSyncedAt || new Date().toISOString()
+        });
+      } catch (parseErr) {
+        console.warn("[LiveDashboard] Failed to parse stored snapshot JSON, falling back to relational tables:", parseErr);
+      }
+    }
+
     // Filter out non-financial vouchers like quotations
     const validVouchers = (company.vouchers || []).filter((v: any) => 
       v.type !== 'Sales Quotation' && v.type !== 'Quotation'
