@@ -6956,6 +6956,7 @@ function ListPanel({ title, items, selectedName, onSelect, onAltC, fieldKey }: {
 
 function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onCancel }: { activeAlterItem?: any; onSave: (d:any)=>void; onDelete: (type:string, id:number)=>void; companies: Company[]; onCancel?: () => void; }) {
   const ref = useRef<HTMLInputElement>(null);
+  const freshFocusRef = useRef<boolean>(false);
   const [focusedField, setFocusFld] = useState<string|null>(null);
   const [secCtrl, setSecCtrl] = useState(activeAlterItem?.securityControl ? 'Yes' : 'No');
   const [filterText, setFilter] = useState('');
@@ -7088,6 +7089,39 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
       else if (onCancel) { onCancel(); }
       return;
     }
+    if (focusedField === 'country' || focusedField === 'state') {
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        const inp = e.currentTarget;
+        if (freshFocusRef.current || (inp.selectionStart === 0 && inp.selectionEnd === inp.value.length)) {
+          e.preventDefault();
+          inp.value = '';
+          setFilter('');
+          setSelIdx(0);
+          freshFocusRef.current = false;
+          if (focusedField === 'country') setSelCo('');
+          return;
+        }
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const inp = e.currentTarget;
+        if (freshFocusRef.current || (inp.selectionStart === 0 && inp.selectionEnd === inp.value.length)) {
+          e.preventDefault();
+          const char = e.key;
+          inp.value = char;
+          setFilter(char);
+          setSelIdx(0);
+          freshFocusRef.current = false;
+          if (focusedField === 'country') {
+            setSelCo(char);
+            const states = COUNTRY_DATA[char] || [];
+            const sInp = document.getElementById('c-state') as HTMLInputElement;
+            if (sInp && states.length > 0 && !states.includes(sInp.value)) {
+              sInp.value = states[0];
+            }
+          }
+          return;
+        }
+      }
+    }
     if(!focusedField || list.length===0) {
        if(e.key === 'Enter') {
            e.preventDefault();
@@ -7153,10 +7187,19 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         <div className="form-row">
           <label style={{width:160}}>Country <span style={{color:'red'}}>*</span></label><span className="colon">:</span>
           <input id="c-country" type="text" className="form-input" style={{width:200}}
-            onFocus={e=>{setFocusFld('country');setFilter(e.target.value);}}
+            onFocus={e=>{
+              const inp = e.target as HTMLInputElement;
+              setFocusFld('country');
+              setFilter('');
+              freshFocusRef.current = true;
+              inp.select();
+              setTimeout(()=>{ try{ inp.select(); }catch(_){} }, 20);
+            }}
             onInput={e=>{
               const val = (e.target as HTMLInputElement).value;
               setFilter(val);
+              setSelIdx(0);
+              freshFocusRef.current = false;
               setSelCo(val);
               const states = COUNTRY_DATA[val] || [];
               const sInp = document.getElementById('c-state') as HTMLInputElement;
@@ -7180,8 +7223,20 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
         <div className="form-row">
           <label style={{width:160}}>State</label><span className="colon">:</span>
           <input id="c-state" type="text" className="form-input" style={{width:200}}
-            onFocus={e=>{setFocusFld('state');setFilter(e.target.value);}}
-            onInput={e=>setFilter((e.target as HTMLInputElement).value)}
+            onFocus={e=>{
+              const inp = e.target as HTMLInputElement;
+              setFocusFld('state');
+              setFilter('');
+              freshFocusRef.current = true;
+              inp.select();
+              setTimeout(()=>{ try{ inp.select(); }catch(_){} }, 20);
+            }}
+            onInput={e=>{
+              const val = (e.target as HTMLInputElement).value;
+              setFilter(val);
+              setSelIdx(0);
+              freshFocusRef.current = false;
+            }}
             onBlur={()=>setTimeout(()=>setFocusFld(null),200)}
             onKeyDown={handleKeyDown}
             defaultValue={activeAlterItem?.state||(COUNTRY_DATA[selCo]?.[0] || 'Uttarakhand')} autoComplete="off"/>
@@ -7645,6 +7700,7 @@ function GroupCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers,
 
 function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers, groups, onCancel }:{activeAlterItem?:any;onSave:(d:any)=>void;onAltC:(ctx:AltCContext)=>void;onDelete?:(type:string,id:number)=>void;ledgers:Ledger[]; groups:StockGroup[]; onCancel?:()=>void;}) {
   const ref = useRef<HTMLInputElement>(null);
+  const freshFocusRef = useRef<boolean>(false);
   const [focus, setFocus] = useState<string|null>(null);
   const [filter, setFilter] = useState('');
   const [selIdx, setSelIdx] = useState(0);
@@ -7732,7 +7788,18 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
     const ids:Record<string,string> = {under:'l-under',country:'l-country',state:'l-state'};
     const inp = document.getElementById(ids[focus!]||'') as HTMLInputElement;
     const isUnderField = focus === 'under';
-    if(inp){inp.value=v;if(focus==='country'){setSelCo(v);}if(isUnderField){setUnderValue(v);}}
+    if(inp){
+      inp.value=v;
+      if(focus==='country'){
+        setSelCo(v);
+        const states = COUNTRY_DATA[v] || [];
+        const sInp = document.getElementById('l-state') as HTMLInputElement;
+        if (sInp && states.length > 0 && !states.includes(sInp.value)) {
+          sInp.value = states[0] || '';
+        }
+      }
+      if(isUnderField){setUnderValue(v);}
+    }
     setFocus(null);
     setTimeout(() => {
       // Agar Under field se pick kiya aur Bank OD/OCC group select hua → seedha l-od-limit pe focus
@@ -7743,23 +7810,12 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
         if (odEl) { odEl.focus(); return; }
       }
       if (inp) {
-        const container = inp.closest('.modal-box') || inp.closest('.form-content') || inp.closest('.form-workspace');
-        if (container) {
-          const inputs = Array.from(container.querySelectorAll(
-            'input:not([disabled]),select:not([disabled]),textarea:not([disabled])'
-          )) as HTMLElement[];
-          const idx = inputs.indexOf(inp);
-          if (idx >= 0 && idx < inputs.length - 1) {
-            (inputs[idx + 1]).focus();
-            return;
-          }
-        }
         moveToNext(inp.id);
       }
     }, 80);
   };
 
-  const handleFieldKey = (field:string) => (e:React.KeyboardEvent) => {
+  const handleFieldKey = (field:string) => (e:React.KeyboardEvent<HTMLInputElement>) => {
     if(e.key === 'Escape'){
       e.preventDefault(); e.stopPropagation();
       if(focus !== null) setFocus(null);
@@ -7767,6 +7823,39 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
       return;
     }
     if(field==='under'&&e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault(); e.stopPropagation(); onAltC({fieldType:'group',onCreated:n=>{const inp=document.getElementById('l-under') as HTMLInputElement;if(inp)inp.value=n;}});return;}
+    if(field==='country' || field==='state'){
+      if(e.key==='Backspace' || e.key==='Delete'){
+        const inp = e.currentTarget;
+        if(freshFocusRef.current || (inp.selectionStart===0 && inp.selectionEnd===inp.value.length)){
+          e.preventDefault();
+          inp.value = '';
+          setFilter('');
+          setSelIdx(0);
+          freshFocusRef.current = false;
+          if(field==='country') setSelCo('');
+          return;
+        }
+      } else if(e.key.length===1 && !e.ctrlKey && !e.altKey && !e.metaKey){
+        const inp = e.currentTarget;
+        if(freshFocusRef.current || (inp.selectionStart===0 && inp.selectionEnd===inp.value.length)){
+          e.preventDefault();
+          const char = e.key;
+          inp.value = char;
+          setFilter(char);
+          setSelIdx(0);
+          freshFocusRef.current = false;
+          if(field==='country'){
+            setSelCo(char);
+            const states = COUNTRY_DATA[char] || [];
+            const sInp = document.getElementById('l-state') as HTMLInputElement;
+            if(sInp && states.length>0 && !states.includes(sInp.value)){
+              sInp.value = states[0] || '';
+            }
+          }
+          return;
+        }
+      }
+    }
     if(e.key==='ArrowDown'){e.preventDefault(); e.stopPropagation(); setSelIdx(p=>(p+1)%Math.max(1,list.length));}
     else if(e.key==='ArrowUp'){e.preventDefault(); e.stopPropagation(); setSelIdx(p=>(p-1+Math.max(1,list.length))%Math.max(1,list.length));}
     else if(e.key==='Enter'&&list.length>0){e.preventDefault();e.stopPropagation();pick(list[selIdx]);}
@@ -7776,11 +7865,11 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
     }
   };
 
-  // ledgerFields — l-od-limit is conditionally inserted after l-under when isBankOD
+  // ledgerFields — l-country is placed BEFORE l-state; l-od-limit is conditionally inserted after l-under when isBankOD
   const ledgerFields = [
     'l-name', 'l-alias', 'l-under',
     ...(isBankOD ? ['l-od-limit'] : []),
-    'l-mail', 'l-addr', 'l-state', 'l-country',
+    'l-mail', 'l-addr', 'l-country', 'l-state',
     'l-pin', 'l-phone', 'l-email', 'l-pan', 'l-reg', 'l-gst', 'l-gst-alter',
     'l-bank', 'l-bank-holder', 'l-acc', 'l-ifsc', 'l-ob', 'l-ob-type', 'btn-save-ledger'
   ];
@@ -7882,27 +7971,60 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
           <b style={{display:'block',marginBottom:10,textDecoration:'underline',fontSize:13}}>Mailing Details</b>
           <div className="form-row"><label style={{width:140}}>Name</label><span className="colon">:</span><input id="l-mail" type="text" className="form-input" style={{width:220}} defaultValue={activeAlterItem?.mailingName || activeAlterItem?.name || ''} onFocus={()=>setFocus(null)} onKeyDown={e=>{handleGlobalKeyDown(e); if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Shift','Control','Alt'].includes(e.key))(e.currentTarget as any).dataset.edited='1';}} /></div>
           <div className="form-row"><label style={{width:140}}>Address</label><span className="colon">:</span><textarea id="l-addr" className="form-input" style={{height:55,width:220}} defaultValue={activeAlterItem?.address||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
-          <div className="form-row"><label style={{width:140}}>State</label><span className="colon">:</span>
-            <input id="l-state" type="text" className="form-input" style={{width:180}}
-              onFocus={()=>{setFocus('state');setFilter('');}}
-              onInput={e=>{setFilter((e.target as HTMLInputElement).value);setSelIdx(0);}}
-              onKeyDown={handleFieldKey('state')}
-              onBlur={()=>setTimeout(()=>setFocus(p=>p==='state'?null:p),200)}
-              defaultValue={activeAlterItem?.state||''} autoComplete="off"/>
-          </div>
           <div className="form-row"><label style={{width:140}}>Country</label><span className="colon">:</span>
             <input id="l-country" type="text" className="form-input" style={{width:180}}
-              onFocus={()=>{setFocus('country');setFilter('');}}
+              onFocus={e=>{
+                const inp = e.target as HTMLInputElement;
+                setFocus('country');
+                setFilter('');
+                freshFocusRef.current = true;
+                inp.select();
+                setTimeout(()=>{ try{ inp.select(); }catch(_){} }, 20);
+              }}
               onInput={e=>{
                 const v = (e.target as HTMLInputElement).value;
                 setFilter(v);
                 setSelIdx(0);
+                freshFocusRef.current = false;
                 setSelCo(v);
+                const states = COUNTRY_DATA[v] || [];
+                const sInp = document.getElementById('l-state') as HTMLInputElement;
+                if (sInp && states.length > 0 && !states.includes(sInp.value)) {
+                  sInp.value = states[0] || '';
+                }
               }}
-              onChange={e=>setSelCo(e.target.value)}
+              onChange={e=>{
+                const v = e.target.value;
+                setSelCo(v);
+                const states = COUNTRY_DATA[v] || [];
+                const sInp = document.getElementById('l-state') as HTMLInputElement;
+                if (sInp && states.length > 0 && !states.includes(sInp.value)) {
+                  sInp.value = states[0] || '';
+                }
+              }}
               onKeyDown={handleFieldKey('country')}
               onBlur={()=>setTimeout(()=>setFocus(p=>p==='country'?null:p),200)}
               defaultValue={selCo} autoComplete="off"/>
+          </div>
+          <div className="form-row"><label style={{width:140}}>State</label><span className="colon">:</span>
+            <input id="l-state" type="text" className="form-input" style={{width:180}}
+              onFocus={e=>{
+                const inp = e.target as HTMLInputElement;
+                setFocus('state');
+                setFilter('');
+                freshFocusRef.current = true;
+                inp.select();
+                setTimeout(()=>{ try{ inp.select(); }catch(_){} }, 20);
+              }}
+              onInput={e=>{
+                const v = (e.target as HTMLInputElement).value;
+                setFilter(v);
+                setSelIdx(0);
+                freshFocusRef.current = false;
+              }}
+              onKeyDown={handleFieldKey('state')}
+              onBlur={()=>setTimeout(()=>setFocus(p=>p==='state'?null:p),200)}
+              defaultValue={activeAlterItem?.state||''} autoComplete="off"/>
           </div>
           <div className="form-row"><label style={{width:140}}>Pincode</label><span className="colon">:</span><input id="l-pin" type="text" className="form-input" style={{width:100}} defaultValue={activeAlterItem?.pinCode||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
           <div className="form-row"><label style={{width:140}}>Phone</label><span className="colon">:</span><input id="l-phone" type="text" className="form-input" style={{width:180}} defaultValue={activeAlterItem?.phone||''} onFocus={()=>setFocus(null)} onKeyDown={handleGlobalKeyDown}/></div>
