@@ -735,13 +735,24 @@ export default function App() {
   useEffect(() => {
     selectedIdxRef.current = selectedIdx;
   }, [selectedIdx]);
-  const [activeVoucher, setActiveVoucher] = useState<VoucherTypeKey>('Sales');
+  const [activeVoucher, setActiveVoucher] = useState<VoucherTypeKey>(() => {
+    const candidates: VoucherTypeKey[] = ['Purchase', 'Sales', 'Payment', 'Receipt', 'Contra', 'Journal', 'Debit Note', 'Credit Note', 'Sales Quotation'];
+    if (permissionGuard.canAccessVoucher('Sales')) return 'Sales';
+    const found = candidates.find(c => permissionGuard.canAccessVoucher(c));
+    return found || 'Sales';
+  });
   const [currentLANUser, setCurrentLANUser] = useState<LANUser | null>(() => permissionGuard.getCurrentUser());
   const [showUserSwitchModal, setShowUserSwitchModal] = useState(false);
 
   useEffect(() => {
     const unsub = permissionGuard.subscribe(u => {
       setCurrentLANUser(u);
+      setActiveVoucher(prev => {
+        if (permissionGuard.canAccessVoucher(prev)) return prev;
+        const candidates: VoucherTypeKey[] = ['Purchase', 'Sales', 'Payment', 'Receipt', 'Contra', 'Journal', 'Debit Note', 'Credit Note', 'Sales Quotation'];
+        const found = candidates.find(c => permissionGuard.canAccessVoucher(c));
+        return found || prev;
+      });
     });
     return unsub;
   }, []);
@@ -904,7 +915,7 @@ export default function App() {
           setScreen('POS_SALE');
         } else if (permissionGuard.canAccessScreen('PURCHASE_POS_LIST')) {
           setScreen('PURCHASE_POS_LIST');
-        } else if (permissionGuard.canAccessVoucher('Sales') || permissionGuard.canAccessVoucher('Purchase')) {
+        } else if (['Purchase', 'Sales', 'Payment', 'Receipt', 'Contra', 'Journal', 'Debit Note', 'Credit Note', 'Sales Quotation'].some(v => permissionGuard.canAccessVoucher(v))) {
           setScreen('VOUCHER_ENTRY');
         } else {
           setScreen('GATEWAY_MAIN');
@@ -4080,65 +4091,68 @@ export default function App() {
       }
       // Global Function Keys for Vouchers (Contra, Payment, Receipt, Journal, Sales, Purchase, Pur. Order, Quotation, Credit Note, Debit Note)
       if (e.key === 'F4') { 
+        e.preventDefault(); 
+        e.stopPropagation();
         if (permissionGuard.canAccessVoucher('Contra')) {
-          e.preventDefault(); 
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
           setActiveVoucher('Contra'); 
         }
       }
       if (e.key === 'F5') { 
+        e.preventDefault(); 
+        e.stopPropagation();
         if (permissionGuard.canAccessVoucher('Payment')) {
-          e.preventDefault(); 
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
           setActiveVoucher('Payment'); 
         }
       }
       if (e.key === 'F6') { 
+        e.preventDefault(); 
+        e.stopPropagation();
         if (permissionGuard.canAccessVoucher('Receipt')) {
-          e.preventDefault(); 
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
           setActiveVoucher('Receipt'); 
         }
       }
       if (e.key === 'F7') { 
+        e.preventDefault(); 
+        e.stopPropagation();
         if (permissionGuard.canAccessVoucher('Journal')) {
-          e.preventDefault(); 
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
           setActiveVoucher('Journal'); 
         }
       }
       if (e.key === 'F8') {
+        e.preventDefault();
+        e.stopPropagation();
         if (e.ctrlKey && permissionGuard.canAccessVoucher('Credit Note')) {
-          e.preventDefault();
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Credit Note');
         } else if (e.altKey && permissionGuard.canAccessVoucher('Sales Quotation')) {
-          e.preventDefault();
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Sales Quotation');
         } else if (!e.ctrlKey && !e.altKey && permissionGuard.canAccessVoucher('Sales')) {
-          e.preventDefault();
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Sales');
         }
       }
       if (e.key === 'F9') {
+        e.preventDefault();
+        e.stopPropagation();
         if (e.ctrlKey && permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY')) {
-          e.preventDefault();
           nav('PURCHASE_ORDER_ENTRY');
         } else if (e.altKey && permissionGuard.canAccessVoucher('Debit Note')) {
-          e.preventDefault();
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Debit Note');
         } else if (!e.ctrlKey && !e.altKey && permissionGuard.canAccessVoucher('Purchase')) {
-          e.preventDefault();
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY');
           setActiveVoucher('Purchase');
         }
       }
       if (e.key === 'F10') { 
+        e.preventDefault(); 
+        e.stopPropagation();
         if (permissionGuard.canAccessVoucher('Sales Quotation')) {
-          e.preventDefault(); 
           if (screen !== 'VOUCHER_ENTRY') nav('VOUCHER_ENTRY'); 
           setActiveVoucher('Sales Quotation'); 
         }
@@ -5202,7 +5216,7 @@ export default function App() {
             {screen==='STOCK_ITEM_CREATION'  && <StockItemCreationForm  key={formKey} activeAlterItem={alterItem} stockGroups={stockGroups} stockCategories={stockCategories} units={units} stockItems={stockItems} onSave={async d=>{const ok=await saveMaster('stockItem',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onAltC={handleOpenAltC} activeCompany={activeCompany} setActiveCompany={setActiveCompany} setCompanies={setCompanies} onCancel={goBack} />}
             {screen==='UNIT_CREATION'        && <UnitCreationForm        key={formKey} activeAlterItem={alterItem} units={units} onSave={async d=>{const ok=await saveMaster('unit',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name||d.symbol);}}} onDelete={deleteMaster} onCancel={goBack} />}
             {screen==='GODOWN_CREATION'      && <GodownCreationForm      key={formKey} activeAlterItem={alterItem} godowns={godowns} onSave={async d=>{const ok=await saveMaster('godown',d); if(ok){if(altCReturnContext)setAltCReturnContext({...altCReturnContext,newItem:ok}); alterItem?goBack():resetForm(d.name);}}} onDelete={deleteMaster} onCancel={goBack} />}
-            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={setActiveVoucher} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} onSaveMaster={saveMaster} onOpenBankUpload={()=>setShowBankUploadModal(true)} />}
+            {screen==='VOUCHER_ENTRY'        && <VoucherEntryForm key={formKey} activeAlterItem={alterItem} activeVoucher={activeVoucher} ledgers={ledgers} stockItems={stockItems} units={units} vouchers={vouchers} activeCompany={activeCompany} onAltC={handleOpenAltC} onSave={saveVoucher} onDelete={deleteVoucher} onChangeType={(t: VoucherTypeKey) => { if (permissionGuard.canAccessVoucher(t)) setActiveVoucher(t); }} currentDate={currentDate} onF2={handleShowDate} onCancel={goBack} onPrintPreview={v=>{setPrintVoucher(v);nav('PRINT_PREVIEW');}} voucherTypes={voucherTypes} altCReturnContext={altCReturnContext} onAltCReturnHandled={()=>setAltCReturnContext(null)} setAltCReturnContext={setAltCReturnContext} onNav={nav} setSaveToast={setSaveToast} onSaveMaster={saveMaster} onOpenBankUpload={()=>setShowBankUploadModal(true)} />}
             {screen==='BANK_STATEMENT_ENTRY' && (
               <BankStatementEntryView
                 companyId={activeCompany?.id || 0}
@@ -5416,19 +5430,96 @@ export default function App() {
         <div className="sidebar" style={{display:screen==='VOUCHER_ENTRY'?'none':'flex'}}>
           <div className="sidebar-btn" onClick={()=>setShowDate(true)}>F2: Date</div>
           <div className="sidebar-btn" onClick={()=>setShowCompanySelect(true)}>F3: Company</div>
-          {permissionGuard.canAccessVoucher('Contra') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Contra');}}>F4: Contra</div>}
-          {permissionGuard.canAccessVoucher('Payment') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Payment');}}>F5: Payment</div>}
-          {permissionGuard.canAccessVoucher('Receipt') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Receipt');}}>F6: Receipt</div>}
-          {permissionGuard.canAccessVoucher('Journal') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Journal');}}>F7: Journal</div>}
-          {permissionGuard.canAccessVoucher('Sales') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales');}}>F8: Sales</div>}
-          {permissionGuard.canAccessVoucher('Sales Quotation') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>Alt+F8: Quotation</div>}
-          {permissionGuard.canAccessVoucher('Credit Note') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Credit Note');}}>Ctrl+F8: Credit Note</div>}
-          {permissionGuard.canAccessVoucher('Purchase') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Purchase');}}>F9: Purchase</div>}
-          {permissionGuard.canAccessVoucher('Debit Note') && <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Debit Note');}}>Alt+F9: Debit Note</div>}
-          {permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY') && <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>}
-          {permissionGuard.canAccessScreen('BOM_MODULE') && <div className="sidebar-btn" onClick={()=>nav('BOM_MODULE')} style={{color:'#a78bfa',fontWeight:'bold'}}>Alt+B: BOM / Mfg</div>}
-          {permissionGuard.canAccessScreen('POS_SALE') && <div className="sidebar-btn" onClick={()=>nav('POS_SALE')} style={{background:'#059669',color:'#ffffff',fontWeight:'bold',margin:'2px 0'}}>Ctrl+P: POS Sale</div>}
-          {permissionGuard.canAccessMenuItem('Purchase POS List') && <div className="sidebar-btn" onClick={()=>nav('PURCHASE_POS_LIST')} style={{background:'#d97706',color:'#ffffff',fontWeight:'bold',margin:'2px 0'}}>Alt+U: POS List</div>}
+          {/* F4: Contra */}
+          {permissionGuard.canAccessVoucher('Contra') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Contra');}}>F4: Contra</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Contra" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>F4: Contra</div>
+          )}
+
+          {/* F5: Payment */}
+          {permissionGuard.canAccessVoucher('Payment') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Payment');}}>F5: Payment</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Payment" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>F5: Payment</div>
+          )}
+
+          {/* F6: Receipt */}
+          {permissionGuard.canAccessVoucher('Receipt') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Receipt');}}>F6: Receipt</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Receipt" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>F6: Receipt</div>
+          )}
+
+          {/* F7: Journal */}
+          {permissionGuard.canAccessVoucher('Journal') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Journal');}}>F7: Journal</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Journal" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>F7: Journal</div>
+          )}
+
+          {/* F8: Sales */}
+          {permissionGuard.canAccessVoucher('Sales') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales');}}>F8: Sales</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Sales" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>F8: Sales</div>
+          )}
+
+          {/* Alt+F8: Quotation */}
+          {permissionGuard.canAccessVoucher('Sales Quotation') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Sales Quotation');}}>Alt+F8: Quotation</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Quotation" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>Alt+F8: Quotation</div>
+          )}
+
+          {/* Ctrl+F8: Credit Note */}
+          {permissionGuard.canAccessVoucher('Credit Note') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Credit Note');}}>Ctrl+F8: Credit Note</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Credit Note" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>Ctrl+F8: Credit Note</div>
+          )}
+
+          {/* F9: Purchase */}
+          {permissionGuard.canAccessVoucher('Purchase') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Purchase');}}>F9: Purchase</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Purchase" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>F9: Purchase</div>
+          )}
+
+          {/* Alt+F9: Debit Note */}
+          {permissionGuard.canAccessVoucher('Debit Note') ? (
+            <div className="sidebar-btn" onClick={()=>{nav('VOUCHER_ENTRY');setActiveVoucher('Debit Note');}}>Alt+F9: Debit Note</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Debit Note" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>Alt+F9: Debit Note</div>
+          )}
+
+          {/* Ctrl+F9: Pur. Order */}
+          {permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY') ? (
+            <div className="sidebar-btn" onClick={()=>nav('PURCHASE_ORDER_ENTRY')} style={{color:'#38bdf8',fontWeight:'bold'}}>Ctrl+F9: Pur. Order</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for Purchase Order" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>Ctrl+F9: Pur. Order</div>
+          )}
+
+          {/* Alt+B: BOM / Mfg */}
+          {permissionGuard.canAccessScreen('BOM_MODULE') ? (
+            <div className="sidebar-btn" onClick={()=>nav('BOM_MODULE')} style={{color:'#a78bfa',fontWeight:'bold'}}>Alt+B: BOM / Mfg</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for BOM / Mfg" onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>Alt+B: BOM / Mfg</div>
+          )}
+
+          {/* Ctrl+P: POS Sale */}
+          {permissionGuard.canAccessScreen('POS_SALE') ? (
+            <div className="sidebar-btn" onClick={()=>nav('POS_SALE')} style={{background:'#059669',color:'#ffffff',fontWeight:'bold',margin:'2px 0'}}>Ctrl+P: POS Sale</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for POS Sale" style={{margin:'2px 0'}} onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>Ctrl+P: POS Sale</div>
+          )}
+
+          {/* Alt+U: POS List */}
+          {permissionGuard.canAccessMenuItem('Purchase POS List') ? (
+            <div className="sidebar-btn" onClick={()=>nav('PURCHASE_POS_LIST')} style={{background:'#d97706',color:'#ffffff',fontWeight:'bold',margin:'2px 0'}}>Alt+U: POS List</div>
+          ) : (
+            <div className="sidebar-btn sidebar-btn-disabled" title="Access Restricted: No permission for POS List" style={{margin:'2px 0'}} onClick={(e)=>{e.preventDefault();e.stopPropagation();}}>Alt+U: POS List</div>
+          )}
           <div className="sidebar-btn-spacer"/>
           <div className="sidebar-btn" onClick={()=>setShowFeatures(true)}>F11: Features</div>
           <div className="sidebar-btn">F12: Configure</div>
@@ -11754,10 +11845,22 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           onPrintPreview(getVoucherData() as Voucher);
         }
         else if (e.key === 'F2') { e.preventDefault(); e.stopPropagation(); onF2(); }
-        else if (e.key === 'F4') { if (permissionGuard.canAccessVoucher('Contra')) { e.preventDefault(); e.stopPropagation(); onChangeType('Contra'); } }
-        else if (e.key === 'F5') { if (permissionGuard.canAccessVoucher('Payment')) { e.preventDefault(); e.stopPropagation(); onChangeType('Payment'); } }
-        else if (e.key === 'F6') { if (permissionGuard.canAccessVoucher('Receipt')) { e.preventDefault(); e.stopPropagation(); onChangeType('Receipt'); } }
-        else if (e.key === 'F7') { if (permissionGuard.canAccessVoucher('Journal')) { e.preventDefault(); e.stopPropagation(); onChangeType('Journal'); } }
+        else if (e.key === 'F4') { 
+          e.preventDefault(); e.stopPropagation(); 
+          if (permissionGuard.canAccessVoucher('Contra')) onChangeType('Contra'); 
+        }
+        else if (e.key === 'F5') { 
+          e.preventDefault(); e.stopPropagation(); 
+          if (permissionGuard.canAccessVoucher('Payment')) onChangeType('Payment'); 
+        }
+        else if (e.key === 'F6') { 
+          e.preventDefault(); e.stopPropagation(); 
+          if (permissionGuard.canAccessVoucher('Receipt')) onChangeType('Receipt'); 
+        }
+        else if (e.key === 'F7') { 
+          e.preventDefault(); e.stopPropagation(); 
+          if (permissionGuard.canAccessVoucher('Journal')) onChangeType('Journal'); 
+        }
         else if (e.key === 'F8') {
           e.preventDefault(); e.stopPropagation();
           if (e.ctrlKey && permissionGuard.canAccessVoucher('Credit Note')) onChangeType('Credit Note');
@@ -11771,13 +11874,15 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           else if (!e.ctrlKey && !e.altKey && permissionGuard.canAccessVoucher('Purchase')) onChangeType('Purchase');
         }
         else if (e.altKey && e.key.toLowerCase() === 'b') { 
-          if (permissionGuard.canAccessScreen('BOM_MODULE')) { e.preventDefault(); e.stopPropagation(); onNav('BOM_MODULE'); } 
+          e.preventDefault(); e.stopPropagation();
+          if (permissionGuard.canAccessScreen('BOM_MODULE')) onNav('BOM_MODULE'); 
         }
       }}
     >
       {/* Voucher type bar */}
       <div style={{background:'#1e2d3d',display:'flex',fontSize:11,flexWrap:'wrap'}}>
-        {(['Contra','Payment','Receipt','Journal','Sales','Purchase','Sales Quotation','Credit Note','Debit Note'] as VoucherTypeKey[]).filter(v => permissionGuard.canAccessVoucher(v)).map((v,i)=>{
+        {(['Contra','Payment','Receipt','Journal','Sales','Purchase','Sales Quotation','Credit Note','Debit Note'] as VoucherTypeKey[]).map((v,i)=>{
+          const isAllowed = permissionGuard.canAccessVoucher(v);
           const labelMap: Record<string, string> = {
             'Contra': 'F4: Contra',
             'Payment': 'F5: Payment',
@@ -11791,97 +11896,154 @@ function VoucherEntryForm({activeAlterItem,activeVoucher,ledgers,stockItems,unit
           };
           return (
             <React.Fragment key={i}>
-              <div style={{padding:'5px 10px',cursor:'pointer',fontWeight:'bold',background:activeVoucher===v?vc:'transparent',color:activeVoucher===v?'white':'#aaa',borderRight:'1px solid #333'}}
-                onClick={()=>onChangeType(v)}>
+              <div 
+                style={{
+                  padding:'5px 10px',
+                  fontWeight:'bold',
+                  background: isAllowed ? (activeVoucher===v?vc:'transparent') : 'rgba(0,0,0,0.25)',
+                  color: isAllowed ? (activeVoucher===v?'white':'#aaa') : '#526070',
+                  borderRight:'1px solid #333',
+                  cursor: isAllowed ? 'pointer' : 'not-allowed',
+                  opacity: isAllowed ? 1 : 0.4,
+                  userSelect: 'none'
+                }}
+                title={isAllowed ? '' : `Access Restricted: No permission for ${labelMap[v] || v}`}
+                onClick={(e)=>{
+                  if (!isAllowed) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                  }
+                  onChangeType(v);
+                }}
+              >
                 {labelMap[v] || v}
               </div>
-              {v === 'Purchase' && (
-                <div 
-                  style={{padding:'5px 10px',cursor:'pointer',fontWeight:'bold',background:'transparent',color:'#38bdf8',borderRight:'1px solid #333'}}
-                  onClick={()=>onNav('PURCHASE_ORDER_ENTRY')}
-                  title="Create Purchase Order (Ctrl+F9)"
-                >
-                  Ctrl+F9: Pur. Order
-                </div>
-              )}
-              {v === 'Debit Note' && (
-                <div style={{ position: 'relative', display: 'inline-flex' }}>
+              {v === 'Purchase' && (() => {
+                const poAllowed = permissionGuard.canAccessScreen('PURCHASE_ORDER_ENTRY');
+                return (
                   <div 
                     style={{
                       padding:'5px 10px',
-                      cursor:'pointer',
                       fontWeight:'bold',
-                      background: bankMenuOpen ? '#0284c7' : 'transparent',
-                      color: bankMenuOpen ? '#ffffff' : '#38bdf8',
+                      background:'transparent',
+                      color: poAllowed ? '#38bdf8' : '#526070',
                       borderRight:'1px solid #333',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4
+                      cursor: poAllowed ? 'pointer' : 'not-allowed',
+                      opacity: poAllowed ? 1 : 0.4,
+                      userSelect: 'none'
                     }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setBankMenuOpen(!bankMenuOpen);
+                    onClick={(e)=>{
+                      if (!poAllowed) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      onNav('PURCHASE_ORDER_ENTRY');
                     }}
-                    title="Bank Statement Management"
+                    title={poAllowed ? "Create Purchase Order (Ctrl+F9)" : "Access Restricted: No permission for Purchase Order"}
                   >
-                    <span>🏦 Bank</span>
-                    <span style={{ fontSize: 9 }}>▼</span>
+                    Ctrl+F9: Pur. Order
                   </div>
-                  <BankStatementMenu
-                    isOpen={bankMenuOpen}
-                    onClose={() => setBankMenuOpen(false)}
-                    onSelectUpload={() => {
-                      setBankMenuOpen(false);
-                      onOpenBankUpload?.();
-                    }}
-                    onSelectEntry={() => {
-                      setBankMenuOpen(false);
-                      onNav('BANK_STATEMENT_ENTRY');
-                    }}
-                    pendingCount={pendingBankCount}
-                  />
-                </div>
-              )}
-              {v === 'Debit Note' && (
-                <>
-                <div
-                  style={{
-                    padding:'5px 10px',
-                    cursor:'pointer',
-                    fontWeight:'bold',
-                    background:'transparent',
-                    color:'#a78bfa',
-                    borderRight:'1px solid #333',
-                    display:'flex',
-                    alignItems:'center',
-                    gap:4
-                  }}
-                  onClick={() => onNav('BOM_MODULE')}
-                  title="Bill of Materials / Manufacturing Journal (Alt+B)"
-                >
-                  <span>🏭 BOM</span>
-                </div>
-                <div
-                  style={{
-                    padding:'5px 12px',
-                    cursor:'pointer',
-                    fontWeight:'bold',
-                    background:'linear-gradient(135deg, #059669, #10b981)',
-                    color:'#ffffff',
-                    borderRight:'1px solid #333',
-                    display:'flex',
-                    alignItems:'center',
-                    gap:4,
-                    borderRadius: 3,
-                    margin: '0 4px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
-                  }}
-                  onClick={() => onNav('POS_SALE')}
-                  title="Retail POS Sales Counter (Posiflex Touch Terminal • Ctrl+P)"
-                >
-                  <span>🛒 POS SALE</span>
-                </div>
-              </>)}
+                );
+              })()}
+              {v === 'Debit Note' && (() => {
+                const bankAllowed = permissionGuard.canAccessScreen('BANK_STATEMENT_ENTRY');
+                const bomAllowed = permissionGuard.canAccessScreen('BOM_MODULE');
+                const posAllowed = permissionGuard.canAccessScreen('POS_SALE');
+                return (
+                  <>
+                    <div style={{ position: 'relative', display: 'inline-flex' }}>
+                      <div 
+                        style={{
+                          padding:'5px 10px',
+                          cursor: bankAllowed ? 'pointer' : 'not-allowed',
+                          fontWeight:'bold',
+                          background: bankAllowed ? (bankMenuOpen ? '#0284c7' : 'transparent') : 'rgba(0,0,0,0.25)',
+                          color: bankAllowed ? (bankMenuOpen ? '#ffffff' : '#38bdf8') : '#526070',
+                          borderRight:'1px solid #333',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          opacity: bankAllowed ? 1 : 0.4,
+                          userSelect: 'none'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!bankAllowed) return;
+                          setBankMenuOpen(!bankMenuOpen);
+                        }}
+                        title={bankAllowed ? "Bank Statement Management" : "Access Restricted: No permission for Bank"}
+                      >
+                        <span>🏦 Bank</span>
+                        <span style={{ fontSize: 9 }}>▼</span>
+                      </div>
+                      {bankAllowed && (
+                        <BankStatementMenu
+                          isOpen={bankMenuOpen}
+                          onClose={() => setBankMenuOpen(false)}
+                          onSelectUpload={() => {
+                            setBankMenuOpen(false);
+                            onOpenBankUpload?.();
+                          }}
+                          onSelectEntry={() => {
+                            setBankMenuOpen(false);
+                            onNav('BANK_STATEMENT_ENTRY');
+                          }}
+                          pendingCount={pendingBankCount}
+                        />
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        padding:'5px 10px',
+                        cursor: bomAllowed ? 'pointer' : 'not-allowed',
+                        fontWeight:'bold',
+                        background:'transparent',
+                        color: bomAllowed ? '#a78bfa' : '#526070',
+                        opacity: bomAllowed ? 1 : 0.4,
+                        borderRight:'1px solid #333',
+                        display:'flex',
+                        alignItems:'center',
+                        gap:4,
+                        userSelect: 'none'
+                      }}
+                      onClick={() => {
+                        if (!bomAllowed) return;
+                        onNav('BOM_MODULE');
+                      }}
+                      title={bomAllowed ? "Bill of Materials / Manufacturing Journal (Alt+B)" : "Access Restricted: No permission for BOM"}
+                    >
+                      <span>🏭 BOM</span>
+                    </div>
+                    <div
+                      style={{
+                        padding:'5px 12px',
+                        cursor: posAllowed ? 'pointer' : 'not-allowed',
+                        fontWeight:'bold',
+                        background: posAllowed ? 'linear-gradient(135deg, #059669, #10b981)' : '#1e293b',
+                        color: posAllowed ? '#ffffff' : '#64748b',
+                        borderRight:'1px solid #333',
+                        display:'flex',
+                        alignItems:'center',
+                        gap:4,
+                        borderRadius: 3,
+                        margin: '0 4px',
+                        boxShadow: posAllowed ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
+                        opacity: posAllowed ? 1 : 0.4,
+                        userSelect: 'none'
+                      }}
+                      onClick={() => {
+                        if (!posAllowed) return;
+                        onNav('POS_SALE');
+                      }}
+                      title={posAllowed ? "Retail POS Sales Counter (Posiflex Touch Terminal • Ctrl+P)" : "Access Restricted: No permission for POS Sale"}
+                    >
+                      <span>🛒 POS SALE</span>
+                    </div>
+                  </>
+                );
+              })()}
             </React.Fragment>
           );
         })}

@@ -274,14 +274,15 @@ class PermissionGuardService {
 
   public isRestrictedSession(): boolean {
     if (typeof window === 'undefined') return false;
-    // Host PC / Main Desktop App / Primary Admin workstation is NEVER restricted!
-    // Restrictions ONLY apply to a connected LAN Client PC or Online Client PC (e.g. ?lan_client=1 or ?client_mode=1)
-    if (!this.isClientSession()) {
-      return false;
+    // When a specific LAN user / operator is logged in:
+    if (this.currentUser) {
+      // Primary Admin is never restricted; non-admin operators are strictly restricted by assigned roles
+      return !this.currentUser.isAdmin;
     }
-    // On a LAN / Online Client PC:
-    if (!this.currentUser) return true;
-    return !this.currentUser.isAdmin;
+    // When no specific user profile is logged in:
+    // Client sessions (LAN or Online client PC) are restricted to login by default
+    // Host PC / Main Desktop App without an operator login defaults to master Admin (unrestricted)
+    return this.isClientSession();
   }
 
   private notifyListeners() {

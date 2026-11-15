@@ -272,6 +272,17 @@ body {
   background-color: #f0f0f0;
 }
 
+.sidebar-btn-disabled,
+.sidebar-btn-disabled:hover {
+  background: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  cursor: not-allowed !important;
+  opacity: 0.55 !important;
+  box-shadow: none !important;
+  pointer-events: auto !important;
+}
+
 .sidebar-btn-spacer {
   flex: 1;
 }
