@@ -3379,23 +3379,34 @@ export default function POSSaleView({
             size: auto;
             margin: 0mm !important;
           }
-          body {
+          html, body {
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
+            overflow: visible !important;
           }
-          body * {
-            visibility: hidden !important;
+          /* Hide all page content outside pos-terminal-root */
+          body > *:not(#pos-terminal-root) {
+            display: none !important;
           }
-          #pos-direct-print-container,
-          #pos-direct-print-container * {
+          #pos-terminal-root {
+            display: block !important;
             visibility: visible !important;
+            position: static !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            overflow: visible !important;
+          }
+          /* Inside pos-terminal-root, hide all interactive UI panels, showing only pos-direct-print-container */
+          #pos-terminal-root > *:not(#pos-direct-print-container):not(style) {
+            display: none !important;
           }
           #pos-direct-print-container {
             display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            visibility: visible !important;
+            position: relative !important;
             width: 100% !important;
             max-width: 78mm !important;
             margin: 0 auto !important;
@@ -3404,13 +3415,8 @@ export default function POSSaleView({
             background: #ffffff !important;
             color: #000000 !important;
           }
-          #pos-terminal-root,
-          .pos-no-print,
-          .sidebar,
-          header,
-          nav {
-            display: none !important;
-            visibility: hidden !important;
+          #pos-direct-print-container * {
+            visibility: visible !important;
           }
         }
       `}</style>

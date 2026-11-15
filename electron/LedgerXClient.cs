@@ -294,7 +294,7 @@ namespace LedgerXClient
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = browser;
-                psi.Arguments = string.Format("--kiosk-printing --disable-print-preview --app=\"{0}\" --user-data-dir=\"{1}\" --disable-application-cache --disable-cache --disk-cache-size=1 --media-cache-size=1 --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
+                psi.Arguments = string.Format("--kiosk-printing --app=\"{0}\" --user-data-dir=\"{1}\" --disable-application-cache --disable-cache --disk-cache-size=1 --media-cache-size=1 --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
                 psi.WindowStyle = ProcessWindowStyle.Maximized;
                 psi.UseShellExecute = true;
                 Process.Start(psi);
