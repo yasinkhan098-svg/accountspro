@@ -443,8 +443,9 @@ class PermissionGuardService {
       if (lower.includes('gstr')) return !!perms.reports?.GSTReports;
       if (lower.includes('audit trail')) return !!perms.reports?.AuditTrail;
 
-      // User Roles (Admin only)
+      // User Roles & Details Print (Admin only)
       if (lower.includes('user roles') || lower.includes('role management')) return false;
+      if (lower.includes('details print') || lower.includes('print details')) return false;
 
       // Vouchers
       if (lower === 'vouchers') {

@@ -2,6 +2,7 @@
 import React from 'react';
 import { POSCartItem, POSCartTotals, POSCustomer, POSPaymentDetails } from '@/lib/pos/posService';
 import { getCompanyTaxInfo } from '@/lib/taxEngine';
+import { printConfigService } from '@/lib/printConfig/printConfigService';
 
 export interface POSThermalSlipProps {
   billNo: string;
@@ -27,6 +28,20 @@ export default function POSThermalSlip({
   const currencySymbol = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
   const companyTax = getCompanyTaxInfo(company);
 
+  // Load Company-specific print configuration
+  const companyCode = String(company?.companyCode || company?.code || '10000').toUpperCase().trim();
+  const printConfig = printConfigService.loadPrintConfig(companyCode, company);
+
+  const tagline = printConfigService.formatFieldValue(printConfig.storeTagline);
+  const carePhone = printConfigService.formatFieldValue(printConfig.customerCarePhone);
+  const bizIdVal = printConfigService.formatFieldValue(printConfig.businessId);
+  const foodLicVal = printConfigService.formatFieldValue(printConfig.foodLicense);
+  const cardNoVal = printConfigService.formatFieldValue(printConfig.customerCard, customer?.mobile || '');
+  const cardBalVal = printConfigService.formatFieldValue(printConfig.customerBalance);
+  const websiteVal = printConfigService.formatFieldValue(printConfig.website);
+  const emailVal = printConfigService.formatFieldValue(printConfig.email);
+  const policyVal = printConfigService.formatFieldValue(printConfig.privacyPolicy);
+
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -46,6 +61,15 @@ export default function POSThermalSlip({
     gstGroups[rate].cgst += it.cgstAmount || 0;
     gstGroups[rate].sgst += it.sgstAmount || 0;
     gstGroups[rate].total += it.lineTotal || 0;
+  }
+
+  // Symmetrize CGST and SGST per rate group so both columns are always identical
+  for (const rate of Object.keys(gstGroups)) {
+    const r = Number(rate);
+    const combinedGst = (gstGroups[r].cgst || 0) + (gstGroups[r].sgst || 0);
+    const half = Math.round((combinedGst / 2) * 100) / 100;
+    gstGroups[r].cgst = half;
+    gstGroups[r].sgst = half;
   }
 
   return (
@@ -106,32 +130,41 @@ export default function POSThermalSlip({
         <div style={{ fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase' }}>
           {company?.name || 'LedgerX Retail Limited'}
         </div>
-        <div style={{ fontSize: 10, fontWeight: 'bold' }}>
-          LEDGERX SMART POINT
-        </div>
+        {tagline && (
+          <div style={{ fontSize: 10, fontWeight: 'bold' }}>
+            {tagline}
+          </div>
+        )}
         <div style={{ fontSize: 9 }}>
-          {company?.address || 'GF, Ashoka Seed Complex, Khatima Road,'}
+          {company?.address || 'GF, Ashoka Complex, Sitarganj'}
         </div>
-        <div style={{ fontSize: 9 }}>
-          Sitarganj, District Udham Singh Nagar
-        </div>
-        <div style={{ fontSize: 9 }}>
-          Uttarakhand-262405.
-        </div>
-        <div style={{ fontSize: 9 }}>
-          Customer care : 18008910001
-        </div>
-        <div style={{ fontSize: 9 }}>
-          CIN NO : U01100MH1999PLC120563
-        </div>
+        {carePhone && (
+          <div style={{ fontSize: 9 }}>
+            {printConfig.customerCarePhone.label} : {carePhone}
+          </div>
+        )}
+        {bizIdVal && (
+          <div style={{ fontSize: 9 }}>
+            {printConfig.businessId.label} : {bizIdVal}
+          </div>
+        )}
         <div style={{ fontSize: 9 }}>
           {companyTax.taxIdLabel}- {company?.gstin || (companyTax.isIndiaGst ? '05AABCR1718E1ZU' : '—')}
         </div>
-        {companyTax.isIndiaGst && (
+        {foodLicVal && (
           <div style={{ fontSize: 9 }}>
-            FSSAI Lic No -12622012000067
+            {printConfig.foodLicense.label} - {foodLicVal}
           </div>
         )}
+        {(printConfig.customFields || []).map((cf, i) => {
+          const val = printConfigService.formatFieldValue(cf);
+          if (!val) return null;
+          return (
+            <div key={cf.id || i} style={{ fontSize: 9 }}>
+              {cf.label} : {val}
+            </div>
+          );
+        })}
       </div>
 
       {/* 2. SAVINGS BANNER */}
@@ -368,7 +401,12 @@ export default function POSThermalSlip({
       <div style={{ fontSize: 8, lineHeight: 1.4 }}>
         <div>PaymentRefNo# U1FX{Date.now().toString().slice(-14)}</div>
         <div>TaxInvoice# U1FX{(Date.now() + 500).toString().slice(-11)}</div>
-        <div>ROne Card No. :701XXXX631 ROne Bal(Amount) :138.35</div>
+        {cardNoVal && (
+          <div>
+            {printConfig.customerCard.label} :{cardNoVal}
+            {cardBalVal ? ` ${printConfig.customerBalance.label} :${cardBalVal}` : ''}
+          </div>
+        )}
         <div>Terms & Conditions Apply</div>
         <div style={{ letterSpacing: 2, margin: '4px 0' }}>304U1FX1410037000001</div>
       </div>
@@ -419,11 +457,15 @@ export default function POSThermalSlip({
       {/* 9. COMPLIANCE & FOOTER */}
       <div style={{ textAlign: 'center', fontSize: 8, lineHeight: 1.3 }}>
         <div>* Thank You for Shopping with us *</div>
-        <div>Website: www.ledgerxretail.com</div>
-        <div>Customer Care email & customercare@ledgerx.com</div>
-        <div style={{ marginTop: 2 }}>Please refer to our Website link</div>
-        <div>https://ledgerxretail.com/privacy-policy.html</div>
-        <div>for Privacy Policy</div>
+        {websiteVal && <div>{printConfig.website.label}: {websiteVal}</div>}
+        {emailVal && <div>{printConfig.email.label} & {emailVal}</div>}
+        {policyVal && (
+          <>
+            <div style={{ marginTop: 2 }}>Please refer to our Website link</div>
+            <div>{policyVal}</div>
+            <div>for Privacy Policy</div>
+          </>
+        )}
         <div style={{ marginTop: 3 }}>
           Dynamic Quick Response (QR) code is made available to the Recipient through a digital display.
         </div>

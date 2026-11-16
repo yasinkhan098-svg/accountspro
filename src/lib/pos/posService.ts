@@ -100,7 +100,8 @@ export class POSService {
       igstAmount = taxAmount;
     } else {
       cgstAmount = Math.round((taxAmount / 2) * 100) / 100;
-      sgstAmount = Math.round((taxAmount - cgstAmount) * 100) / 100;
+      sgstAmount = cgstAmount; // Symmetrical: Intra-state CGST & SGST are always identical
+      taxAmount = cgstAmount + sgstAmount;
     }
 
     return {
@@ -165,7 +166,7 @@ export class POSService {
       gstRate: item.gstRate || 0,
       taxAmount: Math.round(taxInfo.taxAmount * qty * 100) / 100,
       cgstAmount: Math.round(taxInfo.cgstAmount * qty * 100) / 100,
-      sgstAmount: Math.round(taxInfo.sgstAmount * qty * 100) / 100,
+      sgstAmount: Math.round(taxInfo.cgstAmount * qty * 100) / 100,
       igstAmount: Math.round(taxInfo.igstAmount * qty * 100) / 100,
       discountPerc: discPerc,
       discountAmt: totalSavings,
@@ -202,7 +203,7 @@ export class POSService {
     subtotal = Math.round(subtotal * 100) / 100;
     totalTaxable = Math.round(totalTaxable * 100) / 100;
     totalCgst = Math.round(totalCgst * 100) / 100;
-    totalSgst = Math.round(totalSgst * 100) / 100;
+    totalSgst = totalIgst > 0 ? 0 : totalCgst; // Symmetrical intra-state split
     totalIgst = Math.round(totalIgst * 100) / 100;
     totalTax = Math.round(totalTax * 100) / 100;
 

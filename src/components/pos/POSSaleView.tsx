@@ -1447,6 +1447,12 @@ export default function POSSaleView({
   // Finalize payment from modal
   const handleConfirmPayment = async (payment: POSPaymentDetails, customer: POSCustomer) => {
     setShowPaymentModal(false);
+    const resolvedCustomer = {
+      ...customer,
+      name: customer.name || customerName || 'Cash Customer',
+      mobile: customer.mobile || customerMobile || '',
+      walkInDelivery: customer.walkInDelivery ?? walkInDelivery,
+    };
 
     // If in Training Mode, persist strictly into isolated TRAINING folder ONLY
     if (isTrainingMode) {
@@ -1456,7 +1462,7 @@ export default function POSSaleView({
         items: cart,
         totals,
         payment,
-        customer: { name: customerName, mobile: customerMobile, walkInDelivery },
+        customer: resolvedCustomer,
         cashierName,
       });
 
@@ -1472,7 +1478,7 @@ export default function POSSaleView({
         items: cart,
         totals,
         payment,
-        customer: { name: customerName, mobile: customerMobile, walkInDelivery },
+        customer: resolvedCustomer,
       };
       setLastCompletedBill(completedBill);
 
@@ -1489,7 +1495,7 @@ export default function POSSaleView({
       company,
       companyCode,
       billNo,
-      customer,
+      customer: resolvedCustomer,
       items: cart,
       totals,
       payment,
@@ -1511,7 +1517,7 @@ export default function POSSaleView({
         items: cart,
         totals,
         payment,
-        customer,
+        customer: resolvedCustomer,
       };
       setLastCompletedBill(completedBill);
 
@@ -3352,6 +3358,9 @@ export default function POSSaleView({
         currencySymbol={currencySymbol}
         taxName={companyTax.taxName}
         taxIdLabel={companyTax.taxIdLabel}
+        initialCustomerMobile={customerMobile}
+        initialCustomerName={customerName}
+        initialWalkInDelivery={walkInDelivery}
         onConfirmPayment={handleConfirmPayment}
       />
 

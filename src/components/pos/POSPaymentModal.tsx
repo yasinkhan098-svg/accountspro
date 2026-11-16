@@ -13,6 +13,9 @@ interface POSPaymentModalProps {
   currencySymbol?: string;
   taxName?: string;
   taxIdLabel?: string;
+  initialCustomerMobile?: string;
+  initialCustomerName?: string;
+  initialWalkInDelivery?: boolean;
   onConfirmPayment: (payment: POSPaymentDetails, customer: POSCustomer) => void;
 }
 
@@ -27,15 +30,18 @@ export default function POSPaymentModal({
   currencySymbol = '₹',
   taxName = 'Tax',
   taxIdLabel = 'GSTIN',
+  initialCustomerMobile = '',
+  initialCustomerName = 'Cash Customer',
+  initialWalkInDelivery = false,
   onConfirmPayment,
 }: POSPaymentModalProps) {
   const [payMode, setPayMode] = useState<'Cash' | 'UPI_QR' | 'Split' | 'Card' | 'Credit'>('Cash');
   const [cashTendered, setCashTendered] = useState<number>(totals.grandTotal);
   const [splitCash, setSplitCash] = useState<number>(Math.floor(totals.grandTotal / 2));
-  const [custName, setCustName] = useState('Cash Customer');
-  const [custMobile, setCustMobile] = useState('');
+  const [custName, setCustName] = useState(initialCustomerName || 'Cash Customer');
+  const [custMobile, setCustMobile] = useState(initialCustomerMobile || '');
   const [custGstin, setCustGstin] = useState('');
-  const [walkInDelivery, setWalkInDelivery] = useState(false);
+  const [walkInDelivery, setWalkInDelivery] = useState(initialWalkInDelivery || false);
   const [upiRef, setUpiRef] = useState('');
   const [cardRef, setCardRef] = useState('');
   const [selectedLedgerId, setSelectedLedgerId] = useState<number | undefined>(undefined);
@@ -45,6 +51,14 @@ export default function POSPaymentModal({
   useEffect(() => {
     setActiveUpiVpa(upiVpa || '');
   }, [upiVpa]);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialCustomerMobile) setCustMobile(initialCustomerMobile);
+      if (initialCustomerName) setCustName(initialCustomerName);
+      if (initialWalkInDelivery !== undefined) setWalkInDelivery(initialWalkInDelivery);
+    }
+  }, [isOpen, initialCustomerMobile, initialCustomerName, initialWalkInDelivery]);
 
   useEffect(() => {
     setCashTendered(totals.grandTotal);

@@ -23,6 +23,7 @@ import SyncStatusBadge from '@/components/SyncStatusBadge';
 import AutoUpdateManager from '@/components/AutoUpdateManager';
 import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 import RoleManagementView from '@/components/RoleManagementView';
+import PrintDetailsConfigModal from '@/components/printConfig/PrintDetailsConfigModal';
 import POSWorkflowContainer from '@/components/pos/POSWorkflowContainer';
 import PurchasePOSListView from '@/components/pos/PurchasePOSListView';
 import UserSwitchModal from '@/components/UserSwitchModal';
@@ -439,6 +440,29 @@ const COUNTRY_DATA: Record<string, string[]> = {
     "Turkana","Uasin Gishu","Vihiga","Wajir","West Pokot"
   ],
   "Ethiopia":   ["Addis Ababa","Afar","Amhara","Benishangul-Gumuz","Dire Dawa","Gambella","Harari","Oromia","Sidama","SNNPR","Somali","Tigray"],
+  "South Korea": ["Seoul","Busan","Incheon","Daegu","Daejeon","Gwangju","Gyeonggi-do","Gangwon-do","Chungcheongbuk-do","Chungcheongnam-do","Jeollabuk-do","Jeollanam-do","Gyeongsangbuk-do","Gyeongsangnam-do","Jeju"],
+  "Vietnam":     ["Hanoi","Ho Chi Minh City","Da Nang","Hai Phong","Can Tho","Binh Duong","Dong Nai","Khanh Hoa","Quang Ninh"],
+  "Philippines": ["Metro Manila","Cebu","Davao","Central Luzon","Calabarzon","Western Visayas","Northern Mindanao","Ilocos Region"],
+  "Turkey":      ["Istanbul","Ankara","Izmir","Bursa","Antalya","Adana","Konya","Gaziantep","Sanliurfa","Kocaeli"],
+  "Israel":      ["Tel Aviv","Jerusalem","Haifa","Central District","Northern District","Southern District"],
+  "Italy":       ["Lombardy","Lazio","Campania","Veneto","Piedmont","Emilia-Romagna","Tuscany","Sicily","Apulia","Liguria"],
+  "Spain":       ["Madrid","Catalonia","Andalusia","Valencia","Galicia","Castile and León","Basque Country","Canary Islands","Balearic Islands"],
+  "Netherlands": ["North Holland","South Holland","Utrecht","North Brabant","Gelderland","Overijssel","Limburg","Friesland","Groningen"],
+  "Switzerland": ["Zurich","Geneva","Bern","Vaud","Basel-City","Lucerne","St. Gallen","Aargau","Ticino","Valais"],
+  "Sweden":      ["Stockholm","Västra Götaland","Skåne","Östergötland","Uppsala","Jönköping","Halland","Örebro"],
+  "Norway":      ["Oslo","Vestland","Viken","Rogaland","Trøndelag","Innlandet","Agder","Nordland","Troms og Finnmark"],
+  "Denmark":     ["Capital Region","Central Denmark","Region of Southern Denmark","Zealand","North Denmark"],
+  "Poland":      ["Masovian","Silesian","Lesser Poland","Greater Poland","Lower Silesian","Łódź","Pomeranian"],
+  "Russia":      ["Moscow","Saint Petersburg","Novosibirsk","Yekaterinburg","Tatarstan","Nizhny Novgorod","Samara","Chelyabinsk"],
+  "Ireland":     ["Dublin","Cork","Galway","Limerick","Waterford","Kildare","Meath"],
+  "Belgium":     ["Brussels","Flemish Brabant","Antwerp","East Flanders","West Flanders","Walloon Brabant","Liège","Hainaut"],
+  "Austria":     ["Vienna","Lower Austria","Upper Austria","Styria","Tyrol","Carinthia","Salzburg","Vorarlberg","Burgenland"],
+  "Portugal":    ["Lisbon","Porto","Setúbal","Braga","Aveiro","Faro","Coimbra","Leiria"],
+  "Greece":      ["Attica","Central Macedonia","Crete","Thessaly","Western Greece","Peloponnese","Epirus"],
+  "Argentina":   ["Buenos Aires","Córdoba","Santa Fe","Mendoza","Tucumán","Entre Ríos","Salta","Misiones","Chaco"],
+  "Chile":       ["Santiago Metropolitan","Valparaíso","Biobío","Antofagasta","Araucanía","Maule","Coquimbo"],
+  "Colombia":    ["Bogotá","Antioquia","Valle del Cauca","Cundinamarca","Santander","Atlántico","Bolívar"],
+  "Peru":        ["Lima","Arequipa","Cusco","La Libertad","Piura","Callao","Junín","Lambayeque"],
 };
 const ALL_COUNTRIES = Object.keys(COUNTRY_DATA).sort();
 const VOUCHER_TYPES_DEFAULT = ['Contra','Payment','Receipt','Journal','Sales','Purchase','Credit Note','Debit Note','Sales Quotation','Reversing Journal','Memorandum'];
@@ -743,6 +767,7 @@ export default function App() {
   });
   const [currentLANUser, setCurrentLANUser] = useState<LANUser | null>(() => permissionGuard.getCurrentUser());
   const [showUserSwitchModal, setShowUserSwitchModal] = useState(false);
+  const [showPrintDetailsModal, setShowPrintDetailsModal] = useState(false);
 
   useEffect(() => {
     const unsub = permissionGuard.subscribe(u => {
@@ -3795,6 +3820,7 @@ export default function App() {
     { label:'Alter',              highlight:'A', action:()=>nav('ALTER_MENU') },
     { label:'Chart of Accounts',  highlight:'H', action:()=>nav('CHART_OF_ACCOUNTS') },
     { label:'User Roles',         highlight:'U', action:()=>nav('USER_ROLES') },
+    { label:'Details Print',      highlight:'I', action:()=>setShowPrintDetailsModal(true) },
     { label:'TRANSACTIONS',       highlight:'', action:()=>{}, category:'header' },
     { label:'Vouchers',           highlight:'V', action:()=>nav('VOUCHER_ENTRY') },
     { label:'POS Sale (Counter)', highlight:'O', action:()=>nav('POS_SALE') },
@@ -5533,6 +5559,15 @@ export default function App() {
         onOpenRoleManager={() => nav('USER_ROLES')} 
         activeCompany={activeCompany}
         availableCompanies={companies} 
+      />
+      <PrintDetailsConfigModal
+        isOpen={showPrintDetailsModal}
+        onClose={() => setShowPrintDetailsModal(false)}
+        activeCompany={activeCompany}
+        onConfigSaved={(saved) => {
+          setActiveCompany((prev: any) => ({ ...prev, printConfig: saved }));
+          setCompanies((prev: any[]) => prev.map(c => (c.id === activeCompany?.id || c.companyCode === activeCompany?.companyCode) ? { ...c, printConfig: saved } : c));
+        }}
       />
       {altCCtx && (
         <AltCModal 

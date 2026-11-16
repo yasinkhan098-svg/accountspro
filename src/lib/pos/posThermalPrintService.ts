@@ -5,6 +5,7 @@
  */
 import { POSCartItem, POSCartTotals, POSCustomer, POSPaymentDetails, posService } from './posService';
 import { getCompanyTaxInfo } from '../taxEngine';
+import { printConfigService } from '../printConfig/printConfigService';
 
 export interface POSPrintReceiptData {
   billNo: string;
@@ -20,6 +21,29 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
   const { billNo, company, cashierName, items, totals, payment, customer } = data;
   const currencySymbol = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
   const companyTax = getCompanyTaxInfo(company);
+
+  // Load Company-specific print configuration
+  const companyCode = String(company?.companyCode || company?.code || '10000').toUpperCase().trim();
+  const printConfig = printConfigService.loadPrintConfig(companyCode, company);
+
+  const tagline = printConfigService.formatFieldValue(printConfig.storeTagline);
+  const carePhone = printConfigService.formatFieldValue(printConfig.customerCarePhone);
+  const bizIdVal = printConfigService.formatFieldValue(printConfig.businessId);
+  const foodLicVal = printConfigService.formatFieldValue(printConfig.foodLicense);
+  const cardNoVal = printConfigService.formatFieldValue(printConfig.customerCard, customer?.mobile || '');
+  const cardBalVal = printConfigService.formatFieldValue(printConfig.customerBalance);
+  const websiteVal = printConfigService.formatFieldValue(printConfig.website);
+  const emailVal = printConfigService.formatFieldValue(printConfig.email);
+  const policyVal = printConfigService.formatFieldValue(printConfig.privacyPolicy);
+
+  const customFieldsHtml = (printConfig.customFields || [])
+    .map(cf => {
+      const val = printConfigService.formatFieldValue(cf);
+      if (!val) return '';
+      return `<div style="font-size: 9px;">${cf.label} : ${val}</div>`;
+    })
+    .filter(Boolean)
+    .join('');
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -38,6 +62,15 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
     gstGroups[rate].cgst += it.cgstAmount || 0;
     gstGroups[rate].sgst += it.sgstAmount || 0;
     gstGroups[rate].total += it.lineTotal || 0;
+  }
+
+  // Symmetrize CGST and SGST per rate group so both columns are always identical
+  for (const rate of Object.keys(gstGroups)) {
+    const r = Number(rate);
+    const combinedGst = (gstGroups[r].cgst || 0) + (gstGroups[r].sgst || 0);
+    const half = Math.round((combinedGst / 2) * 100) / 100;
+    gstGroups[r].cgst = half;
+    gstGroups[r].sgst = half;
   }
 
   const isTraining = Boolean(company?.isTraining || billNo.startsWith('TRN') || company?.companyCode === 'TRAINING');
@@ -248,28 +281,17 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
       <div style="font-size: 12px; font-weight: bold; text-transform: uppercase;">
         ${company?.name || 'LedgerX Retail Limited'}
       </div>
-      <div style="font-size: 10px; font-weight: bold;">
-        LEDGERX SMART POINT
-      </div>
+      ${tagline ? `<div style="font-size: 10px; font-weight: bold;">${tagline}</div>` : ''}
       <div style="font-size: 9px;">
-        ${company?.address || 'GF, Ashoka Seed Complex, Khatima Road,'}
+        ${company?.address || 'GF, Ashoka Seed Complex, Khatima Road, Sitarganj'}
       </div>
-      <div style="font-size: 9px;">
-        Sitarganj, District Udham Singh Nagar
-      </div>
-      <div style="font-size: 9px;">
-        Uttarakhand-262405.
-      </div>
-      <div style="font-size: 9px;">
-        Customer care : 18008910001
-      </div>
-      <div style="font-size: 9px;">
-        CIN NO : U01100MH1999PLC120563
-      </div>
+      ${carePhone ? `<div style="font-size: 9px;">${printConfig.customerCarePhone.label} : ${carePhone}</div>` : ''}
+      ${bizIdVal ? `<div style="font-size: 9px;">${printConfig.businessId.label} : ${bizIdVal}</div>` : ''}
       <div style="font-size: 9px;">
         ${companyTax.taxIdLabel}- ${company?.gstin || (companyTax.isIndiaGst ? '05AABCR1718E1ZU' : '—')}
       </div>
-      ${companyTax.isIndiaGst ? '<div style="font-size: 9px;">FSSAI Lic No -12622012000067</div>' : ''}
+      ${foodLicVal ? `<div style="font-size: 9px;">${printConfig.foodLicense.label} - ${foodLicVal}</div>` : ''}
+      ${customFieldsHtml}
     </div>
 
     <!-- 2. SAVINGS BANNER -->
@@ -359,7 +381,7 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
     <div style="font-size: 8px; line-height: 1.4;">
       <div>PaymentRefNo# U1FX${Date.now().toString().slice(-14)}</div>
       <div>TaxInvoice# U1FX${(Date.now() + 500).toString().slice(-11)}</div>
-      <div>ROne Card No. :701XXXX631 ROne Bal(Amount) :138.35</div>
+      ${cardNoVal ? `<div>${printConfig.customerCard.label} :${cardNoVal} ${cardBalVal ? `${printConfig.customerBalance.label} :${cardBalVal}` : ''}</div>` : ''}
       <div>Terms & Conditions Apply</div>
       <div style="letter-spacing: 2px; margin: 4px 0;">304U1FX1410037000001</div>
     </div>
@@ -393,11 +415,13 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
     <!-- 9. COMPLIANCE & FOOTER -->
     <div style="text-align: center; font-size: 8px; line-height: 1.3;">
       <div>* Thank You for Shopping with us *</div>
-      <div>Website: www.ledgerxretail.com</div>
-      <div>Customer Care email & customercare@ledgerx.com</div>
-      <div style="margin-top: 2px;">Please refer to our Website link</div>
-      <div>https://ledgerxretail.com/privacy-policy.html</div>
-      <div>for Privacy Policy</div>
+      ${websiteVal ? `<div>${printConfig.website.label}: ${websiteVal}</div>` : ''}
+      ${emailVal ? `<div>${printConfig.email.label} & ${emailVal}</div>` : ''}
+      ${policyVal ? `
+        <div style="margin-top: 2px;">Please refer to our Website link</div>
+        <div>${policyVal}</div>
+        <div>for Privacy Policy</div>
+      ` : ''}
       <div style="margin-top: 3px;">
         Dynamic Quick Response (QR) code is made available to the Recipient through a digital display.
       </div>
