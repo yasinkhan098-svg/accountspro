@@ -248,7 +248,7 @@ class PermissionGuardService {
         sessionStorage.removeItem('ledgerx_is_lan_client');
         sessionStorage.removeItem('ledgerx_is_online_client');
         sessionStorage.removeItem('ledgerx_is_client_mode');
-      } catch (e) {}
+      } catch (e) { }
       return false;
     }
 
@@ -257,19 +257,19 @@ class PermissionGuardService {
         sessionStorage.setItem('ledgerx_is_client_mode', '1');
         if (search.includes('online_client=1')) sessionStorage.setItem('ledgerx_is_online_client', '1');
         if (search.includes('lan_client=1')) sessionStorage.setItem('ledgerx_is_lan_client', '1');
-      } catch (e) {}
+      } catch (e) { }
       return true;
     }
     if (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.hostname.includes('vercel.app') && !window.location.hostname.includes('ledgerxerp.com')) {
       try {
         sessionStorage.setItem('ledgerx_is_lan_client', '1');
         sessionStorage.setItem('ledgerx_is_client_mode', '1');
-      } catch (e) {}
+      } catch (e) { }
       return true;
     }
     return Boolean(sessionStorage.getItem('ledgerx_is_lan_client')) ||
-           Boolean(sessionStorage.getItem('ledgerx_is_online_client')) ||
-           Boolean(sessionStorage.getItem('ledgerx_is_client_mode'));
+      Boolean(sessionStorage.getItem('ledgerx_is_online_client')) ||
+      Boolean(sessionStorage.getItem('ledgerx_is_client_mode'));
   }
 
   public isRestrictedSession(): boolean {
@@ -287,7 +287,7 @@ class PermissionGuardService {
 
   private notifyListeners() {
     for (const listener of this.listeners) {
-      try { listener(this.currentUser); } catch (e) {}
+      try { listener(this.currentUser); } catch (e) { }
     }
   }
 
@@ -483,7 +483,7 @@ class PermissionGuardService {
       if (lower.includes('purchase order')) return !!perms.modules?.PurchaseOrder;
       if (lower.includes('display more reports') || lower.includes('more reports')) {
         return (!!perms.reports && Object.values(perms.reports).some(Boolean)) ||
-               (!!perms.registers && Object.values(perms.registers).some(Boolean));
+          (!!perms.registers && Object.values(perms.registers).some(Boolean));
       }
 
       // Default for any other unpermitted item: strictly false for restricted users!

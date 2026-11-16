@@ -271,7 +271,7 @@ export default function PrintDetailsConfigModal({
                 lineHeight: 1.4,
               }}
             >
-              <b>💡 Print Rule:</b> जिन फील्ड्स के आगे चेकबॉक्स <b>[✓]</b> लगा होगा, केवल वही रसीद पर प्रिंट होंगी। यदि चेकबॉक्स ऑन है लेकिन आपने वैल्यू खाली छोड़ दी है, तो रसीद पर <b>xxxxx</b> प्रिंट होगा।
+              <b>💡 Print Rule:</b> Only fields with the checkbox <b>[✓]</b> enabled will be printed on the receipt. If a field is enabled but left blank, <b>xxxxx</b> will be printed on the receipt.
             </div>
 
             {/* 1. Header & Store Tagline */}
