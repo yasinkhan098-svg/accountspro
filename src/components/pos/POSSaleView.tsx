@@ -97,6 +97,17 @@ export default function POSSaleView({
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
 
+  // Load authoritative bill number from host server on mount / company change
+  useEffect(() => {
+    let isMounted = true;
+    posService.fetchNextBillNo(companyCode).then(serverNo => {
+      if (isMounted && serverNo && cart.length === 0) {
+        setBillNo(serverNo);
+      }
+    });
+    return () => { isMounted = false; };
+  }, [companyCode]);
+
   // Sub-table summary meta
   const [customerMobile, setCustomerMobile] = useState('');
   const [customerName, setCustomerName] = useState('Cash Customer');
@@ -1435,12 +1446,19 @@ export default function POSSaleView({
   };
 
   // Reset for new sale
-  const resetNewSale = () => {
+  const resetNewSale = async () => {
     setCart([]);
     setSelectedCartId(null);
     setBarcodeInput('');
     setPromoDiscountAmt(0);
     setScannedActiveItems([]);
+    try {
+      const serverBillNo = await posService.fetchNextBillNo(companyCode);
+      if (serverBillNo) {
+        setBillNo(serverBillNo);
+        return;
+      }
+    } catch {}
     setBillNo(posService.generateBillNo(vouchers, companyCode));
   };
 
@@ -1468,11 +1486,14 @@ export default function POSSaleView({
 
       if (trnResult.success) {
         if (onStockUpdated) onStockUpdated(trnResult.updatedStock);
-        if (onVouchersUpdated) onVouchersUpdated([...vouchers, trnResult.voucher]);
+        if (onVouchersUpdated) {
+          const existingFiltered = (vouchers || []).filter(v => v.id !== trnResult.voucher.id && v.voucherNo !== trnResult.voucher.voucherNo);
+          onVouchersUpdated([...existingFiltered, trnResult.voucher]);
+        }
       }
 
       const completedBill = {
-        billNo,
+        billNo: trnResult?.voucher?.voucherNo || billNo,
         company,
         cashierName,
         items: cart,
@@ -1487,7 +1508,7 @@ export default function POSSaleView({
 
       // Reset counter immediately for next customer
       resetNewSale();
-      setPrintToastMsg(`🧾 Demo Bill #${billNo.replace('POS-', '')} Printed to Local Printer • Counter Ready!`);
+      setPrintToastMsg(`🧾 Demo Bill #${(completedBill.billNo || billNo).replace('POS-', '')} Printed to Local Printer • Counter Ready!`);
       return;
     }
 
@@ -1507,11 +1528,16 @@ export default function POSSaleView({
 
     if (result.success && result.voucher) {
       playBeep(1200, 0.15);
+      const finalBillNo = result.voucher.voucherNo || billNo;
+
       if (onStockUpdated) onStockUpdated(result.updatedStockItems);
-      if (onVouchersUpdated) onVouchersUpdated([...vouchers, result.voucher]);
+      if (onVouchersUpdated) {
+        const existingFiltered = (vouchers || []).filter(v => v.id !== result.voucher.id && v.voucherNo !== finalBillNo);
+        onVouchersUpdated([...existingFiltered, result.voucher]);
+      }
 
       const completedBill = {
-        billNo,
+        billNo: finalBillNo,
         company,
         cashierName,
         items: cart,
@@ -1526,7 +1552,7 @@ export default function POSSaleView({
 
       // Reset counter immediately for next customer
       resetNewSale();
-      setPrintToastMsg(`🧾 Bill #${billNo.replace('POS-', '')} Printed to Local Printer • Ready for Next Customer!`);
+      setPrintToastMsg(`🧾 Bill #${finalBillNo.replace('POS-', '')} Printed to Local Printer • Ready for Next Customer!`);
     } else {
       alert(result.error || 'Failed to complete sale!');
     }

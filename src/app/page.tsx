@@ -2116,7 +2116,17 @@ export default function App() {
               if (Array.isArray(folder.vouchers) && folder.vouchers.length > 0) {
                 setAllVouchers(prev => {
                   const others = prev.filter(v => !isCoMatch(v, activeCompany));
-                  return [...others, ...folder.vouchers];
+                  const combined = [...others, ...folder.vouchers];
+                  const seen = new Set<string>();
+                  const deduped: any[] = [];
+                  for (const v of combined) {
+                    const key = `${v.id || ''}_${v.voucherNo || ''}_${v.refNo || ''}`;
+                    if (!seen.has(key)) {
+                      seen.add(key);
+                      deduped.push(v);
+                    }
+                  }
+                  return deduped;
                 });
               }
               if (Array.isArray(folder.stockItems) && folder.stockItems.length > 0) {
@@ -5350,7 +5360,17 @@ export default function App() {
                 onVouchersUpdated={updated => {
                   setAllVouchers(prev => {
                     const others = prev.filter(v => !isCoMatch(v, activeCompany));
-                    return [...others, ...updated];
+                    const combined = [...others, ...updated];
+                    const seen = new Set<string>();
+                    const deduped: any[] = [];
+                    for (const v of combined) {
+                      const key = `${v.id || ''}_${v.voucherNo || ''}_${v.refNo || ''}`;
+                      if (!seen.has(key)) {
+                        seen.add(key);
+                        deduped.push(v);
+                      }
+                    }
+                    return deduped;
                   });
                 }}
                 onSwitchCompany={async (targetCo) => {
@@ -15956,7 +15976,16 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
     'Credit Note': ['Credit Note'],
   };
   const typesToMatch = matchTypes[voucherType] || [voucherType];
-  const allRows = vouchers.filter(v => typesToMatch.includes(v.type));
+  const seenKeys = new Set<string>();
+  const allRows: Voucher[] = [];
+  for (const v of vouchers || []) {
+    if (!typesToMatch.includes(v.type)) continue;
+    const key = `${v.id || ''}_${v.voucherNo || ''}_${v.refNo || ''}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      allRows.push(v);
+    }
+  }
 
   // Tally Prime: Sales/Payment/Debit Note/Contra/Journal → Debit column only
   //              Purchase/Receipt/Credit Note → Credit column only
@@ -16248,7 +16277,7 @@ function UniversalRegisterView({voucherType, vouchers, currentPeriod, onBack, on
                     <td style={{textAlign:'center',padding:'5px 8px'}}>
                       <span style={{padding:'1px 6px',background:color,color:'white',fontSize:10,fontWeight:'bold',borderRadius:2,whiteSpace:'nowrap'}}>{v.type}</span>
                     </td>
-                    <td style={{textAlign:'center',padding:'5px 8px',color:'#555',whiteSpace:'nowrap'}}>{v.number}</td>
+                    <td style={{textAlign:'center',padding:'5px 8px',color:'#1c5282',fontWeight:'bold',whiteSpace:'nowrap'}}>{v.voucherNo || v.refNo || v.number}</td>
                     {visibleDetailItemCols.map(col => <td key={col.key} style={{textAlign:'center',padding:'5px 10px',color:'#1a7a4a',fontWeight:'bold',background:'#f5fbf7'}}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
                     <td style={{textAlign:'right',padding:'5px 12px',color:'#8B0000',fontWeight:drAmt>0?'bold':'normal',whiteSpace:'nowrap'}}>{drAmt>0?fmt(drAmt):''}</td>
                     <td style={{textAlign:'right',padding:'5px 12px',color:'#006600',fontWeight:crAmt>0?'bold':'normal',whiteSpace:'nowrap'}}>{crAmt>0?fmt(crAmt):''}</td>

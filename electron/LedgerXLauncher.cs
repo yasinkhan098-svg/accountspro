@@ -17,6 +17,7 @@ using System.Net.NetworkInformation;
 using System.Collections;
 using System.Collections.Generic;
 using System.Web.Script.Serialization;
+using System.Text.RegularExpressions;
 
 [assembly: AssemblyTitle("LedgerX Desktop")]
 [assembly: AssemblyDescription("LedgerX Desktop Offline Accounting Client")]
@@ -1581,6 +1582,233 @@ namespace LedgerXLauncher
                     }
                 }
 
+                if (path == "/api/pos/next-bill-no" && req.HttpMethod == "GET")
+                {
+                    string code = req.QueryString["companyCode"];
+                    if (string.IsNullOrEmpty(code)) code = req.QueryString["code"];
+                    if (string.IsNullOrEmpty(code)) code = "10000";
+                    code = code.ToUpper().Trim();
+
+                    string prefix = req.QueryString["prefix"];
+                    if (string.IsNullOrEmpty(prefix))
+                    {
+                        prefix = (code == "TRAINING") ? "TRN-" : "CASH";
+                    }
+
+                    string cDir = Path.Combine(dataDir, code);
+                    if (!Directory.Exists(cDir))
+                    {
+                        try { Directory.CreateDirectory(cDir); } catch { }
+                    }
+                    string vPath = Path.Combine(cDir, "vouchers.json");
+
+                    long maxSeq = 0;
+                    lock (_fileLock)
+                    {
+                        if (File.Exists(vPath))
+                        {
+                            try
+                            {
+                                string text = File.ReadAllText(vPath, Encoding.UTF8);
+                                if (!string.IsNullOrEmpty(text.Trim()))
+                                {
+                                    JavaScriptSerializer js = new JavaScriptSerializer();
+                                    js.MaxJsonLength = 50 * 1024 * 1024;
+                                    object parsed = js.DeserializeObject(text);
+                                    IEnumerable items = null;
+                                    if (parsed is object[]) items = (object[])parsed;
+                                    else if (parsed is ArrayList) items = (ArrayList)parsed;
+
+                                    if (items != null)
+                                    {
+                                        foreach (object obj in items)
+                                        {
+                                            Dictionary<string, object> v = obj as Dictionary<string, object>;
+                                            if (v == null) continue;
+                                            string vNo = "";
+                                            if (v.ContainsKey("voucherNo") && v["voucherNo"] != null) vNo = v["voucherNo"].ToString();
+                                            else if (v.ContainsKey("voucherNumber") && v["voucherNumber"] != null) vNo = v["voucherNumber"].ToString();
+                                            else if (v.ContainsKey("refNo") && v["refNo"] != null) vNo = v["refNo"].ToString();
+
+                                            long seq = ExtractTrailingNumber(vNo, prefix);
+                                            if (seq > maxSeq) maxSeq = seq;
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+
+                    long nextSeq = maxSeq + 1;
+                    string nextBillNo = prefix + nextSeq.ToString("D4");
+                    string resJson = "{\"success\":true,\"companyCode\":\"" + code + "\",\"prefix\":\"" + prefix + "\",\"sequence\":" + nextSeq + ",\"nextBillNo\":\"" + nextBillNo + "\"}";
+                    WriteJsonResponse(res, resJson);
+                    return;
+                }
+
+                if (path == "/api/pos/commit-sale" && req.HttpMethod == "POST")
+                {
+                    Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;
+                    using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
+                    {
+                        string body = reader.ReadToEnd();
+                        JavaScriptSerializer js = new JavaScriptSerializer();
+                        js.MaxJsonLength = 50 * 1024 * 1024;
+                        object payload = js.DeserializeObject(body);
+                        Dictionary<string, object> payloadDict = payload as Dictionary<string, object>;
+                        if (payloadDict == null)
+                        {
+                            res.StatusCode = 400;
+                            WriteJsonResponse(res, "{\"success\":false,\"error\":\"Invalid JSON payload\"}");
+                            return;
+                        }
+
+                        string code = "";
+                        if (payloadDict.ContainsKey("companyCode") && payloadDict["companyCode"] != null)
+                            code = payloadDict["companyCode"].ToString();
+                        if (string.IsNullOrEmpty(code) && payloadDict.ContainsKey("code") && payloadDict["code"] != null)
+                            code = payloadDict["code"].ToString();
+                        if (string.IsNullOrEmpty(code)) code = "10000";
+                        code = code.ToUpper().Trim();
+
+                        Dictionary<string, object> voucher = null;
+                        if (payloadDict.ContainsKey("voucher") && payloadDict["voucher"] is Dictionary<string, object>)
+                        {
+                            voucher = (Dictionary<string, object>)payloadDict["voucher"];
+                        }
+                        else
+                        {
+                            voucher = payloadDict;
+                        }
+
+                        string cDir = Path.Combine(dataDir, code);
+                        if (!Directory.Exists(cDir))
+                        {
+                            try { Directory.CreateDirectory(cDir); } catch { }
+                        }
+                        string vPath = Path.Combine(cDir, "vouchers.json");
+
+                        lock (_fileLock)
+                        {
+                            List<object> list = new List<object>();
+                            HashSet<string> existingBillNos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            HashSet<long> existingIds = new HashSet<long>();
+                            long maxSeq = 0;
+                            string prefix = (code == "TRAINING") ? "TRN-" : "CASH";
+
+                            if (File.Exists(vPath))
+                            {
+                                try
+                                {
+                                    string existingText = File.ReadAllText(vPath, Encoding.UTF8);
+                                    if (!string.IsNullOrEmpty(existingText.Trim()))
+                                    {
+                                        object parsed = js.DeserializeObject(existingText);
+                                        IEnumerable items = null;
+                                        if (parsed is object[]) items = (object[])parsed;
+                                        else if (parsed is ArrayList) items = (ArrayList)parsed;
+
+                                        if (items != null)
+                                        {
+                                            foreach (object obj in items)
+                                            {
+                                                Dictionary<string, object> d = obj as Dictionary<string, object>;
+                                                if (d == null) continue;
+
+                                                long dId = 0;
+                                                if (d.ContainsKey("id") && d["id"] != null) long.TryParse(d["id"].ToString(), out dId);
+
+                                                string vNo = "";
+                                                if (d.ContainsKey("voucherNo") && d["voucherNo"] != null) vNo = d["voucherNo"].ToString();
+                                                else if (d.ContainsKey("voucherNumber") && d["voucherNumber"] != null) vNo = d["voucherNumber"].ToString();
+                                                else if (d.ContainsKey("refNo") && d["refNo"] != null) vNo = d["refNo"].ToString();
+
+                                                if (dId > 0 && existingIds.Contains(dId))
+                                                {
+                                                    // Deduplicate by ID
+                                                    continue;
+                                                }
+                                                if (dId > 0) existingIds.Add(dId);
+
+                                                if (!string.IsNullOrEmpty(vNo))
+                                                {
+                                                    existingBillNos.Add(vNo);
+                                                    if (vNo.StartsWith("POS-", StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        existingBillNos.Add(vNo.Substring(4));
+                                                    }
+                                                    long seq = ExtractTrailingNumber(vNo, prefix);
+                                                    if (seq > maxSeq) maxSeq = seq;
+                                                }
+
+                                                list.Add(d);
+                                            }
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+
+                            // Determine voucher ID
+                            long vId = 0;
+                            if (voucher.ContainsKey("id") && voucher["id"] != null)
+                            {
+                                long.TryParse(voucher["id"].ToString(), out vId);
+                            }
+                            if (vId <= 0 || existingIds.Contains(vId))
+                            {
+                                vId = DateTime.UtcNow.Ticks;
+                                voucher["id"] = vId;
+                            }
+
+                            // Determine Bill No - Must be sequential & collision-proof
+                            string reqBillNo = "";
+                            if (voucher.ContainsKey("voucherNo") && voucher["voucherNo"] != null)
+                            {
+                                reqBillNo = voucher["voucherNo"].ToString().Trim();
+                            }
+
+                            // If requested bill number is empty OR already exists on disk, allocate the next free number
+                            if (string.IsNullOrEmpty(reqBillNo) || existingBillNos.Contains(reqBillNo))
+                            {
+                                long nextSeq = maxSeq + 1;
+                                reqBillNo = prefix + nextSeq.ToString("D4");
+                                maxSeq = nextSeq;
+                            }
+                            else
+                            {
+                                long seq = ExtractTrailingNumber(reqBillNo, prefix);
+                                if (seq > maxSeq) maxSeq = seq;
+                            }
+
+                            voucher["voucherNo"] = reqBillNo;
+                            voucher["refNo"] = "POS-" + reqBillNo;
+                            voucher["number"] = list.Count + 1;
+                            voucher["isPOS"] = true;
+                            voucher["companyCode"] = code;
+
+                            list.Add(voucher);
+
+                            // Write updated vouchers atomically (UTF8 without BOM for clean multi-platform parsing)
+                            string tmp = vPath + ".tmp." + Guid.NewGuid().ToString("N");
+                            File.WriteAllText(tmp, js.Serialize(list), new UTF8Encoding(false));
+                            if (File.Exists(vPath)) File.Delete(vPath);
+                            File.Move(tmp, vPath);
+
+                            Dictionary<string, object> resObj = new Dictionary<string, object>();
+                            resObj["success"] = true;
+                            resObj["finalBillNo"] = reqBillNo;
+                            resObj["companyCode"] = code;
+                            resObj["voucher"] = voucher;
+                            resObj["totalVouchers"] = list.Count;
+
+                            WriteJsonResponse(res, js.Serialize(resObj));
+                            return;
+                        }
+                    }
+                }
+
                 // Static file serving for 100% Offline LAN Multi-User Access
                 string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string wwwDir = Path.Combine(localApp, "LedgerX", "www");
@@ -1660,6 +1888,43 @@ namespace LedgerXLauncher
                 res.OutputStream.Close();
             }
             catch { }
+        }
+
+        private static long ExtractTrailingNumber(string str, string prefix)
+        {
+            if (string.IsNullOrEmpty(str)) return 0;
+            string clean = str.Trim();
+            bool isPrefixed = false;
+            if (clean.StartsWith("POS-", StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean.Substring(4).Trim();
+                isPrefixed = true;
+            }
+            if (!string.IsNullOrEmpty(prefix) && clean.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean.Substring(prefix.Length).TrimStart('-', '_');
+                isPrefixed = true;
+            }
+            else if (clean.StartsWith("CASH", StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean.Substring(4).TrimStart('-', '_');
+                isPrefixed = true;
+            }
+            else if (clean.StartsWith("TRN", StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean.Substring(3).TrimStart('-', '_');
+                isPrefixed = true;
+            }
+
+            if (!isPrefixed) return 0;
+
+            Match m = Regex.Match(clean, @"\d+");
+            if (m.Success)
+            {
+                long val = 0;
+                if (long.TryParse(m.Value, out val)) return val;
+            }
+            return 0;
         }
 
         private static string ResolveCompanyDir(string dataDir, string code, string companyId, string body)

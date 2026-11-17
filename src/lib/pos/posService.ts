@@ -273,19 +273,59 @@ export class POSService {
   /**
    * Generates sequential POS bill number e.g. CASH0001, CASH0002...
    * Starting with CASH0001 per retail POS sales register standard
+   * Scans actual numerical sequences to prevent duplicate or missing numbers.
    */
   public generateBillNo(vouchers: any[], companyCode = '10000'): string {
     const isTraining = companyCode === 'TRAINING';
     const prefix = isTraining ? 'TRN-' : 'CASH';
-    const matchingVouchers = (vouchers || []).filter(
-      v => isTraining
-        ? (v.voucherNumber && String(v.voucherNumber).startsWith('TRN')) || (v.voucherNo && String(v.voucherNo).startsWith('TRN')) || (v.refNo && String(v.refNo).startsWith('TRN'))
-        : (v.voucherNo && (String(v.voucherNo).startsWith('CASH') || String(v.voucherNo).startsWith('POS'))) ||
-        (v.refNo && (String(v.refNo).startsWith('CASH') || String(v.refNo).startsWith('POS')))
-    );
-    const nextSeq = matchingVouchers.length + 1;
+    let maxSeq = 0;
+    (vouchers || []).forEach(v => {
+      const vNo = String(v.voucherNo || v.voucherNumber || v.refNo || '').trim();
+      if (!vNo) return;
+      let clean = vNo;
+      if (clean.toUpperCase().startsWith('POS-')) clean = clean.substring(4).trim();
+      let isPrefixed = false;
+      if (isTraining && clean.toUpperCase().startsWith('TRN')) {
+        clean = clean.substring(3).replace(/^[-_]/, '');
+        isPrefixed = true;
+      } else if (!isTraining && clean.toUpperCase().startsWith('CASH')) {
+        clean = clean.substring(4).replace(/^[-_]/, '');
+        isPrefixed = true;
+      }
+      if (isPrefixed) {
+        const match = clean.match(/\d+/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (!isNaN(num) && num > maxSeq) {
+            maxSeq = num;
+          }
+        }
+      }
+    });
+    const nextSeq = maxSeq + 1;
     const padded = String(nextSeq).padStart(4, '0');
     return `${prefix}${padded}`;
+  }
+
+  /**
+   * Fetches authoritative sequential bill number from host server.
+   */
+  public async fetchNextBillNo(companyCode = '10000', prefix?: string): Promise<string> {
+    try {
+      const p = prefix || (companyCode === 'TRAINING' ? 'TRN-' : 'CASH');
+      const res = await fetch(`/api/pos/next-bill-no?code=${encodeURIComponent(companyCode)}&prefix=${encodeURIComponent(p)}`, {
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.nextBillNo) {
+          return data.nextBillNo;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch next bill no from server:', err);
+    }
+    return '';
   }
 
   /**
@@ -582,30 +622,62 @@ export class POSService {
     // Stock consumption is dynamically recorded and deducted via the Sales Voucher inventory entries.
     const updatedStockItems = existingStockItems;
 
-    // 6. Persist to Local Company Folder (data/<companyCode>/)
+    // 6. Persist Atomically to Host Server & Sales Register (Prevents LAN Collisions & Duplicates)
+    let committedVoucher = newVoucher;
     try {
-      const allUpdatedVouchers = [...existingVouchers, newVoucher];
-      await companyDataFolderService.saveCompanyFolder({
-        companyCode,
-        company,
-        vouchers: allUpdatedVouchers,
-        stockItems: updatedStockItems,
+      const commitRes = await fetch('/api/pos/commit-sale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyCode,
+          voucher: newVoucher,
+          inventoryEntries,
+        }),
       });
 
-      // Enqueue for offline sync
-      offlineSyncService.enqueue({
-        type: 'VOUCHER',
-        action: 'CREATE',
-        data: newVoucher,
-        companyId: cid,
-      });
-    } catch (saveErr) {
-      console.warn('POS folder auto-save notice:', saveErr);
+      if (commitRes.ok) {
+        const commitData = await commitRes.json().catch(() => null);
+        if (commitData && commitData.success && commitData.voucher) {
+          committedVoucher = commitData.voucher;
+        }
+      } else {
+        throw new Error(`Host commit returned status ${commitRes.status}`);
+      }
+    } catch (commitErr) {
+      console.warn('Host commit endpoint notice, running safe fallback:', commitErr);
+      try {
+        const seenKeys = new Set<string>();
+        const cleanVouchers: any[] = [];
+        for (const v of existingVouchers || []) {
+          const key = `${v.id}_${v.voucherNo}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            cleanVouchers.push(v);
+          }
+        }
+        cleanVouchers.push(newVoucher);
+        await companyDataFolderService.saveCompanyFolder({
+          companyCode,
+          company,
+          vouchers: cleanVouchers,
+          stockItems: updatedStockItems,
+        });
+      } catch (saveErr) {
+        console.warn('POS folder fallback save notice:', saveErr);
+      }
     }
+
+    // Enqueue for offline sync
+    offlineSyncService.enqueue({
+      type: 'VOUCHER',
+      action: 'CREATE',
+      data: committedVoucher,
+      companyId: cid,
+    });
 
     return {
       success: true,
-      voucher: newVoucher,
+      voucher: committedVoucher,
       updatedStockItems,
     };
   }
