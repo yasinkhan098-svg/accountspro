@@ -77,12 +77,20 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
 
   // Render items rows
   const itemRowsHtml = items.map((it, idx) => {
-    const halfGst = ((it.gstRate || 0) / 2).toFixed(2);
+    let itemRateLine = '';
+    if (companyTax.isIndiaGst) {
+      const halfGst = ((it.gstRate || 0) / 2).toFixed(2);
+      itemRateLine = `${idx + 1}) CGST @ ${halfGst}% SGST @ ${halfGst}%`;
+    } else {
+      const rateVal = (it.gstRate || 0).toFixed(2);
+      const taxAmtStr = (it.taxAmount || 0) > 0 ? ` (${currencySymbol}${(it.taxAmount || 0).toFixed(2)})` : '';
+      itemRateLine = `${idx + 1}) ${companyTax.taxName} @ ${rateVal}%${taxAmtStr}`;
+    }
     const saveAmt = it.mrpRate > it.rateWithTax ? ((it.mrpRate - it.rateWithTax) * it.qty).toFixed(2) : null;
     return `
       <div style="margin-bottom: 5px; font-size: 9px;">
         <div style="font-size: 8px; color: #333;">
-          ${idx + 1}) CGST @ ${halfGst}% SGST @ ${halfGst}%
+          ${itemRateLine}
         </div>
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
           <span style="width: 48%; word-break: break-word; font-weight: bold;">
@@ -485,11 +493,19 @@ export function buildDirectPrintJsonPayload(data: POSPrintReceiptData, qrCodeDat
   }
 
   const formattedItems = items.map((it, idx) => {
-    const halfGst = ((it.gstRate || 0) / 2).toFixed(2);
+    let rateLineText = '';
+    if (companyTax.isIndiaGst) {
+      const halfGst = ((it.gstRate || 0) / 2).toFixed(2);
+      rateLineText = `${idx + 1}) CGST @ ${halfGst}% SGST @ ${halfGst}%`;
+    } else {
+      const rateVal = (it.gstRate || 0).toFixed(2);
+      const taxAmtStr = (it.taxAmount || 0) > 0 ? ` (${currencySymbol}${(it.taxAmount || 0).toFixed(2)})` : '';
+      rateLineText = `${idx + 1}) ${companyTax.taxName} @ ${rateVal}%${taxAmtStr}`;
+    }
     const saveAmt = it.mrpRate > it.rateWithTax ? ((it.mrpRate - it.rateWithTax) * it.qty).toFixed(2) : null;
     return {
       idx: idx + 1,
-      rateLine: `${idx + 1}) CGST @ ${halfGst}% SGST @ ${halfGst}%`,
+      rateLine: rateLineText,
       name: `${it.hsnCode || '732393'} ${it.name}`,
       mrpText: saveAmt ? `MRP: ${currencySymbol}${it.mrpRate.toFixed(2)} (Save ${currencySymbol}${saveAmt})` : '',
       netPrice: `${currencySymbol}${it.rateWithTax.toFixed(2)}`,
@@ -513,23 +529,41 @@ export function buildDirectPrintJsonPayload(data: POSPrintReceiptData, qrCodeDat
     payments.push({ label: `TENDER: ${payment.mode}`, amount: `${currencySymbol}${totals.grandTotal.toFixed(2)}` });
   }
 
-  const taxRows = Object.entries(gstGroups).map(([rate, g], i) => [
-    `${i + 1}`,
-    `${currencySymbol}${g.taxable.toFixed(2)}`,
-    `${currencySymbol}${g.cgst.toFixed(2)}`,
-    `${currencySymbol}${g.sgst.toFixed(2)}`,
-    `${currencySymbol}0.00`,
-    `${currencySymbol}${g.total.toFixed(2)}`,
-  ]);
+  let taxHeaders: string[];
+  let taxRows: string[][];
+  let taxTotalRow: string[];
 
-  const taxTotalRow = [
-    'Total',
-    `${currencySymbol}${totals.totalTaxable.toFixed(2)}`,
-    `${currencySymbol}${totals.totalCgst.toFixed(2)}`,
-    `${currencySymbol}${totals.totalSgst.toFixed(2)}`,
-    `${currencySymbol}0.00`,
-    `${currencySymbol}${totals.grandTotal.toFixed(2)}`,
-  ];
+  if (companyTax.isIndiaGst) {
+    taxHeaders = ['GST IND', 'Taxable', 'CGST', 'SGST', 'Total'];
+    taxRows = Object.entries(gstGroups).map(([rate, g], i) => [
+      `${i + 1}`,
+      `${currencySymbol}${g.taxable.toFixed(2)}`,
+      `${currencySymbol}${g.cgst.toFixed(2)}`,
+      `${currencySymbol}${g.sgst.toFixed(2)}`,
+      `${currencySymbol}${g.total.toFixed(2)}`,
+    ]);
+    taxTotalRow = [
+      'Total',
+      `${currencySymbol}${totals.totalTaxable.toFixed(2)}`,
+      `${currencySymbol}${totals.totalCgst.toFixed(2)}`,
+      `${currencySymbol}${totals.totalSgst.toFixed(2)}`,
+      `${currencySymbol}${totals.grandTotal.toFixed(2)}`,
+    ];
+  } else {
+    taxHeaders = ['Rate', 'Taxable', companyTax.taxName, 'Total'];
+    taxRows = Object.entries(gstGroups).map(([rate, g]) => [
+      `${rate}%`,
+      `${currencySymbol}${g.taxable.toFixed(2)}`,
+      `${currencySymbol}${(g.cgst + g.sgst).toFixed(2)}`,
+      `${currencySymbol}${g.total.toFixed(2)}`,
+    ]);
+    taxTotalRow = [
+      'Total',
+      `${currencySymbol}${totals.totalTaxable.toFixed(2)}`,
+      `${currencySymbol}${totals.totalTax.toFixed(2)}`,
+      `${currencySymbol}${totals.grandTotal.toFixed(2)}`,
+    ];
+  }
 
   return {
     billNo: billNo.replace('POS-', ''),
@@ -563,6 +597,8 @@ export function buildDirectPrintJsonPayload(data: POSPrintReceiptData, qrCodeDat
     payments,
     taxBreakup: {
       title: `-------${companyTax.taxName} Breakup Details--------Amount (${currencySymbol})`,
+      isDual: companyTax.isIndiaGst,
+      headers: taxHeaders,
       rows: taxRows,
       totalRow: taxTotalRow,
     },

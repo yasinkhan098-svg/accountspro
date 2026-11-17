@@ -217,9 +217,12 @@ export default function POSThermalSlip({
         const halfGst = ((it.gstRate || 0) / 2).toFixed(2);
         return (
           <div key={it.cartId || idx} style={{ marginBottom: 5, fontSize: 9 }}>
-            {/* GST rate line above item */}
+            {/* Country Tax rate & amount line above item */}
             <div style={{ fontSize: 8, color: '#333' }}>
-              {idx + 1}) CGST @ {halfGst}% SGST @ {halfGst}%
+              {companyTax.isIndiaGst
+                ? `${idx + 1}) CGST @ ${halfGst}% SGST @ ${halfGst}%`
+                : `${idx + 1}) ${companyTax.taxName} @ ${(it.gstRate || 0).toFixed(2)}%${(it.taxAmount || 0) > 0 ? ` (${currencySymbol}${(it.taxAmount || 0).toFixed(2)})` : ''}`
+              }
             </div>
             {/* Item description and figures */}
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>

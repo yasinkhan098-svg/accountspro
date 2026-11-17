@@ -707,7 +707,12 @@ export default function PrintDetailsConfigModal({
               <div style={{ borderTop: '1px dashed #000', margin: '3px 0' }} />
 
               <div style={{ fontSize: 8.5, marginBottom: 3 }}>
-                <div style={{ fontSize: 7.5, color: '#333' }}>1) CGST @ 9.00% SGST @ 9.00%</div>
+                <div style={{ fontSize: 7.5, color: '#333' }}>
+                  {(activeCompany?.country || 'India').toLowerCase() === 'india'
+                    ? '1) CGST @ 9.00% SGST @ 9.00%'
+                    : `1) ${preset.taxIdLabel.split(' ')[0] || 'Tax'} @ 5.00% (${currencySymbol}15.05)`
+                  }
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ width: '48%', fontWeight: 'bold' }}>732393 APACEXPRCOOL</span>
                   <span style={{ width: '18%', textAlign: 'right' }}>{currencySymbol}316.02</span>

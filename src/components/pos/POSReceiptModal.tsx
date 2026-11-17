@@ -46,11 +46,11 @@ export default function POSReceiptModal({
   const hasUpi = Boolean(company?.upiId && company.upiId.trim());
   const upiPayUrl = hasUpi
     ? posService.getUpiUri({
-        vpa: company.upiId.trim(),
-        companyName: storeName,
-        amount: totals.grandTotal,
-        billNo,
-      })
+      vpa: company.upiId.trim(),
+      companyName: storeName,
+      amount: totals.grandTotal,
+      billNo,
+    })
     : `UPI-INV:${billNo}|AMT:${totals.grandTotal}|GSTIN:${company?.gstin || ''}|DT:${dateStr}`;
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export default function POSReceiptModal({
       const timer = setTimeout(() => {
         try {
           handlePrint();
-        } catch (e) {}
+        } catch (e) { }
       }, 300);
       return () => clearTimeout(timer);
     }

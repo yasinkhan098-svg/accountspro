@@ -2125,9 +2125,16 @@ namespace LedgerXLauncher
                     g.SmoothingMode = SmoothingMode.HighQuality;
                     g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-                    float y = 10;
-                    float left = 10;
-                    float width = 280; // Standard 78mm printable width in 100ths of inch
+                    float y = 15;
+                    float slipWidth = 280; // Standard 78mm printable width in 100ths of inch
+                    float pageWidth = e.PageBounds.Width > 0 ? e.PageBounds.Width : 280;
+                    if (pageWidth < slipWidth && pageWidth > 50)
+                    {
+                        slipWidth = pageWidth - 10;
+                    }
+                    // Centered on any paper size (A4, Letter, 80mm roll, 58mm roll)
+                    float left = (pageWidth > slipWidth) ? (pageWidth - slipWidth) / 2 : 10;
+                    float width = slipWidth;
 
                     using (Font titleFont = new Font("Arial", 11, FontStyle.Bold))
                     using (Font boldFont = new Font("Courier New", 8, FontStyle.Bold))
@@ -2270,10 +2277,18 @@ namespace LedgerXLauncher
 
                         // Items Table Header
                         string currSym = data.ContainsKey("currencySymbol") ? Convert.ToString(data["currencySymbol"]) : "₹";
-                        g.DrawString("HSN Code Item Description", boldFont, brush, left, y);
-                        g.DrawString("Price(" + currSym + ")", boldFont, brush, new RectangleF(left + 140, y, 50, 12), rightFmt);
-                        g.DrawString("Qty", boldFont, brush, new RectangleF(left + 195, y, 35, 12), centerFmt);
-                        g.DrawString("Value(" + currSym + ")", boldFont, brush, new RectangleF(left + 230, y, 50, 12), rightFmt);
+                        float colDescW = 125;
+                        float colPriceW = 55;
+                        float colQtyW = 35;
+                        float colValW = 65;
+                        float colPriceX = left + colDescW;
+                        float colQtyX = colPriceX + colPriceW;
+                        float colValX = colQtyX + colQtyW;
+
+                        g.DrawString("HSN Code & Item", boldFont, brush, new RectangleF(left, y, colDescW, 12), leftFmt);
+                        g.DrawString("Price(" + currSym + ")", boldFont, brush, new RectangleF(colPriceX, y, colPriceW, 12), rightFmt);
+                        g.DrawString("Qty", boldFont, brush, new RectangleF(colQtyX, y, colQtyW, 12), centerFmt);
+                        g.DrawString("Value(" + currSym + ")", boldFont, brush, new RectangleF(colValX, y, colValW, 12), rightFmt);
                         y += 13;
                         drawDashedLine();
 
@@ -2296,10 +2311,10 @@ namespace LedgerXLauncher
                                     string qty = it.ContainsKey("qty") ? Convert.ToString(it["qty"]) : "";
                                     string val = it.ContainsKey("value") ? Convert.ToString(it["value"]) : "";
 
-                                    g.DrawString(iName, boldFont, brush, new RectangleF(left, y, 140, 14), leftFmt);
-                                    g.DrawString(price, regularFont, brush, new RectangleF(left + 140, y, 50, 14), rightFmt);
-                                    g.DrawString(qty, regularFont, brush, new RectangleF(left + 195, y, 35, 14), centerFmt);
-                                    g.DrawString(val, boldFont, brush, new RectangleF(left + 230, y, 50, 14), rightFmt);
+                                    g.DrawString(iName, boldFont, brush, new RectangleF(left, y, colDescW, 14), leftFmt);
+                                    g.DrawString(price, regularFont, brush, new RectangleF(colPriceX, y, colPriceW, 14), rightFmt);
+                                    g.DrawString(qty, regularFont, brush, new RectangleF(colQtyX, y, colQtyW, 14), centerFmt);
+                                    g.DrawString(val, boldFont, brush, new RectangleF(colValX, y, colValW, 14), rightFmt);
                                     y += 14;
 
                                     if (it.ContainsKey("mrpText") && !string.IsNullOrEmpty(Convert.ToString(it["mrpText"])))
@@ -2377,48 +2392,98 @@ namespace LedgerXLauncher
                             g.DrawString(tbTitle, smallFont, brush, new RectangleF(left, y, width, 11), centerFmt);
                             y += 12;
 
-                            // Table header columns
-                            g.DrawString("Rate/Tax", smallFont, brush, left, y);
-                            g.DrawString("Taxable", smallFont, brush, new RectangleF(left + 60, y, 50, 11), rightFmt);
-                            g.DrawString("CGST", smallFont, brush, new RectangleF(left + 115, y, 40, 11), rightFmt);
-                            g.DrawString("SGST", smallFont, brush, new RectangleF(left + 160, y, 40, 11), rightFmt);
-                            g.DrawString("Total", smallFont, brush, new RectangleF(left + 225, y, 55, 11), rightFmt);
-                            y += 12;
+                            bool isDual = tb.ContainsKey("isDual") ? Convert.ToBoolean(tb["isDual"]) : true;
 
-                            if (tb.ContainsKey("rows") && tb["rows"] is ArrayList)
+                            if (isDual)
                             {
-                                ArrayList rws = (ArrayList)tb["rows"];
-                                foreach (object rObj in rws)
+                                // 5 columns: Rate/Tax (40), Taxable (55), CGST (45), SGST (45), Total (95)
+                                g.DrawString("Rate/Tax", smallFont, brush, new RectangleF(left, y, 40, 11), leftFmt);
+                                g.DrawString("Taxable", smallFont, brush, new RectangleF(left + 40, y, 55, 11), rightFmt);
+                                g.DrawString("CGST", smallFont, brush, new RectangleF(left + 95, y, 45, 11), rightFmt);
+                                g.DrawString("SGST", smallFont, brush, new RectangleF(left + 140, y, 45, 11), rightFmt);
+                                g.DrawString("Total", smallFont, brush, new RectangleF(left + 185, y, 95, 11), rightFmt);
+                                y += 12;
+
+                                if (tb.ContainsKey("rows") && tb["rows"] is ArrayList)
                                 {
-                                    if (rObj is ArrayList)
+                                    ArrayList rws = (ArrayList)tb["rows"];
+                                    foreach (object rObj in rws)
                                     {
-                                        ArrayList r = (ArrayList)rObj;
-                                        if (r.Count >= 6)
+                                        if (rObj is ArrayList)
                                         {
-                                            g.DrawString(Convert.ToString(r[0]), smallFont, brush, left, y);
-                                            g.DrawString(Convert.ToString(r[1]), smallFont, brush, new RectangleF(left + 60, y, 50, 11), rightFmt);
-                                            g.DrawString(Convert.ToString(r[2]), smallFont, brush, new RectangleF(left + 115, y, 40, 11), rightFmt);
-                                            g.DrawString(Convert.ToString(r[3]), smallFont, brush, new RectangleF(left + 160, y, 40, 11), rightFmt);
-                                            g.DrawString(Convert.ToString(r[5]), smallFont, brush, new RectangleF(left + 225, y, 55, 11), rightFmt);
-                                            y += 11;
+                                            ArrayList r = (ArrayList)rObj;
+                                            if (r.Count >= 5)
+                                            {
+                                                g.DrawString(Convert.ToString(r[0]), smallFont, brush, new RectangleF(left, y, 40, 11), leftFmt);
+                                                g.DrawString(Convert.ToString(r[1]), smallFont, brush, new RectangleF(left + 40, y, 55, 11), rightFmt);
+                                                g.DrawString(Convert.ToString(r[2]), smallFont, brush, new RectangleF(left + 95, y, 45, 11), rightFmt);
+                                                g.DrawString(Convert.ToString(r[3]), smallFont, brush, new RectangleF(left + 140, y, 45, 11), rightFmt);
+                                                g.DrawString(Convert.ToString(r[4]), smallFont, brush, new RectangleF(left + 185, y, 95, 11), rightFmt);
+                                                y += 11;
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            // Total row
-                            if (tb.ContainsKey("totalRow") && tb["totalRow"] is ArrayList)
-                            {
-                                ArrayList tr = (ArrayList)tb["totalRow"];
-                                if (tr.Count >= 6)
+                                if (tb.ContainsKey("totalRow") && tb["totalRow"] is ArrayList)
                                 {
-                                    drawDashedLine();
-                                    g.DrawString("Total", boldFont, brush, left, y);
-                                    g.DrawString(Convert.ToString(tr[1]), boldFont, brush, new RectangleF(left + 60, y, 50, 11), rightFmt);
-                                    g.DrawString(Convert.ToString(tr[2]), boldFont, brush, new RectangleF(left + 115, y, 40, 11), rightFmt);
-                                    g.DrawString(Convert.ToString(tr[3]), boldFont, brush, new RectangleF(left + 160, y, 40, 11), rightFmt);
-                                    g.DrawString(Convert.ToString(tr[5]), boldFont, brush, new RectangleF(left + 225, y, 55, 11), rightFmt);
-                                    y += 12;
+                                    ArrayList tr = (ArrayList)tb["totalRow"];
+                                    if (tr.Count >= 5)
+                                    {
+                                        drawDashedLine();
+                                        g.DrawString("Total", boldFont, brush, new RectangleF(left, y, 40, 11), leftFmt);
+                                        g.DrawString(Convert.ToString(tr[1]), boldFont, brush, new RectangleF(left + 40, y, 55, 11), rightFmt);
+                                        g.DrawString(Convert.ToString(tr[2]), boldFont, brush, new RectangleF(left + 95, y, 45, 11), rightFmt);
+                                        g.DrawString(Convert.ToString(tr[3]), boldFont, brush, new RectangleF(left + 140, y, 45, 11), rightFmt);
+                                        g.DrawString(Convert.ToString(tr[4]), boldFont, brush, new RectangleF(left + 185, y, 95, 11), rightFmt);
+                                        y += 12;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // 4 columns for single tax countries (Canada, UAE, UK, USA, etc.): Rate (45), Taxable (70), Tax (75), Total (90)
+                                ArrayList hdrs = tb.ContainsKey("headers") && tb["headers"] is ArrayList ? (ArrayList)tb["headers"] : null;
+                                string col3Title = (hdrs != null && hdrs.Count >= 3) ? Convert.ToString(hdrs[2]) : "Tax Amount";
+
+                                g.DrawString("Rate", smallFont, brush, new RectangleF(left, y, 45, 11), leftFmt);
+                                g.DrawString("Taxable", smallFont, brush, new RectangleF(left + 45, y, 70, 11), rightFmt);
+                                g.DrawString(col3Title, smallFont, brush, new RectangleF(left + 115, y, 75, 11), rightFmt);
+                                g.DrawString("Total", smallFont, brush, new RectangleF(left + 190, y, 90, 11), rightFmt);
+                                y += 12;
+
+                                if (tb.ContainsKey("rows") && tb["rows"] is ArrayList)
+                                {
+                                    ArrayList rws = (ArrayList)tb["rows"];
+                                    foreach (object rObj in rws)
+                                    {
+                                        if (rObj is ArrayList)
+                                        {
+                                            ArrayList r = (ArrayList)rObj;
+                                            if (r.Count >= 4)
+                                            {
+                                                g.DrawString(Convert.ToString(r[0]), smallFont, brush, new RectangleF(left, y, 45, 11), leftFmt);
+                                                g.DrawString(Convert.ToString(r[1]), smallFont, brush, new RectangleF(left + 45, y, 70, 11), rightFmt);
+                                                g.DrawString(Convert.ToString(r[2]), smallFont, brush, new RectangleF(left + 115, y, 75, 11), rightFmt);
+                                                g.DrawString(Convert.ToString(r[3]), smallFont, brush, new RectangleF(left + 190, y, 90, 11), rightFmt);
+                                                y += 11;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (tb.ContainsKey("totalRow") && tb["totalRow"] is ArrayList)
+                                {
+                                    ArrayList tr = (ArrayList)tb["totalRow"];
+                                    if (tr.Count >= 4)
+                                    {
+                                        drawDashedLine();
+                                        g.DrawString("Total", boldFont, brush, new RectangleF(left, y, 45, 11), leftFmt);
+                                        g.DrawString(Convert.ToString(tr[1]), boldFont, brush, new RectangleF(left + 45, y, 70, 11), rightFmt);
+                                        g.DrawString(Convert.ToString(tr[2]), boldFont, brush, new RectangleF(left + 115, y, 75, 11), rightFmt);
+                                        g.DrawString(Convert.ToString(tr[3]), boldFont, brush, new RectangleF(left + 190, y, 90, 11), rightFmt);
+                                        y += 12;
+                                    }
                                 }
                             }
                         }
@@ -2439,19 +2504,32 @@ namespace LedgerXLauncher
                             }
                         }
 
-                        // Centered UPI QR Box
+                        // Centered UPI QR Box (Dynamic height so footer text never collides with box border)
                         if (data.ContainsKey("qrCodeBase64") && !string.IsNullOrEmpty(Convert.ToString(data["qrCodeBase64"])))
                         {
-                            y += 6;
+                            y += 8;
                             float boxY = y;
-                            float boxH = 175;
-                            g.DrawRectangle(pen, left + 5, boxY, width - 10, boxH);
+                            float qrBoxW = width - 10;
+                            float qrBoxLeft = left + 5;
 
+                            ArrayList qfls = (data.ContainsKey("qrFooterLines") && data["qrFooterLines"] is ArrayList)
+                                ? (ArrayList)data["qrFooterLines"]
+                                : new ArrayList();
+
+                            float qrImgH = 95;
+                            float qfY = boxY + 20 + qrImgH + 6;
+                            float totalBoxH = (qfY - boxY) + (qfls.Count * 13) + 8; // Dynamic height guarantees generous border padding
+
+                            // 1. Draw box border with dynamic height
+                            g.DrawRectangle(pen, qrBoxLeft, boxY, qrBoxW, totalBoxH);
+
+                            // 2. Draw Header
                             using (Font qrHeaderFont = new Font("Arial", 8, FontStyle.Bold))
                             {
                                 g.DrawString("[ 📲 SCAN & PAY WITH ANY UPI APP ]", qrHeaderFont, brush, new RectangleF(left, boxY + 5, width, 12), centerFmt);
                             }
 
+                            // 3. Draw QR Image
                             try
                             {
                                 string b64 = Convert.ToString(data["qrCodeBase64"]);
@@ -2460,26 +2538,23 @@ namespace LedgerXLauncher
                                 using (MemoryStream ms = new MemoryStream(imgBytes))
                                 using (Image qrImg = Image.FromStream(ms))
                                 {
-                                    float qrSize = 100;
-                                    g.DrawImage(qrImg, left + (width - qrSize) / 2, boxY + 22, qrSize, qrSize);
+                                    g.DrawImage(qrImg, left + (width - qrImgH) / 2, boxY + 20, qrImgH, qrImgH);
                                 }
                             }
                             catch { }
 
-                            float qfY = boxY + 126;
-                            if (data.ContainsKey("qrFooterLines") && data["qrFooterLines"] is ArrayList)
+                            // 4. Draw Footer Lines safely inside box
+                            float curLineY = qfY;
+                            foreach (object qfl in qfls)
                             {
-                                ArrayList qfls = (ArrayList)data["qrFooterLines"];
-                                foreach (object qfl in qfls)
+                                if (qfl != null && !string.IsNullOrEmpty(qfl.ToString()))
                                 {
-                                    if (qfl != null)
-                                    {
-                                        g.DrawString(qfl.ToString(), smallFont, brush, new RectangleF(left, qfY, width, 11), centerFmt);
-                                        qfY += 11;
-                                    }
+                                    g.DrawString(qfl.ToString(), smallFont, brush, new RectangleF(left, curLineY, width, 12), centerFmt);
+                                    curLineY += 13;
                                 }
                             }
-                            y = boxY + boxH + 8;
+
+                            y = boxY + totalBoxH + 10;
                         }
 
                         // Footer compliance lines
@@ -2491,10 +2566,10 @@ namespace LedgerXLauncher
                                 if (fl != null && !string.IsNullOrEmpty(fl.ToString()))
                                 {
                                     string fstr = fl.ToString();
-                                    RectangleF fRect = new RectangleF(left, y, width, 25);
-                                    g.DrawString(fstr, smallFont, brush, fRect, centerFmt);
                                     SizeF sz = g.MeasureString(fstr, smallFont, (int)width);
-                                    y += sz.Height + 1;
+                                    RectangleF fRect = new RectangleF(left, y, width, sz.Height + 2);
+                                    g.DrawString(fstr, smallFont, brush, fRect, centerFmt);
+                                    y += sz.Height + 2;
                                 }
                             }
                         }
