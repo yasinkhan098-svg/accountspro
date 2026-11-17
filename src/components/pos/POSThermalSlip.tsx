@@ -205,9 +205,9 @@ export default function POSThermalSlip({
       {/* 4. ITEMS TABLE (FORMAT: HSN Code Item Description Net Price Qty Value) */}
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontWeight: 'bold', marginBottom: 4 }}>
         <span style={{ width: '48%' }}>HSN Code Item Description</span>
-        <span style={{ width: '18%', textAlign: 'right' }}>Net Price</span>
+        <span style={{ width: '18%', textAlign: 'right' }}>Net Price ({currencySymbol})</span>
         <span style={{ width: '14%', textAlign: 'center' }}>Qty</span>
-        <span style={{ width: '20%', textAlign: 'right' }}>Value</span>
+        <span style={{ width: '20%', textAlign: 'right' }}>Value ({currencySymbol})</span>
       </div>
 
       <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }} />
@@ -232,13 +232,13 @@ export default function POSThermalSlip({
                 )}
               </span>
               <span style={{ width: '18%', textAlign: 'right' }}>
-                {it.rateWithTax.toFixed(2)}
+                {currencySymbol}{it.rateWithTax.toFixed(2)}
               </span>
               <span style={{ width: '14%', textAlign: 'center' }}>
                 {it.qty} {it.unit || ''}
               </span>
               <span style={{ width: '20%', textAlign: 'right', fontWeight: 'bold' }}>
-                {it.lineTotal.toFixed(2)}
+                {currencySymbol}{it.lineTotal.toFixed(2)}
               </span>
             </div>
           </div>
@@ -251,27 +251,27 @@ export default function POSThermalSlip({
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 2 }}>
         <span>Items: {totals.itemsCount}</span>
         <span>Qty: {totals.totalQty}</span>
-        <span style={{ fontWeight: 'bold' }}>{totals.subtotal.toFixed(2)}</span>
+        <span style={{ fontWeight: 'bold' }}>{currencySymbol}{totals.subtotal.toFixed(2)}</span>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 2 }}>
         <span>Gross sales Value</span>
-        <span>{(totals.grossSalesValue || totals.subtotal + totals.discountAmount).toFixed(2)}</span>
+        <span>{currencySymbol}{(totals.grossSalesValue || totals.subtotal + totals.discountAmount).toFixed(2)}</span>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 2 }}>
         <span>Total Discount</span>
-        <span>{totals.discountAmount.toFixed(2)}</span>
+        <span>{currencySymbol}{totals.discountAmount.toFixed(2)}</span>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 2 }}>
-        <span>Net Sales Value (Inclusive of GST)</span>
-        <span>{totals.subtotal.toFixed(2)}</span>
+        <span>Net Sales Value (Inclusive of {companyTax.taxName})</span>
+        <span>{currencySymbol}{totals.subtotal.toFixed(2)}</span>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 'bold', margin: '4px 0' }}>
         <span>Total Amount Paid</span>
-        <span>{totals.grandTotal.toFixed(2)}</span>
+        <span>{currencySymbol}{totals.grandTotal.toFixed(2)}</span>
       </div>
 
       {/* Payment Mode Specifics */}
@@ -279,35 +279,35 @@ export default function POSThermalSlip({
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9 }}>
             <span>CASH TENDERED</span>
-            <span>{payment.cashAmount?.toFixed(2)}</span>
+            <span>{currencySymbol}{payment.cashAmount?.toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9 }}>
             <span>JIOPAY UPI DQR {payment.upiRef || 'X-2319-30492630'}</span>
-            <span>{payment.upiAmount?.toFixed(2)}</span>
+            <span>{currencySymbol}{payment.upiAmount?.toFixed(2)}</span>
           </div>
         </>
       ) : payment.mode === 'UPI_QR' ? (
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9 }}>
           <span>JIOPAY UPI DQR {payment.upiRef || 'X-2319-30492630'}</span>
-          <span>{totals.grandTotal.toFixed(2)}</span>
+          <span>{currencySymbol}{totals.grandTotal.toFixed(2)}</span>
         </div>
       ) : payment.mode === 'Cash' ? (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9 }}>
             <span>CASH TENDERED</span>
-            <span>{(payment.cashTendered || totals.grandTotal).toFixed(2)}</span>
+            <span>{currencySymbol}{(payment.cashTendered || totals.grandTotal).toFixed(2)}</span>
           </div>
           {(payment.changeDue || 0) > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9 }}>
               <span>CHANGE RETURNED</span>
-              <span>{(payment.changeDue || 0).toFixed(2)}</span>
+              <span>{currencySymbol}{(payment.changeDue || 0).toFixed(2)}</span>
             </div>
           )}
         </>
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9 }}>
           <span>TENDER: {payment.mode}</span>
-          <span>{totals.grandTotal.toFixed(2)}</span>
+          <span>{currencySymbol}{totals.grandTotal.toFixed(2)}</span>
         </div>
       )}
 
@@ -338,11 +338,11 @@ export default function POSThermalSlip({
           {Object.entries(gstGroups).map(([rate, g], i) => (
             <div key={rate} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginBottom: 2 }}>
               <span style={{ width: '12%' }}>{i + 1}</span>
-              <span style={{ width: '22%', textAlign: 'right' }}>{g.taxable.toFixed(2)}</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>{g.cgst.toFixed(2)}</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>{g.sgst.toFixed(2)}</span>
-              <span style={{ width: '12%', textAlign: 'right' }}>0.00</span>
-              <span style={{ width: '18%', textAlign: 'right' }}>{g.total.toFixed(2)}</span>
+              <span style={{ width: '22%', textAlign: 'right' }}>{currencySymbol}{g.taxable.toFixed(2)}</span>
+              <span style={{ width: '18%', textAlign: 'right' }}>{currencySymbol}{g.cgst.toFixed(2)}</span>
+              <span style={{ width: '18%', textAlign: 'right' }}>{currencySymbol}{g.sgst.toFixed(2)}</span>
+              <span style={{ width: '12%', textAlign: 'right' }}>{currencySymbol}0.00</span>
+              <span style={{ width: '18%', textAlign: 'right' }}>{currencySymbol}{g.total.toFixed(2)}</span>
             </div>
           ))}
 
@@ -350,11 +350,11 @@ export default function POSThermalSlip({
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, fontWeight: 'bold' }}>
             <span style={{ width: '12%' }}>Total</span>
-            <span style={{ width: '22%', textAlign: 'right' }}>{totals.totalTaxable.toFixed(2)}</span>
-            <span style={{ width: '18%', textAlign: 'right' }}>{totals.totalCgst.toFixed(2)}</span>
-            <span style={{ width: '18%', textAlign: 'right' }}>{totals.totalSgst.toFixed(2)}</span>
-            <span style={{ width: '12%', textAlign: 'right' }}>0.00</span>
-            <span style={{ width: '18%', textAlign: 'right' }}>{totals.grandTotal.toFixed(2)}</span>
+            <span style={{ width: '22%', textAlign: 'right' }}>{currencySymbol}{totals.totalTaxable.toFixed(2)}</span>
+            <span style={{ width: '18%', textAlign: 'right' }}>{currencySymbol}{totals.totalCgst.toFixed(2)}</span>
+            <span style={{ width: '18%', textAlign: 'right' }}>{currencySymbol}{totals.totalSgst.toFixed(2)}</span>
+            <span style={{ width: '12%', textAlign: 'right' }}>{currencySymbol}0.00</span>
+            <span style={{ width: '18%', textAlign: 'right' }}>{currencySymbol}{totals.grandTotal.toFixed(2)}</span>
           </div>
         </>
       ) : (
@@ -377,9 +377,9 @@ export default function POSThermalSlip({
             return (
               <div key={rate} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginBottom: 2 }}>
                 <span style={{ width: '15%' }}>{rate}%</span>
-                <span style={{ width: '30%', textAlign: 'right' }}>{g.taxable.toFixed(2)}</span>
-                <span style={{ width: '25%', textAlign: 'right' }}>{lineTax.toFixed(2)}</span>
-                <span style={{ width: '30%', textAlign: 'right' }}>{g.total.toFixed(2)}</span>
+                <span style={{ width: '30%', textAlign: 'right' }}>{currencySymbol}{g.taxable.toFixed(2)}</span>
+                <span style={{ width: '25%', textAlign: 'right' }}>{currencySymbol}{lineTax.toFixed(2)}</span>
+                <span style={{ width: '30%', textAlign: 'right' }}>{currencySymbol}{g.total.toFixed(2)}</span>
               </div>
             );
           })}
@@ -388,9 +388,9 @@ export default function POSThermalSlip({
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, fontWeight: 'bold' }}>
             <span style={{ width: '15%' }}>Total</span>
-            <span style={{ width: '30%', textAlign: 'right' }}>{totals.totalTaxable.toFixed(2)}</span>
-            <span style={{ width: '25%', textAlign: 'right' }}>{totals.totalTax.toFixed(2)}</span>
-            <span style={{ width: '30%', textAlign: 'right' }}>{totals.grandTotal.toFixed(2)}</span>
+            <span style={{ width: '30%', textAlign: 'right' }}>{currencySymbol}{totals.totalTaxable.toFixed(2)}</span>
+            <span style={{ width: '25%', textAlign: 'right' }}>{currencySymbol}{totals.totalTax.toFixed(2)}</span>
+            <span style={{ width: '30%', textAlign: 'right' }}>{currencySymbol}{totals.grandTotal.toFixed(2)}</span>
           </div>
         </>
       )}

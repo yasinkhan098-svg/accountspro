@@ -700,9 +700,9 @@ export default function PrintDetailsConfigModal({
               {/* Sample Items Table */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8.5, fontWeight: 'bold', marginBottom: 3 }}>
                 <span style={{ width: '48%' }}>Item Description</span>
-                <span style={{ width: '18%', textAlign: 'right' }}>Price</span>
+                <span style={{ width: '18%', textAlign: 'right' }}>Price ({currencySymbol})</span>
                 <span style={{ width: '14%', textAlign: 'center' }}>Qty</span>
-                <span style={{ width: '20%', textAlign: 'right' }}>Value</span>
+                <span style={{ width: '20%', textAlign: 'right' }}>Value ({currencySymbol})</span>
               </div>
               <div style={{ borderTop: '1px dashed #000', margin: '3px 0' }} />
 
@@ -710,9 +710,9 @@ export default function PrintDetailsConfigModal({
                 <div style={{ fontSize: 7.5, color: '#333' }}>1) CGST @ 9.00% SGST @ 9.00%</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ width: '48%', fontWeight: 'bold' }}>732393 APACEXPRCOOL</span>
-                  <span style={{ width: '18%', textAlign: 'right' }}>316.02</span>
+                  <span style={{ width: '18%', textAlign: 'right' }}>{currencySymbol}316.02</span>
                   <span style={{ width: '14%', textAlign: 'center' }}>1 CAR</span>
-                  <span style={{ width: '20%', textAlign: 'right', fontWeight: 'bold' }}>316.02</span>
+                  <span style={{ width: '20%', textAlign: 'right', fontWeight: 'bold' }}>{currencySymbol}316.02</span>
                 </div>
               </div>
 
@@ -721,7 +721,7 @@ export default function PrintDetailsConfigModal({
               {/* Totals */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8.5 }}>
                 <span>Items: 1  Qty: 1</span>
-                <span style={{ fontWeight: 'bold' }}>316.02</span>
+                <span style={{ fontWeight: 'bold' }}>{currencySymbol}316.02</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, fontWeight: 'bold', margin: '3px 0' }}>
                 <span>Total Amount Paid</span>
@@ -742,10 +742,10 @@ export default function PrintDetailsConfigModal({
               </div>
               <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 7.5 }}>
-                <span>267.81</span>
-                <span>24.11</span>
-                <span>24.11</span>
-                <span>316.02</span>
+                <span>{currencySymbol}267.81</span>
+                <span>{currencySymbol}24.11</span>
+                <span>{currencySymbol}24.11</span>
+                <span>{currencySymbol}316.02</span>
               </div>
 
               <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }} />

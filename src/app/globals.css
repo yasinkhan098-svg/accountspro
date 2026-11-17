@@ -585,6 +585,9 @@ body {
 }
 
 @media print {
+  :root {
+    background-color: transparent !important;
+  }
   body {
     background: white !important;
     overflow: visible !important;

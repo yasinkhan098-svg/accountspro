@@ -89,9 +89,9 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
             ${it.hsnCode || '732393'} ${it.name}
             ${saveAmt ? `<div style="font-size: 7.5px; color: #16a34a; font-weight: normal;">MRP: ${currencySymbol}${it.mrpRate.toFixed(2)} (Save ${currencySymbol}${saveAmt})</div>` : ''}
           </span>
-          <span style="width: 18%; text-align: right;">${it.rateWithTax.toFixed(2)}</span>
+          <span style="width: 18%; text-align: right;">${currencySymbol}${it.rateWithTax.toFixed(2)}</span>
           <span style="width: 14%; text-align: center;">${it.qty} ${it.unit || ''}</span>
-          <span style="width: 20%; text-align: right; font-weight: bold;">${it.lineTotal.toFixed(2)}</span>
+          <span style="width: 20%; text-align: right; font-weight: bold;">${currencySymbol}${it.lineTotal.toFixed(2)}</span>
         </div>
       </div>
     `;
@@ -103,30 +103,30 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
     paymentHtml = `
       <div style="display: flex; justify-content: space-between; font-size: 9px;">
         <span>CASH TENDERED</span>
-        <span>${(payment.cashAmount || 0).toFixed(2)}</span>
+        <span>${currencySymbol}${(payment.cashAmount || 0).toFixed(2)}</span>
       </div>
       <div style="display: flex; justify-content: space-between; font-size: 9px;">
         <span>JIOPAY UPI DQR ${payment.upiRef || 'X-2319-30492630'}</span>
-        <span>${(payment.upiAmount || 0).toFixed(2)}</span>
+        <span>${currencySymbol}${(payment.upiAmount || 0).toFixed(2)}</span>
       </div>
     `;
   } else if (payment.mode === 'UPI_QR') {
     paymentHtml = `
       <div style="display: flex; justify-content: space-between; font-size: 9px;">
         <span>JIOPAY UPI DQR ${payment.upiRef || 'X-2319-30492630'}</span>
-        <span>${totals.grandTotal.toFixed(2)}</span>
+        <span>${currencySymbol}${totals.grandTotal.toFixed(2)}</span>
       </div>
     `;
   } else if (payment.mode === 'Cash') {
     paymentHtml = `
       <div style="display: flex; justify-content: space-between; font-size: 9px;">
         <span>CASH TENDERED</span>
-        <span>${(payment.cashTendered || totals.grandTotal).toFixed(2)}</span>
+        <span>${currencySymbol}${(payment.cashTendered || totals.grandTotal).toFixed(2)}</span>
       </div>
       ${(payment.changeDue || 0) > 0 ? `
       <div style="display: flex; justify-content: space-between; font-size: 9px;">
         <span>CHANGE RETURNED</span>
-        <span>${(payment.changeDue || 0).toFixed(2)}</span>
+        <span>${currencySymbol}${(payment.changeDue || 0).toFixed(2)}</span>
       </div>
       ` : ''}
     `;
@@ -134,7 +134,7 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
     paymentHtml = `
       <div style="display: flex; justify-content: space-between; font-size: 9px;">
         <span>TENDER: ${payment.mode}</span>
-        <span>${totals.grandTotal.toFixed(2)}</span>
+        <span>${currencySymbol}${totals.grandTotal.toFixed(2)}</span>
       </div>
     `;
   }
@@ -145,11 +145,11 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
     const rows = Object.entries(gstGroups).map(([rate, g], i) => `
       <div style="display: flex; justify-content: space-between; font-size: 8px; margin-bottom: 2px;">
         <span style="width: 12%;">${i + 1}</span>
-        <span style="width: 22%; text-align: right;">${g.taxable.toFixed(2)}</span>
-        <span style="width: 18%; text-align: right;">${g.cgst.toFixed(2)}</span>
-        <span style="width: 18%; text-align: right;">${g.sgst.toFixed(2)}</span>
-        <span style="width: 12%; text-align: right;">0.00</span>
-        <span style="width: 18%; text-align: right;">${g.total.toFixed(2)}</span>
+        <span style="width: 22%; text-align: right;">${currencySymbol}${g.taxable.toFixed(2)}</span>
+        <span style="width: 18%; text-align: right;">${currencySymbol}${g.cgst.toFixed(2)}</span>
+        <span style="width: 18%; text-align: right;">${currencySymbol}${g.sgst.toFixed(2)}</span>
+        <span style="width: 12%; text-align: right;">${currencySymbol}0.00</span>
+        <span style="width: 18%; text-align: right;">${currencySymbol}${g.total.toFixed(2)}</span>
       </div>
     `).join('');
 
@@ -170,20 +170,20 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
       <div style="border-top: 1px dashed #000; margin: 2px 0;"></div>
       <div style="display: flex; justify-content: space-between; font-size: 8px; font-weight: bold;">
         <span style="width: 12%;">Total</span>
-        <span style="width: 22%; text-align: right;">${totals.totalTaxable.toFixed(2)}</span>
-        <span style="width: 18%; text-align: right;">${totals.totalCgst.toFixed(2)}</span>
-        <span style="width: 18%; text-align: right;">${totals.totalSgst.toFixed(2)}</span>
-        <span style="width: 12%; text-align: right;">0.00</span>
-        <span style="width: 18%; text-align: right;">${totals.grandTotal.toFixed(2)}</span>
+        <span style="width: 22%; text-align: right;">${currencySymbol}${totals.totalTaxable.toFixed(2)}</span>
+        <span style="width: 18%; text-align: right;">${currencySymbol}${totals.totalCgst.toFixed(2)}</span>
+        <span style="width: 18%; text-align: right;">${currencySymbol}${totals.totalSgst.toFixed(2)}</span>
+        <span style="width: 12%; text-align: right;">${currencySymbol}0.00</span>
+        <span style="width: 18%; text-align: right;">${currencySymbol}${totals.grandTotal.toFixed(2)}</span>
       </div>
     `;
   } else {
     const rows = Object.entries(gstGroups).map(([rate, g]) => `
       <div style="display: flex; justify-content: space-between; font-size: 8px; margin-bottom: 2px;">
         <span style="width: 15%;">${rate}%</span>
-        <span style="width: 30%; text-align: right;">${g.taxable.toFixed(2)}</span>
-        <span style="width: 25%; text-align: right;">${(g.cgst + g.sgst).toFixed(2)}</span>
-        <span style="width: 30%; text-align: right;">${g.total.toFixed(2)}</span>
+        <span style="width: 30%; text-align: right;">${currencySymbol}${g.taxable.toFixed(2)}</span>
+        <span style="width: 25%; text-align: right;">${currencySymbol}${(g.cgst + g.sgst).toFixed(2)}</span>
+        <span style="width: 30%; text-align: right;">${currencySymbol}${g.total.toFixed(2)}</span>
       </div>
     `).join('');
 
@@ -202,9 +202,9 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
       <div style="border-top: 1px dashed #000; margin: 2px 0;"></div>
       <div style="display: flex; justify-content: space-between; font-size: 8px; font-weight: bold;">
         <span style="width: 15%;">Total</span>
-        <span style="width: 30%; text-align: right;">${totals.totalTaxable.toFixed(2)}</span>
-        <span style="width: 25%; text-align: right;">${totals.totalTax.toFixed(2)}</span>
-        <span style="width: 30%; text-align: right;">${totals.grandTotal.toFixed(2)}</span>
+        <span style="width: 30%; text-align: right;">${currencySymbol}${totals.totalTaxable.toFixed(2)}</span>
+        <span style="width: 25%; text-align: right;">${currencySymbol}${totals.totalTax.toFixed(2)}</span>
+        <span style="width: 30%; text-align: right;">${currencySymbol}${totals.grandTotal.toFixed(2)}</span>
       </div>
     `;
   }
@@ -330,9 +330,9 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
     <!-- 4. ITEMS TABLE -->
     <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; margin-bottom: 4px;">
       <span style="width: 48%;">HSN Code Item Description</span>
-      <span style="width: 18%; text-align: right;">Net Price</span>
+      <span style="width: 18%; text-align: right;">Net Price (${currencySymbol})</span>
       <span style="width: 14%; text-align: center;">Qty</span>
-      <span style="width: 20%; text-align: right;">Value</span>
+      <span style="width: 20%; text-align: right;">Value (${currencySymbol})</span>
     </div>
 
     <div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
@@ -345,23 +345,23 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
     <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
       <span>Items: ${totals.itemsCount}</span>
       <span>Qty: ${totals.totalQty}</span>
-      <span style="font-weight: bold;">${totals.subtotal.toFixed(2)}</span>
+      <span style="font-weight: bold;">${currencySymbol}${totals.subtotal.toFixed(2)}</span>
     </div>
     <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
       <span>Gross sales Value</span>
-      <span>${(totals.grossSalesValue || totals.subtotal + totals.discountAmount).toFixed(2)}</span>
+      <span>${currencySymbol}${(totals.grossSalesValue || totals.subtotal + totals.discountAmount).toFixed(2)}</span>
     </div>
     <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
       <span>Total Discount</span>
-      <span>${totals.discountAmount.toFixed(2)}</span>
+      <span>${currencySymbol}${totals.discountAmount.toFixed(2)}</span>
     </div>
     <div style="display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
-      <span>Net Sales Value (Inclusive of GST)</span>
-      <span>${totals.subtotal.toFixed(2)}</span>
+      <span>Net Sales Value (Inclusive of ${companyTax.taxName})</span>
+      <span>${currencySymbol}${totals.subtotal.toFixed(2)}</span>
     </div>
     <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin: 4px 0;">
       <span>Total Amount Paid</span>
-      <span>${totals.grandTotal.toFixed(2)}</span>
+      <span>${currencySymbol}${totals.grandTotal.toFixed(2)}</span>
     </div>
 
     ${paymentHtml}
@@ -482,14 +482,14 @@ class POSThermalPrintService {
       iframe = document.createElement('iframe');
       iframe.id = iframeId;
       iframe.style.position = 'fixed';
-      iframe.style.left = '0';
-      iframe.style.top = '0';
+      iframe.style.left = '-9999px';
+      iframe.style.top = '-9999px';
       iframe.style.width = '78mm';
       iframe.style.height = '1000px';
       iframe.style.border = 'none';
       iframe.style.opacity = '0.01'; // Very slightly visible to avoid Chromium optimizing out paint
       iframe.style.pointerEvents = 'none';
-      iframe.style.zIndex = '-9999';
+      iframe.style.zIndex = '-99999';
       document.body.appendChild(iframe);
 
       const frameDoc = iframe.contentWindow?.document || iframe.contentDocument;
@@ -501,12 +501,12 @@ class POSThermalPrintService {
       frameDoc.write(fullHtml);
       frameDoc.close();
 
-      // Give images and DOM layout a reliable moment to paint, then trigger print
+      // Give images and DOM layout a reliable moment to paint, then trigger print silently
       await new Promise<void>((resolve) => {
         const trigger = () => {
           try {
             if (iframe && iframe.contentWindow) {
-              iframe.contentWindow.focus();
+              // Direct silent print without focusing iframe (prevents full-screen white canvas flash)
               iframe.contentWindow.print();
             }
           } catch (err) {
@@ -517,10 +517,10 @@ class POSThermalPrintService {
 
         const img = frameDoc.querySelector('img');
         if (img && !img.complete) {
-          img.onload = () => setTimeout(trigger, 100);
+          img.onload = () => setTimeout(trigger, 80);
           img.onerror = () => trigger();
         } else {
-          setTimeout(trigger, 250);
+          setTimeout(trigger, 120);
         }
       });
 

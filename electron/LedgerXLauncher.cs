@@ -279,7 +279,7 @@ namespace LedgerXLauncher
                 {
                     ProcessStartInfo psi = new ProcessStartInfo();
                     psi.FileName = browserPath;
-                    psi.Arguments = string.Format("--kiosk-printing --app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
+                    psi.Arguments = string.Format("--kiosk-printing --default-background-color=00000000 --app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
                     psi.WindowStyle = ProcessWindowStyle.Maximized;
                     psi.UseShellExecute = true;
                     Process.Start(psi);

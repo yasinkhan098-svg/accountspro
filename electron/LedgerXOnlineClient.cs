@@ -132,7 +132,7 @@ namespace LedgerXOnlineClient
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = browser;
-                psi.Arguments = string.Format("--kiosk-printing --app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run", targetUrl, profileDir);
+                psi.Arguments = string.Format("--kiosk-printing --default-background-color=00000000 --app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run", targetUrl, profileDir);
                 psi.WindowStyle = ProcessWindowStyle.Maximized;
                 psi.UseShellExecute = false;
                 Process.Start(psi);
