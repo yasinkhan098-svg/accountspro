@@ -68,9 +68,9 @@ export default function POSReceiptModal({
     if (isOpen && autoPrint && qrCodeDataUrl) {
       const timer = setTimeout(() => {
         try {
-          window.print();
+          handlePrint();
         } catch (e) {}
-      }, 500);
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [isOpen, autoPrint, qrCodeDataUrl]);

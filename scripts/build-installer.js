@@ -4,12 +4,12 @@ const { execSync } = require('child_process');
 
 console.log('=== Step 1: Locating C# Compiler (csc.exe) ===');
 const cscPaths = [
-  'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe',
-  'C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe',
+    'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe',
+    'C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe',
 ];
 let cscPath = cscPaths.find(p => fs.existsSync(p));
 if (!cscPath) {
-  throw new Error('csc.exe not found in Microsoft.NET Framework');
+    throw new Error('csc.exe not found in Microsoft.NET Framework');
 }
 console.log('Using compiler:', cscPath);
 
@@ -30,17 +30,17 @@ const onlineClientCsPath = path.join(electronDir, 'LedgerXOnlineClient.cs');
 const onlineClientExePath = path.join(downloadsDir, 'LedgerX-Online-Client.exe');
 
 if (!fs.existsSync(icoPath)) {
-  throw new Error('Icon file electron/app.ico does not exist. Run scripts/generate-icons.py first!');
+    throw new Error('Icon file electron/app.ico does not exist. Run scripts/generate-icons.py first!');
 }
 if (!fs.existsSync(manifestPath)) {
-  throw new Error('Manifest file electron/app.manifest does not exist!');
+    throw new Error('Manifest file electron/app.manifest does not exist!');
 }
 if (!fs.existsSync(downloadsDir)) {
-  fs.mkdirSync(downloadsDir, { recursive: true });
+    fs.mkdirSync(downloadsDir, { recursive: true });
 }
 
 console.log('\n=== Step 2: Compiling LedgerX.exe with embedded Win32 Icon & Manifest ===');
-const launcherCmd = `"${cscPath}" /target:winexe /optimize+ /r:System.Web.Extensions.dll /win32icon:"${icoPath}" /win32manifest:"${manifestPath}" /out:"${launcherExePath}" "${launcherCsPath}"`;
+const launcherCmd = `"${cscPath}" /target:winexe /optimize+ /r:System.Drawing.dll /r:System.Web.Extensions.dll /win32icon:"${icoPath}" /win32manifest:"${manifestPath}" /out:"${launcherExePath}" "${launcherCsPath}"`;
 console.log('Executing:', launcherCmd);
 execSync(launcherCmd, { stdio: 'inherit' });
 
@@ -802,8 +802,8 @@ console.log('Compiled LedgerX-Client-Setup.exe size:', clientSetupBuffer.length,
 
 console.log('\n=== Step 5: Applying Code Signing Digital Signature via PowerShell ===');
 try {
-  const signPs1 = path.join(__dirname, 'sign.ps1');
-  const signScript = `
+    const signPs1 = path.join(__dirname, 'sign.ps1');
+    const signScript = `
 $cert = Get-ChildItem Cert:\\CurrentUser\\My -CodeSigningCert | Where-Object { $_.Subject -like '*AccountsPro*' } | Select-Object -First 1
 if (-not $cert) {
     $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=AccountsPro Software" -CertStoreLocation "Cert:\\CurrentUser\\My" -NotAfter (Get-Date).AddYears(5)
@@ -815,12 +815,12 @@ Set-AuthenticodeSignature -FilePath "${clientSetupExePath}" -Certificate $cert |
 Set-AuthenticodeSignature -FilePath "${onlineClientExePath}" -Certificate $cert | Out-Null
 Write-Output "Successfully signed binaries with certificate: $($cert.Thumbprint)"
 `;
-  fs.writeFileSync(signPs1, signScript, 'utf-8');
-  const signResult = execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${signPs1}"`, { encoding: 'utf-8' });
-  try { fs.unlinkSync(signPs1); } catch {}
-  console.log(signResult.trim());
+    fs.writeFileSync(signPs1, signScript, 'utf-8');
+    const signResult = execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${signPs1}"`, { encoding: 'utf-8' });
+    try { fs.unlinkSync(signPs1); } catch { }
+    console.log(signResult.trim());
 } catch (signErr) {
-  console.log('Notice on signing:', signErr.message);
+    console.log('Notice on signing:', signErr.message);
 }
 
 console.log('\n=== Step 6: Verification ===');

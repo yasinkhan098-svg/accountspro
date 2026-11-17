@@ -5,6 +5,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Drawing.Printing;
+using System.Drawing.Drawing2D;
 using Microsoft.Win32;
 using System.Security.Cryptography;
 using System.Text;
@@ -1559,6 +1561,26 @@ namespace LedgerXLauncher
                     }
                 }
 
+                if (path == "/api/pos/direct-print" && req.HttpMethod == "POST")
+                {
+                    Encoding reqEnc = (req.ContentEncoding != null && req.ContentEncoding.CodePage != Encoding.Default.CodePage) ? req.ContentEncoding : Encoding.UTF8;
+                    using (StreamReader reader = new StreamReader(req.InputStream, reqEnc))
+                    {
+                        string body = reader.ReadToEnd();
+                        string printError = null;
+                        bool ok = DirectThermalPrinter.PrintReceipt(body, out printError);
+                        if (ok)
+                        {
+                            WriteJsonResponse(res, "{\"success\":true,\"message\":\"Receipt printed directly to printer without browser dialog or flash\"}");
+                        }
+                        else
+                        {
+                            WriteJsonResponse(res, "{\"success\":false,\"error\":\"" + (printError ?? "Print failed").Replace("\"", "'") + "\"}");
+                        }
+                        return;
+                    }
+                }
+
                 // Static file serving for 100% Offline LAN Multi-User Access
                 string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string wwwDir = Path.Combine(localApp, "LedgerX", "www");
@@ -2071,6 +2093,422 @@ namespace LedgerXLauncher
         protected override void SetVisibleCore(bool value)
         {
             base.SetVisibleCore(false);
+        }
+    }
+
+    public class DirectThermalPrinter
+    {
+        public static bool PrintReceipt(string jsonBody, out string error)
+        {
+            error = null;
+            try
+            {
+                JavaScriptSerializer js = new JavaScriptSerializer();
+                Dictionary<string, object> data = js.Deserialize<Dictionary<string, object>>(jsonBody);
+                if (data == null)
+                {
+                    error = "Invalid JSON data received";
+                    return false;
+                }
+
+                PrintDocument pd = new PrintDocument();
+                // StandardPrintController suppresses all Windows UI progress dialogs & animations!
+                pd.PrintController = new StandardPrintController();
+                pd.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
+                if (data.ContainsKey("printerName") && !string.IsNullOrEmpty(Convert.ToString(data["printerName"])))
+                {
+                    pd.PrinterSettings.PrinterName = Convert.ToString(data["printerName"]);
+                }
+                pd.PrintPage += (sender, e) =>
+                {
+                    Graphics g = e.Graphics;
+                    g.SmoothingMode = SmoothingMode.HighQuality;
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                    float y = 10;
+                    float left = 10;
+                    float width = 280; // Standard 78mm printable width in 100ths of inch
+
+                    using (Font titleFont = new Font("Arial", 11, FontStyle.Bold))
+                    using (Font boldFont = new Font("Courier New", 8, FontStyle.Bold))
+                    using (Font regularFont = new Font("Courier New", 7.5f, FontStyle.Regular))
+                    using (Font smallFont = new Font("Courier New", 6.5f, FontStyle.Regular))
+                    using (Brush brush = new SolidBrush(Color.Black))
+                    using (Pen pen = new Pen(Color.Black, 1))
+                    {
+                        StringFormat centerFmt = new StringFormat { Alignment = StringAlignment.Center };
+                        StringFormat rightFmt = new StringFormat { Alignment = StringAlignment.Far };
+                        StringFormat leftFmt = new StringFormat { Alignment = StringAlignment.Near };
+
+                        // 1. Circle L Logo
+                        RectangleF logoRect = new RectangleF(left + (width - 34) / 2, y, 34, 34);
+                        using (Pen logoPen = new Pen(Color.Black, 2))
+                        {
+                            g.DrawEllipse(logoPen, logoRect);
+                        }
+                        using (Font logoFont = new Font("Arial", 18, FontStyle.Bold))
+                        {
+                            g.DrawString("L", logoFont, brush, new RectangleF(logoRect.X, logoRect.Y + 3, logoRect.Width, logoRect.Height), centerFmt);
+                        }
+                        y += 40;
+
+                        // 2. Store Name
+                        string storeName = data.ContainsKey("storeName") ? Convert.ToString(data["storeName"]) : "LedgerX Retail";
+                        g.DrawString(storeName.ToUpper(), titleFont, brush, new RectangleF(left, y, width, 20), centerFmt);
+                        y += 18;
+
+                        // Tagline
+                        if (data.ContainsKey("tagline") && !string.IsNullOrEmpty(Convert.ToString(data["tagline"])))
+                        {
+                            using (Font tagFont = new Font("Arial", 9, FontStyle.Bold))
+                            {
+                                g.DrawString(Convert.ToString(data["tagline"]), tagFont, brush, new RectangleF(left, y, width, 16), centerFmt);
+                            }
+                            y += 16;
+                        }
+
+                        // Address
+                        if (data.ContainsKey("address"))
+                        {
+                            string addr = Convert.ToString(data["address"]);
+                            RectangleF addrRect = new RectangleF(left, y, width, 30);
+                            g.DrawString(addr, regularFont, brush, addrRect, centerFmt);
+                            SizeF sz = g.MeasureString(addr, regularFont, (int)width);
+                            y += sz.Height + 2;
+                        }
+
+                        // Meta IDs (Customer Care, CIN, GSTIN, FSSAI)
+                        string[] metaKeys = new string[] { "carePhone", "businessId", "taxId", "foodLicense" };
+                        foreach (string mk in metaKeys)
+                        {
+                            if (data.ContainsKey(mk) && !string.IsNullOrEmpty(Convert.ToString(data[mk])))
+                            {
+                                g.DrawString(Convert.ToString(data[mk]), regularFont, brush, new RectangleF(left, y, width, 14), centerFmt);
+                                y += 13;
+                            }
+                        }
+
+                        // Custom Fields
+                        if (data.ContainsKey("customFields") && data["customFields"] is ArrayList)
+                        {
+                            ArrayList cfs = (ArrayList)data["customFields"];
+                            foreach (object cf in cfs)
+                            {
+                                if (cf != null && !string.IsNullOrEmpty(cf.ToString()))
+                                {
+                                    g.DrawString(cf.ToString(), regularFont, brush, new RectangleF(left, y, width, 14), centerFmt);
+                                    y += 13;
+                                }
+                            }
+                        }
+
+                        // Dashed line helper
+                        Action drawDashedLine = () =>
+                        {
+                            y += 4;
+                            using (Pen dashPen = new Pen(Color.Black, 1) { DashStyle = DashStyle.Dash })
+                            {
+                                g.DrawLine(dashPen, left, y, left + width, y);
+                            }
+                            y += 6;
+                        };
+
+                        drawDashedLine();
+
+                        // Savings banner
+                        if (data.ContainsKey("savingsText") && !string.IsNullOrEmpty(Convert.ToString(data["savingsText"])))
+                        {
+                            using (Font saveFont = new Font("Arial", 9.5f, FontStyle.Bold))
+                            {
+                                g.DrawString(Convert.ToString(data["savingsText"]), saveFont, brush, new RectangleF(left, y, width, 16), centerFmt);
+                            }
+                            y += 16;
+                            drawDashedLine();
+                        }
+
+                        // Tax Invoice Meta
+                        string invTitle = data.ContainsKey("taxInvoiceTitle") ? Convert.ToString(data["taxInvoiceTitle"]) : "TAX INVOICE";
+                        using (Font invFont = new Font("Arial", 9.5f, FontStyle.Bold))
+                        {
+                            g.DrawString(invTitle.ToUpper(), invFont, brush, new RectangleF(left, y, width, 15), centerFmt);
+                        }
+                        y += 15;
+                        g.DrawString("xxxxxxxxxxxxx Original for Recipient xxxxxxxxxxxxx", smallFont, brush, new RectangleF(left, y, width, 12), centerFmt);
+                        y += 13;
+
+                        if (data.ContainsKey("placeOfSupply"))
+                        {
+                            g.DrawString(Convert.ToString(data["placeOfSupply"]), smallFont, brush, left, y);
+                            y += 11;
+                        }
+                        if (data.ContainsKey("customerType"))
+                        {
+                            g.DrawString(Convert.ToString(data["customerType"]), smallFont, brush, left, y);
+                            y += 11;
+                        }
+                        if (data.ContainsKey("customerInfo") && !string.IsNullOrEmpty(Convert.ToString(data["customerInfo"])))
+                        {
+                            g.DrawString(Convert.ToString(data["customerInfo"]), smallFont, brush, left, y);
+                            y += 11;
+                        }
+
+                        // Date & Bill No line
+                        string dateStr = data.ContainsKey("dateStr") ? Convert.ToString(data["dateStr"]) : "";
+                        string billNo = data.ContainsKey("billNo") ? Convert.ToString(data["billNo"]) : "";
+                        g.DrawString("Date: " + dateStr, smallFont, brush, left, y);
+                        g.DrawString("Bill No: " + billNo, smallFont, brush, new RectangleF(left, y, width, 12), rightFmt);
+                        y += 11;
+
+                        // Cashier & Pos line
+                        string cashier = data.ContainsKey("cashier") ? Convert.ToString(data["cashier"]) : "";
+                        string posNo = data.ContainsKey("posNo") ? Convert.ToString(data["posNo"]) : "";
+                        g.DrawString("Cashier: " + cashier, smallFont, brush, left, y);
+                        g.DrawString("Pos: " + posNo, smallFont, brush, new RectangleF(left, y, width, 12), rightFmt);
+                        y += 12;
+
+                        drawDashedLine();
+
+                        // Items Table Header
+                        string currSym = data.ContainsKey("currencySymbol") ? Convert.ToString(data["currencySymbol"]) : "₹";
+                        g.DrawString("HSN Code Item Description", boldFont, brush, left, y);
+                        g.DrawString("Price(" + currSym + ")", boldFont, brush, new RectangleF(left + 140, y, 50, 12), rightFmt);
+                        g.DrawString("Qty", boldFont, brush, new RectangleF(left + 195, y, 35, 12), centerFmt);
+                        g.DrawString("Value(" + currSym + ")", boldFont, brush, new RectangleF(left + 230, y, 50, 12), rightFmt);
+                        y += 13;
+                        drawDashedLine();
+
+                        // Item rows
+                        if (data.ContainsKey("items") && data["items"] is ArrayList)
+                        {
+                            ArrayList items = (ArrayList)data["items"];
+                            foreach (object itObj in items)
+                            {
+                                if (itObj is Dictionary<string, object>)
+                                {
+                                    Dictionary<string, object> it = (Dictionary<string, object>)itObj;
+                                    if (it.ContainsKey("rateLine"))
+                                    {
+                                        g.DrawString(Convert.ToString(it["rateLine"]), smallFont, brush, left, y);
+                                        y += 10;
+                                    }
+                                    string iName = it.ContainsKey("name") ? Convert.ToString(it["name"]) : "";
+                                    string price = it.ContainsKey("netPrice") ? Convert.ToString(it["netPrice"]) : "";
+                                    string qty = it.ContainsKey("qty") ? Convert.ToString(it["qty"]) : "";
+                                    string val = it.ContainsKey("value") ? Convert.ToString(it["value"]) : "";
+
+                                    g.DrawString(iName, boldFont, brush, new RectangleF(left, y, 140, 14), leftFmt);
+                                    g.DrawString(price, regularFont, brush, new RectangleF(left + 140, y, 50, 14), rightFmt);
+                                    g.DrawString(qty, regularFont, brush, new RectangleF(left + 195, y, 35, 14), centerFmt);
+                                    g.DrawString(val, boldFont, brush, new RectangleF(left + 230, y, 50, 14), rightFmt);
+                                    y += 14;
+
+                                    if (it.ContainsKey("mrpText") && !string.IsNullOrEmpty(Convert.ToString(it["mrpText"])))
+                                    {
+                                        g.DrawString(Convert.ToString(it["mrpText"]), smallFont, brush, left, y);
+                                        y += 10;
+                                    }
+                                }
+                            }
+                        }
+
+                        drawDashedLine();
+
+                        // Totals Breakdown
+                        if (data.ContainsKey("totals") && data["totals"] is Dictionary<string, object>)
+                        {
+                            Dictionary<string, object> tots = (Dictionary<string, object>)data["totals"];
+                            Action<string, string, bool> drawTotRow = (lbl, v, isBold) =>
+                            {
+                                Font f = isBold ? boldFont : regularFont;
+                                g.DrawString(lbl, f, brush, left, y);
+                                g.DrawString(v, f, brush, new RectangleF(left, y, width, 14), rightFmt);
+                                y += 14;
+                            };
+
+                            string itemsCount = tots.ContainsKey("itemsCount") ? Convert.ToString(tots["itemsCount"]) : "";
+                            string totalQty = tots.ContainsKey("totalQty") ? Convert.ToString(tots["totalQty"]) : "";
+                            string subtotal = tots.ContainsKey("subtotal") ? Convert.ToString(tots["subtotal"]) : "";
+                            g.DrawString("Items: " + itemsCount + "   Qty: " + totalQty, regularFont, brush, left, y);
+                            g.DrawString(subtotal, boldFont, brush, new RectangleF(left, y, width, 14), rightFmt);
+                            y += 14;
+
+                            if (tots.ContainsKey("grossSalesValue")) drawTotRow("Gross sales Value", Convert.ToString(tots["grossSalesValue"]), false);
+                            if (tots.ContainsKey("totalDiscount")) drawTotRow("Total Discount", Convert.ToString(tots["totalDiscount"]), false);
+                            if (tots.ContainsKey("netSalesValue")) drawTotRow("Net Sales Value", Convert.ToString(tots["netSalesValue"]), false);
+                            if (tots.ContainsKey("grandTotal"))
+                            {
+                                using (Font gFont = new Font("Arial", 9.5f, FontStyle.Bold))
+                                {
+                                    g.DrawString("Total Amount Paid", gFont, brush, left, y);
+                                    g.DrawString(Convert.ToString(tots["grandTotal"]), gFont, brush, new RectangleF(left, y, width, 16), rightFmt);
+                                }
+                                y += 17;
+                            }
+                        }
+
+                        // Payment tender rows
+                        if (data.ContainsKey("payments") && data["payments"] is ArrayList)
+                        {
+                            ArrayList pms = (ArrayList)data["payments"];
+                            foreach (object pObj in pms)
+                            {
+                                if (pObj is Dictionary<string, object>)
+                                {
+                                    Dictionary<string, object> p = (Dictionary<string, object>)pObj;
+                                    string pLbl = p.ContainsKey("label") ? Convert.ToString(p["label"]) : "TENDER";
+                                    string pAmt = p.ContainsKey("amount") ? Convert.ToString(p["amount"]) : "";
+                                    g.DrawString(pLbl, regularFont, brush, left, y);
+                                    g.DrawString(pAmt, regularFont, brush, new RectangleF(left, y, width, 13), rightFmt);
+                                    y += 13;
+                                }
+                            }
+                        }
+
+                        g.DrawString("(AMOUNT INCLUSIVE OF APPLICABLE TAXES)", smallFont, brush, new RectangleF(left, y, width, 11), centerFmt);
+                        y += 12;
+
+                        drawDashedLine();
+
+                        // Tax Breakup Table
+                        if (data.ContainsKey("taxBreakup") && data["taxBreakup"] is Dictionary<string, object>)
+                        {
+                            Dictionary<string, object> tb = (Dictionary<string, object>)data["taxBreakup"];
+                            string tbTitle = tb.ContainsKey("title") ? Convert.ToString(tb["title"]) : "Tax Breakup Details";
+                            g.DrawString(tbTitle, smallFont, brush, new RectangleF(left, y, width, 11), centerFmt);
+                            y += 12;
+
+                            // Table header columns
+                            g.DrawString("Rate/Tax", smallFont, brush, left, y);
+                            g.DrawString("Taxable", smallFont, brush, new RectangleF(left + 60, y, 50, 11), rightFmt);
+                            g.DrawString("CGST", smallFont, brush, new RectangleF(left + 115, y, 40, 11), rightFmt);
+                            g.DrawString("SGST", smallFont, brush, new RectangleF(left + 160, y, 40, 11), rightFmt);
+                            g.DrawString("Total", smallFont, brush, new RectangleF(left + 225, y, 55, 11), rightFmt);
+                            y += 12;
+
+                            if (tb.ContainsKey("rows") && tb["rows"] is ArrayList)
+                            {
+                                ArrayList rws = (ArrayList)tb["rows"];
+                                foreach (object rObj in rws)
+                                {
+                                    if (rObj is ArrayList)
+                                    {
+                                        ArrayList r = (ArrayList)rObj;
+                                        if (r.Count >= 6)
+                                        {
+                                            g.DrawString(Convert.ToString(r[0]), smallFont, brush, left, y);
+                                            g.DrawString(Convert.ToString(r[1]), smallFont, brush, new RectangleF(left + 60, y, 50, 11), rightFmt);
+                                            g.DrawString(Convert.ToString(r[2]), smallFont, brush, new RectangleF(left + 115, y, 40, 11), rightFmt);
+                                            g.DrawString(Convert.ToString(r[3]), smallFont, brush, new RectangleF(left + 160, y, 40, 11), rightFmt);
+                                            g.DrawString(Convert.ToString(r[5]), smallFont, brush, new RectangleF(left + 225, y, 55, 11), rightFmt);
+                                            y += 11;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Total row
+                            if (tb.ContainsKey("totalRow") && tb["totalRow"] is ArrayList)
+                            {
+                                ArrayList tr = (ArrayList)tb["totalRow"];
+                                if (tr.Count >= 6)
+                                {
+                                    drawDashedLine();
+                                    g.DrawString("Total", boldFont, brush, left, y);
+                                    g.DrawString(Convert.ToString(tr[1]), boldFont, brush, new RectangleF(left + 60, y, 50, 11), rightFmt);
+                                    g.DrawString(Convert.ToString(tr[2]), boldFont, brush, new RectangleF(left + 115, y, 40, 11), rightFmt);
+                                    g.DrawString(Convert.ToString(tr[3]), boldFont, brush, new RectangleF(left + 160, y, 40, 11), rightFmt);
+                                    g.DrawString(Convert.ToString(tr[5]), boldFont, brush, new RectangleF(left + 225, y, 55, 11), rightFmt);
+                                    y += 12;
+                                }
+                            }
+                        }
+
+                        drawDashedLine();
+
+                        // Reference & loyalty numbers
+                        if (data.ContainsKey("referenceLines") && data["referenceLines"] is ArrayList)
+                        {
+                            ArrayList rls = (ArrayList)data["referenceLines"];
+                            foreach (object rl in rls)
+                            {
+                                if (rl != null && !string.IsNullOrEmpty(rl.ToString()))
+                                {
+                                    g.DrawString(rl.ToString(), smallFont, brush, left, y);
+                                    y += 11;
+                                }
+                            }
+                        }
+
+                        // Centered UPI QR Box
+                        if (data.ContainsKey("qrCodeBase64") && !string.IsNullOrEmpty(Convert.ToString(data["qrCodeBase64"])))
+                        {
+                            y += 6;
+                            float boxY = y;
+                            float boxH = 175;
+                            g.DrawRectangle(pen, left + 5, boxY, width - 10, boxH);
+
+                            using (Font qrHeaderFont = new Font("Arial", 8, FontStyle.Bold))
+                            {
+                                g.DrawString("[ 📲 SCAN & PAY WITH ANY UPI APP ]", qrHeaderFont, brush, new RectangleF(left, boxY + 5, width, 12), centerFmt);
+                            }
+
+                            try
+                            {
+                                string b64 = Convert.ToString(data["qrCodeBase64"]);
+                                if (b64.Contains(",")) b64 = b64.Substring(b64.IndexOf(",") + 1);
+                                byte[] imgBytes = Convert.FromBase64String(b64);
+                                using (MemoryStream ms = new MemoryStream(imgBytes))
+                                using (Image qrImg = Image.FromStream(ms))
+                                {
+                                    float qrSize = 100;
+                                    g.DrawImage(qrImg, left + (width - qrSize) / 2, boxY + 22, qrSize, qrSize);
+                                }
+                            }
+                            catch { }
+
+                            float qfY = boxY + 126;
+                            if (data.ContainsKey("qrFooterLines") && data["qrFooterLines"] is ArrayList)
+                            {
+                                ArrayList qfls = (ArrayList)data["qrFooterLines"];
+                                foreach (object qfl in qfls)
+                                {
+                                    if (qfl != null)
+                                    {
+                                        g.DrawString(qfl.ToString(), smallFont, brush, new RectangleF(left, qfY, width, 11), centerFmt);
+                                        qfY += 11;
+                                    }
+                                }
+                            }
+                            y = boxY + boxH + 8;
+                        }
+
+                        // Footer compliance lines
+                        if (data.ContainsKey("footerLines") && data["footerLines"] is ArrayList)
+                        {
+                            ArrayList fls = (ArrayList)data["footerLines"];
+                            foreach (object fl in fls)
+                            {
+                                if (fl != null && !string.IsNullOrEmpty(fl.ToString()))
+                                {
+                                    string fstr = fl.ToString();
+                                    RectangleF fRect = new RectangleF(left, y, width, 25);
+                                    g.DrawString(fstr, smallFont, brush, fRect, centerFmt);
+                                    SizeF sz = g.MeasureString(fstr, smallFont, (int)width);
+                                    y += sz.Height + 1;
+                                }
+                            }
+                        }
+                    }
+                };
+
+                pd.Print();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
         }
     }
 }

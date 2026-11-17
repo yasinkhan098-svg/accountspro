@@ -434,6 +434,166 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
 </html>`;
 }
 
+export function buildDirectPrintJsonPayload(data: POSPrintReceiptData, qrCodeDataUrl: string): any {
+  const { billNo, company, cashierName, items, totals, payment, customer } = data;
+  const currencySymbol = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
+  const companyTax = getCompanyTaxInfo(company);
+
+  const companyCode = String(company?.companyCode || company?.code || '10000').toUpperCase().trim();
+  const printConfig = printConfigService.loadPrintConfig(companyCode, company);
+
+  const tagline = printConfigService.formatFieldValue(printConfig.storeTagline);
+  const carePhone = printConfigService.formatFieldValue(printConfig.customerCarePhone);
+  const bizIdVal = printConfigService.formatFieldValue(printConfig.businessId);
+  const foodLicVal = printConfigService.formatFieldValue(printConfig.foodLicense);
+  const cardNoVal = printConfigService.formatFieldValue(printConfig.customerCard, customer?.mobile || '');
+  const cardBalVal = printConfigService.formatFieldValue(printConfig.customerBalance);
+  const websiteVal = printConfigService.formatFieldValue(printConfig.website);
+  const emailVal = printConfigService.formatFieldValue(printConfig.email);
+  const policyVal = printConfigService.formatFieldValue(printConfig.privacyPolicy);
+
+  const customFields: string[] = (printConfig.customFields || [])
+    .map(cf => {
+      const val = printConfigService.formatFieldValue(cf);
+      return val ? `${cf.label} : ${val}` : '';
+    })
+    .filter(Boolean);
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const storeName = company?.name || 'LedgerX Retail Limited';
+
+  const gstGroups: Record<number, { taxable: number; cgst: number; sgst: number; total: number }> = {};
+  for (const it of items) {
+    const rate = it.gstRate || 0;
+    if (!gstGroups[rate]) {
+      gstGroups[rate] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
+    }
+    gstGroups[rate].taxable += (it.taxableRate || 0) * (it.qty || 1);
+    gstGroups[rate].cgst += it.cgstAmount || 0;
+    gstGroups[rate].sgst += it.sgstAmount || 0;
+    gstGroups[rate].total += it.lineTotal || 0;
+  }
+
+  for (const rate of Object.keys(gstGroups)) {
+    const r = Number(rate);
+    const combinedGst = (gstGroups[r].cgst || 0) + (gstGroups[r].sgst || 0);
+    const half = Math.round((combinedGst / 2) * 100) / 100;
+    gstGroups[r].cgst = half;
+    gstGroups[r].sgst = half;
+  }
+
+  const formattedItems = items.map((it, idx) => {
+    const halfGst = ((it.gstRate || 0) / 2).toFixed(2);
+    const saveAmt = it.mrpRate > it.rateWithTax ? ((it.mrpRate - it.rateWithTax) * it.qty).toFixed(2) : null;
+    return {
+      idx: idx + 1,
+      rateLine: `${idx + 1}) CGST @ ${halfGst}% SGST @ ${halfGst}%`,
+      name: `${it.hsnCode || '732393'} ${it.name}`,
+      mrpText: saveAmt ? `MRP: ${currencySymbol}${it.mrpRate.toFixed(2)} (Save ${currencySymbol}${saveAmt})` : '',
+      netPrice: `${currencySymbol}${it.rateWithTax.toFixed(2)}`,
+      qty: `${it.qty} ${it.unit || ''}`.trim(),
+      value: `${currencySymbol}${it.lineTotal.toFixed(2)}`,
+    };
+  });
+
+  const payments: { label: string; amount: string }[] = [];
+  if (payment.mode === 'Split') {
+    payments.push({ label: 'CASH TENDERED', amount: `${currencySymbol}${(payment.cashAmount || 0).toFixed(2)}` });
+    payments.push({ label: `JIOPAY UPI DQR ${payment.upiRef || 'X-2319-30492630'}`, amount: `${currencySymbol}${(payment.upiAmount || 0).toFixed(2)}` });
+  } else if (payment.mode === 'UPI_QR') {
+    payments.push({ label: `JIOPAY UPI DQR ${payment.upiRef || 'X-2319-30492630'}`, amount: `${currencySymbol}${totals.grandTotal.toFixed(2)}` });
+  } else if (payment.mode === 'Cash') {
+    payments.push({ label: 'CASH TENDERED', amount: `${currencySymbol}${(payment.cashTendered || totals.grandTotal).toFixed(2)}` });
+    if ((payment.changeDue || 0) > 0) {
+      payments.push({ label: 'CHANGE RETURNED', amount: `${currencySymbol}${(payment.changeDue || 0).toFixed(2)}` });
+    }
+  } else {
+    payments.push({ label: `TENDER: ${payment.mode}`, amount: `${currencySymbol}${totals.grandTotal.toFixed(2)}` });
+  }
+
+  const taxRows = Object.entries(gstGroups).map(([rate, g], i) => [
+    `${i + 1}`,
+    `${currencySymbol}${g.taxable.toFixed(2)}`,
+    `${currencySymbol}${g.cgst.toFixed(2)}`,
+    `${currencySymbol}${g.sgst.toFixed(2)}`,
+    `${currencySymbol}0.00`,
+    `${currencySymbol}${g.total.toFixed(2)}`,
+  ]);
+
+  const taxTotalRow = [
+    'Total',
+    `${currencySymbol}${totals.totalTaxable.toFixed(2)}`,
+    `${currencySymbol}${totals.totalCgst.toFixed(2)}`,
+    `${currencySymbol}${totals.totalSgst.toFixed(2)}`,
+    `${currencySymbol}0.00`,
+    `${currencySymbol}${totals.grandTotal.toFixed(2)}`,
+  ];
+
+  return {
+    billNo: billNo.replace('POS-', ''),
+    storeName,
+    tagline: tagline || '',
+    address: company?.address || 'GF, Ashoka Seed Complex, Khatima Road, Sitarganj',
+    carePhone: carePhone ? `${printConfig.customerCarePhone.label} : ${carePhone}` : '',
+    businessId: bizIdVal ? `${printConfig.businessId.label} : ${bizIdVal}` : '',
+    taxId: `${companyTax.taxIdLabel}- ${company?.gstin || (companyTax.isIndiaGst ? '05AABCR1718E1ZU' : '—')}`,
+    foodLicense: foodLicVal ? `${printConfig.foodLicense.label} - ${foodLicVal}` : '',
+    customFields,
+    savingsText: `You have saved ${currencySymbol}${totals.discountAmount > 0 ? totals.discountAmount.toFixed(2) : '150.00'}`,
+    taxInvoiceTitle: `${companyTax.taxName} INVOICE`,
+    placeOfSupply: `Place of Supply & State Code: ${company?.stateCode || (companyTax.isIndiaGst ? '05 UK' : (company?.country || '—'))}`,
+    customerType: `Customer Type: ${customer?.gstin ? 'B2B Registered' : 'URP'}`,
+    customerInfo: customer?.name && customer.name !== 'Cash Customer' ? `Customer: ${customer.name} ${customer.mobile ? `(${customer.mobile})` : ''}` : '',
+    dateStr: `${dateStr} ${timeStr}`,
+    cashier: cashierName,
+    posNo: 'R141',
+    currencySymbol,
+    items: formattedItems,
+    totals: {
+      itemsCount: totals.itemsCount,
+      totalQty: totals.totalQty,
+      subtotal: `${currencySymbol}${totals.subtotal.toFixed(2)}`,
+      grossSalesValue: `${currencySymbol}${(totals.grossSalesValue || totals.subtotal + totals.discountAmount).toFixed(2)}`,
+      totalDiscount: `${currencySymbol}${totals.discountAmount.toFixed(2)}`,
+      netSalesValue: `${currencySymbol}${totals.subtotal.toFixed(2)}`,
+      grandTotal: `${currencySymbol}${totals.grandTotal.toFixed(2)}`,
+    },
+    payments,
+    taxBreakup: {
+      title: `-------${companyTax.taxName} Breakup Details--------Amount (${currencySymbol})`,
+      rows: taxRows,
+      totalRow: taxTotalRow,
+    },
+    referenceLines: [
+      `PaymentRefNo# U1FX${Date.now().toString().slice(-14)}`,
+      `TaxInvoice# U1FX${(Date.now() + 500).toString().slice(-11)}`,
+      cardNoVal ? `${printConfig.customerCard.label} :${cardNoVal} ${cardBalVal ? `${printConfig.customerBalance.label} :${cardBalVal}` : ''}` : '',
+      'Terms & Conditions Apply',
+      '304U1FX1410037000001',
+    ].filter(Boolean),
+    qrCodeBase64: qrCodeDataUrl || '',
+    qrFooterLines: [
+      `Payee: ${storeName}`,
+      company?.upiId ? `UPI ID: ${company.upiId.trim().toLowerCase()}` : '',
+      `Bill Amount: ${currencySymbol}${totals.grandTotal.toFixed(2)}`,
+      `Bill No: ${billNo.replace('POS-', '')}`,
+      'Google Pay • PhonePe • Paytm • BHIM • Cred • Any UPI',
+    ].filter(Boolean),
+    footerLines: [
+      '* Thank You for Shopping with us *',
+      websiteVal ? `${printConfig.website.label}: ${websiteVal}` : '',
+      emailVal ? `${printConfig.email.label} & ${emailVal}` : '',
+      policyVal ? 'Please refer to our Website link' : '',
+      policyVal || '',
+      policyVal ? 'for Privacy Policy' : '',
+      'Dynamic Quick Response (QR) code is made available to the Recipient through a digital display.',
+      'I/We hereby certify that food/foods mentioned in this invoice is/are warranted to be of the nature and quality which it/these purports/purported to be.',
+    ].filter(Boolean),
+  };
+}
+
 class POSThermalPrintService {
   /**
    * Directly prints the thermal receipt silently to the local Windows default printer,
@@ -454,11 +614,11 @@ class POSThermalPrintService {
 
       const upiPayUrl = hasUpi
         ? posService.getUpiUri({
-            vpa: company.upiId.trim(),
-            companyName: storeName,
-            amount: totals.grandTotal,
-            billNo,
-          })
+          vpa: company.upiId.trim(),
+          companyName: storeName,
+          amount: totals.grandTotal,
+          billNo,
+        })
         : `UPI-INV:${billNo}|AMT:${totals.grandTotal}|GSTIN:${company?.gstin || ''}|DT:${dateStr}`;
 
       // Generate dynamic QR code data URL
@@ -472,11 +632,49 @@ class POSThermalPrintService {
       // Generate full slip HTML
       const fullHtml = buildReceiptSlipHtml(data, qrCodeDataUrl);
 
-      // Create an off-screen hidden iframe for silent printing
+      // 1. Try Native Windows Spooler Direct Print via LedgerX Background Host / API (Zero white flash, zero circle searching)
+      try {
+        const payload = buildDirectPrintJsonPayload(data, qrCodeDataUrl);
+        const candidates: string[] = [];
+        if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+          candidates.push(`${window.location.origin}/api/pos/direct-print`);
+        }
+        candidates.push('http://127.0.0.1:45454/api/pos/direct-print');
+        candidates.push('http://localhost:45454/api/pos/direct-print');
+        candidates.push('/api/pos/direct-print');
+
+        const uniqueCandidates = Array.from(new Set(candidates));
+
+        for (const url of uniqueCandidates) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1800);
+            const hostRes = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            if (hostRes.ok) {
+              const resJson = await hostRes.json().catch(() => null);
+              if (resJson && resJson.success) {
+                return { success: true };
+              }
+            }
+          } catch (e) {
+            // Try next candidate
+          }
+        }
+      } catch (nativeErr) {
+        // Native background host not reachable; fall back to off-screen iframe
+      }
+
+      // 2. Fallback: Create an off-screen hidden iframe for silent printing
       const iframeId = 'pos-silent-thermal-print-frame';
       let iframe = document.getElementById(iframeId) as HTMLIFrameElement | null;
       if (iframe) {
-        try { document.body.removeChild(iframe); } catch (e) {}
+        try { document.body.removeChild(iframe); } catch (e) { }
       }
 
       iframe = document.createElement('iframe');
@@ -529,7 +727,7 @@ class POSThermalPrintService {
         try {
           const el = document.getElementById(iframeId);
           if (el && el.parentNode) el.parentNode.removeChild(el);
-        } catch (e) {}
+        } catch (e) { }
       }, 3000);
 
       return { success: true };
