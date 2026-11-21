@@ -9,16 +9,18 @@ export async function POST(req: NextRequest) {
 
     const files: File[] = uploadedFiles.length > 0 ? uploadedFiles : (singleFile ? [singleFile] : []);
 
-    const DEFAULT_KEY_B64 = 'QVEuQWI4Uk42SW4xRzlvbVltRkh6eVJGeExtLXQ3eHY3anpjMGpXdllkV1hmcDZ5a2hlUEE=';
-    const defaultKey = Buffer.from(DEFAULT_KEY_B64, 'base64').toString('utf-8');
-    const apiKey = process.env.GEMINI_API_KEY || clientApiKey || defaultKey;
+    const apiKey = (clientApiKey || process.env.GEMINI_API_KEY || '').trim();
 
     if (files.length === 0) {
       return NextResponse.json({ success: false, error: 'No invoice files uploaded.' }, { status: 400 });
     }
 
     if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'Gemini API Key is not configured.' }, { status: 500 });
+      return NextResponse.json({
+        success: false,
+        code: 'NO_API_KEY',
+        error: 'Gemini API Key is not configured. Please click "🔑 AI Key" in F9 Purchase to enter your free key.'
+      }, { status: 401 });
     }
 
     // Convert all uploaded files (multi-page image/PDF) to base64 parts
@@ -54,18 +56,30 @@ CRITICAL RULES FOR UNITS & NUMBERS:
 5. "discountPerc" & "discountAmt": Extract any item-level discount (in-bill discount, cash discount, or trade discount percentage/amount). If discount is present, calculate taxable amount = (qty * rate) - discount.
 6. "amount": Extract net amount for the item row after item discounts.
 
+CRITICAL RULES FOR ITEM TAX / GST / VAT RATE EXTRACTION (ANY COUNTRY TAX SYSTEM):
+7. "taxRate" & "gstRate": Extract the EXACT percentage rate of tax applicable to EACH item as printed or calculated on this specific bill.
+   - SUPPORT ANY COUNTRY'S TAX SYSTEM (India GST, Canada GST/HST, UAE/GCC VAT, UK/Europe VAT, USA Sales Tax, Australia GST, etc.).
+   - Check the item row columns such as "Tax %", "GST %", "VAT %", "Rate %", "IGST %", "CGST % + SGST %", "Tax Rate".
+   - DUAL TAX SPLIT: If dual tax columns are shown (e.g. CGST 2.5% + SGST 2.5%), SUM THEM to get the total item tax rate (2.5 + 2.5 = 5.0). Similarly, 6% + 6% = 12.0, 9% + 9% = 18.0, 14% + 14% = 28.0.
+   - SINGLE TAX: If single tax is shown (e.g. VAT 5%, VAT 20%, GST 5%, GST 10%, Sales Tax 7%), extract that exact number (5.0, 20.0, 5.0, 10.0, 7.0).
+   - ZERO/EXEMPT: If an item is zero-rated, exempt, nil-rated, or no tax is charged (0%), extract 0.0.
+   - HSN / FOOTER BREAKDOWN: If the item row has no tax column, inspect the HSN / Tax summary breakdown table at the bottom of the bill for that item or HSN code to find its percentage. If still not specified per item but total bill tax amount is shown, compute: (total tax / subtotal) * 100.
+   - CRITICAL: DO NOT ALWAYS RETURN 18%! Return ONLY the exact tax percentage that belongs to this item on this bill (e.g. 0, 5, 12, 18, 28, or whichever rate is printed).
+8. "taxName": Extract the tax name from the bill (e.g. "GST", "VAT", "GST/HST", "Sales Tax", "SST").
+
 CRITICAL RULES FOR ADDITIONAL CHARGES & DISCOUNTS BELOW ITEMS:
-7. Extract all additional expenses, charges, or discounts listed below the items table (such as SPL.DISCOUNT, Special Discount, Discount Given, Trade Discount, Freight Charges, Transportation Charges, Packaging, Loading Charges, Cartage, Round Off).
+9. Extract all additional expenses, charges, or discounts listed below the items table (such as SPL.DISCOUNT, Special Discount, Discount Given, Trade Discount, Freight Charges, Transportation Charges, Packaging, Loading Charges, Cartage, Round Off).
    - Use their EXACT printed names as "ledgerName".
    - Specify "type": "Discount" for discounts/less items, or "Expense" for extra charges.
 
 Output ONLY a valid JSON object strictly following this structure:
 {
   "supplierName": "Name of the seller or supplier company/party",
-  "supplierGstin": "GSTIN or Tax identification number of the supplier",
+  "supplierGstin": "GSTIN / TRN / VAT / Tax ID of the supplier",
   "supplierAddress": "Full address of the supplier",
   "invoiceNo": "Invoice or Bill Number",
   "invoiceDate": "Date of invoice formatted as DD-MMM-YYYY (e.g. 12-Aug-2026)",
+  "taxName": "GST",
   "items": [
     {
       "itemName": "Clean main product title only",
@@ -73,10 +87,12 @@ Output ONLY a valid JSON object strictly following this structure:
       "qty": 1,
       "rate": 100,
       "unit": "Nos",
-      "discountPerc": 5.0,
-      "discountAmt": 5.0,
-      "gstRate": 18,
-      "amount": 95
+      "discountPerc": 0.0,
+      "discountAmt": 0.0,
+      "taxRate": 5.0,
+      "gstRate": 5.0,
+      "taxName": "GST",
+      "amount": 100
     }
   ],
   "additionalLedgers": [
@@ -86,12 +102,13 @@ Output ONLY a valid JSON object strictly following this structure:
       "type": "Discount"
     }
   ],
-  "subtotal": 149713.35,
-  "cgstAmount": 13226.71,
-  "sgstAmount": 13226.71,
-  "igstAmount": 0,
-  "roundOff": 0.23,
-  "totalAmount": 173417.0
+  "subtotal": 1000.0,
+  "cgstAmount": 0.0,
+  "sgstAmount": 0.0,
+  "igstAmount": 0.0,
+  "taxAmount": 50.0,
+  "roundOff": 0.0,
+  "totalAmount": 1050.0
 }
 Return ONLY valid JSON. Do not include markdown ticks or additional conversation.`;
 
@@ -130,10 +147,11 @@ Return ONLY valid JSON. Do not include markdown ticks or additional conversation
 
     if (candidateModelNames.length === 0) {
       candidateModelNames = [
-        'models/gemini-1.5-flash',
-        'models/gemini-1.5-flash-latest',
-        'models/gemini-2.0-flash',
-        'models/gemini-1.5-pro-latest'
+        'models/gemini-3.1-flash-lite',
+        'models/gemini-3.5-flash-lite',
+        'models/gemini-3.8-flash',
+        'models/gemini-flash-latest',
+        'models/gemini-2.5-flash'
       ];
     }
 
@@ -161,7 +179,25 @@ Return ONLY valid JSON. Do not include markdown ticks or additional conversation
     }
 
     if (!geminiRes) {
-      return NextResponse.json({ success: false, error: `Gemini API Call failed: ${lastErrorText}` }, { status: 500 });
+      const isKeyInvalid =
+        lastErrorText.includes('ACCOUNT_STATE_INVALID') ||
+        lastErrorText.includes('CONSUMER_SUSPENDED') ||
+        lastErrorText.includes('PERMISSION_DENIED') ||
+        lastErrorText.includes('API_KEY_INVALID') ||
+        lastErrorText.includes('UNAUTHENTICATED') ||
+        lastErrorText.includes('deleted or disabled') ||
+        lastErrorText.includes('401') ||
+        lastErrorText.includes('403');
+
+      if (isKeyInvalid) {
+        return NextResponse.json({
+          success: false,
+          code: 'INVALID_API_KEY',
+          error: 'Your Gemini API Key is invalid or bound to a suspended Google Cloud project. Please click "🔑 AI Key" in F9 Purchase to enter a free key created in a NEW project in Google AI Studio.'
+        }, { status: 401 });
+      }
+
+      return NextResponse.json({ success: false, code: 'SCAN_FAILED', error: `Gemini API Call failed: ${lastErrorText}` }, { status: 500 });
     }
     const rawContent = geminiRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
     

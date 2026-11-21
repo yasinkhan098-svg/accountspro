@@ -37,7 +37,29 @@ export interface CompanyPrintConfig {
   // User-Defined Custom Dynamic Fields
   customFields: PrintFieldConfig[];
 
+  // F8 Sales Voucher Specific Print Configuration (International & India)
+  f8SalesConfig?: F8SalesPrintConfig;
+
   updatedAt: string;
+}
+
+export interface F8SalesPrintConfig {
+  documentTitle: PrintFieldConfig;         // e.g. "TAX INVOICE"
+  sellerTradeLicense: PrintFieldConfig;    // e.g. "TL-894920"
+  buyerTradeLicense: PrintFieldConfig;     // e.g. "TL-990422"
+  paymentTerms: PrintFieldConfig;          // e.g. "30 Days Credit"
+  placeOfSupply: PrintFieldConfig;         // e.g. "Dubai, UAE"
+  salesperson: PrintFieldConfig;           // e.g. "Mohammed Tariq"
+  vehicleRoute: PrintFieldConfig;          // e.g. "DXB-Van-04 (Business Bay)"
+  bankName: PrintFieldConfig;              // e.g. "EMIRATES NBD, Dubai"
+  accountName: PrintFieldConfig;           // e.g. "Al Baraka General Trading LLC"
+  iban: PrintFieldConfig;                  // e.g. "AE45026000001015483231402"
+  swift: PrintFieldConfig;                 // e.g. "EBILAEAD"
+  showStampSignature: PrintFieldConfig;    // Receiver's Stamp & Signature Box
+  showAuthorisedSignatory: PrintFieldConfig; // Authorised Signatory Box
+  showLpoNo: PrintFieldConfig;             // LPO / PO No
+  showDeliveryNoteNo: PrintFieldConfig;    // Delivery Note No
+  customFields?: PrintFieldConfig[];
 }
 
 export interface CountryPrintPreset {

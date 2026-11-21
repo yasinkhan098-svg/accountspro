@@ -14,6 +14,7 @@ export interface POSPurchaseItem {
   expiryDate: string;          // DD/MM/YYYY
   cessPerc: number;            // CESS %
   openingStock: number;        // True opening stock
+  closingStock?: number;       // Live real-time closing stock
   openingQty?: number;         // Initial opening stock
   currentStock?: number;       // Live stock available
   barcode: string;             // Auto unique or scanned barcode
@@ -107,24 +108,37 @@ export default function PurchasePOSListView({
   const companyId = company?.id || 0;
   const storageKey = `ledgerx_pos_purchase_list_${companyCode}`;
 
-  // 1. Calculate live stock from vouchers
+  // 1. Calculate live closing stock from opening stock and all vouchers (Sales, Purchases, Returns)
   const calculateLiveStock = useCallback((item: any): number => {
-    let stock = Number(item.openingQty) || 0;
-    const targetId = Number(item.id);
+    const targetId = Number(item.id) || 0;
     const targetName = (item.name || '').trim().toLowerCase();
+
+    // Look up original stock item in stockItems for true opening quantity
+    const matchedSi = (stockItems || []).find((si: any) => (targetId > 0 && Number(si.id) === targetId) || (si.name && si.name.trim().toLowerCase() === targetName));
+    let baseOpening = 0;
+    if (matchedSi && matchedSi.openingQty !== undefined && matchedSi.openingQty !== null && matchedSi.openingQty !== '') {
+      baseOpening = Number(matchedSi.openingQty) || 0;
+    } else if (item.openingQty !== undefined && item.openingQty !== null && item.openingQty !== '') {
+      baseOpening = Number(item.openingQty) || 0;
+    } else if (item.openingStock !== undefined && item.openingStock !== null && item.openingStock !== '') {
+      baseOpening = Number(item.openingStock) || 0;
+    }
+
+    let stock = baseOpening;
 
     for (const v of vouchers || []) {
       if (!v.inventoryEntries || !Array.isArray(v.inventoryEntries)) continue;
+      const vType = String(v.type || v.voucherType || '').trim();
       for (const ie of v.inventoryEntries) {
-        const matchId = Number(ie.stockItemId || ie.itemId);
+        const matchId = Number(ie.stockItemId || ie.itemId) || 0;
         const matchName = (ie.itemName || '').trim().toLowerCase();
-        if (matchId === targetId || (matchName && matchName === targetName)) {
+        if ((targetId > 0 && matchId === targetId) || (matchName && targetName && matchName === targetName)) {
           const q = Number(ie.qty) || 0;
-          if (v.type === 'Purchase' || v.type === 'Sales Return' || v.type === 'Credit Note') {
+          if (vType === 'Purchase' || vType === 'Sales Return' || vType === 'Credit Note') {
             stock += q;
-          } else if (v.type === 'Sales' || v.type === 'Purchase Return' || v.type === 'Debit Note') {
+          } else if (vType === 'Sales' || vType === 'POS Sale' || vType === 'POS' || vType === 'Purchase Return' || vType === 'Debit Note') {
             stock -= q;
-          } else if (v.type === 'Manufacturing Journal' || v.type === 'Manufacturing') {
+          } else if (vType === 'Manufacturing Journal' || vType === 'Manufacturing') {
             const isProd = ie.entryType === 'Production' || (ie.desc1 && ie.desc1.includes('Production'));
             if (isProd) stock += q;
             else stock -= q;
@@ -133,7 +147,7 @@ export default function PurchasePOSListView({
       }
     }
     return Math.round(stock * 100) / 100;
-  }, [vouchers]);
+  }, [vouchers, stockItems]);
 
   // 2. Resolve initial and latest purchase prices (with tax)
   const resolvePurchasePrices = useCallback((item: any): { purchasePrice: number; newPurchasePrice: number } => {
@@ -404,8 +418,9 @@ export default function PurchasePOSListView({
         newPurchasePrice,
         expiryDate: saved.expiryDate !== undefined ? saved.expiryDate : (si.expiryDate || ''),
         cessPerc: Number(saved.cessPerc !== undefined ? saved.cessPerc : (si.cessPerc || 0)),
-        // openingStock holds true initial stock; currentStock holds dynamic live stock
+        // openingStock holds true initial stock; closingStock holds dynamic live stock
         openingStock: Math.max(0, Number(si.openingQty !== undefined ? si.openingQty : (saved.openingStock !== undefined ? saved.openingStock : 0))),
+        closingStock: liveStock,
         currentStock: liveStock,
         barcode,
         mrp: Math.round(mrp * 100) / 100,
@@ -438,6 +453,8 @@ export default function PurchasePOSListView({
           expiryDate: s.expiryDate || '',
           cessPerc: Number(s.cessPerc) || 0,
           openingStock: Number(s.openingStock) || 0,
+          closingStock: calculateLiveStock(s),
+          currentStock: calculateLiveStock(s),
           barcode: s.barcode || generateNextUniqueBarcode(assignedBarcodes),
           mrp: Number(s.mrp) || 0,
           discountPerc: Number(s.discountPerc) || 0,
@@ -575,13 +592,20 @@ export default function PurchasePOSListView({
         const liveName = matchedSi.name || item.name;
         const trueOpeningStock = Math.max(0, Number(matchedSi.openingQty !== undefined ? matchedSi.openingQty : matchedSi.openingStock) || 0);
 
-        if (item.unit !== liveUnit || item.openingStock !== trueOpeningStock || (item as any).currentStock !== liveStock || item.name !== liveName) {
+        if (
+          item.unit !== liveUnit ||
+          item.openingStock !== trueOpeningStock ||
+          item.closingStock !== liveStock ||
+          (item as any).currentStock !== liveStock ||
+          item.name !== liveName
+        ) {
           hasChanges = true;
           return {
             ...item,
             name: liveName,
             unit: liveUnit,
             openingStock: trueOpeningStock,
+            closingStock: liveStock,
             currentStock: liveStock,
           };
         }
@@ -711,6 +735,8 @@ export default function PurchasePOSListView({
       expiryDate: '',
       cessPerc: 0,
       openingStock: 0,
+      closingStock: 0,
+      currentStock: 0,
       barcode: newBarcode,
       mrp: 0,
       discountPerc: 0,
@@ -1208,7 +1234,7 @@ export default function PurchasePOSListView({
               <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 135, padding: '10px 10px' }}>New Purchase Price</th>
               <th style={{ ...thStickyBase, textAlign: 'center', minWidth: 115, padding: '10px 10px' }}>Expiry Date</th>
               <th style={{ ...thStickyBase, textAlign: 'right', width: 75, padding: '10px 8px' }}>CESS%</th>
-              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 110, padding: '10px 10px' }}>Openning Stock</th>
+              <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 110, padding: '10px 10px' }}>Closing Stock</th>
               <th style={{ ...thStickyBase, minWidth: 145, padding: '10px 10px' }}>Barcode</th>
               <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 95, padding: '10px 10px' }}>MRP</th>
               <th style={{ ...thStickyBase, textAlign: 'right', minWidth: 155, padding: '10px 10px' }}>Discount% in percentage</th>
@@ -1231,6 +1257,7 @@ export default function PurchasePOSListView({
               filteredItems.map((item, idx) => {
                 const isSelected = selectedItemId === item.id;
                 const rowBg = isSelected ? '#eff6ff' : (idx % 2 === 0 ? '#ffffff' : '#fafafa');
+                const liveClosingStock = calculateLiveStock(item);
 
                 return (
                   <tr
@@ -1327,9 +1354,9 @@ export default function PurchasePOSListView({
                       />
                     </td>
 
-                    {/* 7. Opening Stock (Live real-time quantity) */}
-                    <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, color: item.openingStock > 0 ? '#16a34a' : '#dc2626' }}>
-                      {item.openingStock} <span style={{ fontSize: 11, color: '#64748b' }}>{item.unit}</span>
+                    {/* 7. Closing Stock (Live real-time quantity) */}
+                    <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 900, color: liveClosingStock > 0 ? '#16a34a' : (liveClosingStock < 0 ? '#dc2626' : '#64748b') }}>
+                      {liveClosingStock} <span style={{ fontSize: 11, color: '#64748b' }}>{item.unit}</span>
                     </td>
 
                     {/* 8. Barcode (Col 3) */}
@@ -1510,7 +1537,7 @@ export default function PurchasePOSListView({
                       <button
                         onClick={() => {
                           setPrintModalItem(item);
-                          setPrintCount(Math.max(1, Math.min(50, Math.round(item.openingStock) || 1)));
+                          setPrintCount(Math.max(1, Math.min(50, Math.round(calculateLiveStock(item)) || 1)));
                         }}
                         className="pos-touch-btn"
                         title="Print Barcode sticker"
@@ -1628,7 +1655,7 @@ export default function PurchasePOSListView({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span>Total Products: <b style={{ color: '#0f172a' }}>{items.length}</b></span>
-          <span>In Stock: <b style={{ color: '#16a34a' }}>{items.filter(i => i.openingStock > 0).length}</b></span>
+          <span>In Stock: <b style={{ color: '#16a34a' }}>{items.filter(i => calculateLiveStock(i) > 0).length}</b></span>
           {saveStatus === 'saved' && <span style={{ color: '#16a34a', fontWeight: 900 }}>✓ All changes saved</span>}
           {saveStatus === 'saving' && <span style={{ color: '#d97706', fontWeight: 900 }}>Saving changes...</span>}
         </div>
@@ -1917,7 +1944,7 @@ export default function PurchasePOSListView({
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>Number of Copies (Stickers):</label>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {[1, 5, 10, printModalItem.openingStock > 0 ? Math.round(printModalItem.openingStock) : 20].map(cnt => (
+                  {[1, 5, 10, calculateLiveStock(printModalItem) > 0 ? Math.round(calculateLiveStock(printModalItem)) : 20].map(cnt => (
                     <button
                       key={cnt}
                       type="button"

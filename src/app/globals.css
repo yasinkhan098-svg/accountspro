@@ -677,6 +677,14 @@ body {
     page-break-after: auto !important;
     break-after: auto !important;
   }
+
+  .invoice-copy.international-sales-invoice {
+    border: none !important;
+    padding: 10mm 12mm !important;
+    height: auto !important;
+    max-height: unset !important;
+    overflow: visible !important;
+  }
 }
 
 /* Print Preview Global Bold Styling */

@@ -1,6 +1,86 @@
-import { CompanyPrintConfig, PrintFieldConfig } from './printConfigTypes';
+import { CompanyPrintConfig, PrintFieldConfig, F8SalesPrintConfig } from './printConfigTypes';
 import { getCountryPrintPreset } from './countryPrintPresets';
 import { getBridgeBaseUrl } from '../companyDataFolderService';
+
+export function getDefaultF8SalesConfig(company: any): F8SalesPrintConfig {
+  const country = company?.country || 'India';
+  const isUAE = country.toLowerCase().includes('uae') || country.toLowerCase().includes('emirates');
+  
+  return {
+    documentTitle: { label: 'Invoice Title', value: 'TAX INVOICE', enabled: true },
+    sellerTradeLicense: { 
+      label: 'Seller Trade License No.', 
+      value: company?.tradeLicense || (isUAE ? 'TL-894920' : ''), 
+      enabled: true 
+    },
+    buyerTradeLicense: { 
+      label: 'Buyer Trade License No.', 
+      value: '', 
+      enabled: true 
+    },
+    paymentTerms: { 
+      label: 'Payment Terms', 
+      value: '30 Days Credit', 
+      enabled: true 
+    },
+    placeOfSupply: { 
+      label: 'Place of Supply', 
+      value: company?.state ? `${company.state}, ${country}` : (isUAE ? 'Dubai, UAE' : country), 
+      enabled: true 
+    },
+    salesperson: { 
+      label: 'Salesperson Name', 
+      value: '', 
+      enabled: true 
+    },
+    vehicleRoute: { 
+      label: 'Vehicle / Route', 
+      value: '', 
+      enabled: true 
+    },
+    bankName: { 
+      label: 'Remittance Bank Name', 
+      value: company?.bankName || (isUAE ? 'EMIRATES NBD, Dubai' : ''), 
+      enabled: true 
+    },
+    accountName: { 
+      label: 'Bank Account / Beneficiary Name', 
+      value: company?.accountName || company?.name || '', 
+      enabled: true 
+    },
+    iban: { 
+      label: 'IBAN / Bank A/C No.', 
+      value: company?.iban || company?.accountNo || (isUAE ? 'AE45026000001015483231402' : ''), 
+      enabled: true 
+    },
+    swift: { 
+      label: 'SWIFT / BIC Code', 
+      value: company?.swift || (isUAE ? 'EBILAEAD' : ''), 
+      enabled: true 
+    },
+    showStampSignature: { 
+      label: "Receiver's Stamp & Signature Box", 
+      value: "Receiver's Stamp & Signature", 
+      enabled: true 
+    },
+    showAuthorisedSignatory: { 
+      label: 'Authorised Signatory', 
+      value: 'Authorised Signatory', 
+      enabled: true 
+    },
+    showLpoNo: { 
+      label: 'LPO / PO No. Field', 
+      value: 'LPO / PO No:', 
+      enabled: true 
+    },
+    showDeliveryNoteNo: { 
+      label: 'Delivery Note No. Field', 
+      value: 'Delivery Note No:', 
+      enabled: true 
+    },
+    customFields: []
+  };
+}
 
 class PrintConfigService {
   /**
@@ -59,6 +139,7 @@ class PrintConfigService {
         value: 'https://ledgerxretail.com/privacy-policy.html',
         enabled: true,
       },
+      f8SalesConfig: getDefaultF8SalesConfig(company),
       customFields: [],
       updatedAt: new Date().toISOString(),
     };
@@ -160,6 +241,26 @@ class PrintConfigService {
       website: { ...defaults.website, ...(saved.website || {}) },
       email: { ...defaults.email, ...(saved.email || {}) },
       privacyPolicy: { ...defaults.privacyPolicy, ...(saved.privacyPolicy || {}) },
+      f8SalesConfig: {
+        ...defaults.f8SalesConfig,
+        ...(saved.f8SalesConfig || {}),
+        documentTitle: { ...defaults.f8SalesConfig?.documentTitle, ...(saved.f8SalesConfig?.documentTitle || {}) },
+        sellerTradeLicense: { ...defaults.f8SalesConfig?.sellerTradeLicense, ...(saved.f8SalesConfig?.sellerTradeLicense || {}) },
+        buyerTradeLicense: { ...defaults.f8SalesConfig?.buyerTradeLicense, ...(saved.f8SalesConfig?.buyerTradeLicense || {}) },
+        paymentTerms: { ...defaults.f8SalesConfig?.paymentTerms, ...(saved.f8SalesConfig?.paymentTerms || {}) },
+        placeOfSupply: { ...defaults.f8SalesConfig?.placeOfSupply, ...(saved.f8SalesConfig?.placeOfSupply || {}) },
+        salesperson: { ...defaults.f8SalesConfig?.salesperson, ...(saved.f8SalesConfig?.salesperson || {}) },
+        vehicleRoute: { ...defaults.f8SalesConfig?.vehicleRoute, ...(saved.f8SalesConfig?.vehicleRoute || {}) },
+        bankName: { ...defaults.f8SalesConfig?.bankName, ...(saved.f8SalesConfig?.bankName || {}) },
+        accountName: { ...defaults.f8SalesConfig?.accountName, ...(saved.f8SalesConfig?.accountName || {}) },
+        iban: { ...defaults.f8SalesConfig?.iban, ...(saved.f8SalesConfig?.iban || {}) },
+        swift: { ...defaults.f8SalesConfig?.swift, ...(saved.f8SalesConfig?.swift || {}) },
+        showStampSignature: { ...defaults.f8SalesConfig?.showStampSignature, ...(saved.f8SalesConfig?.showStampSignature || {}) },
+        showAuthorisedSignatory: { ...defaults.f8SalesConfig?.showAuthorisedSignatory, ...(saved.f8SalesConfig?.showAuthorisedSignatory || {}) },
+        showLpoNo: { ...defaults.f8SalesConfig?.showLpoNo, ...(saved.f8SalesConfig?.showLpoNo || {}) },
+        showDeliveryNoteNo: { ...defaults.f8SalesConfig?.showDeliveryNoteNo, ...(saved.f8SalesConfig?.showDeliveryNoteNo || {}) },
+        customFields: Array.isArray(saved.f8SalesConfig?.customFields) ? saved.f8SalesConfig.customFields : [],
+      } as any,
       customFields: Array.isArray(saved.customFields) ? saved.customFields : [],
     };
   }

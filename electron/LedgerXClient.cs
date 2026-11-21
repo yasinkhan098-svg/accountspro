@@ -275,18 +275,6 @@ namespace LedgerXClient
             }
             catch { }
 
-            // Terminate any orphan Edge instances holding our profile to ensure fresh launch with kiosk-printing
-            try
-            {
-                ProcessStartInfo cleanPsi = new ProcessStartInfo("powershell", "-NoProfile -ExecutionPolicy Bypass -Command \"Get-CimInstance Win32_Process -Filter \\\"name = 'msedge.exe'\\\" | Where-Object { $_.CommandLine -like '*LedgerX*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"");
-                cleanPsi.CreateNoWindow = true;
-                cleanPsi.WindowStyle = ProcessWindowStyle.Hidden;
-                cleanPsi.UseShellExecute = false;
-                Process cp = Process.Start(cleanPsi);
-                if (cp != null) cp.WaitForExit(3000);
-            }
-            catch { }
-
             // Cache buster parameter
             string launchUrl = url + (url.Contains("?") ? "&" : "?") + "_live=" + DateTime.UtcNow.Ticks;
 
@@ -294,7 +282,7 @@ namespace LedgerXClient
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = browser;
-                psi.Arguments = string.Format("--kiosk-printing --default-background-color=00000000 --app=\"{0}\" --user-data-dir=\"{1}\" --disable-application-cache --disable-cache --disk-cache-size=1 --media-cache-size=1 --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
+                psi.Arguments = string.Format("--kiosk-printing --default-background-color=00000000 --app=\"{0}\" --user-data-dir=\"{1}\" --disable-application-cache --disable-cache --disk-cache-size=1 --media-cache-size=1 --start-maximized --no-default-browser-check --no-first-run --disable-session-crashed-bubble --hide-crash-restore-bubble", launchUrl, profileDir);
                 psi.WindowStyle = ProcessWindowStyle.Maximized;
                 psi.UseShellExecute = true;
                 Process.Start(psi);

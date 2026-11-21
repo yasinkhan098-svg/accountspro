@@ -129,7 +129,17 @@ export async function POST(req: Request) {
       pan: l.panItNo || '',
     }));
 
-    return NextResponse.json({ success: true, company, ledgers: normalizedCreatedLedgers });
+    const userCompanyCount = await prisma.company.count({ where: whereClause });
+    const assignedCode = data.companyCode && /^\d{5}$/.test(String(data.companyCode))
+      ? String(data.companyCode)
+      : String(10000 + Math.max(0, userCompanyCount - 1));
+    const companyWithCode = {
+      ...company,
+      companyCode: assignedCode,
+      code: assignedCode,
+    };
+
+    return NextResponse.json({ success: true, company: companyWithCode, companyCode: assignedCode, ledgers: normalizedCreatedLedgers });
   } catch (error: any) {
     console.error("Company Creation Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -197,7 +207,13 @@ export async function PUT(req: Request) {
       pan: l.panItNo || '',
     }));
 
-    return NextResponse.json({ success: true, company, ledgers: normalizedCreatedLedgers });
+    const companyWithCode = {
+      ...company,
+      companyCode: data.companyCode || data.code,
+      code: data.companyCode || data.code,
+    };
+
+    return NextResponse.json({ success: true, company: companyWithCode, ledgers: normalizedCreatedLedgers });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -234,17 +250,28 @@ export async function GET(req: Request) {
 
     // In client / role mode, allow fetching available companies for role-based terminal
     if (isClient) {
-      const companies = await prisma.company.findMany();
+      const rawCompanies = await prisma.company.findMany({ orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+      const companies = rawCompanies.map((c, idx) => ({
+        ...c,
+        companyCode: String(10000 + idx),
+        code: String(10000 + idx),
+      }));
       return NextResponse.json({ companies });
     }
 
     const user = await getAuthenticatedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Admin ke liye saari companies
-    const companies = user.id === -1
-      ? await prisma.company.findMany()
-      : await prisma.company.findMany({ where: { userId: user.id } });
+    // Admin ke liye saari companies, user ke liye unki companies
+    const rawCompanies = user.id === -1
+      ? await prisma.company.findMany({ orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })
+      : await prisma.company.findMany({ where: { userId: user.id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+
+    const companies = rawCompanies.map((c, idx) => ({
+      ...c,
+      companyCode: String(10000 + idx),
+      code: String(10000 + idx),
+    }));
 
     return NextResponse.json({ companies });
   } catch (error: any) {

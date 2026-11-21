@@ -258,31 +258,15 @@ namespace LedgerXLauncher
             }
         }
 
-        private static void CleanOrphanEdgeInstances(string profileDir)
-        {
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo("powershell", "-NoProfile -ExecutionPolicy Bypass -Command \"Get-CimInstance Win32_Process -Filter \\\"name = 'msedge.exe'\\\" | Where-Object { $_.CommandLine -like '*LedgerX*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"");
-                psi.CreateNoWindow = true;
-                psi.WindowStyle = ProcessWindowStyle.Hidden;
-                psi.UseShellExecute = false;
-                Process p = Process.Start(psi);
-                if (p != null) p.WaitForExit(3000);
-            }
-            catch { }
-        }
-
         private static void LaunchBrowser(string browserPath, string launchUrl, string profileDir)
         {
             try
             {
-                CleanOrphanEdgeInstances(profileDir);
-
                 if (!string.IsNullOrEmpty(browserPath))
                 {
                     ProcessStartInfo psi = new ProcessStartInfo();
                     psi.FileName = browserPath;
-                    psi.Arguments = string.Format("--kiosk-printing --default-background-color=00000000 --app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run", launchUrl, profileDir);
+                    psi.Arguments = string.Format("--kiosk-printing --default-background-color=00000000 --app=\"{0}\" --user-data-dir=\"{1}\" --start-maximized --no-default-browser-check --no-first-run --disable-session-crashed-bubble --hide-crash-restore-bubble", launchUrl, profileDir);
                     psi.WindowStyle = ProcessWindowStyle.Maximized;
                     psi.UseShellExecute = true;
                     Process.Start(psi);
@@ -295,7 +279,10 @@ namespace LedgerXLauncher
                     Process.Start(psi);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log("LaunchBrowser error: " + ex.Message);
+            }
         }
 
         private static bool IsServerAlive(string host, int port)
@@ -2327,6 +2314,11 @@ namespace LedgerXLauncher
         public HostServiceContext(NotifyIcon tray)
         {
             _tray = tray;
+            try
+            {
+                this.MainForm = new BackgroundHostForm();
+            }
+            catch { }
         }
 
         public void Terminate()
@@ -2340,7 +2332,20 @@ namespace LedgerXLauncher
                 }
             }
             catch { }
+            try
+            {
+                if (this.MainForm != null)
+                {
+                    this.MainForm.Close();
+                }
+            }
+            catch { }
             ExitThread();
+            try
+            {
+                Environment.Exit(0);
+            }
+            catch { }
         }
     }
 

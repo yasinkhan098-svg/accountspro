@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { CompanyPrintConfig, PrintFieldConfig } from '@/lib/printConfig/printConfigTypes';
 import { printConfigService } from '@/lib/printConfig/printConfigService';
 import { getCountryPrintPreset } from '@/lib/printConfig/countryPrintPresets';
+import F8SalesPrintConfigModal from './F8SalesPrintConfigModal';
 
 interface PrintDetailsConfigModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export default function PrintDetailsConfigModal({
   );
 
   const [saveToast, setSaveToast] = useState(false);
+  const [showF8Modal, setShowF8Modal] = useState(false);
 
   // Sync when company or isOpen changes
   useEffect(() => {
@@ -176,6 +178,27 @@ export default function PrintDetailsConfigModal({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => setShowF8Modal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: 4,
+                fontSize: 12,
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              }}
+              title="Configure F8 Sales Invoice Print layout, Trade Licenses, Delivery and Bank Remittance details"
+            >
+              📑 F8 Sales Invoice Print Configuration
+            </button>
             <button
               type="button"
               onClick={handleResetToCountryDefaults}
@@ -794,6 +817,26 @@ export default function PrintDetailsConfigModal({
           </div>
         </div>
       </div>
+
+      {showF8Modal && (
+        <F8SalesPrintConfigModal
+          isOpen={showF8Modal}
+          onClose={() => setShowF8Modal(false)}
+          activeCompany={activeCompany}
+          onSaved={(savedF8) => {
+            setConfig(prev => ({
+              ...prev,
+              f8SalesConfig: savedF8,
+            }));
+            if (onConfigSaved) {
+              onConfigSaved({
+                ...config,
+                f8SalesConfig: savedF8,
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
