@@ -14389,26 +14389,6 @@ function VoucherEntryForm({ activeAlterItem, activeVoucher, ledgers, stockItems,
 
             {/* Body */}
             <div style={{ padding: '18px 22px', fontSize: 13, color: '#333' }}>
-              <div
-                style={{
-                  marginBottom: 16,
-                  lineHeight: 1.5,
-                  background: '#fff3cd',
-                  border: '1px solid #ffeeba',
-                  borderRadius: 6,
-                  padding: '12px 14px',
-                  color: '#856404',
-                  fontSize: 12
-                }}
-              >
-                <div style={{ fontWeight: 'bold', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>⚠️</span>
-                  <span>Google Cloud Project Suspended</span>
-                </div>
-                The previous Google Cloud project (<code>projects/332389210687</code>) was suspended by Google. If a key is created inside that same suspended project, Google blocks it with <code>PERMISSION_DENIED</code>.<br /><br />
-                <strong>Fix:</strong> In Google AI Studio, click <b>&quot;Create API key&quot;</b> and select <b>&quot;Create API key in NEW project&quot;</b> (or switch to another Google account).
-              </div>
-
               {/* Step 1: Get Free Key */}
               <div
                 style={{
@@ -14420,13 +14400,12 @@ function VoucherEntryForm({ activeAlterItem, activeVoucher, ledgers, stockItems,
                 }}
               >
                 <div style={{ fontWeight: 'bold', marginBottom: 6, color: '#111' }}>
-                  Step 1: Get a Free Gemini API Key in a NEW Project
+                  Step 1: Get a Free Gemini API Key
                 </div>
                 <div style={{ fontSize: 12, color: '#555', marginBottom: 10, lineHeight: 1.5 }}>
                   1. Click the button below to open Google AI Studio (100% Free, no credit card needed).<br />
                   2. Click <b>&quot;Create API key&quot;</b>.<br />
-                  3. Select <b>&quot;Create API key in NEW project&quot;</b> (do NOT select the old suspended project).<br />
-                  4. Copy your key and paste it below.
+                  3. Copy your key and paste it below.
                 </div>
                 <a
                   href="https://aistudio.google.com/app/apikey"
