@@ -233,6 +233,8 @@ interface Voucher {
   narration: string; total: number;
   partyDetails?: PartyDetails;
   dispatchDetails?: DispatchDetails;
+  isPOS?: boolean;
+  companyCode?: string;
 }
 interface MenuOption { label: string; highlight: string; action: () => void; category?: 'header' | 'item'; }
 interface AltCContext { fieldType: 'ledger' | 'group' | 'stockItem' | 'stockGroup' | 'unit' | 'currency' | 'voucherType' | 'godown' | 'stockCategory'; onCreated: (newItem: any) => void; activeAlterItem?: any; }
@@ -10985,7 +10987,7 @@ function VoucherEntryForm({ activeAlterItem, activeVoucher, ledgers, stockItems,
       const { prefix, startingNumber } = f8CustomSeries;
       let maxSeq = 0;
       vouchers
-        .filter(v => v.type === 'Sales')
+        .filter(v => v.type === 'Sales' && !v.isPOS && !String(v.refNo || '').toUpperCase().startsWith('POS-') && !String(v.narration || '').includes('Retail POS'))
         .forEach(v => {
           const vNo = String(v.voucherNo || v.refNo || '').trim();
           if (!vNo) return;
@@ -11004,14 +11006,25 @@ function VoucherEntryForm({ activeAlterItem, activeVoucher, ledgers, stockItems,
     const start = vt?.startNumber || 1;
     const usedNumbers = new Set(
       vouchers
-        .filter(v => v.type === activeVoucher)
+        .filter(v => {
+          if (v.type !== activeVoucher) return false;
+          if (activeVoucher === 'Sales') {
+            // Strictly exclude Retail POS Counter sales so F8 Sales maintains its own independent sequence
+            if (v.isPOS) return false;
+            if (String(v.refNo || '').toUpperCase().startsWith('POS-')) return false;
+            if (String(v.voucherNo || '').toUpperCase().startsWith('CASH')) return false;
+            if (String(v.narration || '').includes('Retail POS')) return false;
+          }
+          return true;
+        })
         .map(v => {
           const prefix = vt?.prefix || '';
           const suffix = vt?.suffix || '';
           let raw = v.voucherNo || String(v.number || '');
           if (prefix && raw.startsWith(prefix)) raw = raw.slice(prefix.length);
           if (suffix && raw.endsWith(suffix)) raw = raw.slice(0, raw.length - suffix.length);
-          return parseInt(raw) || v.number || 0;
+          const parsed = parseInt(raw, 10);
+          return !isNaN(parsed) && parsed > 0 ? parsed : (typeof v.number === 'number' ? v.number : 0);
         })
     );
     let next = start;
@@ -11797,7 +11810,7 @@ function VoucherEntryForm({ activeAlterItem, activeVoucher, ledgers, stockItems,
     return {
       ...(activeAlterItem ? { id: activeAlterItem.id } : {}),
       companyId: activeCompany?.id || 0,
-      type: activeVoucher, date: finalVoucherDate, number: vNum, voucherNo: formattedNo, refNo: refNo || (activeVoucher === 'Sales' && f8CustomSeries ? formattedNo : `${activeVoucher.slice(0, 3).toUpperCase()}/${vNum}`),
+      type: activeVoucher, date: finalVoucherDate, number: vNum, voucherNo: formattedNo, refNo: refNo || (activeVoucher === 'Sales' ? formattedNo : `${activeVoucher.slice(0, 3).toUpperCase()}/${vNum}`),
       partyName: savePartyName, partyId: findL(savePartyName),
       partyDetails: (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note')
         ? { ...(partyDetails as any || {}), supplierInvNo, supplierInvDate } as PartyDetails
@@ -16295,7 +16308,7 @@ function DayBookView({ vouchers, currentPeriod, onBack, onDrillDown }: { voucher
                   <div style={{ fontSize: 11, color: '#777' }}>{v.narration}</div>
                 </td>
                 <td><span style={{ padding: '2px 8px', background: '#dde4f0', fontWeight: 'bold', fontSize: 11, whiteSpace: 'nowrap' }}>{v.type}</span></td>
-                <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{v.refNo}</td>
+                <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{v.voucherNo || v.refNo || v.number}</td>
                 {visibleItemCols.map(col => <td key={col.key} style={{ textAlign: 'center', color: qtyColor, fontWeight: 'bold', background: '#f5fbf7' }}>{vItemQty[col.key] ? fmt(vItemQty[col.key]) : ''}</td>)}
                 <td style={{ textAlign: 'right', color: '#8B0000', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{drAmt > 0 ? '₹' + fmt(drAmt) : ''}</td>
                 <td style={{ textAlign: 'right', color: '#006600', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{crAmt > 0 ? '₹' + fmt(crAmt) : ''}</td>
@@ -16758,7 +16771,7 @@ function SalesRegisterView({ vouchers, currentPeriod, onBack, onDrillDown }: { v
                 onMouseEnter={() => setRowIdx(i)}>
                 <td style={{ fontSize: 12 }}>{formatDateToTally(v.date) || v.date}</td>
                 <td style={{ fontWeight: 'bold' }}>{getVoucherPartyDisplayName(v)}</td>
-                <td style={{ fontSize: 12, color: '#555' }}>{v.refNo}</td>
+                <td style={{ fontSize: 12, color: '#555' }}>{v.voucherNo || v.refNo || v.number}</td>
                 <td><span style={{ padding: '1px 8px', background: v.type === 'Sales' ? '#1c5282' : '#c00', color: 'white', fontSize: 11, fontWeight: 'bold' }}>{v.type}</span></td>
                 <td style={{ textAlign: 'right' }}>{fmt(taxable)}</td>
                 <td style={{ textAlign: 'right', color: '#555' }}>{fmt(cgst)}</td>
@@ -16825,7 +16838,7 @@ function PurchaseRegisterView({ vouchers, onBack, onDrillDown }: { vouchers: Vou
                 onMouseEnter={() => setRowIdx(i)}>
                 <td style={{ fontSize: 12 }}>{formatDateToTally(v.date) || v.date}</td>
                 <td style={{ fontWeight: 'bold' }}>{getVoucherPartyDisplayName(v)}</td>
-                <td style={{ fontSize: 12, color: '#555' }}>{v.refNo}</td>
+                <td style={{ fontSize: 12, color: '#555' }}>{v.voucherNo || v.refNo || v.number}</td>
                 <td><span style={{ padding: '1px 8px', background: v.type === 'Purchase' ? '#5a2d82' : '#8B0000', color: 'white', fontSize: 11, fontWeight: 'bold' }}>{v.type}</span></td>
                 <td style={{ textAlign: 'right' }}>{fmt(taxable)}</td>
                 <td style={{ textAlign: 'right', color: '#555' }}>{fmt(cgst)}</td>

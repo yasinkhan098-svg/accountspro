@@ -296,8 +296,6 @@ export class POSService {
       if (match) return parseInt(match[0], 10) || 0;
     }
 
-    const match = clean.match(/\d+$/) || clean.match(/\d+/);
-    if (match) return parseInt(match[0], 10) || 0;
     return 0;
   }
 
@@ -341,7 +339,17 @@ export class POSService {
     }
 
     let maxSeq = 0;
+    const cleanPrefixUpper = prefix.trim().toUpperCase();
     allVouchers.forEach(v => {
+      // Only process vouchers that belong to Retail POS or match the POS prefix
+      const isPOS = v?.isPOS ||
+        String(v?.refNo || '').toUpperCase().startsWith('POS-') ||
+        (cleanPrefixUpper && String(v?.voucherNo || '').toUpperCase().startsWith(cleanPrefixUpper)) ||
+        String(v?.voucherNo || '').toUpperCase().startsWith('CASH') ||
+        String(v?.voucherNo || '').toUpperCase().startsWith('TRN') ||
+        String(v?.narration || '').includes('Retail POS');
+      if (!isPOS) return;
+
       const vNo = String(v.voucherNo || v.voucherNumber || v.refNo || '').trim();
       if (!vNo) return;
       const seq = this.extractSequenceNumber(vNo, prefix);
@@ -679,12 +687,13 @@ export class POSService {
 
     // 4. Construct Full Sales Voucher
     const voucherId = Date.now();
+    const posSeq = this.extractSequenceNumber(billNo) || 1;
     const newVoucher = {
       id: voucherId,
       companyId: cid,
       type: 'Sales',
       date: dateStr,
-      number: existingVouchers.length + 1,
+      number: posSeq,
       voucherNo: billNo,
       refNo: `POS-${billNo}`,
       partyName: customer.name || 'Cash Customer',

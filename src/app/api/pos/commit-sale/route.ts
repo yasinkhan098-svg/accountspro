@@ -8,12 +8,17 @@ function extractTrailingNumber(str: string, prefix: string): number {
   if (clean.toUpperCase().startsWith('POS-')) {
     clean = clean.substring(4).trim();
   }
-  if (prefix && clean.toUpperCase().startsWith(prefix.toUpperCase())) {
-    clean = clean.substring(prefix.length).replace(/^[-_]/, '');
-  } else if (clean.toUpperCase().startsWith('CASH')) {
+  const prefixUpper = (prefix || '').trim().toUpperCase();
+  const cleanUpper = clean.toUpperCase();
+  if (prefixUpper && cleanUpper.startsWith(prefixUpper)) {
+    clean = clean.substring(prefixUpper.length).replace(/^[-_]/, '');
+  } else if (cleanUpper.startsWith('CASH')) {
     clean = clean.substring(4).replace(/^[-_]/, '');
-  } else if (clean.toUpperCase().startsWith('TRN')) {
+  } else if (cleanUpper.startsWith('TRN')) {
     clean = clean.substring(3).replace(/^[-_]/, '');
+  } else {
+    // Non-POS vouchers (e.g. F8 sales numeric invoices) must never match POS sequence
+    return 0;
   }
   const match = clean.match(/\d+$/) || clean.match(/\d+/);
   if (match) {
@@ -75,7 +80,7 @@ export async function POST(req: NextRequest) {
       }
     }
     if (!fs.existsSync(targetDir)) {
-      try { fs.mkdirSync(targetDir, { recursive: true }); } catch {}
+      try { fs.mkdirSync(targetDir, { recursive: true }); } catch { }
     }
 
     const vFile = path.join(targetDir, 'vouchers.json');
@@ -100,18 +105,25 @@ export async function POST(req: NextRequest) {
 
               const vNo = String(item.voucherNo || item.voucherNumber || item.refNo || '').trim();
               if (vNo) {
-                existingBillNos.add(vNo.toUpperCase());
-                if (vNo.toUpperCase().startsWith('POS-')) {
-                  existingBillNos.add(vNo.substring(4).toUpperCase());
+                const isPOS = item?.isPOS ||
+                  String(item?.refNo || '').toUpperCase().startsWith('POS-') ||
+                  (defaultPrefix && String(item?.voucherNo || '').toUpperCase().startsWith(defaultPrefix.toUpperCase())) ||
+                  String(item?.voucherNo || '').toUpperCase().startsWith('CASH') ||
+                  String(item?.narration || '').includes('Retail POS');
+                if (isPOS) {
+                  existingBillNos.add(vNo.toUpperCase());
+                  if (vNo.toUpperCase().startsWith('POS-')) {
+                    existingBillNos.add(vNo.substring(4).toUpperCase());
+                  }
+                  const seq = extractTrailingNumber(vNo, defaultPrefix);
+                  if (seq > maxSeq) maxSeq = seq;
                 }
-                const seq = extractTrailingNumber(vNo, defaultPrefix);
-                if (seq > maxSeq) maxSeq = seq;
               }
               list.push(item);
             }
           }
         }
-      } catch {}
+      } catch { }
     }
 
     // Ensure unique voucher ID
@@ -123,18 +135,21 @@ export async function POST(req: NextRequest) {
 
     // Ensure collision-proof sequential bill number
     let reqBillNo = String(voucher.voucherNo || '').trim();
+    let assignedSeq = 0;
     if (!reqBillNo || existingBillNos.has(reqBillNo.toUpperCase())) {
       const nextSeq = maxSeq + 1;
       reqBillNo = `${defaultPrefix}${String(nextSeq).padStart(4, '0')}`;
       maxSeq = nextSeq;
+      assignedSeq = nextSeq;
     } else {
       const seq = extractTrailingNumber(reqBillNo, defaultPrefix);
       if (seq > maxSeq) maxSeq = seq;
+      assignedSeq = seq;
     }
 
     voucher.voucherNo = reqBillNo;
     voucher.refNo = `POS-${reqBillNo}`;
-    voucher.number = list.length + 1;
+    voucher.number = assignedSeq || (list.filter((x: any) => x.isPOS).length + 1);
     voucher.isPOS = true;
     voucher.companyCode = code;
 
