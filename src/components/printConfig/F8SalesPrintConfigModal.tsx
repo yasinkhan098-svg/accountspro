@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { F8SalesPrintConfig, PrintFieldConfig } from '@/lib/printConfig/printConfigTypes';
 import { printConfigService, getDefaultF8SalesConfig } from '@/lib/printConfig/printConfigService';
+import { companyDataFolderService } from '@/lib/companyDataFolderService';
 
 interface F8SalesPrintConfigModalProps {
   isOpen: boolean;
@@ -16,7 +17,7 @@ export default function F8SalesPrintConfigModal({
   activeCompany,
   onSaved,
 }: F8SalesPrintConfigModalProps) {
-  const companyCode = String(activeCompany?.companyCode || activeCompany?.code || '10000').toUpperCase().trim();
+  const companyCode = companyDataFolderService.getCompanyFolderCode(activeCompany);
   const companyName = activeCompany?.name || 'Company Name';
   const country = activeCompany?.country || 'India';
   const isIndia = country.toLowerCase().trim() === 'india';
@@ -57,13 +58,26 @@ export default function F8SalesPrintConfigModal({
   if (!isOpen) return null;
 
   const updateField = (
-    fieldKey: keyof Omit<F8SalesPrintConfig, 'customFields'>,
+    fieldKey: keyof Omit<F8SalesPrintConfig, 'customFields' | 'customInvoiceSeries'>,
     updates: Partial<PrintFieldConfig>
   ) => {
     setF8Config(prev => ({
       ...prev,
       [fieldKey]: {
-        ...(prev[fieldKey] || { label: '', value: '', enabled: true }),
+        ...((prev[fieldKey] as PrintFieldConfig) || { label: '', value: '', enabled: true }),
+        ...updates,
+      },
+    }));
+  };
+
+  const updateCustomSeries = (updates: Partial<{ enabled: boolean; prefix: string; startingNumber: number; padDigits: number }>) => {
+    setF8Config(prev => ({
+      ...prev,
+      customInvoiceSeries: {
+        enabled: prev.customInvoiceSeries?.enabled || false,
+        prefix: prev.customInvoiceSeries?.prefix !== undefined ? prev.customInvoiceSeries.prefix : '',
+        startingNumber: prev.customInvoiceSeries?.startingNumber || 1,
+        padDigits: prev.customInvoiceSeries?.padDigits || 4,
         ...updates,
       },
     }));
@@ -93,12 +107,12 @@ export default function F8SalesPrintConfigModal({
   };
 
   const renderFieldRow = (
-    fieldKey: keyof Omit<F8SalesPrintConfig, 'customFields'>,
+    fieldKey: keyof Omit<F8SalesPrintConfig, 'customFields' | 'customInvoiceSeries'>,
     title: string,
     placeholder: string,
     options?: { showInput?: boolean; help?: string }
   ) => {
-    const field = f8Config[fieldKey] || { label: title, value: '', enabled: true };
+    const field = (f8Config[fieldKey] as PrintFieldConfig) || { label: title, value: '', enabled: true };
     const showInput = options?.showInput !== false;
 
     return (
@@ -285,6 +299,119 @@ export default function F8SalesPrintConfigModal({
           <div style={{ padding: '16px 20px', overflowY: 'auto', background: '#f8fafc', borderRight: '1px solid #e2e8f0' }}>
             <div style={{ background: '#e0f2fe', border: '1px solid #7dd3fc', borderRadius: 6, padding: '10px 12px', marginBottom: 14, fontSize: 11, color: '#0369a1', lineHeight: 1.4 }}>
               💡 <b>Data Priority:</b> Company creation me dali gayi details (Name, Address, TRN, Bank) pehle print hoti hain. Agar koi detail company creation me na ho (jaise Trade License, IBAN, Swift, Salesperson, Payment Terms), to is form me bhari hui value print hogi. Har field ko <b>Yes/No switch</b> se hide/show kar sakte hain.
+            </div>
+
+            {/* 0. F8 Sales Custom Invoice Numbering Series */}
+            <div style={{ background: '#ffffff', border: '2px solid #2563eb', borderRadius: 8, padding: 14, marginBottom: 16, boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🔢</span> F8 Sales Custom Invoice Series
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: f8Config.customInvoiceSeries?.enabled ? '#059669' : '#64748b' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!f8Config.customInvoiceSeries?.enabled}
+                    onChange={e => updateCustomSeries({ enabled: e.target.checked })}
+                    style={{ width: 16, height: 16, accentColor: '#2563eb', cursor: 'pointer' }}
+                  />
+                  <span>{f8Config.customInvoiceSeries?.enabled ? '✓ Custom Series Active' : 'Off (Default Numbering)'}</span>
+                </label>
+              </div>
+
+              <div style={{ fontSize: 11, color: '#475569', marginBottom: 10, lineHeight: 1.4 }}>
+                F8 Sales voucher ke liye apni manpasand prefix and starting number set karein (jaise <b>INV/26/0001</b> ya <b>HPL-26-0001</b>). Voucher save hone par number automatically 1, 2, 3... increase hoga aur Sales Register me save hoga.
+              </div>
+
+              {f8Config.customInvoiceSeries?.enabled && (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 10, marginBottom: 8 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                        Invoice Prefix
+                      </label>
+                      <input
+                        type="text"
+                        value={f8Config.customInvoiceSeries?.prefix !== undefined ? f8Config.customInvoiceSeries.prefix : ''}
+                        onChange={e => updateCustomSeries({ prefix: e.target.value })}
+                        placeholder="e.g. INV/26/ or HPL-26-"
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                          fontWeight: 'bold',
+                          border: '1px solid #94a3b8',
+                          borderRadius: 4,
+                          background: '#ffffff',
+                          color: '#0f172a',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                        Starting No.
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={f8Config.customInvoiceSeries?.startingNumber || 1}
+                        onChange={e => updateCustomSeries({ startingNumber: Math.max(1, parseInt(e.target.value) || 1) })}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          fontSize: 12,
+                          fontWeight: 'bold',
+                          border: '1px solid #94a3b8',
+                          borderRadius: 4,
+                          background: '#ffffff',
+                          color: '#0f172a',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 3 }}>
+                        Digits Padding
+                      </label>
+                      <select
+                        value={f8Config.customInvoiceSeries?.padDigits || 4}
+                        onChange={e => updateCustomSeries({ padDigits: parseInt(e.target.value) || 4 })}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          fontSize: 12,
+                          fontWeight: 'bold',
+                          border: '1px solid #94a3b8',
+                          borderRadius: 4,
+                          background: '#ffffff',
+                          color: '#0f172a',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value={1}>1 (e.g. 1, 2, 3)</option>
+                        <option value={2}>2 (e.g. 01, 02)</option>
+                        <option value={3}>3 (e.g. 001, 002)</option>
+                        <option value={4}>4 (e.g. 0001, 0002)</option>
+                        <option value={5}>5 (e.g. 00001)</option>
+                        <option value={6}>6 (e.g. 000001)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Live Series Preview Badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eff6ff', padding: '6px 10px', borderRadius: 4, border: '1px dashed #3b82f6' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1e40af' }}>Preview Next Invoices:</span>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#2563eb', fontSize: 12 }}>
+                      {(f8Config.customInvoiceSeries?.prefix || '') + String(f8Config.customInvoiceSeries?.startingNumber || 1).padStart(f8Config.customInvoiceSeries?.padDigits || 4, '0')}
+                    </span>
+                    <span style={{ color: '#94a3b8', fontSize: 11 }}>→</span>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#2563eb', fontSize: 12 }}>
+                      {(f8Config.customInvoiceSeries?.prefix || '') + String((f8Config.customInvoiceSeries?.startingNumber || 1) + 1).padStart(f8Config.customInvoiceSeries?.padDigits || 4, '0')}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Section 1: Document & Licenses */}

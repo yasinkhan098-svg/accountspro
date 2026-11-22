@@ -110,11 +110,32 @@ export default function POSSaleView({
     const prefix = posBillConfig?.billPrefix || (companyCode === 'TRAINING' ? 'TRN-' : 'CASH');
     posService.fetchNextBillNo(companyCode, prefix).then(serverNo => {
       if (isMounted && serverNo && cart.length === 0) {
-        setBillNo(serverNo);
+        const clientBill = posService.generateBillNo(vouchers, companyCode, posBillConfig);
+        const cSeq = posService.extractSequenceNumber(clientBill, prefix);
+        const sSeq = posService.extractSequenceNumber(serverNo, prefix);
+        if (sSeq > cSeq) {
+          setBillNo(serverNo);
+        } else {
+          setBillNo(clientBill);
+        }
       }
     });
     return () => { isMounted = false; };
   }, [companyCode, posBillConfig?.billPrefix]);
+
+  // Real-time listener: when print config changes in Details Print, update POS bill prefix immediately
+  useEffect(() => {
+    const handleConfigUpdated = (e: any) => {
+      const updatedCode = e.detail?.companyCode;
+      if (!updatedCode || updatedCode === companyCode) {
+        const latestConfig = e.detail?.config || printConfigService.loadPrintConfig(companyCode, company);
+        const nextNo = posService.generateBillNo(vouchers, companyCode, latestConfig?.posBillConfig);
+        setBillNo(nextNo);
+      }
+    };
+    window.addEventListener('ledgerx_print_config_updated', handleConfigUpdated);
+    return () => window.removeEventListener('ledgerx_print_config_updated', handleConfigUpdated);
+  }, [companyCode, company, vouchers]);
 
   // Sub-table summary meta
   const [customerMobile, setCustomerMobile] = useState('');
@@ -1462,15 +1483,8 @@ export default function POSSaleView({
     setPromoDiscountAmt(0);
     setScannedActiveItems([]);
     const vList = explicitNextVouchers || vouchers;
-    const prefix = posBillConfig?.billPrefix || (companyCode === 'TRAINING' ? 'TRN-' : 'CASH');
-    try {
-      const serverBillNo = await posService.fetchNextBillNo(companyCode, prefix);
-      if (serverBillNo) {
-        setBillNo(serverBillNo);
-        return;
-      }
-    } catch {}
-    setBillNo(posService.generateBillNo(vList, companyCode, posBillConfig));
+    const nextBill = await posService.getNextSequentialBillNo(vList, companyCode, posBillConfig);
+    setBillNo(nextBill);
   };
 
   // Finalize payment from modal
@@ -1544,7 +1558,7 @@ export default function POSSaleView({
       const finalBillNo = result.voucher.voucherNo || billNo;
 
       if (onStockUpdated) onStockUpdated(result.updatedStockItems);
-      const existingFiltered = (vouchers || []).filter(v => v.id !== result.voucher.id);
+      const existingFiltered = (vouchers || []).filter(v => v.id !== result.voucher.id && v.voucherNo !== result.voucher.voucherNo);
       const nextVouchers = [...existingFiltered, result.voucher];
       if (onVouchersUpdated) {
         onVouchersUpdated(nextVouchers);

@@ -271,6 +271,37 @@ export class POSService {
   }
 
   /**
+   * Extracts the trailing numerical sequence from a bill number.
+   * e.g. "CASH0001" -> 1, "HPL-26-0005" -> 5, "POS-CASH0002" -> 2.
+   */
+  public extractSequenceNumber(billNo: string, prefix?: string): number {
+    if (!billNo) return 0;
+    let clean = String(billNo).trim();
+    if (clean.toUpperCase().startsWith('POS-')) clean = clean.substring(4).trim();
+
+    const cleanPrefixUpper = (prefix || '').trim().toUpperCase();
+    const cleanUpper = clean.toUpperCase();
+
+    if (cleanPrefixUpper && cleanUpper.startsWith(cleanPrefixUpper)) {
+      const remainder = clean.substring(cleanPrefixUpper.length).replace(/^[-_]/, '');
+      const match = remainder.match(/\d+$/) || remainder.match(/\d+/);
+      if (match) return parseInt(match[0], 10) || 0;
+    } else if (cleanUpper.startsWith('CASH')) {
+      const remainder = clean.substring(4).replace(/^[-_]/, '');
+      const match = remainder.match(/\d+$/) || remainder.match(/\d+/);
+      if (match) return parseInt(match[0], 10) || 0;
+    } else if (cleanUpper.startsWith('TRN')) {
+      const remainder = clean.substring(3).replace(/^[-_]/, '');
+      const match = remainder.match(/\d+$/) || remainder.match(/\d+/);
+      if (match) return parseInt(match[0], 10) || 0;
+    }
+
+    const match = clean.match(/\d+$/) || clean.match(/\d+/);
+    if (match) return parseInt(match[0], 10) || 0;
+    return 0;
+  }
+
+  /**
    * Generates sequential POS bill number e.g. CASH0001, CASH0002... or custom series like HPL-26-0001.
    * Starting with configured starting number per retail POS sales register standard.
    * Scans actual numerical sequences across memory and local storage to prevent duplicate or missing numbers.
@@ -300,7 +331,7 @@ export class POSService {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed?.vouchers)) {
             for (const v of parsed.vouchers) {
-              if (v && !allVouchers.some(x => x.id === v.id)) {
+              if (v && !allVouchers.some(x => x.id === v.id || (x.voucherNo && x.voucherNo === v.voucherNo))) {
                 allVouchers.push(v);
               }
             }
@@ -310,39 +341,53 @@ export class POSService {
     }
 
     let maxSeq = 0;
-    const cleanPrefixUpper = prefix.trim().toUpperCase();
-
     allVouchers.forEach(v => {
       const vNo = String(v.voucherNo || v.voucherNumber || v.refNo || '').trim();
       if (!vNo) return;
-      let clean = vNo;
-      if (clean.toUpperCase().startsWith('POS-')) clean = clean.substring(4).trim();
-
-      let matchedSeq = 0;
-      const cleanUpper = clean.toUpperCase();
-
-      if (cleanPrefixUpper && cleanUpper.startsWith(cleanPrefixUpper)) {
-        // Strip exact prefix and match trailing sequence number
-        const remainder = clean.substring(cleanPrefixUpper.length).replace(/^[-_]/, '');
-        const match = remainder.match(/\d+$/);
-        if (match) matchedSeq = parseInt(match[0], 10) || 0;
-      } else if (cleanUpper.startsWith('CASH')) {
-        const remainder = clean.substring(4).replace(/^[-_]/, '');
-        const match = remainder.match(/\d+$/);
-        if (match) matchedSeq = parseInt(match[0], 10) || 0;
-      } else if (cleanUpper.startsWith('TRN')) {
-        const remainder = clean.substring(3).replace(/^[-_]/, '');
-        const match = remainder.match(/\d+$/);
-        if (match) matchedSeq = parseInt(match[0], 10) || 0;
-      }
-
-      if (matchedSeq > maxSeq) {
-        maxSeq = matchedSeq;
+      const seq = this.extractSequenceNumber(vNo, prefix);
+      if (seq > maxSeq) {
+        maxSeq = seq;
       }
     });
 
     const nextSeq = maxSeq >= startingNum ? maxSeq + 1 : startingNum;
     const padded = String(nextSeq).padStart(padDigits, '0');
+    return `${prefix}${padded}`;
+  }
+
+  /**
+   * Calculates the next sequential POS bill number with monotonic progression.
+   * Compares client sequence and server sequence, and guarantees the sequence NEVER regresses.
+   */
+  public async getNextSequentialBillNo(vouchers: any[], companyCode = '10000', customConfig?: any): Promise<string> {
+    const isTraining = companyCode === 'TRAINING';
+    let prefix = isTraining ? 'TRN-' : 'CASH';
+    let startingNum = 1;
+    let padDigits = 4;
+
+    if (customConfig && !isTraining) {
+      if (typeof customConfig === 'string') {
+        prefix = customConfig;
+      } else if (customConfig.billPrefix !== undefined) {
+        prefix = customConfig.billPrefix || 'CASH';
+        if (customConfig.startingNumber) startingNum = Number(customConfig.startingNumber) || 1;
+        if (customConfig.padDigits) padDigits = Number(customConfig.padDigits) || 4;
+      }
+    }
+
+    const clientBill = this.generateBillNo(vouchers, companyCode, customConfig);
+    const clientSeq = this.extractSequenceNumber(clientBill, prefix);
+
+    let serverSeq = 0;
+    try {
+      const serverBill = await this.fetchNextBillNo(companyCode, prefix);
+      if (serverBill) {
+        serverSeq = this.extractSequenceNumber(serverBill, prefix);
+      }
+    } catch {}
+
+    const effectiveSeq = Math.max(clientSeq, serverSeq, startingNum);
+    const padded = String(effectiveSeq).padStart(padDigits, '0');
     return `${prefix}${padded}`;
   }
 
@@ -684,26 +729,31 @@ export class POSService {
       }
     } catch (commitErr) {
       console.warn('Host commit endpoint notice, running safe fallback:', commitErr);
-      try {
-        const seenKeys = new Set<string>();
-        const cleanVouchers: any[] = [];
-        for (const v of existingVouchers || []) {
-          const key = `${v.id}_${v.voucherNo}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            cleanVouchers.push(v);
-          }
+    }
+
+    // Always synchronize vouchers into company folder storage (localStorage + disk)
+    try {
+      const seenKeys = new Set<string>();
+      const cleanVouchers: any[] = [];
+      for (const v of existingVouchers || []) {
+        const key = `${v.id}_${v.voucherNo}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          cleanVouchers.push(v);
         }
-        cleanVouchers.push(newVoucher);
-        await companyDataFolderService.saveCompanyFolder({
-          companyCode,
-          company,
-          vouchers: cleanVouchers,
-          stockItems: updatedStockItems,
-        });
-      } catch (saveErr) {
-        console.warn('POS folder fallback save notice:', saveErr);
       }
+      const keyNew = `${committedVoucher.id}_${committedVoucher.voucherNo}`;
+      if (!seenKeys.has(keyNew)) {
+        cleanVouchers.push(committedVoucher);
+      }
+      await companyDataFolderService.saveCompanyFolder({
+        companyCode,
+        company,
+        vouchers: cleanVouchers,
+        stockItems: updatedStockItems,
+      });
+    } catch (saveErr) {
+      console.warn('POS folder save sync notice:', saveErr);
     }
 
     // Enqueue for offline sync

@@ -24,6 +24,7 @@ import AutoUpdateManager from '@/components/AutoUpdateManager';
 import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 import RoleManagementView from '@/components/RoleManagementView';
 import PrintDetailsConfigModal from '@/components/printConfig/PrintDetailsConfigModal';
+import { printConfigService } from '@/lib/printConfig/printConfigService';
 import InternationalSalesInvoicePrint from '@/components/printConfig/InternationalSalesInvoicePrint';
 import POSWorkflowContainer from '@/components/pos/POSWorkflowContainer';
 import PurchasePOSListView from '@/components/pos/PurchasePOSListView';
@@ -906,7 +907,7 @@ export default function App() {
         setOfflineGuardBlocked(null);
         // If allowed and payload exists, ensure desktop session is active!
         if (guardResult.payload) {
-            const user = authClient.getUser() || {
+          const user = authClient.getUser() || {
             id: guardResult.payload.userId || 1,
             name: guardResult.payload.email ? guardResult.payload.email.split('@')[0] : 'Licensed User',
             email: guardResult.payload.email,
@@ -10921,16 +10922,69 @@ function VoucherEntryForm({ activeAlterItem, activeVoucher, ledgers, stockItems,
     numberingMethod === 'Manual' ? 'Manual' : 'Auto'
   );
 
+  const companyCode = activeCompany ? companyDataFolderService.getCompanyFolderCode(activeCompany) : '10000';
+  const [printConfigTrigger, setPrintConfigTrigger] = useState(0);
+
+  // Real-time listener: when print config changes in Details Print, update F8 Sales numbering immediately
+  useEffect(() => {
+    const handleConfigUpdated = (e: any) => {
+      const updatedCode = e.detail?.companyCode;
+      if (!updatedCode || updatedCode === companyCode) {
+        setPrintConfigTrigger(t => t + 1);
+      }
+    };
+    window.addEventListener('ledgerx_print_config_updated', handleConfigUpdated);
+    return () => window.removeEventListener('ledgerx_print_config_updated', handleConfigUpdated);
+  }, [companyCode]);
+
+  const f8CustomSeries = useMemo(() => {
+    if (activeVoucher !== 'Sales') return null;
+    const pConf = printConfigService.loadPrintConfig(companyCode, activeCompany);
+    const series = pConf?.f8SalesConfig?.customInvoiceSeries;
+    if (series && series.enabled && series.prefix && series.prefix.trim()) {
+      return {
+        prefix: series.prefix.trim(),
+        startingNumber: Number(series.startingNumber) || 1,
+        padDigits: Number(series.padDigits) || 4,
+      };
+    }
+    return null;
+  }, [activeVoucher, companyCode, activeCompany, printConfigTrigger]);
+
   const formatVoucherNo = useCallback((num: number, vtData?: VoucherTypeData) => {
+    if (activeVoucher === 'Sales' && f8CustomSeries) {
+      const { prefix, padDigits } = f8CustomSeries;
+      return `${prefix}${String(num).padStart(padDigits, '0')}`;
+    }
     if (!vtData) return String(num);
     let s = String(num);
     if (vtData.prefillWithZero && vtData.width && vtData.width > 0) {
       s = s.padStart(vtData.width, '0');
     }
     return (vtData.prefix || '') + s + (vtData.suffix || '');
-  }, []);
+  }, [activeVoucher, f8CustomSeries]);
 
   const getNextAutoNumber = useCallback((): number => {
+    if (activeVoucher === 'Sales' && f8CustomSeries) {
+      const { prefix, startingNumber } = f8CustomSeries;
+      let maxSeq = 0;
+      vouchers
+        .filter(v => v.type === 'Sales')
+        .forEach(v => {
+          const vNo = String(v.voucherNo || v.refNo || '').trim();
+          if (!vNo) return;
+          if (vNo.toUpperCase().startsWith(prefix.toUpperCase())) {
+            const remainder = vNo.substring(prefix.length).replace(/^[-_]/, '');
+            const match = remainder.match(/\d+$/) || remainder.match(/\d+/);
+            if (match) {
+              const seq = parseInt(match[0], 10);
+              if (seq > maxSeq) maxSeq = seq;
+            }
+          }
+        });
+      return maxSeq >= startingNumber ? maxSeq + 1 : startingNumber;
+    }
+
     const start = vt?.startNumber || 1;
     const usedNumbers = new Set(
       vouchers
@@ -10947,7 +11001,7 @@ function VoucherEntryForm({ activeAlterItem, activeVoucher, ledgers, stockItems,
     let next = start;
     while (usedNumbers.has(next)) next++;
     return next;
-  }, [vouchers, activeVoucher, vt]);
+  }, [vouchers, activeVoucher, vt, f8CustomSeries]);
 
   // Print prompt state
   const [showPrintPrompt, setShowPrintPrompt] = useState<{ voucher: Voucher, msg: string } | null>(null);
@@ -11727,7 +11781,7 @@ function VoucherEntryForm({ activeAlterItem, activeVoucher, ledgers, stockItems,
     return {
       ...(activeAlterItem ? { id: activeAlterItem.id } : {}),
       companyId: activeCompany?.id || 0,
-      type: activeVoucher, date: finalVoucherDate, number: vNum, voucherNo: formattedNo, refNo: refNo || `${activeVoucher.slice(0, 3).toUpperCase()}/${vNum}`,
+      type: activeVoucher, date: finalVoucherDate, number: vNum, voucherNo: formattedNo, refNo: refNo || (activeVoucher === 'Sales' && f8CustomSeries ? formattedNo : `${activeVoucher.slice(0, 3).toUpperCase()}/${vNum}`),
       partyName: savePartyName, partyId: findL(savePartyName),
       partyDetails: (activeVoucher === 'Purchase' || activeVoucher === 'Debit Note')
         ? { ...(partyDetails as any || {}), supplierInvNo, supplierInvDate } as PartyDetails

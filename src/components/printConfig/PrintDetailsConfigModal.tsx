@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CompanyPrintConfig, PrintFieldConfig, POSBillConfig } from '@/lib/printConfig/printConfigTypes';
 import { printConfigService } from '@/lib/printConfig/printConfigService';
+import { companyDataFolderService } from '@/lib/companyDataFolderService';
 import { getCountryPrintPreset } from '@/lib/printConfig/countryPrintPresets';
 import F8SalesPrintConfigModal from './F8SalesPrintConfigModal';
 
@@ -18,7 +19,7 @@ export default function PrintDetailsConfigModal({
   activeCompany,
   onConfigSaved,
 }: PrintDetailsConfigModalProps) {
-  const companyCode = String(activeCompany?.companyCode || activeCompany?.code || '10000').toUpperCase().trim();
+  const companyCode = companyDataFolderService.getCompanyFolderCode(activeCompany);
   const companyName = activeCompany?.name || 'LedgerX Retail Limited';
   const country = activeCompany?.country || 'India';
   const currencySymbol = activeCompany?.currencySymbol || activeCompany?.baseCurrencySymbol || activeCompany?.currency || '₹';

@@ -1,6 +1,6 @@
 import { CompanyPrintConfig, PrintFieldConfig, F8SalesPrintConfig } from './printConfigTypes';
 import { getCountryPrintPreset } from './countryPrintPresets';
-import { getBridgeBaseUrl } from '../companyDataFolderService';
+import { companyDataFolderService, getBridgeBaseUrl } from '../companyDataFolderService';
 
 export function getDefaultF8SalesConfig(company: any): F8SalesPrintConfig {
   const country = company?.country || 'India';
@@ -78,6 +78,12 @@ export function getDefaultF8SalesConfig(company: any): F8SalesPrintConfig {
       value: 'Delivery Note No:', 
       enabled: true 
     },
+    customInvoiceSeries: {
+      enabled: false,
+      prefix: '',
+      startingNumber: 1,
+      padDigits: 4,
+    },
     customFields: []
   };
 }
@@ -153,10 +159,10 @@ class PrintConfigService {
 
   /**
    * Loads the print configuration for a company.
-   * Checks company object -> localStorage -> fallback defaults.
+   * Checks localStorage (latest user updates) -> company object -> fallback defaults.
    */
-  public loadPrintConfig(companyCode: string, company?: any): CompanyPrintConfig {
-    const code = String(companyCode || company?.companyCode || company?.code || '10000').toUpperCase().trim();
+  public loadPrintConfig(companyCode?: string, company?: any): CompanyPrintConfig {
+    const code = (company ? companyDataFolderService.getCompanyFolderCode(company) : '') || String(companyCode || '10000').toUpperCase().trim();
     const defaults = this.getDefaultPrintConfig(company);
 
     if (typeof window === 'undefined') {
@@ -164,16 +170,18 @@ class PrintConfigService {
     }
 
     try {
-      // 1. Direct attachment on activeCompany
-      if (company?.printConfig && typeof company.printConfig === 'object') {
-        return this.mergeWithDefaults(company.printConfig, defaults);
-      }
-
-      // 2. Local storage cache per company
+      // 1. Local storage cache per company - always takes priority for live edits
       const cached = localStorage.getItem(`ledgerx_print_config_${code}`);
       if (cached) {
         const parsed = JSON.parse(cached);
-        return this.mergeWithDefaults(parsed, defaults);
+        const merged = this.mergeWithDefaults(parsed, defaults);
+        if (company) company.printConfig = merged;
+        return merged;
+      }
+
+      // 2. Direct attachment on activeCompany (from company.json)
+      if (company?.printConfig && typeof company.printConfig === 'object') {
+        return this.mergeWithDefaults(company.printConfig, defaults);
       }
     } catch (e) {
       console.warn('Error loading print config from local storage:', e);
@@ -184,9 +192,11 @@ class PrintConfigService {
 
   /**
    * Saves the print configuration for a company.
+   * Persists to localStorage, activeCompany, and company.json via companyDataFolderService.
    */
   public async savePrintConfig(companyCode: string, config: CompanyPrintConfig, company?: any): Promise<boolean> {
-    const code = String(companyCode || company?.companyCode || company?.code || '10000').toUpperCase().trim();
+    const code = (company ? companyDataFolderService.getCompanyFolderCode(company) : '') || String(companyCode || '10000').toUpperCase().trim();
+    config.companyCode = code;
     config.updatedAt = new Date().toISOString();
 
     if (company) {
@@ -196,22 +206,24 @@ class PrintConfigService {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(`ledgerx_print_config_${code}`, JSON.stringify(config));
+        window.dispatchEvent(new CustomEvent('ledgerx_print_config_updated', {
+          detail: { companyCode: code, config }
+        }));
       } catch (e) {
         console.warn('Failed to cache print config in localStorage:', e);
       }
     }
 
-    // Persist to Bridge / File system if Bridge is active
+    // Persist to company data folder (company.json)
     try {
-      const bridgeUrl = getBridgeBaseUrl();
-      const res = await fetch(`${bridgeUrl}/api/local-data/company-print-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyCode: code, printConfig: config }),
-      });
-      if (res.ok) return true;
+      if (company) {
+        await companyDataFolderService.saveCompanyFolder({
+          companyCode: code,
+          company: { ...company, printConfig: config },
+        });
+      }
     } catch (err) {
-      // Offline/browser fallback
+      console.warn('Notice saving print config to company data folder:', err);
     }
 
     return true;
@@ -271,6 +283,12 @@ class PrintConfigService {
         showAuthorisedSignatory: { ...defaults.f8SalesConfig?.showAuthorisedSignatory, ...(saved.f8SalesConfig?.showAuthorisedSignatory || {}) },
         showLpoNo: { ...defaults.f8SalesConfig?.showLpoNo, ...(saved.f8SalesConfig?.showLpoNo || {}) },
         showDeliveryNoteNo: { ...defaults.f8SalesConfig?.showDeliveryNoteNo, ...(saved.f8SalesConfig?.showDeliveryNoteNo || {}) },
+        customInvoiceSeries: {
+          enabled: !!saved.f8SalesConfig?.customInvoiceSeries?.enabled,
+          prefix: saved.f8SalesConfig?.customInvoiceSeries?.prefix !== undefined ? String(saved.f8SalesConfig.customInvoiceSeries.prefix) : '',
+          startingNumber: Number(saved.f8SalesConfig?.customInvoiceSeries?.startingNumber) > 0 ? Number(saved.f8SalesConfig.customInvoiceSeries.startingNumber) : 1,
+          padDigits: Number(saved.f8SalesConfig?.customInvoiceSeries?.padDigits) > 0 ? Number(saved.f8SalesConfig.customInvoiceSeries.padDigits) : 4,
+        },
         customFields: Array.isArray(saved.f8SalesConfig?.customFields) ? saved.f8SalesConfig.customFields : [],
       } as any,
       customFields: Array.isArray(saved.customFields) ? saved.customFields : [],

@@ -69,6 +69,12 @@ export interface F8SalesPrintConfig {
   showAuthorisedSignatory: PrintFieldConfig; // Authorised Signatory Box
   showLpoNo: PrintFieldConfig;             // LPO / PO No
   showDeliveryNoteNo: PrintFieldConfig;    // Delivery Note No
+  customInvoiceSeries?: {
+    enabled: boolean;
+    prefix: string;          // e.g. "INV/26/" or "HPL-26-"
+    startingNumber: number;  // e.g. 1
+    padDigits: number;       // e.g. 4 -> "0001"
+  };
   customFields?: PrintFieldConfig[];
 }
 
