@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const osType = (searchParams.get('os') || 'windows').toLowerCase();
 
-    if (osType === 'mac') {
+    if (osType === 'mac' || osType === 'macos' || osType === 'darwin') {
       const macPath = path.join(process.cwd(), 'public', 'downloads', 'LedgerX-Setup.dmg');
       if (fs.existsSync(macPath)) {
         const fileBuffer = fs.readFileSync(macPath);
@@ -24,20 +24,10 @@ export async function GET(req: Request) {
         });
       }
 
-      // If dmg file not yet generated locally, return friendly download payload
-      return new NextResponse(
-        JSON.stringify({
-          platform: 'macOS (Apple Silicon & Intel)',
-          message: 'LedgerX macOS Package (.dmg) is ready for download.',
-          downloadMirror: 'https://github.com/yasinkhan098-svg/accountspro/releases/latest/download/LedgerX-Setup.dmg',
-        }),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      // If local dmg file is not present on server, redirect directly to the GitHub release mirror
+      // NEVER return JSON for a download route - always pipe or redirect directly to the real binary!
+      const downloadMirror = 'https://github.com/yasinkhan098-svg/accountspro/releases/latest/download/LedgerX-Setup.dmg';
+      return NextResponse.redirect(downloadMirror, 302);
     }
 
     // Windows (.exe)

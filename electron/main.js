@@ -31,7 +31,7 @@ function createWindow() {
   });
 
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-  const startUrl = process.env.ELECTRON_START_URL || (isDev ? 'http://localhost:3000' : 'http://localhost:3000');
+  const startUrl = process.env.ELECTRON_START_URL || (isDev ? 'http://localhost:3000' : 'https://www.ledgerxerp.com?desktop=1');
 
   mainWindow.maximize();
   mainWindow.loadURL(startUrl);

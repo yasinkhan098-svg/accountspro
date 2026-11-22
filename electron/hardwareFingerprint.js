@@ -37,8 +37,25 @@ function getMachineId() {
         const diskId = diskOutput.replace(/SerialNumber/i, '').trim().split('\n')[0];
         if (diskId) rawComponents.push(diskId.trim());
       } catch (e) {}
+    } else if (process.platform === 'darwin') {
+      // macOS: Hardware UUID & Serial Number via IORegistry (Tamper-proof, survives OS reinstalls)
+      try {
+        const uuidOutput = execSync('ioreg -rd1 -c IOPlatformExpertDevice', { timeout: 3000, encoding: 'utf8' });
+        const uuidMatch = uuidOutput.match(/"IOPlatformUUID"\s*=\s*"([^"]+)"/i);
+        if (uuidMatch && uuidMatch[1]) rawComponents.push(uuidMatch[1].trim());
+
+        const serialMatch = uuidOutput.match(/"IOPlatformSerialNumber"\s*=\s*"([^"]+)"/i);
+        if (serialMatch && serialMatch[1]) rawComponents.push(serialMatch[1].trim());
+      } catch (e) {
+        // Fallback to system_profiler
+        try {
+          const spOutput = execSync('system_profiler SPHardwareDataType', { timeout: 3000, encoding: 'utf8' });
+          const spMatch = spOutput.match(/Hardware UUID:\s*([^\n]+)/i);
+          if (spMatch && spMatch[1]) rawComponents.push(spMatch[1].trim());
+        } catch (e2) {}
+      }
     } else {
-      // macOS / Linux fallback
+      // Linux fallback
       rawComponents.push(os.hostname());
     }
   } catch (err) {

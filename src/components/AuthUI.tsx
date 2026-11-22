@@ -818,7 +818,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                 <a href="/api/download/desktop-setup?os=windows" download className="auth-guide-btn win" title="Download LedgerX for Windows (.exe)">
                   <span>🪟</span> Windows (.exe)
                 </a>
-                <a href="/api/download/desktop-setup?os=mac" download className="auth-guide-btn mac" title="Download LedgerX for macOS (.dmg)">
+                <a href="/api/download/desktop-setup?os=mac" download="LedgerX-Setup.dmg" className="auth-guide-btn mac" title="Download LedgerX for macOS (.dmg)">
                   <span>🍎</span> macOS (.dmg)
                 </a>
               </div>

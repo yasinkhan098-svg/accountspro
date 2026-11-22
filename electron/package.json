@@ -1,0 +1,9 @@
+{
+  "name": "ledgerx-desktop",
+  "productName": "LedgerX",
+  "version": "2.4.0",
+  "description": "LedgerX Enterprise Accounting & POS Client",
+  "main": "main.js",
+  "author": "AccountsPro Software",
+  "license": "Commercial"
+}
