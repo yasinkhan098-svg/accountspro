@@ -232,7 +232,7 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
   ];
 
   const currentPlanLabel =
-    currentUser?.plan === 'TRIAL' ? '3-Day Trial'
+    currentUser?.plan === 'TRIAL' ? '7-Day Free Trial'
     : currentUser?.plan === 'MONTHLY' ? 'Monthly'
     : currentUser?.plan === 'YEARLY' ? 'Yearly'
     : currentUser?.plan === 'LIFETIME' ? 'Lifetime'

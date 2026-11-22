@@ -691,7 +691,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
       const userId = data.userId;
 
       if (selectedPlan === 'TRIAL') {
-        alert('Registration successful! Your 3-Day Free Trial starts now.');
+        alert('Registration successful! Your 7-Day Free Trial starts now.');
         setStep(1);
         setIsLogin(true);
         setLoading(false);
@@ -1114,9 +1114,9 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
             <div className="plan-selection">
               <div className="plan-cards">
                 <div className={`plan-card ${selectedPlan === 'TRIAL' ? 'active' : ''}`} onClick={() => setSelectedPlan('TRIAL')}>
-                  <h3>3-Day Trial</h3>
+                  <h3>7-Day Free Trial</h3>
                   <div className="price">₹0</div>
-                  <p>Full access for 3 days to test the platform.</p>
+                  <p>Full access for 7 days to test the platform.</p>
                 </div>
                 <div className={`plan-card ${selectedPlan === 'MONTHLY' ? 'active' : ''}`} onClick={() => setSelectedPlan('MONTHLY')}>
                   <h3>Monthly</h3>

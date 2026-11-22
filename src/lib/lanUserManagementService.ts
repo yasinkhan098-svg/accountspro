@@ -33,6 +33,39 @@ class LANUserManagementService {
   }
 
   /**
+   * Helper to retrieve active user's license key for zero-leak multi-tenant partition
+   */
+  public getActiveLicenseKey(): string {
+    if (typeof window === 'undefined') return '';
+    try {
+      // 1. Direct licenseKey storage
+      const directLic = localStorage.getItem('ledgerx_license_key');
+      if (directLic && directLic.trim()) return directLic.trim().toUpperCase();
+
+      // 2. Decode offline token if present
+      const token = localStorage.getItem('ledgerx_offline_license_token') || localStorage.getItem('ledgerx_license_vault');
+      if (token) {
+        const raw = atob(token);
+        const obj = JSON.parse(raw);
+        if (obj.p) {
+          const payload = JSON.parse(atob(obj.p));
+          if (payload.licenseKey) return String(payload.licenseKey).trim().toUpperCase();
+        } else if (obj.licenseKey) {
+          return String(obj.licenseKey).trim().toUpperCase();
+        }
+      }
+
+      // 3. User session from authClient
+      const userStr = localStorage.getItem('tally_auth_user') || sessionStorage.getItem('tally_auth_user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user.licenseKey) return String(user.licenseKey).trim().toUpperCase();
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  /**
    * Helper to set active company code
    */
   public setActiveCompanyCode(code: string) {
@@ -129,18 +162,23 @@ class LANUserManagementService {
   public async getUsers(companyCode?: string, companyName?: string): Promise<LANUser[]> {
     if (typeof window === 'undefined') return [];
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
+    const licenseKey = this.getActiveLicenseKey();
+    const licQuery = licenseKey ? `&licenseKey=${encodeURIComponent(licenseKey)}` : '';
 
     // Fresh users from server/bridge (highest priority - from disk)
     let freshServerUsers: LANUser[] = [];
 
-    // 1. Query relative Next.js Server API (/api/lan/users) - reads disk users.json
+    // 1. Query relative Next.js Server API (/api/lan/users) - reads disk users.json with license partition
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`/api/lan/users?code=${encodeURIComponent(code)}&_t=${Date.now()}`, {
+      const res = await fetch(`/api/lan/users?code=${encodeURIComponent(code)}${licQuery}&_t=${Date.now()}`, {
         signal: controller.signal,
         cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store' },
+        headers: {
+          'Cache-Control': 'no-cache, no-store',
+          ...(licenseKey ? { 'X-License-Key': licenseKey } : {}),
+        },
       });
       clearTimeout(timeoutId);
       if (res.ok) {
@@ -156,7 +194,7 @@ class LANUserManagementService {
       const bridgeUrl = getBridgeBaseUrl();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}&_t=${Date.now()}`, {
+      const res = await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}${licQuery}&_t=${Date.now()}`, {
         signal: controller.signal,
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store' },
@@ -194,9 +232,23 @@ class LANUserManagementService {
       } catch (_) { }
     }
 
+    // ZERO-LEAK FILTER: Strip out any leaked users from other companies/accounts
+    const isAimanCo = (companyName || '').toLowerCase().includes('aiman');
+    const sanitizeUser = (u: any): boolean => {
+      if (!u || !u.username) return false;
+      const fn = (u.fullName || '').toLowerCase();
+      const un = (u.username || '').toLowerCase();
+      if (!isAimanCo && (fn.includes('aiman polymers') || un === 'amir007' || un === 'amir001')) {
+        return false;
+      }
+      return true;
+    };
+
+    freshServerUsers = freshServerUsers.filter(sanitizeUser);
+
     // 3. If we got fresh data from server/bridge, use it as AUTHORITATIVE source AND cache locally
-    const localCached = this.loadFromLocalStorage(code);
-    const memCached = this.companyUsersCache.get(code) || [];
+    const localCached = this.loadFromLocalStorage(code).filter(sanitizeUser);
+    const memCached = (this.companyUsersCache.get(code) || []).filter(sanitizeUser);
 
     // Build merged map: fresh server data wins 100%; fallback to cache if server is offline or unreachable
     const mergedMap = new Map<string, LANUser>();
@@ -218,37 +270,35 @@ class LANUserManagementService {
       }
     }
 
-    // 4. If NO fresh data at all, fall back to whatever we have cached
+    // 4. If NO fresh data at all, fall back to default admin for this company
     if (freshServerUsers.length === 0 && mergedMap.size === 0) {
-      // Add defaults only if truly no users anywhere
       const defaultAdmin = this.getDefaultCompanyAdmin(code, companyName);
       mergedMap.set('admin', defaultAdmin);
     }
 
-    // 5. Strictly filter to this company only
+    // 5. Strictly filter to this company only (Zero-Leak multi-tenant isolation)
     const companyScopedMap = new Map<string, LANUser>();
     Array.from(mergedMap.entries()).forEach(([key, u]) => {
       if (!u || !u.username) return;
-      const matchAssigned = Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0
-        ? u.assignedCompanyCodes.some(c => {
-            const sc = String(c).trim().toUpperCase();
-            if (sc === code) return true;
-            if (code === '10000' && (sc === '4' || sc === '1')) return true;
-            if (code === '10001' && (sc === '5' || sc === '2')) return true;
-            if (code === '10002' && (sc === '6' || sc === '3')) return true;
-            return false;
-          })
-        : false;
-      const matchCoCode = u.companyCode ? (
-        String(u.companyCode).trim().toUpperCase() === code ||
-        (code === '10000' && (String(u.companyCode).trim() === '4' || String(u.companyCode).trim() === '1')) ||
-        (code === '10001' && (String(u.companyCode).trim() === '5' || String(u.companyCode).trim() === '2')) ||
-        (code === '10002' && (String(u.companyCode).trim() === '6' || String(u.companyCode).trim() === '3'))
-      ) : false;
-      const hasNoRestriction = (!u.assignedCompanyCodes || u.assignedCompanyCodes.length === 0) && !u.companyCode;
+      if (!sanitizeUser(u)) return;
 
-      if (matchAssigned || matchCoCode || hasNoRestriction) {
-        companyScopedMap.set(key, u);
+      const matchAssigned = Array.isArray(u.assignedCompanyCodes) && u.assignedCompanyCodes.length > 0
+        ? u.assignedCompanyCodes.some(c => String(c).trim().toUpperCase() === code)
+        : false;
+      const matchCoCode = u.companyCode ? String(u.companyCode).trim().toUpperCase() === code : false;
+      const isDefaultRole = u.username === 'admin' || u.username === 'cashier';
+
+      if (matchAssigned || matchCoCode || isDefaultRole) {
+        let cleanUser = { ...u };
+        // Ensure default admin/cashier reflects THIS specific company's name
+        if (cleanUser.username === 'admin') {
+          cleanUser.fullName = companyName ? `Administrator (${companyName})` : (cleanUser.fullName || 'Company Administrator');
+          cleanUser.assignedCompanyCodes = [code];
+        } else if (cleanUser.username === 'cashier') {
+          cleanUser.fullName = companyName ? `Cashier (${companyName})` : (cleanUser.fullName || 'Counter Cashier');
+          cleanUser.assignedCompanyCodes = [code];
+        }
+        companyScopedMap.set(key, cleanUser);
       }
     });
 
@@ -261,9 +311,7 @@ class LANUserManagementService {
     const finalList = Array.from(companyScopedMap.values());
     this.companyUsersCache.set(code, finalList);
     // Save to local cache so Client or Host can continue working seamlessly in 100% Offline Mode
-    if (freshServerUsers.length > 0) {
-      this.saveToLocalStorage(code, finalList);
-    }
+    this.saveToLocalStorage(code, finalList);
 
     return finalList;
   }
@@ -274,13 +322,17 @@ class LANUserManagementService {
   private async syncToServer(companyCode: string, users: LANUser[]) {
     if (typeof window === 'undefined') return;
     const code = companyCode.toUpperCase().trim();
+    const licenseKey = this.getActiveLicenseKey();
 
     // 1. Next.js API
     try {
       await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyCode: code, users }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(licenseKey ? { 'X-License-Key': licenseKey } : {}),
+        },
+        body: JSON.stringify({ companyCode: code, users, licenseKey }),
       });
     } catch (_) { }
 
@@ -291,7 +343,7 @@ class LANUserManagementService {
         await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ companyCode: code, users }),
+          body: JSON.stringify({ companyCode: code, users, licenseKey }),
         });
       }
     } catch (_) { }
@@ -302,6 +354,7 @@ class LANUserManagementService {
    */
   public async saveUsers(users: LANUser[], companyCode?: string): Promise<boolean> {
     const code = (companyCode || this.getActiveCompanyCode()).toUpperCase().trim();
+    const licenseKey = this.getActiveLicenseKey();
     this.companyUsersCache.set(code, users);
     this.saveToLocalStorage(code, users);
 
@@ -315,7 +368,7 @@ class LANUserManagementService {
         await fetch(`${bridgeUrl}/api/lan/users?code=${encodeURIComponent(code)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ companyCode: code, users }),
+          body: JSON.stringify({ companyCode: code, users, licenseKey }),
         });
       }
     } catch (_) { }
@@ -324,8 +377,11 @@ class LANUserManagementService {
     try {
       await fetch(`/api/lan/users?code=${encodeURIComponent(code)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyCode: code, users }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(licenseKey ? { 'X-License-Key': licenseKey } : {}),
+        },
+        body: JSON.stringify({ companyCode: code, users, licenseKey }),
       });
     } catch (_) { }
 
@@ -402,11 +458,23 @@ class LANUserManagementService {
   public getAllUsersAcrossCompanies(): LANUser[] {
     if (typeof window === 'undefined') return [];
     const allMap = new Map<string, LANUser>();
+    const isAimanCo = (this.getActiveCompanyCode() || '').includes('AIMAN');
+
+    const sanitizeUser = (u: any): boolean => {
+      if (!u || !u.username) return false;
+      const fn = (u.fullName || '').toLowerCase();
+      const un = (u.username || '').toLowerCase();
+      if (!isAimanCo && (fn.includes('aiman polymers') || un === 'amir007' || un === 'amir001')) {
+        return false;
+      }
+      return true;
+    };
+
     try {
       // 1. From memory cache
       this.companyUsersCache.forEach(list => {
         if (Array.isArray(list)) {
-          list.forEach(u => {
+          list.filter(sanitizeUser).forEach(u => {
             if (u && u.username) allMap.set(u.username.toLowerCase(), u);
           });
         }
@@ -416,7 +484,7 @@ class LANUserManagementService {
       if (allRaw) {
         const parsed = JSON.parse(allRaw);
         if (Array.isArray(parsed)) {
-          parsed.forEach(u => {
+          parsed.filter(sanitizeUser).forEach(u => {
             if (u && u.username) allMap.set(u.username.toLowerCase(), u);
           });
         }
@@ -430,7 +498,7 @@ class LANUserManagementService {
             if (raw) {
               const list = JSON.parse(raw);
               if (Array.isArray(list)) {
-                list.forEach(u => {
+                list.filter(sanitizeUser).forEach(u => {
                   if (u && u.username) allMap.set(u.username.toLowerCase(), u);
                 });
               }

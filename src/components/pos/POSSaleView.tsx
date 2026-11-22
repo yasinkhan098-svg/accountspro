@@ -947,11 +947,11 @@ export default function POSSaleView({
       return;
     }
 
-    // Step 1: Is Secure Mode Lock Modal open?
+    // Step 1: Is Secure Mode Lock Modal open? Strict security: Esc/Cancel immediately logs out!
     if (showSecureModal) {
       setShowSecureModal(false);
       setSecurePassword('');
-      resetIdleTimer();
+      handlePerformLogout();
       return;
     }
 
@@ -3305,7 +3305,7 @@ export default function POSSaleView({
         onCancelToLogin={() => {
           setShowSecureModal(false);
           setSecurePassword('');
-          resetIdleTimer();
+          handlePerformLogout();
         }}
         onAuthorize={async pwd => {
           const cleanPwd = pwd.trim();

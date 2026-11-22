@@ -173,7 +173,7 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
     }
   };
 
-  const planLabel = currentUser.plan === 'TRIAL' ? '3-Day Free Trial'
+  const planLabel = currentUser.plan === 'TRIAL' ? '7-Day Free Trial'
     : currentUser.plan === 'MONTHLY' ? 'Monthly Plan'
     : currentUser.plan === 'YEARLY' ? 'Yearly Plan'
     : currentUser.plan;

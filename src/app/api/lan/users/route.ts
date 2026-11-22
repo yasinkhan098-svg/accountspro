@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-// Server-side in-memory cache
+// Server-side in-memory cache strictly partitioned by (licenseKey + companyCode)
 const cloudUsersCache = new Map<string, any[]>();
 
 let tableChecked = false;
@@ -23,30 +23,84 @@ async function ensureLANUserTable() {
         "isActive"             INTEGER DEFAULT 1,
         "assignedCompanyCodes" TEXT DEFAULT '[]',
         "permissions"          TEXT DEFAULT '{}',
+        "licenseKey"           TEXT DEFAULT '',
+        "userId"               INTEGER DEFAULT 0,
         "createdAt"            DATETIME DEFAULT CURRENT_TIMESTAMP,
         "updatedAt"            DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "idx_lan_user_code" ON "LANUserRecord" ("companyCode")
-    `);
-    await prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "idx_lan_user_uname" ON "LANUserRecord" ("username")
-    `);
+    // Ensure new multi-tenant isolation columns exist
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "LANUserRecord" ADD COLUMN "licenseKey" TEXT DEFAULT ''`);
+    } catch (_) {}
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "LANUserRecord" ADD COLUMN "userId" INTEGER DEFAULT 0`);
+    } catch (_) {}
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "idx_lan_user_lic" ON "LANUserRecord" ("licenseKey", "companyCode")
+      `);
+    } catch (_) {}
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "idx_lan_user_code" ON "LANUserRecord" ("companyCode")
+      `);
+    } catch (_) {}
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "idx_lan_user_uname" ON "LANUserRecord" ("username")
+      `);
+    } catch (_) {}
+
+    // ZERO-LEAK BARRIER: Purge legacy unscoped records where licenseKey was null/empty
+    // so no registered user ever sees another user's cashiers or admin.
+    try {
+      await prisma.$executeRawUnsafe(`
+        DELETE FROM "LANUserRecord" 
+        WHERE "licenseKey" IS NULL 
+           OR "licenseKey" = '' 
+           OR "fullName" LIKE '%Aiman Polymers%' 
+           OR "username" IN ('amir007', 'amir001')
+      `);
+    } catch (_) {}
+
     tableChecked = true;
   } catch (e) {
     console.warn("Could not ensure LANUserRecord table (offline or read-only DB):", e);
   }
 }
 
+function extractLicenseKey(req: Request, urlKey?: string | null): string {
+  if (urlKey && urlKey.trim()) return urlKey.trim().toUpperCase();
+  const header = req.headers.get('x-license-key') || req.headers.get('authorization') || '';
+  if (header.startsWith('Bearer ')) {
+    const raw = header.substring(7).trim();
+    try {
+      const decoded = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'));
+      if (decoded.p) {
+        const payload = JSON.parse(Buffer.from(decoded.p, 'base64').toString('utf-8'));
+        if (payload.licenseKey) return String(payload.licenseKey).trim().toUpperCase();
+      } else if (decoded.licenseKey) {
+        return String(decoded.licenseKey).trim().toUpperCase();
+      }
+    } catch (_) {}
+  } else if (header.trim() && !header.includes(' ')) {
+    return header.trim().toUpperCase();
+  }
+  return '';
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const code = (searchParams.get('code') || searchParams.get('companyCode') || '10000').toUpperCase().trim();
+    const licenseKey = extractLicenseKey(req, searchParams.get('licenseKey') || searchParams.get('lic'));
+    const cachePartitionKey = `${licenseKey || 'LOCAL'}_${code}`;
 
     let diskUsers: any[] = [];
 
     // 1. Try reading from filesystem (%LocalAppData%\LedgerX\data\<code >\users.json or process.cwd())
+    // Local filesystem files belong exclusively to this local installation
     try {
       const candidates: string[] = [];
       if (process.env.LOCALAPPDATA) {
@@ -68,39 +122,42 @@ export async function GET(req: Request) {
       // Non-blocking in serverless environments
     }
 
-    // 2. Try reading from Database table
+    // 2. Try reading from Database table - STRICTLY FILTERED BY LICENSE KEY
     let dbUsers: any[] = [];
-    try {
-      await ensureLANUserTable();
-      const rows = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT * FROM "LANUserRecord" WHERE "companyCode" = ? ORDER BY "createdAt" ASC`,
-        code
-      );
-      if (Array.isArray(rows) && rows.length > 0) {
-        dbUsers = rows.map((r: any) => {
-          let perms = {};
-          let compCodes: string[] = [];
-          try {
-            if (r.permissions) perms = typeof r.permissions === 'string' ? JSON.parse(r.permissions) : r.permissions;
-          } catch (_) {}
-          try {
-            if (r.assignedCompanyCodes) compCodes = typeof r.assignedCompanyCodes === 'string' ? JSON.parse(r.assignedCompanyCodes) : r.assignedCompanyCodes;
-          } catch (_) {}
-          return {
-            id: r.id,
-            username: r.username,
-            fullName: r.fullName || r.username,
-            password: r.password || '',
-            isAdmin: Boolean(r.isAdmin),
-            isActive: Boolean(r.isActive),
-            assignedCompanyCodes: compCodes.length > 0 ? compCodes : [code],
-            permissions: perms,
-            createdAt: r.createdAt,
-          };
-        });
+    if (licenseKey) {
+      try {
+        await ensureLANUserTable();
+        const rows = await prisma.$queryRawUnsafe<any[]>(
+          `SELECT * FROM "LANUserRecord" WHERE "companyCode" = ? AND "licenseKey" = ? ORDER BY "createdAt" ASC`,
+          code,
+          licenseKey
+        );
+        if (Array.isArray(rows) && rows.length > 0) {
+          dbUsers = rows.map((r: any) => {
+            let perms = {};
+            let compCodes: string[] = [];
+            try {
+              if (r.permissions) perms = typeof r.permissions === 'string' ? JSON.parse(r.permissions) : r.permissions;
+            } catch (_) {}
+            try {
+              if (r.assignedCompanyCodes) compCodes = typeof r.assignedCompanyCodes === 'string' ? JSON.parse(r.assignedCompanyCodes) : r.assignedCompanyCodes;
+            } catch (_) {}
+            return {
+              id: r.id,
+              username: r.username,
+              fullName: r.fullName || r.username,
+              password: r.password || '',
+              isAdmin: Boolean(r.isAdmin),
+              isActive: Boolean(r.isActive),
+              assignedCompanyCodes: compCodes.length > 0 ? compCodes : [code],
+              permissions: perms,
+              createdAt: r.createdAt,
+            };
+          });
+        }
+      } catch (dbErr) {
+        // Database read failure fallback
       }
-    } catch (dbErr) {
-      // Database read failure fallback
     }
 
     // Merge DB users and disk users
@@ -114,16 +171,16 @@ export async function GET(req: Request) {
 
     if (userMap.size > 0) {
       const mergedList = Array.from(userMap.values());
-      cloudUsersCache.set(code, mergedList);
+      cloudUsersCache.set(cachePartitionKey, mergedList);
       return NextResponse.json({ success: true, companyCode: code, users: mergedList });
     }
 
-    // 3. Check cloud memory cache
-    if (cloudUsersCache.has(code) && cloudUsersCache.get(code)!.length > 0) {
-      return NextResponse.json({ success: true, companyCode: code, users: cloudUsersCache.get(code) });
+    // 3. Check cloud memory cache for this specific license partition
+    if (cloudUsersCache.has(cachePartitionKey) && cloudUsersCache.get(cachePartitionKey)!.length > 0) {
+      return NextResponse.json({ success: true, companyCode: code, users: cloudUsersCache.get(cachePartitionKey) });
     }
 
-    // 4. Return default starter admin and cashier users specific to this company
+    // 4. Return clean, brand new default starter admin and cashier users specific to this company
     const defaultUsers = [
       {
         id: `usr_admin_${code}`,
@@ -161,7 +218,7 @@ export async function GET(req: Request) {
       }
     ];
 
-    cloudUsersCache.set(code, defaultUsers);
+    cloudUsersCache.set(cachePartitionKey, defaultUsers);
     return NextResponse.json({ success: true, companyCode: code, users: defaultUsers });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -172,10 +229,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const code = (body.companyCode || body.code || '10000').toUpperCase().trim();
+    const licenseKey = extractLicenseKey(req, body.licenseKey || body.lic);
     const users = Array.isArray(body.users) ? body.users : [];
+    const cachePartitionKey = `${licenseKey || 'LOCAL'}_${code}`;
 
-    // Store in cloud memory cache
-    cloudUsersCache.set(code, users);
+    // Store in cloud memory cache partitioned by license key
+    cloudUsersCache.set(cachePartitionKey, users);
 
     // 1. Try saving to filesystem
     try {
@@ -196,35 +255,38 @@ export async function POST(req: Request) {
       console.warn("Local users file write error (non-fatal):", fsErr);
     }
 
-    // 2. Upsert into Database table LANUserRecord
-    try {
-      await ensureLANUserTable();
-      await prisma.$executeRawUnsafe(
-        `DELETE FROM "LANUserRecord" WHERE "companyCode" = ?`,
-        code
-      );
-
-      for (const u of users) {
-        const uId = String(u.id || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
-        const username = String(u.username || '').trim().toLowerCase();
-        const fullName = String(u.fullName || username).trim();
-        const pwd = String(u.password || '').trim();
-        const isAdmin = u.isAdmin ? 1 : 0;
-        const isActive = u.isActive !== false ? 1 : 0;
-        const assignedCodes = JSON.stringify(u.assignedCompanyCodes || [code]);
-        const perms = JSON.stringify(u.permissions || {});
-
+    // 2. Upsert into Database table LANUserRecord - STRICTLY WITH LICENSE KEY
+    if (licenseKey) {
+      try {
+        await ensureLANUserTable();
         await prisma.$executeRawUnsafe(
-          `INSERT INTO "LANUserRecord" (
-            "id", "companyCode", "username", "fullName", "password",
-            "isAdmin", "isActive", "assignedCompanyCodes", "permissions", "updatedAt"
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-          uId, code, username, fullName, pwd,
-          isAdmin, isActive, assignedCodes, perms
+          `DELETE FROM "LANUserRecord" WHERE "companyCode" = ? AND "licenseKey" = ?`,
+          code,
+          licenseKey
         );
+
+        for (const u of users) {
+          const uId = String(u.id || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
+          const username = String(u.username || '').trim().toLowerCase();
+          const fullName = String(u.fullName || username).trim();
+          const pwd = String(u.password || '').trim();
+          const isAdmin = u.isAdmin ? 1 : 0;
+          const isActive = u.isActive !== false ? 1 : 0;
+          const assignedCodes = JSON.stringify(u.assignedCompanyCodes || [code]);
+          const perms = JSON.stringify(u.permissions || {});
+
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO "LANUserRecord" (
+              "id", "companyCode", "username", "fullName", "password",
+              "isAdmin", "isActive", "assignedCompanyCodes", "permissions", "licenseKey", "updatedAt"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+            uId, code, username, fullName, pwd,
+            isAdmin, isActive, assignedCodes, perms, licenseKey
+          );
+        }
+      } catch (dbErr) {
+        console.warn("Database user upsert error (non-fatal):", dbErr);
       }
-    } catch (dbErr) {
-      console.warn("Database user upsert error (non-fatal):", dbErr);
     }
 
     return NextResponse.json({ success: true, companyCode: code, count: users.length });

@@ -72,7 +72,11 @@ export default function POSSecureModal({
   const handleCancel = () => {
     setPassword('');
     setErrorMsg('');
-    onClose();
+    if (onCancelToLogin) {
+      onCancelToLogin();
+    } else {
+      onClose();
+    }
   };
 
   // Keyboard listener: Escape closes modal, Enter submits modal (capture phase)

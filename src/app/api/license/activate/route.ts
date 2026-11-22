@@ -107,6 +107,23 @@ export async function POST(req: Request) {
       );
     }
 
+    // Auto-update legacy/existing 3-day trial users to full 7-day free trial worldwide
+    if (user.plan === 'TRIAL') {
+      const trialDurationMs = 7 * 24 * 60 * 60 * 1000;
+      const creationMs = user.createdAt ? new Date(user.createdAt).getTime() : Date.now();
+      const properTrialExpiry = new Date(creationMs + trialDurationMs);
+      const currentExpiryMs = user.subscriptionExpiry ? new Date(user.subscriptionExpiry).getTime() : 0;
+      if (currentExpiryMs < properTrialExpiry.getTime()) {
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { subscriptionExpiry: properTrialExpiry },
+          });
+          user.subscriptionExpiry = properTrialExpiry;
+        } catch (_) {}
+      }
+    }
+
     // 3. Check Subscription Expiry
     if (user.subscriptionExpiry) {
       const expiry = new Date(user.subscriptionExpiry).getTime();
