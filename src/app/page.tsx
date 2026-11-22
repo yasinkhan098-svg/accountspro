@@ -25,6 +25,7 @@ import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 import RoleManagementView from '@/components/RoleManagementView';
 import PrintDetailsConfigModal from '@/components/printConfig/PrintDetailsConfigModal';
 import { printConfigService } from '@/lib/printConfig/printConfigService';
+import { F8SalesPrintConfig } from '@/lib/printConfig/printConfigTypes';
 import InternationalSalesInvoicePrint from '@/components/printConfig/InternationalSalesInvoicePrint';
 import POSWorkflowContainer from '@/components/pos/POSWorkflowContainer';
 import PurchasePOSListView from '@/components/pos/PurchasePOSListView';
@@ -150,12 +151,17 @@ interface CurrencyData { id: number; companyId: number; name: string; symbol: st
 interface Company {
   id: number; name: string; mailingName?: string; address?: string; state?: string; country?: string; gstin?: string;
   telephone?: string; mobile?: string; email?: string; website?: string;
-  registrationType?: string; bankName?: string; bankHolderName?: string; accountNo?: string; branch?: string; ifsc?: string; swiftCode?: string; upiId?: string;
+  registrationType?: string; bankName?: string; bankHolderName?: string; accountName?: string; accountNo?: string; iban?: string; branch?: string; ifsc?: string; swift?: string; swiftCode?: string; upiId?: string;
   financialYearStart?: string; booksBeginFrom?: string; securityControl?: boolean; password?: string;
   showMobile?: boolean; showEmail?: boolean; showWebsite?: boolean;
   logo?: string; showLogo?: boolean; pinCode?: string;
   showDiscount?: boolean;
   companyCode?: string;
+  code?: string;
+  alias?: string;
+  folderCode?: string;
+  printConfig?: any;
+  tradeLicense?: string;
   currencySymbol?: string;
   currencyName?: string;
   baseCurrencySymbol?: string;
@@ -2359,6 +2365,13 @@ export default function App() {
       prevCompanyIdRef.current = activeCompany.id;
       const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
       lanUserManagementService.setActiveCompanyCode(compCode);
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('ledgerx_active_company_code', compCode); } catch (e) { }
+      }
+      if (!activeCompany.companyCode) {
+        activeCompany.companyCode = compCode;
+        activeCompany.code = compCode;
+      }
 
       // Load full disk data for this company (Stock items, POS Purchase List, Vouchers, Ledgers)
       companyDataFolderService.loadCompanyFolder(compCode).then(folderData => {
@@ -5591,9 +5604,11 @@ export default function App() {
         isOpen={showPrintDetailsModal}
         onClose={() => setShowPrintDetailsModal(false)}
         activeCompany={activeCompany}
+        availableCompanies={companies}
         onConfigSaved={(saved) => {
-          setActiveCompany((prev: any) => ({ ...prev, printConfig: saved }));
-          setCompanies((prev: any[]) => prev.map(c => (c.id === activeCompany?.id || c.companyCode === activeCompany?.companyCode) ? { ...c, printConfig: saved } : c));
+          const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
+          setActiveCompany((prev: any) => ({ ...prev, printConfig: saved, companyCode: compCode, code: compCode }));
+          setCompanies((prev: any[]) => prev.map(c => (c.id === activeCompany?.id || c.companyCode === compCode) ? { ...c, printConfig: saved, companyCode: compCode, code: compCode } : c));
         }}
       />
       {altCCtx && (
@@ -5704,10 +5719,11 @@ export default function App() {
                         if (folderData.units?.length) setAllUnits(p => [...p.filter(u => Number(u.companyId) !== Number(c.id)), ...(folderData.units || [])]);
                         if (folderData.stockGroups?.length) setAllStockGroups(p => [...p.filter(sg => Number(sg.companyId) !== Number(c.id)), ...(folderData.stockGroups || [])]);
                       }
+                      const cWithCode = { ...c, companyCode: code, code: code };
                       if (c.securityControl && c.password) {
-                        setPwdPrompt({ company: c, action: 'open' });
+                        setPwdPrompt({ company: cWithCode, action: 'open' });
                       } else {
-                        setActiveCompany(c);
+                        setActiveCompany(cWithCode);
                       }
                     }
                   };
@@ -18258,6 +18274,10 @@ function PrintPreview({ vouchers, company, companies, printVoucher, ledgers, onS
     const isSales = v.type === 'Sales';
     const copyLabels = ["ORIGINAL FOR RECIPIENT", "DUPLICATE FOR TRANSPORTER", "TRIPLICATE FOR SUPPLIER", "EXTRA COPY"];
 
+    const printCompanyCode = companyDataFolderService.getCompanyFolderCode(company, companies);
+    const printConfig = printConfigService.loadPrintConfig(printCompanyCode, company);
+    const f8Config: F8SalesPrintConfig = printConfig.f8SalesConfig || printConfigService.getDefaultPrintConfig(company).f8SalesConfig!;
+
     // Multi-country F8 Sales Switch:
     // If voucher is Sales and company country is outside India, render Image One (Modern International format)
     if (isSales && !isIndia) {
@@ -18312,7 +18332,7 @@ function PrintPreview({ vouchers, company, companies, printVoucher, ledgers, onS
     // Purchase-specific: lookup party ledger for supplier info
     const isPurchaseType = v.type === 'Purchase' || v.type === 'Debit Note';
     const partyLedger = ledgers.find(l => l.name === v.partyName);
-    const invoiceTitle = v.type === 'Credit Note' ? 'CREDIT NOTE' : v.type === 'Debit Note' ? 'DEBIT NOTE' : 'TAX INVOICE';
+    const invoiceTitle = v.type === 'Credit Note' ? 'CREDIT NOTE' : v.type === 'Debit Note' ? 'DEBIT NOTE' : (isSales && f8Config?.documentTitle?.enabled && f8Config?.documentTitle?.value ? f8Config.documentTitle.value : 'TAX INVOICE');
     const supplierInvNo = pd?.supplierInvNo || '';
     const supplierInvDate = pd?.supplierInvDate || '';
 
@@ -18354,6 +18374,9 @@ function PrintPreview({ vouchers, company, companies, printVoucher, ledgers, onS
                   {company?.showMobile && company?.mobile && <div style={{ fontSize: 10 }}>Mob: <b>{company.mobile}</b></div>}
                   {company?.showEmail && company?.email && <div style={{ fontSize: 10 }}>Email: <b>{company.email}</b></div>}
                   {company?.showWebsite && company?.website && <div style={{ fontSize: 10 }}>Web: <b>{company.website}</b></div>}
+                  {isSales && f8Config?.sellerTradeLicense?.enabled && (company?.tradeLicense || f8Config.sellerTradeLicense?.value) && (
+                    <div style={{ fontSize: 10 }}>Trade License: <b>{company?.tradeLicense || f8Config.sellerTradeLicense?.value}</b></div>
+                  )}
                 </>
               )}
             </div>
@@ -18369,7 +18392,7 @@ function PrintPreview({ vouchers, company, companies, printVoucher, ledgers, onS
             ) : (
               <>
                 <div style={{ padding: '5px 10px', borderRight: '1px solid #000', borderBottom: '1px solid #000' }}>Delivery Note<br /><b>{dd?.deliveryNoteNo || '—'}</b></div>
-                <div style={{ padding: '5px 10px', borderBottom: '1px solid #000' }}>Mode/Terms of Payment<br /><b>{pd?.termsOfDelivery || '—'}</b></div>
+                <div style={{ padding: '5px 10px', borderBottom: '1px solid #000' }}>Mode/Terms of Payment<br /><b>{pd?.termsOfDelivery || (isSales && f8Config?.paymentTerms?.enabled ? f8Config.paymentTerms.value : '') || '—'}</b></div>
               </>
             )}
             <div style={{ padding: '5px 10px', borderRight: '1px solid #000' }}>Reference No. &amp; Date.<br /><b>{v.refNo || '—'}</b></div>
@@ -18658,14 +18681,14 @@ function PrintPreview({ vouchers, company, companies, printVoucher, ledgers, onS
                 <div style={{ fontSize: 9, color: '#888', fontStyle: 'italic' }}>Supplier bank details not available in ledger.</div>
               )
             ) : (
-              // Sales: Show Company bank details
-              (company?.bankName || company?.accountNo || company?.ifsc) ? (
+              // Sales: Show Company bank details (Company Master or F8 Print Details Config)
+              (((f8Config?.bankName?.enabled && f8Config.bankName.value) || company?.bankName || company?.accountNo || (f8Config?.iban?.enabled && f8Config.iban.value) || company?.ifsc || (f8Config?.swift?.enabled && f8Config.swift.value))) ? (
                 <div style={{ fontSize: 9 }}>
                   <b>Company's Bank Details</b><br />
-                  {company?.bankName && <span>Bank Name : <b>{company.bankName}</b><br /></span>}
-                  {company?.bankHolderName && <span>A/c Holder : <b>{company.bankHolderName}</b><br /></span>}
-                  {company?.accountNo && <span>A/c No. : <b>{company.accountNo}</b><br /></span>}
-                  {company?.ifsc && <span>IFS Code : <b>{company.ifsc}</b><br /></span>}
+                  {((f8Config?.bankName?.enabled && f8Config.bankName.value) || company?.bankName) && <span>Bank Name : <b>{f8Config?.bankName?.value || company?.bankName || ''}</b><br /></span>}
+                  {((f8Config?.accountName?.enabled && f8Config.accountName.value) || company?.bankHolderName || company?.accountName || company?.name) && <span>A/c Holder : <b>{f8Config?.accountName?.value || company?.bankHolderName || company?.accountName || company?.name || ''}</b><br /></span>}
+                  {((f8Config?.iban?.enabled && f8Config.iban.value) || company?.accountNo) && <span>A/c No. : <b>{f8Config?.iban?.value || company?.accountNo || ''}</b><br /></span>}
+                  {((f8Config?.swift?.enabled && f8Config.swift.value) || company?.ifsc) && <span>IFS Code : <b>{f8Config?.swift?.value || company?.ifsc || ''}</b><br /></span>}
                 </div>
               ) : (
                 <div style={{ fontSize: 9, color: '#888', fontStyle: 'italic' }}>Bank details not configured in company.</div>
@@ -18681,7 +18704,7 @@ function PrintPreview({ vouchers, company, companies, printVoucher, ledgers, onS
               <div style={{ fontSize: 9, textAlign: 'left' }}>Company's {companyTaxInfo.isIndiaGst ? 'GSTIN/UIN' : companyTaxInfo.taxIdLabel} : <b>{company.gstin}</b></div>
             )}
             <div style={{ fontSize: 9 }}>for <b>{isPurchaseType ? v.partyName : company?.name}</b></div>
-            <div style={{ fontSize: 9, marginBottom: 10 }}>Authorised Signatory</div>
+            <div style={{ fontSize: 9, marginBottom: 10 }}>{f8Config?.showAuthorisedSignatory?.enabled ? (f8Config.showAuthorisedSignatory.value || 'Authorised Signatory') : 'Authorised Signatory'}</div>
           </div>
         </div>
         <div style={{ textAlign: 'center', fontSize: 8, borderTop: '1px solid #000', padding: '2px 0' }}>This is a Computer Generated Invoice</div>

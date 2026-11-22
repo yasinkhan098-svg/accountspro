@@ -93,14 +93,66 @@ class CompanyDataFolderService {
       const trimmed = String(company.code).trim().toUpperCase();
       if (/^\d{5}$/.test(trimmed)) return trimmed;
     }
+    if (company.folderCode) {
+      const trimmed = String(company.folderCode).trim().toUpperCase();
+      if (/^\d{5}$/.test(trimmed)) return trimmed;
+    }
     if (company.alias) {
       const trimmed = String(company.alias).trim().toUpperCase();
       if (/^\d{5}$/.test(trimmed)) return trimmed;
     }
 
-    // 3. Match against allCompanies by ID or Name
-    if (Array.isArray(allCompanies) && allCompanies.length > 0) {
-      const match = allCompanies.find(c => c && (
+    // 3. Name or display label contains bracketed code [100xx] e.g. "Aiman Hardware [10017]"
+    const bracketMatch = String(company.name || '').match(/\[(\d{5})\]/);
+    if (bracketMatch) return bracketMatch[1];
+
+    // 4. Numeric ID in 10000..99999
+    if (company.id) {
+      const numId = Number(company.id);
+      if (!isNaN(numId) && numId >= 10000 && numId <= 99999) {
+        return String(numId);
+      }
+    }
+
+    // 5. Match against allCompanies by ID or Name
+    let comps = Array.isArray(allCompanies) && allCompanies.length > 0 ? allCompanies : [];
+
+    // 6. If allCompanies is empty, inspect localStorage caches
+    if (comps.length === 0 && typeof window !== 'undefined') {
+      try {
+        const rawMeta = localStorage.getItem('ledgerx_companies_meta');
+        if (rawMeta) {
+          const parsed = JSON.parse(rawMeta);
+          if (Array.isArray(parsed) && parsed.length > 0) comps = parsed;
+        }
+      } catch (e) { }
+
+      if (comps.length === 0) {
+        try {
+          const rawIndex = localStorage.getItem('ledgerx_company_folders_index');
+          if (rawIndex) {
+            const folderCodes: string[] = JSON.parse(rawIndex);
+            for (const fc of folderCodes) {
+              const rawFolder = localStorage.getItem(`ledgerx_company_folder_${fc}`);
+              if (rawFolder) {
+                const fData = JSON.parse(rawFolder);
+                if (fData?.company) {
+                  const fcName = String(fData.company.name || '').toLowerCase().trim();
+                  const targetName = String(company.name || '').toLowerCase().trim();
+                  if ((fData.company.id && company.id && String(fData.company.id) === String(company.id)) ||
+                      (fcName && targetName && fcName === targetName)) {
+                    return fc;
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) { }
+      }
+    }
+
+    if (comps.length > 0) {
+      const match = comps.find(c => c && (
         (c.id && company.id && String(c.id) === String(company.id)) ||
         (c.name && company.name && c.name.toLowerCase().trim() === company.name.toLowerCase().trim())
       ));
@@ -112,7 +164,7 @@ class CompanyDataFolderService {
           return String(match.code).trim().toUpperCase();
         }
       }
-      const idx = allCompanies.findIndex(c => c && (
+      const idx = comps.findIndex(c => c && (
         (c.id && company.id && String(c.id) === String(company.id)) ||
         (c.name && company.name && c.name.toLowerCase().trim() === company.name.toLowerCase().trim())
       ));
@@ -121,18 +173,25 @@ class CompanyDataFolderService {
       }
     }
 
-    // 4. Derive from small numeric ID (< 10000)
+    // 7. Small numeric ID (< 10000)
     if (company.id) {
       const numId = Number(company.id);
-      if (!isNaN(numId) && numId >= 10000 && numId <= 99999) {
-        return String(numId);
-      }
       if (!isNaN(numId) && numId >= 4 && numId < 10000) {
         return String(10000 + (numId - 4));
       }
       if (!isNaN(numId) && numId > 0 && numId < 4) {
         return String(10000 + (numId - 1));
       }
+    }
+
+    // 8. Fallback to active company code stored in session if available
+    if (typeof window !== 'undefined') {
+      try {
+        const actCode = localStorage.getItem('ledgerx_active_company_code');
+        if (actCode && /^\d{5}$/.test(actCode.trim())) {
+          return actCode.trim().toUpperCase();
+        }
+      } catch (e) { }
     }
 
     return '10000';
@@ -318,6 +377,8 @@ class CompanyDataFolderService {
       unwrappedCompany.taxStructure = unwrappedCompany.taxStructure || taxInfo.structure;
       unwrappedCompany.taxIdLabel = unwrappedCompany.taxIdLabel || taxInfo.taxIdLabel;
       unwrappedCompany.secondaryIdLabel = unwrappedCompany.secondaryIdLabel || taxInfo.secondaryIdLabel;
+      unwrappedCompany.companyCode = code;
+      unwrappedCompany.code = code;
     }
 
     // Deduplicate units strictly by name/symbol so file never bloats
@@ -569,6 +630,8 @@ class CompanyDataFolderService {
       co.taxStructure = co.taxStructure || taxInfo.structure;
       co.taxIdLabel = co.taxIdLabel || taxInfo.taxIdLabel;
       co.secondaryIdLabel = co.secondaryIdLabel || taxInfo.secondaryIdLabel;
+      co.companyCode = code;
+      co.code = code;
     }
     data.company = co;
 

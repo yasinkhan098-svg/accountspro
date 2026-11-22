@@ -8,6 +8,7 @@ interface F8SalesPrintConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeCompany: any;
+  availableCompanies?: any[];
   onSaved?: (savedF8Config: F8SalesPrintConfig) => void;
 }
 
@@ -15,9 +16,10 @@ export default function F8SalesPrintConfigModal({
   isOpen,
   onClose,
   activeCompany,
+  availableCompanies = [],
   onSaved,
 }: F8SalesPrintConfigModalProps) {
-  const companyCode = companyDataFolderService.getCompanyFolderCode(activeCompany);
+  const companyCode = companyDataFolderService.getCompanyFolderCode(activeCompany, availableCompanies);
   const companyName = activeCompany?.name || 'Company Name';
   const country = activeCompany?.country || 'India';
   const isIndia = country.toLowerCase().trim() === 'india';

@@ -6,6 +6,7 @@
 import { POSCartItem, POSCartTotals, POSCustomer, POSPaymentDetails, posService } from './posService';
 import { getCompanyTaxInfo } from '../taxEngine';
 import { printConfigService } from '../printConfig/printConfigService';
+import { companyDataFolderService } from '../companyDataFolderService';
 
 export interface POSPrintReceiptData {
   billNo: string;
@@ -24,7 +25,7 @@ export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: s
   const companyTax = getCompanyTaxInfo(company);
 
   // Load Company-specific print configuration
-  const companyCode = String(company?.companyCode || company?.code || '10000').toUpperCase().trim();
+  const companyCode = companyDataFolderService.getCompanyFolderCode(company);
   const printConfig = printConfigService.loadPrintConfig(companyCode, company);
 
   const tagline = printConfigService.formatFieldValue(printConfig.storeTagline);
@@ -448,7 +449,7 @@ export function buildDirectPrintJsonPayload(data: POSPrintReceiptData, qrCodeDat
   const currencySymbol = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
   const companyTax = getCompanyTaxInfo(company);
 
-  const companyCode = String(company?.companyCode || company?.code || '10000').toUpperCase().trim();
+  const companyCode = companyDataFolderService.getCompanyFolderCode(company);
   const printConfig = printConfigService.loadPrintConfig(companyCode, company);
 
   const tagline = printConfigService.formatFieldValue(printConfig.storeTagline);

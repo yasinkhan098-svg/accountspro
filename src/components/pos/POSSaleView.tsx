@@ -65,8 +65,17 @@ export default function POSSaleView({
     ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies)
     : '10000';
 
-  const printConfig = useMemo(() => {
+  if (company && !company.companyCode) {
+    company.companyCode = companyCode;
+    company.code = companyCode;
+  }
+
+  const [printConfig, setPrintConfig] = useState(() => {
     return printConfigService.loadPrintConfig(companyCode, company);
+  });
+
+  useEffect(() => {
+    setPrintConfig(printConfigService.loadPrintConfig(companyCode, company));
   }, [companyCode, company]);
 
   const posBillConfig = printConfig?.posBillConfig;
@@ -129,6 +138,7 @@ export default function POSSaleView({
       const updatedCode = e.detail?.companyCode;
       if (!updatedCode || updatedCode === companyCode) {
         const latestConfig = e.detail?.config || printConfigService.loadPrintConfig(companyCode, company);
+        setPrintConfig(latestConfig);
         const nextNo = posService.generateBillNo(vouchers, companyCode, latestConfig?.posBillConfig);
         setBillNo(nextNo);
       }
@@ -1451,7 +1461,7 @@ export default function POSSaleView({
     try {
       const receiptData = {
         billNo: billData.billNo,
-        company: billData.company || company,
+        company: { ...(billData.company || company), companyCode, code: companyCode, printConfig },
         cashierName: billData.cashierName || cashierName,
         items: billData.items,
         totals: billData.totals,

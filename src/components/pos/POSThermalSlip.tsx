@@ -3,6 +3,7 @@ import React from 'react';
 import { POSCartItem, POSCartTotals, POSCustomer, POSPaymentDetails } from '@/lib/pos/posService';
 import { getCompanyTaxInfo } from '@/lib/taxEngine';
 import { printConfigService } from '@/lib/printConfig/printConfigService';
+import { companyDataFolderService } from '@/lib/companyDataFolderService';
 
 export interface POSThermalSlipProps {
   billNo: string;
@@ -29,7 +30,7 @@ export default function POSThermalSlip({
   const companyTax = getCompanyTaxInfo(company);
 
   // Load Company-specific print configuration
-  const companyCode = String(company?.companyCode || company?.code || '10000').toUpperCase().trim();
+  const companyCode = companyDataFolderService.getCompanyFolderCode(company);
   const printConfig = printConfigService.loadPrintConfig(companyCode, company);
 
   const tagline = printConfigService.formatFieldValue(printConfig.storeTagline);

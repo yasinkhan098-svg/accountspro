@@ -2,6 +2,7 @@
 import React from 'react';
 import { F8SalesPrintConfig } from '@/lib/printConfig/printConfigTypes';
 import { printConfigService } from '@/lib/printConfig/printConfigService';
+import { companyDataFolderService } from '@/lib/companyDataFolderService';
 
 interface InternationalSalesInvoicePrintProps {
   voucher: any;
@@ -86,7 +87,7 @@ export default function InternationalSalesInvoicePrint({
   copyLabel,
 }: InternationalSalesInvoicePrintProps) {
   const v = voucher;
-  const companyCode = String(company?.companyCode || company?.code || '10000').toUpperCase().trim();
+  const companyCode = companyDataFolderService.getCompanyFolderCode(company);
   const printConfig = printConfigService.loadPrintConfig(companyCode, company);
   const f8Config: F8SalesPrintConfig = printConfig.f8SalesConfig || printConfigService.getDefaultPrintConfig(company).f8SalesConfig!;
 
@@ -107,45 +108,45 @@ export default function InternationalSalesInvoicePrint({
   const curSym = company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || 'AED';
   const curName = (company?.currency || 'AED').toUpperCase();
 
-  // Field fallback logic: Company Master > F8 Config > Default/Blank
+  // Field fallback logic: User Manual F8 Config > Company Master > Default/Blank
   const sellerTrn = company?.gstin || company?.trn || company?.vatNumber || '';
   const sellerTradeLicense = f8Config.sellerTradeLicense?.enabled
-    ? (company?.tradeLicense || f8Config.sellerTradeLicense?.value || '')
+    ? ((f8Config.sellerTradeLicense?.value && f8Config.sellerTradeLicense.value.trim()) || company?.tradeLicense || '')
     : '';
 
   const buyerTrn = partyLedger?.gstin || partyLedger?.trn || pd?.gstin || '';
   const buyerTradeLicense = f8Config.buyerTradeLicense?.enabled
-    ? (partyLedger?.tradeLicense || pd?.tradeLicense || f8Config.buyerTradeLicense?.value || '')
+    ? (partyLedger?.tradeLicense || pd?.tradeLicense || (f8Config.buyerTradeLicense?.value && f8Config.buyerTradeLicense.value.trim()) || '')
     : '';
 
   const paymentTerms = f8Config.paymentTerms?.enabled
-    ? (pd?.paymentTerms || v.paymentTerms || f8Config.paymentTerms?.value || '30 Days Credit')
+    ? (pd?.paymentTerms || v.paymentTerms || (f8Config.paymentTerms?.value && f8Config.paymentTerms.value.trim()) || '30 Days Credit')
     : '';
 
   const placeOfSupply = f8Config.placeOfSupply?.enabled
-    ? (pd?.placeOfSupply || partyLedger?.state || company?.state ? `${company?.state}, ${company?.country || 'UAE'}` : f8Config.placeOfSupply?.value || '')
+    ? (pd?.placeOfSupply || (f8Config.placeOfSupply?.value && f8Config.placeOfSupply.value.trim()) || partyLedger?.state || (company?.state ? `${company?.state}, ${company?.country || 'UAE'}` : (company?.country || 'UAE')))
     : '';
 
   const salesperson = f8Config.salesperson?.enabled
-    ? (v.salesperson || dd?.salesperson || f8Config.salesperson?.value || '')
+    ? (v.salesperson || dd?.salesperson || (f8Config.salesperson?.value && f8Config.salesperson.value.trim()) || '')
     : '';
 
   const vehicleRoute = f8Config.vehicleRoute?.enabled
-    ? (dd?.motorVehicleNo || dd?.dispatchedThrough || f8Config.vehicleRoute?.value || '')
+    ? (dd?.motorVehicleNo || dd?.dispatchedThrough || (f8Config.vehicleRoute?.value && f8Config.vehicleRoute.value.trim()) || '')
     : '';
 
-  // Bank details
+  // Bank details: Manual Details Print values take immediate precedence over defaults
   const bankName = f8Config.bankName?.enabled
-    ? (company?.bankName || f8Config.bankName?.value || '')
+    ? ((f8Config.bankName?.value && f8Config.bankName.value.trim()) || company?.bankName || '')
     : '';
   const accountName = f8Config.accountName?.enabled
-    ? (company?.accountName || f8Config.accountName?.value || company?.name || '')
+    ? ((f8Config.accountName?.value && f8Config.accountName.value.trim()) || company?.accountName || company?.name || '')
     : '';
   const iban = f8Config.iban?.enabled
-    ? (company?.iban || company?.accountNo || f8Config.iban?.value || '')
+    ? ((f8Config.iban?.value && f8Config.iban.value.trim()) || company?.iban || company?.accountNo || '')
     : '';
   const swift = f8Config.swift?.enabled
-    ? (company?.swift || f8Config.swift?.value || '')
+    ? ((f8Config.swift?.value && f8Config.swift.value.trim()) || company?.swift || '')
     : '';
 
   const docTitle = (f8Config.documentTitle?.enabled && f8Config.documentTitle?.value)

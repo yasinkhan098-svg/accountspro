@@ -10,6 +10,7 @@ interface PrintDetailsConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeCompany: any;
+  availableCompanies?: any[];
   onConfigSaved?: (savedConfig: CompanyPrintConfig) => void;
 }
 
@@ -17,9 +18,10 @@ export default function PrintDetailsConfigModal({
   isOpen,
   onClose,
   activeCompany,
+  availableCompanies = [],
   onConfigSaved,
 }: PrintDetailsConfigModalProps) {
-  const companyCode = companyDataFolderService.getCompanyFolderCode(activeCompany);
+  const companyCode = companyDataFolderService.getCompanyFolderCode(activeCompany, availableCompanies);
   const companyName = activeCompany?.name || 'LedgerX Retail Limited';
   const country = activeCompany?.country || 'India';
   const currencySymbol = activeCompany?.currencySymbol || activeCompany?.baseCurrencySymbol || activeCompany?.currency || '₹';
@@ -909,6 +911,7 @@ export default function PrintDetailsConfigModal({
           isOpen={showF8Modal}
           onClose={() => setShowF8Modal(false)}
           activeCompany={activeCompany}
+          availableCompanies={availableCompanies}
           onSaved={(savedF8) => {
             setConfig(prev => ({
               ...prev,

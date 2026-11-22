@@ -5,78 +5,78 @@ import { companyDataFolderService, getBridgeBaseUrl } from '../companyDataFolder
 export function getDefaultF8SalesConfig(company: any): F8SalesPrintConfig {
   const country = company?.country || 'India';
   const isUAE = country.toLowerCase().includes('uae') || country.toLowerCase().includes('emirates');
-  
+
   return {
     documentTitle: { label: 'Invoice Title', value: 'TAX INVOICE', enabled: true },
-    sellerTradeLicense: { 
-      label: 'Seller Trade License No.', 
-      value: company?.tradeLicense || (isUAE ? 'TL-894920' : ''), 
-      enabled: true 
+    sellerTradeLicense: {
+      label: 'Seller Trade License No.',
+      value: company?.tradeLicense || (isUAE ? 'TL-894920' : ''),
+      enabled: true
     },
-    buyerTradeLicense: { 
-      label: 'Buyer Trade License No.', 
-      value: '', 
-      enabled: true 
+    buyerTradeLicense: {
+      label: 'Buyer Trade License No.',
+      value: '',
+      enabled: true
     },
-    paymentTerms: { 
-      label: 'Payment Terms', 
-      value: '30 Days Credit', 
-      enabled: true 
+    paymentTerms: {
+      label: 'Payment Terms',
+      value: '30 Days Credit',
+      enabled: true
     },
-    placeOfSupply: { 
-      label: 'Place of Supply', 
-      value: company?.state ? `${company.state}, ${country}` : (isUAE ? 'Dubai, UAE' : country), 
-      enabled: true 
+    placeOfSupply: {
+      label: 'Place of Supply',
+      value: company?.state ? `${company.state}, ${country}` : (isUAE ? 'Dubai, UAE' : country),
+      enabled: true
     },
-    salesperson: { 
-      label: 'Salesperson Name', 
-      value: '', 
-      enabled: true 
+    salesperson: {
+      label: 'Salesperson Name',
+      value: '',
+      enabled: true
     },
-    vehicleRoute: { 
-      label: 'Vehicle / Route', 
-      value: '', 
-      enabled: true 
+    vehicleRoute: {
+      label: 'Vehicle / Route',
+      value: '',
+      enabled: true
     },
-    bankName: { 
-      label: 'Remittance Bank Name', 
-      value: company?.bankName || (isUAE ? 'EMIRATES NBD, Dubai' : ''), 
-      enabled: true 
+    bankName: {
+      label: 'Remittance Bank Name',
+      value: company?.bankName || (isUAE ? 'EMIRATES NBD, Dubai' : ''),
+      enabled: true
     },
-    accountName: { 
-      label: 'Bank Account / Beneficiary Name', 
-      value: company?.accountName || company?.name || '', 
-      enabled: true 
+    accountName: {
+      label: 'Bank Account / Beneficiary Name',
+      value: company?.accountName || company?.name || '',
+      enabled: true
     },
-    iban: { 
-      label: 'IBAN / Bank A/C No.', 
-      value: company?.iban || company?.accountNo || (isUAE ? 'AE45026000001015483231402' : ''), 
-      enabled: true 
+    iban: {
+      label: 'IBAN / Bank A/C No.',
+      value: company?.iban || company?.accountNo || (isUAE ? 'AE45026000001015483231402' : ''),
+      enabled: true
     },
-    swift: { 
-      label: 'SWIFT / BIC Code', 
-      value: company?.swift || (isUAE ? 'EBILAEAD' : ''), 
-      enabled: true 
+    swift: {
+      label: 'SWIFT / BIC Code',
+      value: company?.swift || (isUAE ? 'EBILAEAD' : ''),
+      enabled: true
     },
-    showStampSignature: { 
-      label: "Receiver's Stamp & Signature Box", 
-      value: "Receiver's Stamp & Signature", 
-      enabled: true 
+    showStampSignature: {
+      label: "Receiver's Stamp & Signature Box",
+      value: "Receiver's Stamp & Signature",
+      enabled: true
     },
-    showAuthorisedSignatory: { 
-      label: 'Authorised Signatory', 
-      value: 'Authorised Signatory', 
-      enabled: true 
+    showAuthorisedSignatory: {
+      label: 'Authorised Signatory',
+      value: 'Authorised Signatory',
+      enabled: true
     },
-    showLpoNo: { 
-      label: 'LPO / PO No. Field', 
-      value: 'LPO / PO No:', 
-      enabled: true 
+    showLpoNo: {
+      label: 'LPO / PO No. Field',
+      value: 'LPO / PO No:',
+      enabled: true
     },
-    showDeliveryNoteNo: { 
-      label: 'Delivery Note No. Field', 
-      value: 'Delivery Note No:', 
-      enabled: true 
+    showDeliveryNoteNo: {
+      label: 'Delivery Note No. Field',
+      value: 'Delivery Note No:',
+      enabled: true
     },
     customInvoiceSeries: {
       enabled: false,
@@ -162,7 +162,14 @@ class PrintConfigService {
    * Checks localStorage (latest user updates) -> company object -> fallback defaults.
    */
   public loadPrintConfig(companyCode?: string, company?: any): CompanyPrintConfig {
-    const code = (company ? companyDataFolderService.getCompanyFolderCode(company) : '') || String(companyCode || '10000').toUpperCase().trim();
+    let code = '';
+    if (companyCode && /^\d{5}$/.test(String(companyCode).trim())) {
+      code = String(companyCode).trim().toUpperCase();
+    } else if (company) {
+      code = companyDataFolderService.getCompanyFolderCode(company);
+    } else {
+      code = String(companyCode || '10000').toUpperCase().trim();
+    }
     const defaults = this.getDefaultPrintConfig(company);
 
     if (typeof window === 'undefined') {
@@ -195,12 +202,21 @@ class PrintConfigService {
    * Persists to localStorage, activeCompany, and company.json via companyDataFolderService.
    */
   public async savePrintConfig(companyCode: string, config: CompanyPrintConfig, company?: any): Promise<boolean> {
-    const code = (company ? companyDataFolderService.getCompanyFolderCode(company) : '') || String(companyCode || '10000').toUpperCase().trim();
+    let code = '';
+    if (companyCode && /^\d{5}$/.test(String(companyCode).trim())) {
+      code = String(companyCode).trim().toUpperCase();
+    } else if (company) {
+      code = companyDataFolderService.getCompanyFolderCode(company);
+    } else {
+      code = String(companyCode || '10000').toUpperCase().trim();
+    }
     config.companyCode = code;
     config.updatedAt = new Date().toISOString();
 
     if (company) {
       company.printConfig = config;
+      company.companyCode = code;
+      company.code = code;
     }
 
     if (typeof window !== 'undefined') {
@@ -219,7 +235,7 @@ class PrintConfigService {
       if (company) {
         await companyDataFolderService.saveCompanyFolder({
           companyCode: code,
-          company: { ...company, printConfig: config },
+          company: { ...company, companyCode: code, code: code, printConfig: config },
         });
       }
     } catch (err) {
