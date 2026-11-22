@@ -35,8 +35,23 @@ export async function POST(req: Request) {
 
     if (plan === 'TRIAL') {
       const now = new Date();
-      now.setDate(now.getDate() + 3); // 3 days free trial
+      now.setDate(now.getDate() + 7); // 7 days free trial
       subscriptionExpiry = now;
+      paymentStatus = 'SUCCESS';
+    } else if (plan === 'MONTHLY') {
+      const now = new Date();
+      now.setDate(now.getDate() + 30); // 30 days monthly subscription
+      subscriptionExpiry = now;
+      paymentStatus = 'SUCCESS';
+    } else if (plan === 'YEARLY') {
+      const now = new Date();
+      now.setDate(now.getDate() + 365); // 365 days yearly subscription
+      subscriptionExpiry = now;
+      paymentStatus = 'SUCCESS';
+    } else if (plan === 'LIFETIME') {
+      const farFuture = new Date();
+      farFuture.setFullYear(farFuture.getFullYear() + 20); // 20 years lifetime
+      subscriptionExpiry = farFuture;
       paymentStatus = 'SUCCESS';
     }
 

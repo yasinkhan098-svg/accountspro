@@ -874,7 +874,7 @@ export default function App() {
           id: decoded.payload.userId || 1,
           name: decoded.payload.email ? decoded.payload.email.split('@')[0] : 'Licensed User',
           email: decoded.payload.email,
-          plan: decoded.payload.plan || 'PRO',
+          plan: decoded.payload.plan || 'TRIAL',
           subscriptionExpiry: decoded.payload.validUntil,
           licenseKey: decoded.payload.licenseKey,
         };
@@ -906,11 +906,11 @@ export default function App() {
         setOfflineGuardBlocked(null);
         // If allowed and payload exists, ensure desktop session is active!
         if (guardResult.payload) {
-          const user = authClient.getUser() || {
+            const user = authClient.getUser() || {
             id: guardResult.payload.userId || 1,
             name: guardResult.payload.email ? guardResult.payload.email.split('@')[0] : 'Licensed User',
             email: guardResult.payload.email,
-            plan: guardResult.payload.plan || 'PRO',
+            plan: guardResult.payload.plan || 'TRIAL',
             subscriptionExpiry: guardResult.payload.validUntil,
             licenseKey: guardResult.payload.licenseKey,
           };
@@ -4872,10 +4872,10 @@ export default function App() {
             <div style={{ fontSize: 11, fontWeight: 'bold', color: '#f1c40f' }}>{currentUser?.name}</div>
             <div style={{ fontSize: 9, color: '#fff', opacity: 0.8 }}>{currentUser?.organizationName}</div>
             <div style={{ fontSize: 9, color: '#a3e635', fontWeight: 'bold', opacity: 0.9 }}>
-              {currentUser?.plan === 'LIFETIME' ? '💎 Lifetime' : currentUser?.plan === 'YEARLY' ? '⭐ Yearly' : currentUser?.plan === 'MONTHLY' ? '📅 Monthly' : currentUser?.plan === 'TRIAL' ? '🆓 Trial' : currentUser?.plan}
-              {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && currentUser?.subscriptionExpiry && (
-                <span style={{ color: '#f87171', marginLeft: 6 }}>
-                  ({getDaysRemainingText(currentUser.subscriptionExpiry)})
+              {currentUser?.plan === 'LIFETIME' ? '💎 Lifetime (Unlimited)' : currentUser?.plan === 'YEARLY' ? '⭐ Yearly' : currentUser?.plan === 'MONTHLY' ? '📅 Monthly' : currentUser?.plan === 'TRIAL' ? '🆓 Trial' : (currentUser?.plan || '🆓 Trial')}
+              {currentUser?.plan !== 'LIFETIME' && !currentUser?.isAdmin && (currentUser?.subscriptionExpiry || (currentUser as any)?.validUntil) && (
+                <span style={{ color: '#f87171', marginLeft: 6, fontWeight: 'bold' }}>
+                  ({getDaysRemainingText(currentUser?.subscriptionExpiry || (currentUser as any)?.validUntil)})
                 </span>
               )}
             </div>
@@ -5054,7 +5054,12 @@ export default function App() {
               <>
                 <div className="mobile-nav-user">{currentUser.name} · {currentUser.organizationName}</div>
                 <span className="mobile-nav-plan">
-                  {currentUser.plan === 'LIFETIME' ? '💎 Lifetime' : currentUser.plan === 'YEARLY' ? '⭐ Yearly' : currentUser.plan === 'MONTHLY' ? '📅 Monthly' : '🆓 Trial'}
+                  {currentUser.plan === 'LIFETIME' ? '💎 Lifetime (Unlimited)' : currentUser.plan === 'YEARLY' ? '⭐ Yearly' : currentUser.plan === 'MONTHLY' ? '📅 Monthly' : '🆓 Trial'}
+                  {currentUser.plan !== 'LIFETIME' && (currentUser.subscriptionExpiry || (currentUser as any).validUntil) && (
+                    <span style={{ marginLeft: 4, color: '#f87171', fontWeight: 'bold' }}>
+                      ({getDaysRemainingText(currentUser.subscriptionExpiry || (currentUser as any).validUntil)})
+                    </span>
+                  )}
                 </span>
               </>
             )}

@@ -1682,7 +1682,22 @@ namespace LedgerXLauncher
                             HashSet<string> existingBillNos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                             HashSet<long> existingIds = new HashSet<long>();
                             long maxSeq = 0;
-                            string prefix = (code == "TRAINING") ? "TRN-" : "CASH";
+                            string prefix = "";
+                            if (payloadDict.ContainsKey("prefix") && payloadDict["prefix"] != null)
+                                prefix = payloadDict["prefix"].ToString().Trim();
+                            if (string.IsNullOrEmpty(prefix))
+                            {
+                                if (voucher.ContainsKey("voucherNo") && voucher["voucherNo"] != null)
+                                {
+                                    string vn = voucher["voucherNo"].ToString().Trim();
+                                    Match mPre = Regex.Match(vn, @"^[^\d]+");
+                                    if (mPre.Success) prefix = mPre.Value;
+                                }
+                            }
+                            if (string.IsNullOrEmpty(prefix))
+                            {
+                                prefix = (code == "TRAINING") ? "TRN-" : "CASH";
+                            }
 
                             if (File.Exists(vPath))
                             {
@@ -1881,31 +1896,28 @@ namespace LedgerXLauncher
         {
             if (string.IsNullOrEmpty(str)) return 0;
             string clean = str.Trim();
-            bool isPrefixed = false;
             if (clean.StartsWith("POS-", StringComparison.OrdinalIgnoreCase))
             {
                 clean = clean.Substring(4).Trim();
-                isPrefixed = true;
             }
             if (!string.IsNullOrEmpty(prefix) && clean.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 clean = clean.Substring(prefix.Length).TrimStart('-', '_');
-                isPrefixed = true;
             }
             else if (clean.StartsWith("CASH", StringComparison.OrdinalIgnoreCase))
             {
                 clean = clean.Substring(4).TrimStart('-', '_');
-                isPrefixed = true;
             }
             else if (clean.StartsWith("TRN", StringComparison.OrdinalIgnoreCase))
             {
                 clean = clean.Substring(3).TrimStart('-', '_');
-                isPrefixed = true;
             }
 
-            if (!isPrefixed) return 0;
-
-            Match m = Regex.Match(clean, @"\d+");
+            Match m = Regex.Match(clean, @"\d+$");
+            if (!m.Success)
+            {
+                m = Regex.Match(clean, @"\d+");
+            }
             if (m.Success)
             {
                 long val = 0;
@@ -2385,6 +2397,15 @@ namespace LedgerXLauncher
                 // StandardPrintController suppresses all Windows UI progress dialogs & animations!
                 pd.PrintController = new StandardPrintController();
                 pd.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
+
+                short copies = 1;
+                if (data.ContainsKey("copies") && data["copies"] != null)
+                {
+                    short.TryParse(Convert.ToString(data["copies"]), out copies);
+                    if (copies < 1) copies = 1;
+                }
+                pd.PrinterSettings.Copies = copies;
+
                 if (data.ContainsKey("printerName") && !string.IsNullOrEmpty(Convert.ToString(data["printerName"])))
                 {
                     pd.PrinterSettings.PrinterName = Convert.ToString(data["printerName"]);

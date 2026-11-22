@@ -15,6 +15,7 @@ export interface POSPrintReceiptData {
   totals: POSCartTotals;
   payment: POSPaymentDetails;
   customer: POSCustomer;
+  copies?: number;
 }
 
 export function buildReceiptSlipHtml(data: POSPrintReceiptData, qrCodeDataUrl: string): string {
@@ -567,6 +568,7 @@ export function buildDirectPrintJsonPayload(data: POSPrintReceiptData, qrCodeDat
 
   return {
     billNo: billNo.replace('POS-', ''),
+    copies: data.copies || 1,
     storeName,
     tagline: tagline || '',
     address: company?.address || 'GF, Ashoka Seed Complex, Khatima Road, Sitarganj',
@@ -671,21 +673,42 @@ class POSThermalPrintService {
       // 1. Try Native Windows Spooler Direct Print via LedgerX Background Host / API (Zero white flash, zero circle searching)
       try {
         const payload = buildDirectPrintJsonPayload(data, qrCodeDataUrl);
-        const candidates: string[] = [];
-        if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
-          candidates.push(`${window.location.origin}/api/pos/direct-print`);
-        }
-        candidates.push('http://127.0.0.1:45454/api/pos/direct-print');
-        candidates.push('http://localhost:45454/api/pos/direct-print');
-        candidates.push('/api/pos/direct-print');
+        // Prioritize native port 45454 directly to avoid multi-hop duplicate execution
+        const directEndpoints = [
+          'http://127.0.0.1:45454/api/pos/direct-print',
+          'http://localhost:45454/api/pos/direct-print',
+        ];
 
-        const uniqueCandidates = Array.from(new Set(candidates));
-
-        for (const url of uniqueCandidates) {
+        let printedSuccessfully = false;
+        for (const ep of directEndpoints) {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 1800);
-            const hostRes = await fetch(url, {
+            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const hostRes = await fetch(ep, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            if (hostRes.ok) {
+              const resJson = await hostRes.json().catch(() => null);
+              if (resJson && resJson.success) {
+                printedSuccessfully = true;
+                return { success: true };
+              }
+            }
+          } catch {
+            // Next direct endpoint
+          }
+        }
+
+        // If direct host was unreachable, try relative Next.js API endpoint once
+        if (!printedSuccessfully && typeof window !== 'undefined') {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const hostRes = await fetch('/api/pos/direct-print', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload),
@@ -698,9 +721,7 @@ class POSThermalPrintService {
                 return { success: true };
               }
             }
-          } catch (e) {
-            // Try next candidate
-          }
+          } catch {}
         }
       } catch (nativeErr) {
         // Native background host not reachable; fall back to off-screen iframe

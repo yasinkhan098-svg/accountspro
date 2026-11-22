@@ -5,23 +5,17 @@ import fs from 'fs';
 function extractTrailingNumber(str: string, prefix: string): number {
   if (!str) return 0;
   let clean = String(str).trim();
-  let isPrefixed = false;
   if (clean.toUpperCase().startsWith('POS-')) {
     clean = clean.substring(4).trim();
-    isPrefixed = true;
   }
   if (prefix && clean.toUpperCase().startsWith(prefix.toUpperCase())) {
     clean = clean.substring(prefix.length).replace(/^[-_]/, '');
-    isPrefixed = true;
   } else if (clean.toUpperCase().startsWith('CASH')) {
     clean = clean.substring(4).replace(/^[-_]/, '');
-    isPrefixed = true;
   } else if (clean.toUpperCase().startsWith('TRN')) {
     clean = clean.substring(3).replace(/^[-_]/, '');
-    isPrefixed = true;
   }
-  if (!isPrefixed) return 0;
-  const match = clean.match(/\d+/);
+  const match = clean.match(/\d+$/) || clean.match(/\d+/);
   if (match) {
     const val = parseInt(match[0], 10);
     return isNaN(val) ? 0 : val;
@@ -34,7 +28,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const code = (body.companyCode || body.code || '10000').toUpperCase().trim();
     const voucher = body.voucher || body;
-    const defaultPrefix = code === 'TRAINING' ? 'TRN-' : 'CASH';
+    let customPrefix = body.prefix || '';
+    if (!customPrefix && voucher?.voucherNo) {
+      const m = String(voucher.voucherNo).match(/^[^\d]+/);
+      if (m) customPrefix = m[0];
+    }
+    const defaultPrefix = customPrefix || (code === 'TRAINING' ? 'TRN-' : 'CASH');
 
     // 1. Try authoritative LedgerX Host Service on port 45454
     try {

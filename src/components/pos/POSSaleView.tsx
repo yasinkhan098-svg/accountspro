@@ -23,6 +23,7 @@ import { posAIProductImageService } from '@/lib/pos/posAIProductImageService';
 import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 import { getCompanyTaxInfo, getItemTaxRate, getItemTaxName } from '@/lib/taxEngine';
 import { posThermalPrintService } from '@/lib/pos/posThermalPrintService';
+import { printConfigService } from '@/lib/printConfig/printConfigService';
 
 interface POSSaleViewProps {
   company: any;
@@ -64,6 +65,12 @@ export default function POSSaleView({
     ? companyDataFolderService.getCompanyFolderCode(company, availableCompanies)
     : '10000';
 
+  const printConfig = useMemo(() => {
+    return printConfigService.loadPrintConfig(companyCode, company);
+  }, [companyCode, company]);
+
+  const posBillConfig = printConfig?.posBillConfig;
+
   const currencySymbol = useMemo(() => {
     return company?.currencySymbol || company?.baseCurrencySymbol || company?.currency || '₹';
   }, [company]);
@@ -93,20 +100,21 @@ export default function POSSaleView({
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const selectedCartItem = cart.find(c => c.cartId === selectedCartId);
   const [barcodeInput, setBarcodeInput] = useState('');
-  const [billNo, setBillNo] = useState(() => posService.generateBillNo(vouchers, companyCode));
+  const [billNo, setBillNo] = useState(() => posService.generateBillNo(vouchers, companyCode, printConfigService.loadPrintConfig(companyCode, company)?.posBillConfig));
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
 
   // Load authoritative bill number from host server on mount / company change
   useEffect(() => {
     let isMounted = true;
-    posService.fetchNextBillNo(companyCode).then(serverNo => {
+    const prefix = posBillConfig?.billPrefix || (companyCode === 'TRAINING' ? 'TRN-' : 'CASH');
+    posService.fetchNextBillNo(companyCode, prefix).then(serverNo => {
       if (isMounted && serverNo && cart.length === 0) {
         setBillNo(serverNo);
       }
     });
     return () => { isMounted = false; };
-  }, [companyCode]);
+  }, [companyCode, posBillConfig?.billPrefix]);
 
   // Sub-table summary meta
   const [customerMobile, setCustomerMobile] = useState('');
@@ -1428,6 +1436,7 @@ export default function POSSaleView({
         totals: billData.totals,
         payment: billData.payment,
         customer: billData.customer,
+        copies: posBillConfig?.printCopies || 1,
       };
 
       await posThermalPrintService.directPrintReceipt(receiptData);
@@ -1446,20 +1455,22 @@ export default function POSSaleView({
   };
 
   // Reset for new sale
-  const resetNewSale = async () => {
+  const resetNewSale = async (explicitNextVouchers?: any[]) => {
     setCart([]);
     setSelectedCartId(null);
     setBarcodeInput('');
     setPromoDiscountAmt(0);
     setScannedActiveItems([]);
+    const vList = explicitNextVouchers || vouchers;
+    const prefix = posBillConfig?.billPrefix || (companyCode === 'TRAINING' ? 'TRN-' : 'CASH');
     try {
-      const serverBillNo = await posService.fetchNextBillNo(companyCode);
+      const serverBillNo = await posService.fetchNextBillNo(companyCode, prefix);
       if (serverBillNo) {
         setBillNo(serverBillNo);
         return;
       }
     } catch {}
-    setBillNo(posService.generateBillNo(vouchers, companyCode));
+    setBillNo(posService.generateBillNo(vList, companyCode, posBillConfig));
   };
 
   // Finalize payment from modal
@@ -1484,11 +1495,13 @@ export default function POSSaleView({
         cashierName,
       });
 
-      if (trnResult.success) {
+      let nextVouchers = vouchers || [];
+      if (trnResult.success && trnResult.voucher) {
         if (onStockUpdated) onStockUpdated(trnResult.updatedStock);
+        const existingFiltered = (vouchers || []).filter(v => v.id !== trnResult.voucher.id);
+        nextVouchers = [...existingFiltered, trnResult.voucher];
         if (onVouchersUpdated) {
-          const existingFiltered = (vouchers || []).filter(v => v.id !== trnResult.voucher.id && v.voucherNo !== trnResult.voucher.voucherNo);
-          onVouchersUpdated([...existingFiltered, trnResult.voucher]);
+          onVouchersUpdated(nextVouchers);
         }
       }
 
@@ -1507,7 +1520,7 @@ export default function POSSaleView({
       triggerTopWindowSilentPrint(completedBill);
 
       // Reset counter immediately for next customer
-      resetNewSale();
+      resetNewSale(nextVouchers);
       setPrintToastMsg(`🧾 Demo Bill #${(completedBill.billNo || billNo).replace('POS-', '')} Printed to Local Printer • Counter Ready!`);
       return;
     }
@@ -1531,9 +1544,10 @@ export default function POSSaleView({
       const finalBillNo = result.voucher.voucherNo || billNo;
 
       if (onStockUpdated) onStockUpdated(result.updatedStockItems);
+      const existingFiltered = (vouchers || []).filter(v => v.id !== result.voucher.id);
+      const nextVouchers = [...existingFiltered, result.voucher];
       if (onVouchersUpdated) {
-        const existingFiltered = (vouchers || []).filter(v => v.id !== result.voucher.id && v.voucherNo !== finalBillNo);
-        onVouchersUpdated([...existingFiltered, result.voucher]);
+        onVouchersUpdated(nextVouchers);
       }
 
       const completedBill = {
@@ -1550,8 +1564,8 @@ export default function POSSaleView({
       // Direct silent thermal print to local printer (no preview modal, no blank sheet)
       triggerTopWindowSilentPrint(completedBill);
 
-      // Reset counter immediately for next customer
-      resetNewSale();
+      // Reset counter immediately for next customer with updated vouchers list
+      resetNewSale(nextVouchers);
       setPrintToastMsg(`🧾 Bill #${finalBillNo.replace('POS-', '')} Printed to Local Printer • Ready for Next Customer!`);
     } else {
       alert(result.error || 'Failed to complete sale!');

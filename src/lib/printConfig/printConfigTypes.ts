@@ -40,7 +40,17 @@ export interface CompanyPrintConfig {
   // F8 Sales Voucher Specific Print Configuration (International & India)
   f8SalesConfig?: F8SalesPrintConfig;
 
+  // POS Retail Bill Series & Print Copies Configuration
+  posBillConfig?: POSBillConfig;
+
   updatedAt: string;
+}
+
+export interface POSBillConfig {
+  billPrefix: string;          // e.g. "CASH" or "HPL-26-" or "BILL-"
+  startingNumber: number;      // e.g. 1
+  padDigits: number;           // e.g. 4 -> "0001"
+  printCopies: number;         // e.g. 1 (default), 2, 3
 }
 
 export interface F8SalesPrintConfig {

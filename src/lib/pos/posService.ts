@@ -271,39 +271,78 @@ export class POSService {
   }
 
   /**
-   * Generates sequential POS bill number e.g. CASH0001, CASH0002...
-   * Starting with CASH0001 per retail POS sales register standard
-   * Scans actual numerical sequences to prevent duplicate or missing numbers.
+   * Generates sequential POS bill number e.g. CASH0001, CASH0002... or custom series like HPL-26-0001.
+   * Starting with configured starting number per retail POS sales register standard.
+   * Scans actual numerical sequences across memory and local storage to prevent duplicate or missing numbers.
    */
-  public generateBillNo(vouchers: any[], companyCode = '10000'): string {
+  public generateBillNo(vouchers: any[], companyCode = '10000', customConfig?: any): string {
     const isTraining = companyCode === 'TRAINING';
-    const prefix = isTraining ? 'TRN-' : 'CASH';
+    let prefix = isTraining ? 'TRN-' : 'CASH';
+    let startingNum = 1;
+    let padDigits = 4;
+
+    if (customConfig && !isTraining) {
+      if (typeof customConfig === 'string') {
+        prefix = customConfig;
+      } else if (customConfig.billPrefix !== undefined) {
+        prefix = customConfig.billPrefix || 'CASH';
+        if (customConfig.startingNumber) startingNum = Number(customConfig.startingNumber) || 1;
+        if (customConfig.padDigits) padDigits = Number(customConfig.padDigits) || 4;
+      }
+    }
+
+    // Combine vouchers parameter with any vouchers stored in localStorage
+    const allVouchers = [...(vouchers || [])];
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`ledgerx_company_data_${companyCode}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed?.vouchers)) {
+            for (const v of parsed.vouchers) {
+              if (v && !allVouchers.some(x => x.id === v.id)) {
+                allVouchers.push(v);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
     let maxSeq = 0;
-    (vouchers || []).forEach(v => {
+    const cleanPrefixUpper = prefix.trim().toUpperCase();
+
+    allVouchers.forEach(v => {
       const vNo = String(v.voucherNo || v.voucherNumber || v.refNo || '').trim();
       if (!vNo) return;
       let clean = vNo;
       if (clean.toUpperCase().startsWith('POS-')) clean = clean.substring(4).trim();
-      let isPrefixed = false;
-      if (isTraining && clean.toUpperCase().startsWith('TRN')) {
-        clean = clean.substring(3).replace(/^[-_]/, '');
-        isPrefixed = true;
-      } else if (!isTraining && clean.toUpperCase().startsWith('CASH')) {
-        clean = clean.substring(4).replace(/^[-_]/, '');
-        isPrefixed = true;
+
+      let matchedSeq = 0;
+      const cleanUpper = clean.toUpperCase();
+
+      if (cleanPrefixUpper && cleanUpper.startsWith(cleanPrefixUpper)) {
+        // Strip exact prefix and match trailing sequence number
+        const remainder = clean.substring(cleanPrefixUpper.length).replace(/^[-_]/, '');
+        const match = remainder.match(/\d+$/);
+        if (match) matchedSeq = parseInt(match[0], 10) || 0;
+      } else if (cleanUpper.startsWith('CASH')) {
+        const remainder = clean.substring(4).replace(/^[-_]/, '');
+        const match = remainder.match(/\d+$/);
+        if (match) matchedSeq = parseInt(match[0], 10) || 0;
+      } else if (cleanUpper.startsWith('TRN')) {
+        const remainder = clean.substring(3).replace(/^[-_]/, '');
+        const match = remainder.match(/\d+$/);
+        if (match) matchedSeq = parseInt(match[0], 10) || 0;
       }
-      if (isPrefixed) {
-        const match = clean.match(/\d+/);
-        if (match) {
-          const num = parseInt(match[0], 10);
-          if (!isNaN(num) && num > maxSeq) {
-            maxSeq = num;
-          }
-        }
+
+      if (matchedSeq > maxSeq) {
+        maxSeq = matchedSeq;
       }
     });
-    const nextSeq = maxSeq + 1;
-    const padded = String(nextSeq).padStart(4, '0');
+
+    const nextSeq = maxSeq >= startingNum ? maxSeq + 1 : startingNum;
+    const padded = String(nextSeq).padStart(padDigits, '0');
     return `${prefix}${padded}`;
   }
 

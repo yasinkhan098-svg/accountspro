@@ -139,6 +139,12 @@ class PrintConfigService {
         value: 'https://ledgerxretail.com/privacy-policy.html',
         enabled: true,
       },
+      posBillConfig: {
+        billPrefix: 'CASH',
+        startingNumber: 1,
+        padDigits: 4,
+        printCopies: 1,
+      },
       f8SalesConfig: getDefaultF8SalesConfig(company),
       customFields: [],
       updatedAt: new Date().toISOString(),
@@ -241,6 +247,12 @@ class PrintConfigService {
       website: { ...defaults.website, ...(saved.website || {}) },
       email: { ...defaults.email, ...(saved.email || {}) },
       privacyPolicy: { ...defaults.privacyPolicy, ...(saved.privacyPolicy || {}) },
+      posBillConfig: {
+        billPrefix: (saved.posBillConfig?.billPrefix !== undefined ? saved.posBillConfig.billPrefix : defaults.posBillConfig?.billPrefix) || 'CASH',
+        startingNumber: Number(saved.posBillConfig?.startingNumber) > 0 ? Number(saved.posBillConfig.startingNumber) : (defaults.posBillConfig?.startingNumber || 1),
+        padDigits: Number(saved.posBillConfig?.padDigits) > 0 ? Number(saved.posBillConfig.padDigits) : (defaults.posBillConfig?.padDigits || 4),
+        printCopies: Number(saved.posBillConfig?.printCopies) > 0 ? Number(saved.posBillConfig.printCopies) : (defaults.posBillConfig?.printCopies || 1),
+      },
       f8SalesConfig: {
         ...defaults.f8SalesConfig,
         ...(saved.f8SalesConfig || {}),

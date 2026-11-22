@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
-import { CompanyPrintConfig, PrintFieldConfig } from '@/lib/printConfig/printConfigTypes';
+import { CompanyPrintConfig, PrintFieldConfig, POSBillConfig } from '@/lib/printConfig/printConfigTypes';
 import { printConfigService } from '@/lib/printConfig/printConfigService';
 import { getCountryPrintPreset } from '@/lib/printConfig/countryPrintPresets';
 import F8SalesPrintConfigModal from './F8SalesPrintConfigModal';
@@ -60,11 +60,24 @@ export default function PrintDetailsConfigModal({
 
   if (!isOpen) return null;
 
-  const updateField = (fieldKey: keyof Omit<CompanyPrintConfig, 'companyCode' | 'country' | 'customFields' | 'updatedAt'>, updates: Partial<PrintFieldConfig>) => {
+  const updateField = (fieldKey: keyof Omit<CompanyPrintConfig, 'companyCode' | 'country' | 'customFields' | 'updatedAt' | 'f8SalesConfig' | 'posBillConfig'>, updates: Partial<PrintFieldConfig>) => {
     setConfig(prev => ({
       ...prev,
       [fieldKey]: {
         ...prev[fieldKey],
+        ...updates,
+      },
+    }));
+  };
+
+  const updatePOSBillConfig = (updates: Partial<POSBillConfig>) => {
+    setConfig(prev => ({
+      ...prev,
+      posBillConfig: {
+        billPrefix: prev.posBillConfig?.billPrefix || 'CASH',
+        startingNumber: prev.posBillConfig?.startingNumber || 1,
+        padDigits: prev.posBillConfig?.padDigits || 4,
+        printCopies: prev.posBillConfig?.printCopies || 1,
         ...updates,
       },
     }));
@@ -121,6 +134,13 @@ export default function PrintDetailsConfigModal({
     if (!field || !field.enabled) return null;
     return field.value && field.value.trim() ? field.value.trim() : sampleFallback;
   };
+
+  const posPrefix = config.posBillConfig?.billPrefix !== undefined ? config.posBillConfig.billPrefix : 'CASH';
+  const posStartNum = config.posBillConfig?.startingNumber || 1;
+  const posPadDigits = config.posBillConfig?.padDigits || 4;
+  const posCopies = config.posBillConfig?.printCopies || 1;
+  const previewBill1 = `${posPrefix}${String(posStartNum).padStart(posPadDigits, '0')}`;
+  const previewBill2 = `${posPrefix}${String(posStartNum + 1).padStart(posPadDigits, '0')}`;
 
   return (
     <div
@@ -295,6 +315,71 @@ export default function PrintDetailsConfigModal({
               }}
             >
               <b>💡 Print Rule:</b> Only fields with the checkbox <b>[✓]</b> enabled will be printed on the receipt. If a field is enabled but left blank, <b>xxxxx</b> will be printed on the receipt.
+            </div>
+
+            {/* 0. POS Retail Bill Series & Thermal Print Copies */}
+            <div style={{ background: '#ffffff', border: '2px solid #3b82f6', borderRadius: 6, padding: 14, marginBottom: 14, boxShadow: '0 2px 6px rgba(59, 130, 246, 0.1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🧾</span> POS Counter Bill Series & Thermal Print Copies
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>Live Series:</span>
+                  <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 'bold' }}>
+                    {previewBill1} → {previewBill2}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 11, color: '#475569', marginBottom: 12 }}>
+                Configure custom prefix and sequence for POS Sales bills. All POS bills will automatically increment with this series and save permanently in Sales Register.
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 12, marginBottom: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                    POS Bill Prefix:
+                  </label>
+                  <input
+                    type="text"
+                    value={posPrefix}
+                    onChange={e => updatePOSBillConfig({ billPrefix: e.target.value })}
+                    placeholder="e.g. CASH or HPL-26- or INV-"
+                    style={{ width: '100%', padding: '6px 10px', fontSize: 12, border: '1px solid #93c5fd', borderRadius: 4, fontWeight: 'bold', color: '#1e3a8a' }}
+                  />
+                  <span style={{ fontSize: 10, color: '#64748b' }}>e.g. CASH, HPL-26-, INV-POS-</span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                    Starting Number:
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={posStartNum}
+                    onChange={e => updatePOSBillConfig({ startingNumber: Math.max(1, parseInt(e.target.value) || 1) })}
+                    style={{ width: '100%', padding: '6px 10px', fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 'bold' }}
+                  />
+                  <span style={{ fontSize: 10, color: '#64748b' }}>Starts from (e.g. 1)</span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                    Print Copies:
+                  </label>
+                  <select
+                    value={posCopies}
+                    onChange={e => updatePOSBillConfig({ printCopies: parseInt(e.target.value) || 1 })}
+                    style={{ width: '100%', padding: '6px 10px', fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 'bold', background: '#fff' }}
+                  >
+                    <option value={1}>1 Copy (Default)</option>
+                    <option value={2}>2 Copies (Customer + Store)</option>
+                    <option value={3}>3 Copies</option>
+                  </select>
+                  <span style={{ fontSize: 10, color: '#64748b' }}>Copies per POS bill print</span>
+                </div>
+              </div>
             </div>
 
             {/* 1. Header & Store Tagline */}
@@ -714,7 +799,7 @@ export default function PrintDetailsConfigModal({
                 <div>Customer Type: URP</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                   <span>Date: {new Date().toLocaleDateString('en-GB')}</span>
-                  <span>Bill No: CASH6608</span>
+                  <span>Bill No: {previewBill1}</span>
                 </div>
               </div>
 
