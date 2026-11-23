@@ -8,54 +8,60 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const osType = (searchParams.get('os') || 'windows').toLowerCase();
+    const clientType = (searchParams.get('type') || searchParams.get('client') || 'host').toLowerCase();
+    const format = (searchParams.get('format') || '').toLowerCase();
 
-    if (osType === 'mac' || osType === 'macos' || osType === 'darwin') {
-      const macPath = path.join(process.cwd(), 'public', 'downloads', 'LedgerX-Setup.dmg');
-      if (fs.existsSync(macPath)) {
-        const fileBuffer = fs.readFileSync(macPath);
-        return new NextResponse(fileBuffer, {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/x-apple-diskimage',
-            'Content-Disposition': 'attachment; filename="LedgerX-Setup.dmg"',
-            'Content-Length': fileBuffer.length.toString(),
-            'Cache-Control': 'public, max-age=3600',
-          },
-        });
+    const isMac = osType === 'mac' || osType === 'macos' || osType === 'darwin' || osType.includes('apple');
+    const wantsZip = format === 'zip' || osType.includes('zip');
+
+    let targetFilename = '';
+    if (clientType === 'client' || clientType === 'lan' || clientType === 'lan-client') {
+      if (isMac) {
+        targetFilename = wantsZip ? 'LedgerX-Client-macOS.zip' : 'LedgerX-Client-Setup.dmg';
+      } else {
+        targetFilename = 'LedgerX-Client-Setup.exe';
+      }
+    } else if (clientType === 'online-client' || clientType === 'online' || clientType === 'cloud') {
+      if (isMac) {
+        targetFilename = wantsZip ? 'LedgerX-Online-Client-macOS.zip' : 'LedgerX-Online-Client.dmg';
+      } else {
+        targetFilename = 'LedgerX-Online-Client.exe';
+      }
+    } else {
+      if (isMac) {
+        targetFilename = wantsZip ? 'LedgerX-macOS.zip' : 'LedgerX-Setup.dmg';
+      } else {
+        targetFilename = 'LedgerX-Setup.exe';
+      }
+    }
+
+    const filePath = path.join(process.cwd(), 'public', 'downloads', targetFilename);
+
+    if (fs.existsSync(filePath)) {
+      const fileBuffer = fs.readFileSync(filePath);
+      let contentType = 'application/octet-stream';
+      if (targetFilename.endsWith('.dmg')) {
+        contentType = 'application/x-apple-diskimage';
+      } else if (targetFilename.endsWith('.zip')) {
+        contentType = 'application/zip';
+      } else if (targetFilename.endsWith('.exe')) {
+        contentType = 'application/vnd.microsoft.portable-executable';
       }
 
-      // If local dmg file is not present on server, redirect directly to the GitHub release mirror
-      // NEVER return JSON for a download route - always pipe or redirect directly to the real binary!
-      const downloadMirror = 'https://github.com/yasinkhan098-svg/accountspro/releases/latest/download/LedgerX-Setup.dmg';
-      return NextResponse.redirect(downloadMirror, 302);
+      return new NextResponse(fileBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': `attachment; filename="${targetFilename}"`,
+          'Content-Length': fileBuffer.length.toString(),
+          'Cache-Control': 'public, max-age=3600',
+        },
+      });
     }
 
-    // Windows (.exe)
-    const filePath = path.join(process.cwd(), 'public', 'downloads', 'LedgerX-Setup.exe');
-
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ error: 'Installer file not found on server' }, { status: 404 });
-    }
-
-    // Detect originating Server URL (Vercel, custom domain, or localhost)
-    const explicitServerUrl = searchParams.get('serverUrl');
-    const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
-    const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
-    const resolvedServerUrl = explicitServerUrl || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : 'https://www.ledgerxerp.com');
-
-    const baseBuffer = fs.readFileSync(filePath);
-    const marker = Buffer.from(`\n---LX_CONFIG_BEGIN---\nSERVER_URL=${resolvedServerUrl}\n---LX_CONFIG_END---\n`, 'utf-8');
-    const fileBuffer = Buffer.concat([baseBuffer, marker]);
-
-    return new NextResponse(fileBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/vnd.microsoft.portable-executable',
-        'Content-Disposition': 'attachment; filename="LedgerX-Setup.exe"',
-        'Content-Length': fileBuffer.length.toString(),
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-      },
-    });
+    // Fallback redirect to GitHub release mirror
+    const mirrorUrl = `https://github.com/yasinkhan098-svg/accountspro/releases/latest/download/${targetFilename}`;
+    return NextResponse.redirect(mirrorUrl, 302);
   } catch (error: any) {
     console.error('Download route error:', error);
     return NextResponse.json({ error: 'Internal server error while serving file' }, { status: 500 });

@@ -384,25 +384,36 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   onClick={copyLANLink}
-                  style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
+                  style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, minWidth: 120, justifyContent: 'center' }}
                   title="Copy LAN URL to paste into client computer's browser"
                 >
                   {copied ? '✓ Copied!' : '📋 Copy LAN Link'}
                 </button>
 
-                <a
-                  href="/downloads/LedgerX-Client-Setup.exe"
-                  download="LedgerX-Client-Setup.exe"
-                  style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flex: 1.4, justifyContent: 'center', boxShadow: '0 2px 4px rgba(16,185,129,0.3)' }}
-                  title="Download installable Client Setup with Desktop Shortcut & Zero-Config Auto-Discovery"
-                >
-                  🚀 Download Client Setup (.exe)
-                </a>
+                <div style={{ display: 'flex', gap: 6, flex: 1, minWidth: 260 }}>
+                  <a
+                    href="/downloads/LedgerX-Client-Setup.exe"
+                    download="LedgerX-Client-Setup.exe"
+                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '8px 10px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center', boxShadow: '0 2px 4px rgba(16,185,129,0.3)' }}
+                    title="Download installable Windows Client Setup (.exe) with Auto-Discovery"
+                  >
+                    <span>🪟 Win (.exe)</span>
+                  </a>
+
+                  <a
+                    href="/downloads/LedgerX-Client-Setup.dmg"
+                    download="LedgerX-Client-Setup.dmg"
+                    style={{ background: 'linear-gradient(135deg, #0f172a, #334155)', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '8px 10px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center', boxShadow: '0 2px 4px rgba(15,23,42,0.3)' }}
+                    title="Download installable macOS Client Setup (.dmg) with Auto-Discovery"
+                  >
+                    <span>🍎 Mac (.dmg)</span>
+                  </a>
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
                 <a
                   href="/downloads/Fix-Host-Firewall.bat"
                   download="Fix-Host-Firewall.bat"
@@ -411,14 +422,24 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
                 >
                   🛡️ Fix Windows Firewall (.bat)
                 </a>
-                <a
-                  href="/downloads/LedgerX-Client.exe"
-                  download="LedgerX-Client.exe"
-                  style={{ color: '#64748b', textDecoration: 'underline' }}
-                  title="Download raw portable exe without installer"
-                >
-                  or Download Portable Client (.exe)
-                </a>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <a
+                    href="/downloads/LedgerX-Client.exe"
+                    download="LedgerX-Client.exe"
+                    style={{ color: '#64748b', textDecoration: 'underline' }}
+                    title="Download raw portable Windows exe without installer"
+                  >
+                    Win Portable (.exe)
+                  </a>
+                  <a
+                    href="/downloads/LedgerX-Client-macOS.zip"
+                    download="LedgerX-Client-macOS.zip"
+                    style={{ color: '#64748b', textDecoration: 'underline' }}
+                    title="Download direct macOS App archive (.zip)"
+                  >
+                    Mac Direct (.zip)
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -444,23 +465,46 @@ export default function RoleManagementView({ goBack, availableCompanies = [], ac
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <button
-                onClick={copyOnlineLink}
-                style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
-                title="Copy Web Client URL to paste into remote browser"
-              >
-                {copiedOnline ? '✓ Copied!' : '📋 Copy Web Link'}
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={copyOnlineLink}
+                  style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, minWidth: 120, justifyContent: 'center' }}
+                  title="Copy Web Client URL to paste into remote browser"
+                >
+                  {copiedOnline ? '✓ Copied!' : '📋 Copy Web Link'}
+                </button>
 
-              <a
-                href="/downloads/LedgerX-Online-Client.exe"
-                download="LedgerX-Online-Client.exe"
-                style={{ background: '#0891b2', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, flex: 1.3, justifyContent: 'center' }}
-                title="Download 136KB Online Cloud Client software (.exe)"
-              >
-                📥 Download Online Client (.exe)
-              </a>
+                <div style={{ display: 'flex', gap: 6, flex: 1, minWidth: 260 }}>
+                  <a
+                    href="/downloads/LedgerX-Online-Client.exe"
+                    download="LedgerX-Online-Client.exe"
+                    style={{ background: '#0891b2', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '7px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
+                    title="Download Windows Online Client (.exe)"
+                  >
+                    <span>🪟 Win (.exe)</span>
+                  </a>
+
+                  <a
+                    href="/downloads/LedgerX-Online-Client.dmg"
+                    download="LedgerX-Online-Client.dmg"
+                    style={{ background: '#0f172a', color: '#fff', textDecoration: 'none', borderRadius: 6, padding: '7px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
+                    title="Download macOS Online Client (.dmg)"
+                  >
+                    <span>🍎 Mac (.dmg)</span>
+                  </a>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', fontSize: 11, marginTop: 4, gap: 10 }}>
+                <a
+                  href="/downloads/LedgerX-Online-Client-macOS.zip"
+                  download="LedgerX-Online-Client-macOS.zip"
+                  style={{ color: '#64748b', textDecoration: 'underline' }}
+                  title="Download direct macOS Online Client archive (.zip)"
+                >
+                  Mac Direct (.zip)
+                </a>
+              </div>
             </div>
           </div>
 
