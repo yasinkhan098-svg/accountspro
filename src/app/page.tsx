@@ -7170,7 +7170,17 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
   const [focusedField, setFocusFld] = useState<string | null>(null);
   const [secCtrl, setSecCtrl] = useState(activeAlterItem?.securityControl ? 'Yes' : 'No');
   const [filterText, setFilter] = useState('');
-  const [selCo, setSelCo] = useState(activeAlterItem?.country || 'India');
+  const defaultCountry = useMemo(() => {
+    if (activeAlterItem?.country) return activeAlterItem.country;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ledgerx_user_country');
+      if (stored && stored.trim()) return stored.trim();
+      const u = authClient.getUser();
+      if (u?.country) return u.country;
+    }
+    return 'India';
+  }, [activeAlterItem]);
+  const [selCo, setSelCo] = useState(defaultCountry);
   const [selIdx, setSelIdx] = useState(0);
   const [showMob, setShowMob] = useState(activeAlterItem?.showMobile ?? true);
   const [showEmail, setShowEmail] = useState(activeAlterItem?.showEmail ?? true);
@@ -7971,7 +7981,17 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const [focus, setFocus] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [selIdx, setSelIdx] = useState(0);
-  const [selCo, setSelCo] = useState(activeAlterItem?.country || 'India');
+  const defaultCountry = useMemo(() => {
+    if (activeAlterItem?.country) return activeAlterItem.country;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ledgerx_user_country');
+      if (stored && stored.trim()) return stored.trim();
+      const u = authClient.getUser();
+      if (u?.country) return u.country;
+    }
+    return 'India';
+  }, [activeAlterItem]);
+  const [selCo, setSelCo] = useState(defaultCountry);
   const partyTaxInfo = useMemo(() => getCompanyTaxInfo({ country: selCo }), [selCo]);
   const [underValue, setUnderValue] = useState<string>(activeAlterItem?.groupName || 'Sundry Debtors');
   const [odLimit, setOdLimit] = useState<string>(activeAlterItem?.odLimit != null ? String(activeAlterItem.odLimit) : '');

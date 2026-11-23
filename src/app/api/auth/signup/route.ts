@@ -8,7 +8,8 @@ export async function POST(req: Request) {
   try {
     await ensureLicenseTables();
     const body = await req.json();
-    const { name, organizationName, mobile, address, profession, email, password, plan } = body;
+    const { name, organizationName, mobile, address, profession, email, password, plan, country } = body;
+    const userCountry = (country || 'India').trim();
 
     if (!name || !organizationName || !email || !password || !plan) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -89,6 +90,14 @@ export async function POST(req: Request) {
         },
       });
     }
+
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "User" SET "country" = ? WHERE "id" = ?`,
+        userCountry,
+        user.id
+      );
+    } catch (_) {}
 
     return NextResponse.json({ message: "User registered successfully", userId: user.id }, { status: 201 });
   } catch (error) {

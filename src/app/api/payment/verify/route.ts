@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, plan } = await req.json();
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, plan, country, currency } = await req.json();
 
     const secret = process.env.RAZORPAY_KEY_SECRET;
     if (!secret) {
@@ -53,6 +53,17 @@ export async function POST(req: Request) {
         syncExpiry.toISOString(),
         userId
       );
+    } catch (e) {}
+
+    try {
+      if (country) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "User" SET "country" = ?, "currency" = ? WHERE "id" = ?`,
+          country,
+          currency || 'INR',
+          userId
+        );
+      }
     } catch (e) {}
 
     return NextResponse.json({ message: 'Payment verified successfully', user: updatedUser }, { status: 200 });

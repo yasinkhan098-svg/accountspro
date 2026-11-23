@@ -1,7 +1,8 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { offlineSyncService } from '@/lib/offlineSyncService';
+import { getCountryPricing, ALL_COUNTRY_NAMES, detectCountryFromClient } from '@/lib/countryCurrencyPricing';
 
 interface AuthUIProps {
   onLoginSuccess: () => void;
@@ -519,11 +520,40 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
     organizationName: '',
     mobile: '',
     address: '',
+    country: 'India',
     profession: '',
     email: '',
     password: '',
     confirmPassword: ''
   });
+
+  // Dynamic Country Pricing Tier
+  const currentPricing = useMemo(() => {
+    return getCountryPricing(signupData.country);
+  }, [signupData.country]);
+
+  // Automatic Location-based Country Detection
+  useEffect(() => {
+    // 1. Instant client-side timezone-based country resolution
+    const clientDetected = detectCountryFromClient();
+    setSignupData(prev => ({
+      ...prev,
+      country: prev.country && prev.country !== 'India' ? prev.country : clientDetected,
+    }));
+
+    // 2. Fetch server geolocation API (/api/geo) for IP precision
+    fetch('/api/geo')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.country) {
+          setSignupData(prev => ({
+            ...prev,
+            country: data.country,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Login Fields
   const [loginData, setLoginData] = useState({
@@ -691,6 +721,9 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
       const userId = data.userId;
 
       if (selectedPlan === 'TRIAL') {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('ledgerx_user_country', signupData.country);
+        }
         alert('Registration successful! Your 7-Day Free Trial starts now.');
         setStep(1);
         setIsLogin(true);
@@ -704,7 +737,11 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
       const orderRes = await fetch('/api/payment/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: selectedPlan })
+        body: JSON.stringify({
+          plan: selectedPlan,
+          country: signupData.country,
+          currency: currentPricing.currencyCode,
+        })
       });
       const orderData = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderData.error || 'Failed to create order');
@@ -712,9 +749,9 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: orderData.amount,
-        currency: orderData.currency,
+        currency: orderData.currency || currentPricing.currencyCode,
         name: 'LedgerX ERP',
-        description: `${selectedPlan} Subscription`,
+        description: `${selectedPlan} Subscription (${signupData.country})`,
         order_id: orderData.id,
         handler: async function (response: any) {
           try {
@@ -726,11 +763,16 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
                 userId,
-                plan: selectedPlan
+                plan: selectedPlan,
+                country: signupData.country,
+                currency: orderData.currency || currentPricing.currencyCode,
               })
             });
             const verifyData = await verifyRes.json();
             if (verifyRes.ok) {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('ledgerx_user_country', signupData.country);
+              }
               alert('Payment Successful! Registration Complete.');
               setStep(1);
               setIsLogin(true);
@@ -1063,12 +1105,38 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                   onChange={(e) => setSignupData({ ...signupData, organizationName: e.target.value })} />
               </div>
               <div className="input-field">
+                <label>COUNTRY <span className="req">*</span></label>
+                <select
+                  required
+                  value={signupData.country}
+                  onChange={(e) => setSignupData({ ...signupData, country: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 6,
+                    border: '1.5px solid #cbd5e1',
+                    background: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {ALL_COUNTRY_NAMES.map(cName => (
+                    <option key={cName} value={cName}>
+                      {cName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="input-field">
                 <label>MOBILE NO <span className="req">*</span></label>
                 <input type="text" required onKeyDown={handleKeyDown}
                   value={signupData.mobile}
                   onChange={(e) => setSignupData({ ...signupData, mobile: e.target.value })} />
               </div>
-              <div className="input-field">
+              <div className="input-field full-width">
                 <label>PROFESSION <span className="req">*</span></label>
                 <input type="text" required onKeyDown={handleKeyDown}
                   value={signupData.profession}
@@ -1112,27 +1180,47 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
           ) : (
             /* PLAN SELECTION STEP 2 */
             <div className="plan-selection">
+              <div style={{
+                marginBottom: 16,
+                padding: '8px 14px',
+                background: 'rgba(2, 132, 199, 0.1)',
+                border: '1px solid rgba(2, 132, 199, 0.25)',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: 12,
+                color: '#0369a1',
+                fontWeight: 700,
+                flexWrap: 'wrap',
+                gap: 6,
+              }}>
+                <span>🌏 Localized for <strong>{currentPricing.country}</strong> ({currentPricing.currencyName} - {currentPricing.currencyCode})</span>
+                <span style={{ fontSize: 11, background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 4, fontWeight: 'bold' }}>
+                  Currency: {currentPricing.currencySymbol}
+                </span>
+              </div>
               <div className="plan-cards">
                 <div className={`plan-card ${selectedPlan === 'TRIAL' ? 'active' : ''}`} onClick={() => setSelectedPlan('TRIAL')}>
                   <h3>7-Day Free Trial</h3>
-                  <div className="price">₹0</div>
+                  <div className="price">{currentPricing.trial.display}</div>
                   <p>Full access for 7 days to test the platform.</p>
                 </div>
                 <div className={`plan-card ${selectedPlan === 'MONTHLY' ? 'active' : ''}`} onClick={() => setSelectedPlan('MONTHLY')}>
                   <h3>Monthly</h3>
-                  <div className="price">₹299<span>/mo</span></div>
-                  <p>Flexible monthly billing.</p>
+                  <div className="price">{currentPricing.monthly.display}<span>/mo</span></div>
+                  <p>Flexible monthly billing in {currentPricing.currencyCode}.</p>
                 </div>
                 <div className={`plan-card ${selectedPlan === 'YEARLY' ? 'active' : ''}`} onClick={() => setSelectedPlan('YEARLY')}>
                   <div className="badge">Best Value</div>
                   <h3>Yearly</h3>
-                  <div className="price">₹1999<span>/yr</span></div>
+                  <div className="price">{currentPricing.yearly.display}<span>/yr</span></div>
                   <p>Save massive amounts with annual billing.</p>
                 </div>
                 <div className={`plan-card lifetime ${selectedPlan === 'LIFETIME' ? 'active' : ''}`} onClick={() => setSelectedPlan('LIFETIME')}>
                   <div className="badge badge-lifetime">Lifetime</div>
                   <h3>Lifetime</h3>
-                  <div className="price">₹11,999<span> one-time</span></div>
+                  <div className="price">{currentPricing.lifetime.display}<span> one-time</span></div>
                   <p>Pay once, use forever. No renewals.</p>
                 </div>
               </div>
