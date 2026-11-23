@@ -89,6 +89,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
+    // STRICT PAYMENT & TRIAL VERIFICATION GATE
+    const paymentStatus = (user.paymentStatus || '').toUpperCase();
+    if (paymentStatus !== 'SUCCESS') {
+      return NextResponse.json({
+        error: "Your subscription payment is pending or incomplete. Please complete your registration and payment to sign in."
+      }, { status: 403 });
+    }
+
+    // Check if subscription / free trial has expired
+    if (user.subscriptionExpiry && new Date(user.subscriptionExpiry).getTime() < Date.now()) {
+      return NextResponse.json({
+        error: "Your subscription has expired. Please upgrade or renew your plan to continue."
+      }, { status: 403 });
+    }
+
     // Generate a secure random session token
     const sessionToken = crypto.randomBytes(32).toString("hex");
 

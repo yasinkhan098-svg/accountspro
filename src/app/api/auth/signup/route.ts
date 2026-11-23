@@ -17,7 +17,7 @@ export async function POST(req: Request) {
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     if (existingUser) {
       // If payment was incomplete, allow them to retry with the same email
       if (existingUser.paymentStatus === 'PENDING') {
@@ -27,11 +27,11 @@ export async function POST(req: Request) {
         });
         return NextResponse.json({ message: "Resuming registration", userId: updatedUser.id }, { status: 200 });
       }
-      
+
       return NextResponse.json({ error: "User with this email already exists" }, { status: 400 });
     }
 
-    let subscriptionExpiry = null;
+    let subscriptionExpiry: Date | null = null;
     let paymentStatus = 'PENDING';
 
     if (plan === 'TRIAL') {
@@ -39,21 +39,11 @@ export async function POST(req: Request) {
       now.setDate(now.getDate() + 7); // 7 days free trial
       subscriptionExpiry = now;
       paymentStatus = 'SUCCESS';
-    } else if (plan === 'MONTHLY') {
-      const now = new Date();
-      now.setDate(now.getDate() + 30); // 30 days monthly subscription
-      subscriptionExpiry = now;
-      paymentStatus = 'SUCCESS';
-    } else if (plan === 'YEARLY') {
-      const now = new Date();
-      now.setDate(now.getDate() + 365); // 365 days yearly subscription
-      subscriptionExpiry = now;
-      paymentStatus = 'SUCCESS';
-    } else if (plan === 'LIFETIME') {
-      const farFuture = new Date();
-      farFuture.setFullYear(farFuture.getFullYear() + 20); // 20 years lifetime
-      subscriptionExpiry = farFuture;
-      paymentStatus = 'SUCCESS';
+    } else {
+      // Paid plans (MONTHLY / YEARLY / LIFETIME) MUST be registered via /api/payment/verify-and-register
+      // Setting paymentStatus = PENDING and subscriptionExpiry = null prevents any direct bypass!
+      paymentStatus = 'PENDING';
+      subscriptionExpiry = null;
     }
 
     let user: any = null;

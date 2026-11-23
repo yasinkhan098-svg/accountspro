@@ -552,7 +552,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
           }));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Login Fields
@@ -709,18 +709,16 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...signupData, plan: selectedPlan })
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || 'Registration failed');
-
-      const userId = data.userId;
-
+      // 1. FREE TRIAL: Direct registration without payment gateway
       if (selectedPlan === 'TRIAL') {
+        const res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...signupData, plan: 'TRIAL' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Registration failed');
+
         if (typeof window !== 'undefined') {
           localStorage.setItem('ledgerx_user_country', signupData.country);
         }
@@ -731,6 +729,8 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
         return;
       }
 
+      // 2. PAID PLANS (Monthly / Yearly / Lifetime):
+      // ZERO database record created before payment! Account is created ONLY after verified payment!
       const resRazorpay = await loadRazorpay();
       if (!resRazorpay) throw new Error('Razorpay SDK failed to load. Are you online?');
 
@@ -741,6 +741,8 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
           plan: selectedPlan,
           country: signupData.country,
           currency: currentPricing.currencyCode,
+          email: signupData.email,
+          name: signupData.name,
         })
       });
       const orderData = await orderRes.json();
@@ -753,16 +755,23 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
         name: 'LedgerX ERP',
         description: `${selectedPlan} Subscription (${signupData.country})`,
         order_id: orderData.id,
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+            setError('Payment was cancelled. You have not been charged and no account was registered.');
+          }
+        },
         handler: async function (response: any) {
           try {
-            const verifyRes = await fetch('/api/payment/verify', {
+            setLoading(true);
+            const verifyRes = await fetch('/api/payment/verify-and-register', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
-                userId,
+                signupData,
                 plan: selectedPlan,
                 country: signupData.country,
                 currency: orderData.currency || currentPricing.currencyCode,
@@ -773,7 +782,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
               if (typeof window !== 'undefined') {
                 localStorage.setItem('ledgerx_user_country', signupData.country);
               }
-              alert('Payment Successful! Registration Complete.');
+              alert('Payment Successful! Registration Complete. Please sign in to continue.');
               setStep(1);
               setIsLogin(true);
             } else {
@@ -781,6 +790,8 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
             }
           } catch (err) {
             setError('Payment verification failed');
+          } finally {
+            setLoading(false);
           }
         },
         prefill: {
@@ -839,7 +850,7 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
               />
               <div className="auth-monitor-badge">
                 <svg viewBox="0 0 24 24" width="10" height="10" fill="#ff0000">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
                 </svg>
                 <span>YouTube ↗</span>
               </div>
