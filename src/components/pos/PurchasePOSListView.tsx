@@ -488,7 +488,7 @@ export default function PurchasePOSListView({
       });
     }
 
-    return dedupedBuilt;
+    return syncLooseItemsAlphabeticalKeys(dedupedBuilt);
   }, [stockItems, companyId, companyCode, calculateLiveStock, resolvePurchasePrices]);
 
   // 4. Initial and company-change load from LocalStorage and Database API
@@ -1179,7 +1179,7 @@ export default function PurchasePOSListView({
               boxShadow: '0 2px 6px rgba(5, 150, 105, 0.35)',
             }}
           >
-            <span style={{ fontSize: 14 }}>⚖️</span> Export for Weighing Scale
+            <span style={{ fontSize: 14 }}>⚖️</span> Export for Scale
           </button>
 
           <input

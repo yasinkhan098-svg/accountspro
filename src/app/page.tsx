@@ -1698,6 +1698,7 @@ export default function App() {
   const [showPeriod, setShowPeriod] = useState(false);
   const isDiskLoadingRef = useRef(false);
   const lastDiskTicksRef = useRef<number>(0);
+  const inFlightMasterLocksRef = useRef<Set<string>>(new Set());
 
   // SYNC DATA WITH USER SESSION
   useEffect(() => {
@@ -2691,12 +2692,23 @@ export default function App() {
     setAlterItem(null);
   }, [history]);
 
-  // Save master
+  // Save master with in-flight mutex & instant optimistic response
   const saveMaster = async (type: string, data: any, existingItem?: any) => {
     const token = authClient.getToken();
     const cid = activeCompany?.id || 0;
     const compCode = companyDataFolderService.getCompanyFolderCode(activeCompany, companies);
     const targetItem = existingItem || alterItem;
+
+    const normItemName = String(data?.name || data?.symbol || '').trim().toLowerCase();
+    const lockKey = `${type}:${targetItem?.id || 'new'}:${cid}:${normItemName}`;
+    if (inFlightMasterLocksRef.current.has(lockKey)) {
+      console.warn(`[saveMaster] Save already in flight for ${lockKey}, ignoring duplicate.`);
+      return null;
+    }
+    inFlightMasterLocksRef.current.add(lockKey);
+    const releaseLock = () => {
+      inFlightMasterLocksRef.current.delete(lockKey);
+    };
 
     if (targetItem && targetItem.id) {
       if (type === 'ledger') {
@@ -2714,57 +2726,42 @@ export default function App() {
           companyCode: compCode,
         };
 
+        // 1. Instant Optimistic State Update (0 ms wait!)
+        let nextLedgers: any[] = [];
+        setAllLedgers(p => {
+          nextLedgers = p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x);
+          return nextLedgers;
+        });
+
+        // 2. Non-blocking background server sync & disk save
         if (navigator.onLine) {
-          try {
-            const res = await fetch(`/api/ledgers?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ id: targetItem.id, companyId: cid, companyCode: compCode, ...data })
-            });
+          fetch(`/api/ledgers?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ id: targetItem.id, companyId: cid, companyCode: compCode, ...data })
+          }).then(async res => {
             if (res.ok) {
               const resData = await res.json();
-              updated = {
-                ...updated,
-                openingBalance: resData.ledger?.openingBalance ?? data.openingBalance ?? updated.openingBalance,
-                pan: resData.ledger?.pan ?? data.pan ?? updated.pan,
-              };
-              let nextLedgers: any[] = [];
-              setAllLedgers(p => {
-                nextLedgers = p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x);
-                return nextLedgers;
-              });
-              companyDataFolderService.saveCompanyFolder({
-                companyCode: compCode,
-                company: activeCompany,
-                ledgers: nextLedgers.filter(l => isCoMatch(l, activeCompany)),
-              }).catch(() => { });
-              return updated;
+              if (resData.ledger) {
+                setAllLedgers(p => p.map(x => x.id === targetItem.id ? { ...x, ...resData.ledger } : x));
+              }
             } else {
-              const errData = await res.json().catch(() => ({}));
-              const errMsg = errData.error || `Failed to update ledger on server`;
-              alert(errMsg);
-              return null;
+              offlineSyncService.enqueue({ type: 'LEDGER', action: 'UPDATE', data: updated, companyId: cid });
             }
-          } catch (e: any) {
-            console.warn("Server ledger update failed, saving offline:", e);
-          }
+          }).catch(() => {
+            offlineSyncService.enqueue({ type: 'LEDGER', action: 'UPDATE', data: updated, companyId: cid });
+          }).finally(releaseLock);
+        } else {
+          offlineSyncService.enqueue({ type: 'LEDGER', action: 'UPDATE', data: updated, companyId: cid });
+          setTimeout(releaseLock, 500);
         }
 
-        // Offline update fallback (no network error alert)
-        let nextLedgersOffline: any[] = [];
-        setAllLedgers(p => {
-          nextLedgersOffline = p.map(x => x.id === targetItem.id ? { ...x, ...updated } : x);
-          return nextLedgersOffline;
-        });
         companyDataFolderService.saveCompanyFolder({
           companyCode: compCode,
           company: activeCompany,
-          ledgers: nextLedgersOffline.filter(l => isCoMatch(l, activeCompany)),
+          ledgers: nextLedgers.filter(l => isCoMatch(l, activeCompany)),
         }).catch(() => { });
-        offlineSyncService.enqueue({ type: 'LEDGER', action: 'UPDATE', data: updated, companyId: cid });
-        if (!isInitializingRef.current) {
-          setSaveToast("Ledger updated locally (Offline Mode • Will auto-sync)");
-        }
+
         return updated;
       }
       else if (type === 'stockItem') {
@@ -2792,59 +2789,42 @@ export default function App() {
           id: targetItem.id,
         };
 
+        // 1. Instant Optimistic State Update (0 ms wait!)
+        let nextStockItems: any[] = [];
+        setAllStockItems(p => {
+          nextStockItems = p.map(x => x.id === targetItem.id ? updated : x);
+          return nextStockItems;
+        });
+
+        // 2. Non-blocking background server sync & disk save
         if (navigator.onLine) {
-          try {
-            const res = await fetch(`/api/stock-items?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ id: targetItem.id, companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit })
-            });
+          fetch(`/api/stock-items?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ id: targetItem.id, companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit })
+          }).then(async res => {
             if (res.ok) {
               const resData = await res.json();
-              const finalItem = {
-                ...(resData.item || updated),
-                unit: resData.item?.unit || resData.item?.unitName || resolvedUnit,
-                unitName: resData.item?.unitName || resData.item?.unit || resolvedUnit,
-              };
-              let nextStockItems: any[] = [];
-              setAllStockItems(p => {
-                nextStockItems = p.map(x => x.id === targetItem.id ? finalItem : x);
-                return nextStockItems;
-              });
-              const companyStockUpdated = nextStockItems.filter(si => isCoMatch(si, activeCompany));
-              companyDataFolderService.saveCompanyFolder({
-                companyCode: compCode,
-                company: activeCompany,
-                stockItems: companyStockUpdated,
-              }).catch(() => { });
-              return finalItem;
+              if (resData.item) {
+                setAllStockItems(p => p.map(x => x.id === targetItem.id ? { ...x, ...resData.item } : x));
+              }
             } else {
-              const errData = await res.json().catch(() => ({}));
-              const errMsg = errData.error || `Failed to update stock item on server`;
-              alert(errMsg);
-              return null;
+              offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: updated, companyId: cid });
             }
-          } catch (e: any) {
-            console.warn('Server stock item update failed, saving offline:', e);
-          }
+          }).catch(() => {
+            offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: updated, companyId: cid });
+          }).finally(releaseLock);
+        } else {
+          offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: updated, companyId: cid });
+          setTimeout(releaseLock, 500);
         }
 
-        // Offline update fallback (no network error alert)
-        let nextStockOffline: any[] = [];
-        setAllStockItems(p => {
-          nextStockOffline = p.map(x => x.id === targetItem.id ? updated : x);
-          return nextStockOffline;
-        });
-        const companyStockOffline = nextStockOffline.filter(si => isCoMatch(si, activeCompany));
         companyDataFolderService.saveCompanyFolder({
           companyCode: compCode,
           company: activeCompany,
-          stockItems: companyStockOffline,
+          stockItems: nextStockItems.filter(si => isCoMatch(si, activeCompany)),
         }).catch(() => { });
-        offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'UPDATE', data: updated, companyId: cid });
-        if (!isInitializingRef.current) {
-          setSaveToast("Stock item updated locally (Offline Mode • Will auto-sync)");
-        }
+
         return updated;
       }
       else if (type === 'group') setAllGroups(p => p.map(x => x.id === targetItem.id ? { ...x, ...data } : x));
@@ -2984,6 +2964,7 @@ export default function App() {
       if (type === 'ledger') {
         const normName = (data.name || '').trim().toLowerCase();
         if (normName && ledgers.some(l => l.name.trim().toLowerCase() === normName)) {
+          releaseLock();
           if (isInitializingRef.current || data.isAutoInit) {
             return ledgers.find(l => l.name.trim().toLowerCase() === normName) || null;
           }
@@ -2991,57 +2972,48 @@ export default function App() {
           return null;
         }
 
+        // 1. Optimistic Instant Save: update in memory and return immediately (0 ms wait!)
+        const localLedger = { id, companyId: cid, companyCode: compCode, ...data };
+        setAllLedgers(p => [...p, localLedger]);
+
+        // 2. Background async save to server & disk
         if (navigator.onLine) {
-          try {
-            const res = await fetch(`/api/ledgers?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ companyId: cid, companyCode: compCode, ...data })
-            });
+          fetch(`/api/ledgers?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ companyId: cid, companyCode: compCode, ...data })
+          }).then(async res => {
             if (res.ok) {
               const resData = await res.json();
-              let nextLedgers: any[] = [];
-              setAllLedgers(p => {
-                nextLedgers = [...p, resData.ledger];
-                return nextLedgers;
-              });
-              companyDataFolderService.saveCompanyFolder({
-                companyCode: compCode,
-                company: activeCompany,
-                ledgers: nextLedgers.filter(l => isCoMatch(l, activeCompany)),
-              }).catch(() => { });
-              return resData.ledger;
+              if (resData.ledger && resData.ledger.id) {
+                setAllLedgers(p => p.map(x => x.id === id ? { ...x, ...resData.ledger } : x));
+              }
             } else {
-              const errData = await res.json().catch(() => ({}));
-              const errMsg = errData.error || `Failed to create ledger on server`;
-              if (!isInitializingRef.current && !data.isAutoInit) alert(errMsg);
-              return null;
+              offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
             }
-          } catch (e: any) {
-            console.warn("Online ledger save failed, saving offline locally:", e);
-          }
+          }).catch(() => {
+            offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
+          }).finally(() => {
+            releaseLock();
+          });
+        } else {
+          offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
+          setTimeout(releaseLock, 500);
         }
-        // Local offline save & queue (duplicate-checked above)
-        const localLedger = { id, companyId: cid, companyCode: compCode, ...data };
-        let nextLedgersOffline: any[] = [];
-        setAllLedgers(p => {
-          nextLedgersOffline = [...p, localLedger];
-          return nextLedgersOffline;
-        });
+
+        // Background folder save
         companyDataFolderService.saveCompanyFolder({
           companyCode: compCode,
           company: activeCompany,
-          ledgers: nextLedgersOffline.filter(l => isCoMatch(l, activeCompany)),
+          ledgers: [...ledgers, localLedger].filter(l => isCoMatch(l, activeCompany)),
         }).catch(() => { });
-        offlineSyncService.enqueue({ type: 'LEDGER', action: 'CREATE', data: localLedger, companyId: cid });
-        if (!isInitializingRef.current) {
-          setSaveToast("Ledger saved locally (Offline Mode • Will auto-sync)");
-        }
+
         return localLedger;
       }
       else if (type === 'stockItem') {
         const normName = (data.name || '').trim().toLowerCase();
         if (normName && stockItems.some(it => it.name.trim().toLowerCase() === normName)) {
+          releaseLock();
           alert(`Stock Item "${data.name}" already exists!`);
           return null;
         }
@@ -3052,58 +3024,42 @@ export default function App() {
               'Nos'
         );
 
+        // 1. Optimistic Instant Save: update in memory and return immediately (0 ms wait!)
+        const localItem = { id, companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit };
+        setAllStockItems(p => [...p, localItem]);
+
+        // 2. Background async save to server & disk
         if (navigator.onLine) {
-          try {
-            const res = await fetch(`/api/stock-items?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit })
-            });
+          fetch(`/api/stock-items?companyCode=${encodeURIComponent(compCode)}&companyId=${encodeURIComponent(cid)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit })
+          }).then(async res => {
             if (res.ok) {
               const resData = await res.json();
-              const finalItem = {
-                ...(resData.item || {}),
-                unit: resData.item?.unit || resData.item?.unitName || resolvedUnit,
-                unitName: resData.item?.unitName || resData.item?.unit || resolvedUnit,
-              };
-              let nextItems: any[] = [];
-              setAllStockItems(p => {
-                nextItems = [...p, finalItem];
-                return nextItems;
-              });
-              const companyStockCreated = nextItems.filter(si => isCoMatch(si, activeCompany));
-              companyDataFolderService.saveCompanyFolder({
-                companyCode: compCode,
-                company: activeCompany,
-                stockItems: companyStockCreated,
-              }).catch(() => { });
-              return finalItem;
+              if (resData.item && resData.item.id) {
+                setAllStockItems(p => p.map(x => x.id === id ? { ...x, ...resData.item } : x));
+              }
             } else {
-              const errData = await res.json().catch(() => ({}));
-              const errMsg = errData.error || `Failed to create stock item on server`;
-              alert(errMsg);
-              return null;
+              offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
             }
-          } catch (e: any) {
-            console.warn("Online stock item save failed, saving offline locally:", e);
-          }
+          }).catch(() => {
+            offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
+          }).finally(() => {
+            releaseLock();
+          });
+        } else {
+          offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
+          setTimeout(releaseLock, 500);
         }
-        const localItem = { id, companyId: cid, companyCode: compCode, ...data, unit: resolvedUnit, unitName: resolvedUnit };
-        let nextItemsOffline: any[] = [];
-        setAllStockItems(p => {
-          nextItemsOffline = [...p, localItem];
-          return nextItemsOffline;
-        });
-        const companyStockCreatedOffline = nextItemsOffline.filter(si => isCoMatch(si, activeCompany));
+
+        // Background folder save
         companyDataFolderService.saveCompanyFolder({
           companyCode: compCode,
           company: activeCompany,
-          stockItems: companyStockCreatedOffline,
+          stockItems: [...stockItems, localItem].filter(si => isCoMatch(si, activeCompany)),
         }).catch(() => { });
-        offlineSyncService.enqueue({ type: 'STOCK_ITEM', action: 'CREATE', data: localItem, companyId: cid });
-        if (!isInitializingRef.current) {
-          setSaveToast("Stock item saved locally (Offline Mode • Will auto-sync)");
-        }
+
         return localItem;
       }
       else if (type === 'unit') {
@@ -3229,91 +3185,85 @@ export default function App() {
           return false;
         }
         (saveMaster as any)._savingCompany = true;
-        try {
-          if (navigator.onLine) {
-            const res = await fetch('/api/companies', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify(data)
-            });
-            const resData = await res.json();
-            if (res.ok && resData.company) {
-              const newCo = resData.company;
-              const nextCode = await companyDataFolderService.getNextCompanyCode(companies);
-              newCo.companyCode = resData.companyCode || newCo.companyCode || newCo.code || nextCode;
-              newCo.code = newCo.companyCode;
-              const curSym = newCo.currencySymbol || newCo.baseCurrencySymbol || data.currencySymbol || data.baseCurrencySymbol || '₹';
-              const curName = newCo.currencyName || newCo.formalName || data.currencyName || data.formalName || 'Indian Rupee';
-              newCo.currencySymbol = curSym;
-              newCo.baseCurrencySymbol = curSym;
-              newCo.currencyName = curName;
-              newCo.formalName = curName;
-              setCompanies(p => [...p, newCo]);
-              setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' }))]);
-              setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0, 3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
-              setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: newCo.id, name: curName, symbol: curSym, isoCode: curSym, decimalPlaces: 2 }]);
-              const initialLedgers = (resData.ledgers && resData.ledgers.length > 0) ? resData.ledgers : ensureStandardLedgersList([], newCo.id).ledgers;
-              setAllLedgers(p => [...p, ...initialLedgers]);
-              initializedCompaniesRef.current.add(Number(newCo.id));
-              setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id }))]);
-              setActiveCompany(newCo);
 
-              // Immediately save initial company folder to local disk (e.g. data/10000/)
-              await companyDataFolderService.saveCompanyFolder({
-                companyCode: newCo.companyCode,
-                company: newCo,
-                ledgers: initialLedgers,
-                vouchers: [],
-                stockItems: [],
-                stockGroups: [],
-                units: INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: newCo.id })),
-                groups: TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: newCo.id, name: g, under: 'Primary' })),
-                voucherTypes: VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: newCo.id, name: v, type: v, abbreviation: v.slice(0, 3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 })),
-                users: [lanUserManagementService.getDefaultCompanyAdmin(newCo.companyCode, newCo.name)],
-              });
+        // 1. Instant Next Code calculation & Local Co Creation (0 ms wait!)
+        let maxCode = 9999;
+        companies.forEach(c => {
+          const codeNum = parseInt(c.companyCode || c.code || '0', 10);
+          if (!isNaN(codeNum) && codeNum > maxCode) maxCode = codeNum;
+        });
+        const nextCode = String(maxCode + 1);
 
-              return newCo;
-            }
-          }
-        } catch (e: any) {
-          console.warn("Online company create failed, saving offline locally:", e);
-        } finally {
-          (saveMaster as any)._savingCompany = false;
-        }
-
-        // Local offline company creation - Tally-style 5-digit folder (10000, 10001, 10002...)
-        const nextCode = await companyDataFolderService.getNextCompanyCode(companies);
         const curSym = data.currencySymbol || data.baseCurrencySymbol || '₹';
-        const curName = data.currencyName || data.formalName || 'Indian Rupee';
+        const curName = data.currencyName || data.formalName || (COUNTRY_CURRENCY[compCountry]?.name) || 'Indian Rupee';
         const localCo = {
           id: Date.now(),
           companyCode: nextCode,
+          code: nextCode,
           ...data,
           currencySymbol: curSym,
           baseCurrencySymbol: curSym,
           currencyName: curName,
           formalName: curName,
         };
+
+        // 2. Immediate synchronous state initialization in memory (Instant 0 ms UI response!)
         setCompanies(p => [...p, localCo]);
         setAllGroups(p => [...p, ...TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: localCo.id, name: g, under: 'Primary' }))]);
         setAllVoucherTypes(p => [...p, ...VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: localCo.id, name: v, type: v, abbreviation: v.slice(0, 3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 }))]);
         setAllCurrencies(p => [...p, { id: Date.now() + 200, companyId: localCo.id, name: curName, symbol: curSym, isoCode: curSym, decimalPlaces: 2 }]);
-        const localLedgers = ensureStandardLedgersList([], localCo.id).ledgers;
-        setAllLedgers(p => [...p, ...localLedgers]);
+        const initialLedgers = ensureStandardLedgersList([], localCo.id).ledgers;
+        setAllLedgers(p => [...p, ...initialLedgers]);
         initializedCompaniesRef.current.add(Number(localCo.id));
-        localLedgers.forEach(l => offlineSyncService.enqueue({ type: "LEDGER", action: "CREATE", data: l, companyId: localCo.id }));
         setAllUnits(p => [...p, ...INIT_UNITS.map((u, i) => ({ ...u, id: Date.now() + 400 + i, companyId: localCo.id }))]);
         setActiveCompany(localCo);
-        offlineSyncService.enqueue({ type: 'COMPANY', action: 'CREATE', data: localCo, companyId: localCo.id });
 
-        // Immediately save initial company folder to local disk (e.g. data/10000/)
-        await companyDataFolderService.saveCompanyFolder({
+        // 3. Background non-blocking sync & disk save
+        if (navigator.onLine) {
+          fetch('/api/companies', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ ...data, companyCode: nextCode, code: nextCode })
+          }).then(async res => {
+            if (res.ok) {
+              const resData = await res.json();
+              if (resData.company && resData.company.id) {
+                const srvCo = resData.company;
+                setCompanies(p => p.map(c => c.id === localCo.id ? { ...c, id: srvCo.id, companyCode: resData.companyCode || c.companyCode } : c));
+                setActiveCompany(prev => {
+                  if (prev && prev.id === localCo.id) {
+                    return {
+                      ...prev,
+                      id: srvCo.id,
+                      companyCode: resData.companyCode || prev.companyCode,
+                    };
+                  }
+                  return prev;
+                });
+              }
+            } else {
+              offlineSyncService.enqueue({ type: 'COMPANY', action: 'CREATE', data: localCo, companyId: localCo.id });
+            }
+          }).catch(() => {
+            offlineSyncService.enqueue({ type: 'COMPANY', action: 'CREATE', data: localCo, companyId: localCo.id });
+          }).finally(() => {
+            (saveMaster as any)._savingCompany = false;
+            releaseLock();
+          });
+        } else {
+          offlineSyncService.enqueue({ type: 'COMPANY', action: 'CREATE', data: localCo, companyId: localCo.id });
+          (saveMaster as any)._savingCompany = false;
+          setTimeout(releaseLock, 500);
+        }
+
+        // Save company folder to local disk asynchronously in background
+        companyDataFolderService.saveCompanyFolder({
           companyCode: nextCode,
           company: localCo,
-          ledgers: localLedgers,
+          ledgers: initialLedgers,
           vouchers: [],
           stockItems: [],
           stockGroups: [],
@@ -3321,9 +3271,8 @@ export default function App() {
           groups: TALLY_GROUPS.map((g, i) => ({ id: Date.now() + i, companyId: localCo.id, name: g, under: 'Primary' })),
           voucherTypes: VOUCHER_TYPES_DEFAULT.map((v, i) => ({ id: Date.now() + i + 100, companyId: localCo.id, name: v, type: v, abbreviation: v.slice(0, 3).toUpperCase(), numberingMethod: "Automatic", startNumber: 1 })),
           users: [lanUserManagementService.getDefaultCompanyAdmin(nextCode, localCo.name)],
-        });
+        }).catch(() => { });
 
-        setSaveToast(`Company created in folder [${nextCode}] (Offline Mode)`);
         return localCo;
       }
       else if (type === 'group') setAllGroups(p => [...p, { id, companyId: cid, ...data }]);
@@ -7182,6 +7131,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
   }, [activeAlterItem]);
   const [selCo, setSelCo] = useState(defaultCountry);
   const [selIdx, setSelIdx] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef<boolean>(false);
   const [showMob, setShowMob] = useState(activeAlterItem?.showMobile ?? true);
   const [showEmail, setShowEmail] = useState(activeAlterItem?.showEmail ?? true);
   const [showWeb, setShowWeb] = useState(activeAlterItem?.showWebsite ?? true);
@@ -7723,6 +7674,7 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
           )}
           <button
             onClick={() => {
+              if (isSavingRef.current || isSaving) return;
               const name = ((document.getElementById('c-name') as HTMLInputElement)?.value || '').trim();
               if (!name) { alert('Company Name is required!'); document.getElementById('c-name')?.focus(); return; }
               const origName = (activeAlterItem?.name || '').trim().toLowerCase();
@@ -7748,6 +7700,8 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
                 document.getElementById('c-currency')?.focus();
                 return;
               }
+              isSavingRef.current = true;
+              setIsSaving(true);
               const pickedFormal = ((document.getElementById('c-formal') as HTMLInputElement)?.value || '').trim() || (COUNTRY_CURRENCY[coCountry]?.name) || 'Indian Rupee';
               const d = {
                 name,
@@ -7791,9 +7745,10 @@ function CompanyCreationForm({ activeAlterItem, onSave, onDelete, companies, onC
               onSave(d);
             }}
             id="btn-save-company"
-            style={{ background: '#1c5282', color: 'white', border: 'none', padding: '6px 25px', cursor: 'pointer', fontWeight: 'bold', fontSize: 12, borderRadius: 2 }}
+            disabled={isSaving}
+            style={{ background: isSaving ? '#64748b' : '#1c5282', color: 'white', border: 'none', padding: '6px 25px', cursor: isSaving ? 'default' : 'pointer', fontWeight: 'bold', fontSize: 12, borderRadius: 2 }}
           >
-            Accept (Ctrl+A)
+            {isSaving ? 'Saving...' : 'Accept (Ctrl+A)'}
           </button>
         </div>
       </div>
@@ -7995,10 +7950,12 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
   const partyTaxInfo = useMemo(() => getCompanyTaxInfo({ country: selCo }), [selCo]);
   const [underValue, setUnderValue] = useState<string>(activeAlterItem?.groupName || 'Sundry Debtors');
   const [odLimit, setOdLimit] = useState<string>(activeAlterItem?.odLimit != null ? String(activeAlterItem.odLimit) : '');
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef<boolean>(false);
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
 
-  // Step-by-step Escape key support
+  // Step-by-step Escape and Ctrl+A support for Ledger
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -8009,6 +7966,12 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
         } else if (onCancel) {
           onCancel();
         }
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        e.stopPropagation();
+        setFocus(null);
+        const saveBtn = document.getElementById('btn-save-ledger') as HTMLButtonElement;
+        if (saveBtn) saveBtn.click();
       }
     };
     window.addEventListener('keydown', handleEsc, true);
@@ -8436,13 +8399,18 @@ function LedgerCreationForm({ activeAlterItem, onSave, onAltC, onDelete, ledgers
             Delete (Alt+D)
           </button>
         )}
-        <button id="btn-save-ledger" style={{ background: '#1c5282', color: 'white', border: 'none', padding: '8px 35px', cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+        <button id="btn-save-ledger" disabled={isSaving} style={{ background: isSaving ? '#64748b' : '#1c5282', color: 'white', border: 'none', padding: '8px 35px', cursor: isSaving ? 'default' : 'pointer', fontWeight: 'bold', fontSize: 13 }}
           onClick={() => {
-            const name = fv('l-name'); if (!name) { alert('Ledger Name is required!'); document.getElementById('l-name')?.focus(); return; }
-            // Duplicate Check
-            if (ledgers.some(l => l.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || l.id !== activeAlterItem.id))) {
+            if (isSavingRef.current || isSaving) return;
+            const name = fv('l-name');
+            if (!name) { alert('Ledger Name is required!'); document.getElementById('l-name')?.focus(); return; }
+            // Case-insensitive Duplicate Check
+            const cleanName = name.trim().toLowerCase();
+            if (ledgers.some(l => (l.name || '').trim().toLowerCase() === cleanName && (!activeAlterItem || l.id !== activeAlterItem.id))) {
               alert(`Ledger "${name}" already exists!`); return;
             }
+            isSavingRef.current = true;
+            setIsSaving(true);
             const data = {
               name, alias: fv('l-alias'), mailingName: fv('l-mail'), groupName: fv('l-under') || 'Sundry Debtors',
               address: (document.getElementById('l-addr') as HTMLTextAreaElement)?.value || '', state: fv('l-state'), country: fv('l-country'),
@@ -8666,12 +8634,13 @@ function StockItemCreationForm({ activeAlterItem, stockGroups, stockCategories, 
   const [descLine2, setDescLine2] = useState(activeAlterItem?.descLine2 ?? false);
   const [descLine3, setDescLine3] = useState(activeAlterItem?.descLine3 ?? false);
   const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef<boolean>(false);
   const [oQty, setOQty] = useState<number>(activeAlterItem?.openingQty ?? 0);
   const [oRate, setORate] = useState<number>(activeAlterItem?.openingRate ?? 0);
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
 
-  // Step-by-step Escape key support
+  // Step-by-step Escape and Ctrl+A support for Stock Item
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -8682,6 +8651,12 @@ function StockItemCreationForm({ activeAlterItem, stockGroups, stockCategories, 
         } else if (onCancel) {
           onCancel();
         }
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        e.stopPropagation();
+        setFocus(null);
+        const saveBtn = document.getElementById('btn-save-item') as HTMLButtonElement;
+        if (saveBtn) saveBtn.click();
       }
     };
     window.addEventListener('keydown', handleEsc, true);
@@ -9170,15 +9145,19 @@ function StockItemCreationForm({ activeAlterItem, stockGroups, stockCategories, 
         )}
         <button id="btn-save-item" disabled={isSaving} style={{ background: isSaving ? '#557fa3' : '#1c5282', color: 'white', border: 'none', padding: '8px 35px', cursor: isSaving ? 'default' : 'pointer', fontWeight: 'bold', fontSize: 13 }}
           onClick={() => {
-            if (isSaving) return;
-            const name = fv('item-name'); if (!name) { alert('Stock Item Name is required!'); return; }
-            // Duplicate Check
-            if (stockItems.some(it => it.name.toLowerCase() === name.toLowerCase() && (!activeAlterItem || it.id !== activeAlterItem.id))) {
+            if (isSavingRef.current || isSaving) return;
+            const name = fv('item-name');
+            if (!name) { alert('Stock Item Name is required!'); return; }
+            // Case-insensitive Duplicate Check
+            const cleanName = name.trim().toLowerCase();
+            if (stockItems.some(it => (it.name || '').trim().toLowerCase() === cleanName && (!activeAlterItem || it.id !== activeAlterItem.id))) {
               alert(`Stock Item "${name}" already exists!`); return;
             }
             const rawUnitVal = fv('item-units') || currentUnit || 'Nos';
             const unitName = rawUnitVal.trim();
             if (!unitName) { alert('Unit is required!'); document.getElementById('item-units')?.focus(); return; }
+            isSavingRef.current = true;
+            setIsSaving(true);
             const matchedUnit = (units || []).find(u =>
               (u.symbol || u.name || '').trim().toLowerCase() === unitName.toLowerCase() ||
               (u.formalName || '').trim().toLowerCase() === unitName.toLowerCase()

@@ -85,41 +85,46 @@ export const syncLooseItemsAlphabeticalKeys = <T extends {
   variants?: string[];
   barcode?: string;
   scaleKeyNo?: number;
+  sNo?: number;
 }>(items: T[]): T[] => {
   if (!Array.isArray(items) || items.length === 0) return items;
 
-  // Find all loose items and sort them alphabetically
+  // 1. Separate loose items from non-loose items
   const looseList = items.filter(isLooseScaleItem);
+  const nonLooseList = items.filter(it => !isLooseScaleItem(it));
+
+  // 2. Sort loose items alphabetically by Name (A to Z, case-insensitive)
   looseList.sort((a, b) => {
     const nameA = String(a.name || '').trim().toLowerCase();
     const nameB = String(b.name || '').trim().toLowerCase();
     return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
   });
 
-  // Map each loose item ID to its sequential Scale Key (1, 2, 3...)
-  const keyMap = new Map<string | number, { keyNo: number; barcode: string }>();
-  looseList.forEach((it, idx) => {
+  // 3. Map loose items with sequential Scale Keys 1, 2, 3... and barcodes
+  const mappedLoose = looseList.map((it, idx) => {
     const keyNo = idx + 1;
-    const code = String(keyNo).padStart(5, '0');
-    keyMap.set(it.id, { keyNo, barcode: code });
-  });
-
-  // Return new array with assigned scaleKeyNo and updated barcode for loose items
-  return items.map(item => {
-    if (keyMap.has(item.id)) {
-      const { keyNo, barcode } = keyMap.get(item.id)!;
-      // If barcode is empty or matches an old 5-digit PLU sequence, update it to matched key
-      const currentBarcode = (item.barcode || '').trim();
-      const shouldUpdateBarcode = !currentBarcode || /^\d{1,5}$/.test(currentBarcode);
-      return {
-        ...item,
-        scaleKeyNo: keyNo,
-        barcode: shouldUpdateBarcode ? barcode : currentBarcode,
-      };
-    }
+    const formattedCode = String(keyNo).padStart(5, '0');
+    const rawBarcode = (it.barcode || '').trim();
+    const barcode = !rawBarcode || /^\d{1,5}$/.test(rawBarcode) ? formattedCode : rawBarcode;
     return {
-      ...item,
-      scaleKeyNo: undefined,
+      ...it,
+      scaleKeyNo: keyNo,
+      barcode,
     };
   });
+
+  // 4. Clean non-loose items (clear scaleKeyNo)
+  const cleanedNonLoose = nonLooseList.map(it => ({
+    ...it,
+    scaleKeyNo: undefined,
+  }));
+
+  // 5. Combine: ALL LOOSE ITEMS FIRST (sNo 1, 2, 3... sorted A to Z), followed by non-loose items
+  const combined = [...mappedLoose, ...cleanedNonLoose];
+
+  // 6. Assign clean sequential sNo: 1, 2, 3... to EVERY item in the list!
+  return combined.map((it, idx) => ({
+    ...it,
+    sNo: idx + 1,
+  }));
 };

@@ -1,9 +1,9 @@
 import { prisma } from './prisma';
 
-let columnsEnsured = false;
+let columnsEnsured = (global as any)._columnsEnsured || false;
 
 export async function ensureDashboardColumns() {
-  if (columnsEnsured) return;
+  if (columnsEnsured || (global as any)._columnsEnsured) return;
 
   try {
     await prisma.$executeRawUnsafe(`ALTER TABLE "Company" ADD COLUMN "dashboardToken" TEXT;`);
@@ -48,4 +48,5 @@ export async function ensureDashboardColumns() {
   }
 
   columnsEnsured = true;
+  (global as any)._columnsEnsured = true;
 }
