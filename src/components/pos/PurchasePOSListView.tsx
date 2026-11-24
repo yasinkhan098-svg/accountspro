@@ -2,6 +2,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { generateBarcodeSvg, generateNextUniqueBarcode, printBarcodeLabels, BarcodeLabelData, BarcodePrintLayout } from '@/lib/pos/barcodeGenerator';
 import { companyDataFolderService } from '@/lib/companyDataFolderService';
+import { ExportWeighingScaleModal } from '@/components/weighingScale/ExportWeighingScaleModal';
+import { SendToScaleModal } from '@/components/weighingScale/SendToScaleModal';
+import { syncLooseItemsAlphabeticalKeys } from '@/lib/weighingScale/scaleAutoSorter';
 import { resolveUnitString } from '@/lib/unitResolver';
 import { permissionGuard } from '@/lib/permissionGuard';
 
@@ -26,6 +29,7 @@ export interface POSPurchaseItem {
   gstRate: number;
   variant?: string;
   variants?: string[];
+  scaleKeyNo?: number;
 }
 
 interface PurchasePOSListViewProps {
@@ -96,6 +100,8 @@ export default function PurchasePOSListView({
   const [bulkPrintLayout, setBulkPrintLayout] = useState<BarcodePrintLayout>('a4_40_up');
   const [variantModalItem, setVariantModalItem] = useState<POSPurchaseItem | null>(null);
   const [variantInputText, setVariantInputText] = useState<string>('');
+  const [showExportScaleModal, setShowExportScaleModal] = useState<boolean>(false);
+  const [showSendToScaleModal, setShowSendToScaleModal] = useState<boolean>(false);
 
   const isInitializedRef = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -828,16 +834,43 @@ export default function PurchasePOSListView({
     if (!variantModalItem) return;
     playTouchBeep(1046, 0.05);
     const v = variantInputText.trim();
-    handleUpdateItem(variantModalItem.id, 'variant', v);
-    handleUpdateItem(variantModalItem.id, 'variants', v ? [v] : []);
+    setItems(prev => {
+      const updated = prev.map(it => {
+        if (it.id === variantModalItem.id) {
+          return {
+            ...it,
+            variant: v,
+            variants: v ? [v] : [],
+          };
+        }
+        return it;
+      });
+      const synced = syncLooseItemsAlphabeticalKeys(updated);
+      persistChanges(synced);
+      return synced;
+    });
     setVariantModalItem(null);
   };
 
   const handleClearVariant = () => {
     if (!variantModalItem) return;
     playTouchBeep(700, 0.04);
-    handleUpdateItem(variantModalItem.id, 'variant', '');
-    handleUpdateItem(variantModalItem.id, 'variants', []);
+    setItems(prev => {
+      const updated = prev.map(it => {
+        if (it.id === variantModalItem.id) {
+          return {
+            ...it,
+            variant: '',
+            variants: [],
+            scaleKeyNo: undefined,
+          };
+        }
+        return it;
+      });
+      const synced = syncLooseItemsAlphabeticalKeys(updated);
+      persistChanges(synced);
+      return synced;
+    });
     setVariantModalItem(null);
   };
 
@@ -1093,6 +1126,62 @@ export default function PurchasePOSListView({
 
         {/* Action Controls */}
         <div className="pos-purchase-actions-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {/* Button 1: Send to Scale */}
+          <button
+            type="button"
+            onClick={() => {
+              playTouchBeep();
+              setShowSendToScaleModal(true);
+            }}
+            className="pos-touch-btn pos-purchase-action-btn"
+            title="Connect USB cable and send Loose items directly to Weighing Scale"
+            style={{
+              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+              color: '#ffffff',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 6,
+              padding: '8px 14px',
+              fontSize: 12,
+              fontWeight: 900,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              minHeight: 38,
+              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)',
+            }}
+          >
+            <span style={{ fontSize: 14 }}>📡</span> Send to Scale
+          </button>
+
+          {/* Button 2: Export for Weighing Scale */}
+          <button
+            type="button"
+            onClick={() => {
+              playTouchBeep();
+              setShowExportScaleModal(true);
+            }}
+            className="pos-touch-btn pos-purchase-action-btn"
+            title="Export Loose items file for Pen Drive to load into Weighing Scale"
+            style={{
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              color: '#ffffff',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 6,
+              padding: '8px 14px',
+              fontSize: 12,
+              fontWeight: 900,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              minHeight: 38,
+              boxShadow: '0 2px 6px rgba(5, 150, 105, 0.35)',
+            }}
+          >
+            <span style={{ fontSize: 14 }}>⚖️</span> Export for Weighing Scale
+          </button>
+
           <input
             type="text"
             className="pos-purchase-search-input"
@@ -1591,6 +1680,22 @@ export default function PurchasePOSListView({
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.variant || item.variants?.[0]}
                           </span>
+                          {item.scaleKeyNo ? (
+                            <span
+                              style={{
+                                background: '#0284c7',
+                                color: '#ffffff',
+                                fontSize: 9.5,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                fontWeight: 900,
+                                marginLeft: 2,
+                              }}
+                              title={`Scale Hotkey: Key ${item.scaleKeyNo} (A-Z sorted)`}
+                            >
+                              K{item.scaleKeyNo}
+                            </span>
+                          ) : null}
                         </button>
                       ) : (
                         <button
@@ -1777,6 +1882,37 @@ export default function PurchasePOSListView({
                   ✓ OK
                 </button>
               </div>
+            </div>
+
+            {/* Quick Preset: Loose Scale Item */}
+            <div style={{ marginBottom: 12 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  playTouchBeep(1046, 0.05);
+                  setVariantInputText('Loose');
+                }}
+                className="pos-touch-btn"
+                style={{
+                  background: variantInputText.trim().toLowerCase() === 'loose'
+                    ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+                    : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: '#ffffff',
+                  border: '1.5px solid #065f46',
+                  borderRadius: 20,
+                  padding: '6px 14px',
+                  fontSize: 12,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)',
+                }}
+                title="Tag as Loose Weighing Scale Item (Auto-sorted A-Z with Scale Hotkeys)"
+              >
+                <span>⚡ Loose (Scale Item)</span>
+              </button>
             </div>
 
             {/* Existing Variants Dropdown & Touch Quick-Pick Chips */}
@@ -2273,6 +2409,24 @@ export default function PurchasePOSListView({
           </div>
         </div>
       )}
+
+      {/* Export for Weighing Scale Modal (Pen Drive) */}
+      <ExportWeighingScaleModal
+        isOpen={showExportScaleModal}
+        onClose={() => setShowExportScaleModal(false)}
+        items={items}
+        companyName={company?.name || 'STORE'}
+        currencySymbol={currencySymbol}
+      />
+
+      {/* Direct USB Send to Scale Modal (Windows & macOS) */}
+      <SendToScaleModal
+        isOpen={showSendToScaleModal}
+        onClose={() => setShowSendToScaleModal(false)}
+        items={items}
+        companyName={company?.name || 'STORE'}
+        currencySymbol={currencySymbol}
+      />
 
     </div>
   );

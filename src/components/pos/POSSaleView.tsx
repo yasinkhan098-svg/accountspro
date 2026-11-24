@@ -24,6 +24,7 @@ import HostServerStatusBadge from '@/components/HostServerStatusBadge';
 import { getCompanyTaxInfo, getItemTaxRate, getItemTaxName } from '@/lib/taxEngine';
 import { posThermalPrintService } from '@/lib/pos/posThermalPrintService';
 import { printConfigService } from '@/lib/printConfig/printConfigService';
+import { parseScaleBarcode, findCatalogItemByScaleCode } from '@/lib/weighingScale/scaleBarcodeParser';
 
 interface POSSaleViewProps {
   company: any;
@@ -1117,6 +1118,19 @@ export default function POSSaleView({
     if (!query || !query.trim()) return;
     const cleanQ = query.trim();
 
+    // 1. Dynamic Weighed Scale Barcode (10-digit Raintech/Rongta or 13-digit EAN with dynamic item code & weight)
+    const scaleParsed = parseScaleBarcode(cleanQ);
+    if (scaleParsed.isScaleBarcode && scaleParsed.itemCode) {
+      const scaleMatched = findCatalogItemByScaleCode(scaleParsed.itemCode, catalogItems);
+      if (scaleMatched) {
+        playBeep(1046, 0.08); // Success high beep
+        handleSelectOrScanItem(scaleMatched, scaleParsed.weightKg);
+        setBarcodeInput('');
+        return;
+      }
+    }
+
+    // 2. Standard POS item barcode lookup
     const matched = posService.matchStockItem(cleanQ, catalogItems);
     if (matched) {
       playBeep(1046, 0.08); // Success high beep

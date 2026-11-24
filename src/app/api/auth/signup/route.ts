@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         userCountry,
         user.id
       );
-    } catch (_) {}
+    } catch (_) { }
 
     return NextResponse.json({ message: "User registered successfully", userId: user.id }, { status: 201 });
   } catch (error) {
