@@ -812,191 +812,17 @@ export default function POSLoginScreen({
             gap: 40,
           }}
         >
-          {/* LEFT HALF: LARGE CIRCULAR LEDGERX LOGO EMBLEM (EXACT MATCHING POSS1 PHOTO) */}
+          {/* LEFT HALF: 100% FULLY TRANSPARENT TO SHOW BACKGROUND RETAIL POS COUNTER, TERMINAL & HARDWARE */}
           <div
             style={{
               flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              borderRadius: 20,
-              padding: '24px 20px',
-              border: '1.5px solid rgba(255, 255, 255, 0.95)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.6)',
+              minWidth: 200,
+              background: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              pointerEvents: 'none',
             }}
-          >
-            {/* Outer Circular Medallion */}
-            <div
-              className="pos-login-medallion"
-              style={{
-                width: 290,
-                height: 290,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #b45309 0%, #d97706 35%, #78350f 70%, #92400e 100%)',
-                padding: 10,
-                boxShadow: '0 20px 35px -5px rgba(0,0,0,0.35), inset 0 2px 4px rgba(255,255,255,0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-              }}
-            >
-              {/* Inner Decorative Bezel */}
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: '50%',
-                  background: 'radial-gradient(circle, #0f3c64 0%, #082138 85%, #051624 100%)',
-                  border: '4px solid #fef3c7',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.6)',
-                }}
-              >
-                {/* Golden Stylized R / L Monogram Artwork */}
-                <div
-                  style={{
-                    position: 'relative',
-                    width: 130,
-                    height: 130,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {/* Outer Glowing Ring */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      borderRadius: '50%',
-                      border: '3px dashed rgba(245, 158, 11, 0.5)',
-                      animation: 'spin 40s linear infinite',
-                    }}
-                  />
-                  {/* Large Stylized 'L' Glyph */}
-                  <span
-                    style={{
-                      fontSize: 100,
-                      fontWeight: 900,
-                      color: '#fbbf24',
-                      textShadow: '0 4px 10px rgba(0,0,0,0.6), 0 0 20px rgba(251,191,36,0.5)',
-                      lineHeight: 1,
-                      fontFamily: '"Trebuchet MS", Arial, sans-serif',
-                    }}
-                  >
-                    L
-                  </span>
-                </div>
-
-                {/* LedgerX Ribbon Banner inside emblem */}
-                <div
-                  style={{
-                    marginTop: 6,
-                    fontSize: 20,
-                    fontWeight: 900,
-                    color: '#ffffff',
-                    letterSpacing: 2,
-                    textTransform: 'uppercase',
-                    textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-                  }}
-                >
-                  LedgerX
-                </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: isTrainingMode ? '#60a5fa' : '#f59e0b',
-                    letterSpacing: 1.5,
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {isTrainingMode ? '🎓 Training Sandbox Terminal' : 'Retail POS Terminal'}
-                </div>
-              </div>
-            </div>
-
-            {/* Quick User Picker Helper (Live Users or Training Users) */}
-            {(() => {
-              const displayedUsers = isTrainingMode ? TRAINING_USERS : registeredUsers;
-              if (displayedUsers.length === 0) return null;
-              return (
-                <div style={{ marginTop: 16, width: 320, textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: isTrainingMode ? '#1d4ed8' : '#0f3c64', fontWeight: 800, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    {isTrainingMode ? '🎓 Training Cashiers (Demo Only):' : 'Quick Cashier Switch:'}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 110, overflowY: 'auto', padding: '2px 4px' }}>
-                    {displayedUsers.map(u => {
-                      const isSelected = cashierId.toLowerCase() === u.username.toLowerCase();
-                      return (
-                        <button
-                          key={u.id || u.username}
-                          type="button"
-                          onClick={() => {
-                            setCashierId(u.username);
-                            setPassword('');
-                            setActiveField('password');
-                            passwordInputRef.current?.focus();
-                          }}
-                          style={{
-                            padding: '5px 12px',
-                            background: isSelected
-                              ? (isTrainingMode ? 'linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%)' : 'linear-gradient(180deg, #0f3c64 0%, #09233a 100%)')
-                              : '#ffffff',
-                            color: isSelected ? '#ffffff' : (isTrainingMode ? '#1d4ed8' : '#0f3c64'),
-                            border: isSelected ? (isTrainingMode ? '1.5px solid #1d4ed8' : '1.5px solid #0f3c64') : '1px solid #cbd5e1',
-                            borderRadius: 14,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            boxShadow: isSelected ? '0 2px 6px rgba(15, 60, 100, 0.25)' : '0 1px 2px rgba(0,0,0,0.05)',
-                            transition: 'all 0.15s ease-in-out',
-                          }}
-                          title={`Select ${u.fullName || u.username}`}
-                        >
-                          {u.username === 'admin' ? (u.fullName || 'Admin') : (u.fullName ? `${u.fullName} (${u.username})` : u.username)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {isTrainingMode && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (confirm('Reset Training Demo Data back to fresh default state (stock = 50, test sales cleared)?')) {
-                          await posTrainingService.resetTrainingData();
-                          alert('Training Demo Data has been restored to default state.');
-                        }
-                      }}
-                      style={{
-                        marginTop: 10,
-                        padding: '4px 12px',
-                        background: '#eff6ff',
-                        color: '#1d4ed8',
-                        border: '1px dashed #3b82f6',
-                        borderRadius: 6,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      🔄 Reset Training Demo Data
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
+          />
 
           {/* RIGHT HALF: LOGIN INPUTS + TOUCH NUMPAD (MATCHING POSS1 PHOTO) */}
           <div
@@ -1118,6 +944,49 @@ export default function POSLoginScreen({
                 </select>
               </div>
             )}
+
+            {/* Quick Cashier Selector */}
+            {(() => {
+              const displayedUsers = isTrainingMode ? TRAINING_USERS : registeredUsers;
+              if (!displayedUsers || displayedUsers.length === 0) return null;
+              return (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <label style={{ fontSize: 12, fontWeight: 'bold', color: '#0f3c64' }}>
+                      {isTrainingMode ? '🎓 Select Training Cashier:' : '👤 Select Cashier / User:'}
+                    </label>
+                  </div>
+                  <select
+                    value={cashierId}
+                    onChange={(e) => {
+                      setCashierId(e.target.value);
+                      setPassword('');
+                      setActiveField('password');
+                      passwordInputRef.current?.focus();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      border: '2px solid #94a3b8',
+                      borderRadius: 6,
+                      background: '#ffffff',
+                      cursor: 'pointer',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="">-- Choose Cashier Profile --</option>
+                    {displayedUsers.map(u => (
+                      <option key={u.id || u.username} value={u.username}>
+                        {u.username === 'admin' ? (u.fullName || 'Admin') : (u.fullName ? `${u.fullName} (${u.username})` : u.username)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })()}
 
             {/* Field 1: Cashier ID */}
             <div>
@@ -1289,6 +1158,32 @@ export default function POSLoginScreen({
             >
               {isTrainingMode ? '🎓 Launch Training Counter' : 'Training Mode'}
             </button>
+
+            {/* Training Mode Reset Button */}
+            {isTrainingMode && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm('Reset Training Demo Data back to fresh default state (stock = 50, test sales cleared)?')) {
+                    await posTrainingService.resetTrainingData();
+                    alert('Training Demo Data has been restored to default state.');
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '6px 12px',
+                  background: '#eff6ff',
+                  color: '#1d4ed8',
+                  border: '1px dashed #3b82f6',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                🔄 Reset Training Demo Data
+              </button>
+            )}
 
             {/* TOUCH NUMERIC KEYPAD (MATCHING EXACT POSS1 KEYPAD: 7 8 9 NO / 4 5 6 < / 1 2 3 C / . 0 Enter) */}
             <div
