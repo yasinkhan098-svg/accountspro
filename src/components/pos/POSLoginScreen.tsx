@@ -522,7 +522,11 @@ export default function POSLoginScreen({
         bottom: 0,
         width: '100vw',
         height: '100vh',
-        background: '#d4d8dd',
+        background: '#0f172a',
+        backgroundImage: "linear-gradient(rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.70)), url('/images/pos-counter-bg.jpg')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center center',
+        backgroundRepeat: 'no-repeat',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 999999,
@@ -620,15 +624,18 @@ export default function POSLoginScreen({
       {/* 1. TOP HEADER BAR (BROWN/GOLD METALLIC AS IN POSS1 PHOTO) */}
       <div
         style={{
-          background: 'linear-gradient(180deg, #78522e 0%, #56391d 100%)',
+          background: 'linear-gradient(180deg, rgba(120, 82, 46, 0.95) 0%, rgba(86, 57, 29, 0.97) 100%)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           color: '#ffffff',
           padding: '8px 20px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: '2px solid #3c2712',
-          boxShadow: '0 2px 5px rgba(0,0,0,0.25)',
+          borderBottom: '2px solid rgba(60, 39, 18, 0.9)',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.35)',
           minHeight: 46,
+          zIndex: 10,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -791,7 +798,7 @@ export default function POSLoginScreen({
           alignItems: 'center',
           justifyContent: 'center',
           padding: '20px 40px',
-          background: 'radial-gradient(circle at center, #edf2f7 0%, #cbd5e1 100%)',
+          background: 'transparent',
         }}
       >
         <div
@@ -813,6 +820,13 @@ export default function POSLoginScreen({
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
+              background: 'rgba(15, 23, 42, 0.70)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              borderRadius: 20,
+              padding: '24px 20px',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)',
             }}
           >
             {/* Outer Circular Medallion */}
@@ -918,7 +932,7 @@ export default function POSLoginScreen({
               if (displayedUsers.length === 0) return null;
               return (
                 <div style={{ marginTop: 16, width: 320, textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: isTrainingMode ? '#2563eb' : '#64748b', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  <div style={{ fontSize: 11, color: isTrainingMode ? '#93c5fd' : '#cbd5e1', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                     {isTrainingMode ? '🎓 Training Cashiers (Demo Only):' : 'Quick Cashier Switch:'}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 110, overflowY: 'auto', padding: '2px 4px' }}>
@@ -989,11 +1003,13 @@ export default function POSLoginScreen({
             className="pos-login-card"
             style={{
               width: 380,
-              background: '#f8fafc',
-              border: '2px solid #cbd5e1',
-              borderRadius: 10,
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.85)',
+              borderRadius: 14,
               padding: '24px 22px',
-              boxShadow: '0 15px 30px -5px rgba(0,0,0,0.15)',
+              boxShadow: '0 25px 60px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.4)',
               display: 'flex',
               flexDirection: 'column',
               gap: 12,
@@ -1441,14 +1457,17 @@ export default function POSLoginScreen({
       {/* 3. POSIFLEX BOTTOM TERMINAL HARDWARE BEZEL */}
       <div
         style={{
-          background: '#1e293b',
+          background: 'rgba(15, 23, 42, 0.96)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           color: '#94a3b8',
           padding: '6px 20px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           fontSize: 11,
-          borderTop: '2px solid #0f172a',
+          borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+          zIndex: 10,
         }}
       >
         <div>
