@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { detectCountryFromClient, getCountryPricing, ALL_COUNTRY_NAMES, CountryPricingTier } from '@/lib/countryCurrencyPricing';
 
 interface Props {
   currentUser: any;
@@ -94,9 +95,19 @@ const PLAN_RANK: Record<string, number> = { TRIAL: 0, MONTHLY: 1, YEARLY: 2, LIF
 
 export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClose }: Props) {
   const [selectedPlan, setSelectedPlan] = useState<string>('');
+  const [selectedCountry, setSelectedCountry] = useState<string>(currentUser?.country || 'India');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const currentRank = PLAN_RANK[currentUser?.plan || 'TRIAL'] ?? 0;
+
+  useEffect(() => {
+    if (!currentUser?.country) {
+      const auto = detectCountryFromClient();
+      if (auto) setSelectedCountry(auto);
+    }
+  }, [currentUser?.country]);
+
+  const pricingTier: CountryPricingTier = getCountryPricing(selectedCountry);
 
   useEffect(() => {
     // Default selection: next plan up
@@ -147,6 +158,7 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
           plan: selectedPlan,
           email: currentUser?.email,
           name: currentUser?.name,
+          country: selectedCountry,
         })
       });
       const orderData = await orderRes.json();
@@ -178,6 +190,7 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
                 email: currentUser?.email,
                 licenseKey: currentUser?.licenseKey,
                 machineId,
+                country: selectedCountry,
               })
             });
             const verifyData = await verifyRes.json();
@@ -222,7 +235,7 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
     {
       key: 'MONTHLY',
       label: 'Monthly',
-      price: '₹299',
+      price: pricingTier.monthly.display,
       suffix: '/mo',
       desc: 'Flexible monthly billing.',
       badge: null,
@@ -231,16 +244,16 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
     {
       key: 'YEARLY',
       label: 'Yearly',
-      price: '₹1,999',
+      price: pricingTier.yearly.display,
       suffix: '/yr',
-      desc: 'Save ₹1,589/yr vs monthly.',
+      desc: 'Best Value! Annual billing.',
       badge: 'Best Value',
       badgeCls: 'ubadge-best',
     },
     {
       key: 'LIFETIME',
       label: 'Lifetime',
-      price: '₹11,999',
+      price: pricingTier.lifetime.display,
       suffix: ' one-time',
       desc: 'Pay once, use forever. Lifetime offline storage.',
       badge: 'Lifetime',
@@ -261,7 +274,31 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
         <div className="upgrade-head">
           <h2>🚀 Upgrade Your Plan</h2>
           <p>Switch to a better plan anytime — no re-registration needed.</p>
-          <div className="upgrade-current">📋 Current Plan: {currentPlanLabel}</div>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
+            <div className="upgrade-current">📋 Current Plan: {currentPlanLabel}</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 20, padding: '4px 14px' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>🌍 Country:</span>
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: '#1c5282',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                {ALL_COUNTRY_NAMES.map((c) => (
+                  <option key={c} value={c}>
+                    {c} ({getCountryPricing(c).currencyCode} - {getCountryPricing(c).currencySymbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {error && <div className="upgrade-error">⚠️ {error}</div>}

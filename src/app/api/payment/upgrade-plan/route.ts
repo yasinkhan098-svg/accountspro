@@ -7,7 +7,7 @@ import { createSignedLicenseToken } from '@/lib/licenseEngine';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, email, licenseKey, machineId, deviceName } = body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, email, licenseKey, machineId, deviceName, country } = body;
 
     let user = await getAuthenticatedUser(req);
     if (!user && email) {
@@ -69,6 +69,7 @@ export async function POST(req: Request) {
         subscriptionExpiry: expiry,
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
+        ...(country ? { country: String(country) } : {}),
       },
     });
 
