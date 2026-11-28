@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
 const ISO2_TO_COUNTRY: Record<string, string> = {
   IN: 'India',
   JP: 'Japan',
@@ -39,14 +45,25 @@ const ISO2_TO_COUNTRY: Record<string, string> = {
   SE: 'Sweden',
   NO: 'Norway',
   DK: 'Denmark',
+  AT: 'Austria',
+  BE: 'Belgium',
+  IE: 'Ireland',
+  PT: 'Portugal',
+  PL: 'Poland',
   KR: 'South Korea',
   PH: 'Philippines',
   VN: 'Vietnam',
+  HK: 'Hong Kong',
+  TW: 'Taiwan',
   EG: 'Egypt',
   TR: 'Turkey',
   RU: 'Russia',
   CN: 'China',
 };
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
 
 export async function GET(req: Request) {
   try {
@@ -63,7 +80,7 @@ export async function GET(req: Request) {
         country: ISO2_TO_COUNTRY[countryCode],
         countryCode,
         source: 'header',
-      });
+      }, { headers: corsHeaders });
     }
 
     // Try client IP fallback using lightweight free geo IP lookup (1.5s timeout)
@@ -85,7 +102,7 @@ export async function GET(req: Request) {
               country: ISO2_TO_COUNTRY[geoData.country.toUpperCase()],
               countryCode: geoData.country.toUpperCase(),
               source: 'ip_lookup',
-            });
+            }, { headers: corsHeaders });
           }
         }
       } catch (_) {}
@@ -95,12 +112,12 @@ export async function GET(req: Request) {
       country: 'India',
       countryCode: 'IN',
       source: 'default',
-    });
+    }, { headers: corsHeaders });
   } catch (err: any) {
     return NextResponse.json({
       country: 'India',
       countryCode: 'IN',
       source: 'error_fallback',
-    });
+    }, { headers: corsHeaders });
   }
 }

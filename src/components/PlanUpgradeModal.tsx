@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { authClient } from '@/lib/auth-client';
-import { detectCountryFromClient, getCountryPricing, ALL_COUNTRY_NAMES, CountryPricingTier } from '@/lib/countryCurrencyPricing';
+import { detectCountryFromClient, autoDetectCountryAsync, getCountryPricing, ALL_COUNTRY_NAMES, CountryPricingTier } from '@/lib/countryCurrencyPricing';
 
 interface Props {
   currentUser: any;
@@ -104,6 +104,9 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
     if (!currentUser?.country) {
       const auto = detectCountryFromClient();
       if (auto) setSelectedCountry(auto);
+      autoDetectCountryAsync().then((c) => {
+        if (c) setSelectedCountry(c);
+      });
     }
   }, [currentUser?.country]);
 
@@ -280,7 +283,13 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
               <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>🌍 Country:</span>
               <select
                 value={selectedCountry}
-                onChange={(e) => setSelectedCountry(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCountry(val);
+                  try {
+                    localStorage.setItem('ledgerx_detected_country', val);
+                  } catch (_) {}
+                }}
                 style={{
                   border: 'none',
                   background: 'transparent',

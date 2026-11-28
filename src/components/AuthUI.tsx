@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { offlineSyncService } from '@/lib/offlineSyncService';
-import { getCountryPricing, ALL_COUNTRY_NAMES, detectCountryFromClient } from '@/lib/countryCurrencyPricing';
+import { getCountryPricing, ALL_COUNTRY_NAMES, detectCountryFromClient, autoDetectCountryAsync } from '@/lib/countryCurrencyPricing';
 
 interface AuthUIProps {
   onLoginSuccess: () => void;
@@ -534,21 +534,22 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
 
   // Automatic Location-based Country Detection
   useEffect(() => {
-    // 1. Instant client-side timezone-based country resolution
+    // 1. Instant client-side zero-latency country resolution
     const clientDetected = detectCountryFromClient();
-    setSignupData(prev => ({
-      ...prev,
-      country: prev.country && prev.country !== 'India' ? prev.country : clientDetected,
-    }));
+    if (clientDetected) {
+      setSignupData(prev => ({
+        ...prev,
+        country: prev.country && prev.country !== 'India' ? prev.country : clientDetected,
+      }));
+    }
 
-    // 2. Fetch server geolocation API (/api/geo) for IP precision
-    fetch('/api/geo')
-      .then(res => res.json())
-      .then(data => {
-        if (data?.country) {
+    // 2. High-precision Cloud IP Geolocation with desktop localhost awareness & fallbacks
+    autoDetectCountryAsync()
+      .then(c => {
+        if (c) {
           setSignupData(prev => ({
             ...prev,
-            country: data.country,
+            country: c,
           }));
         }
       })
@@ -1120,7 +1121,13 @@ export default function AuthUI({ onLoginSuccess }: AuthUIProps) {
                 <select
                   required
                   value={signupData.country}
-                  onChange={(e) => setSignupData({ ...signupData, country: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSignupData({ ...signupData, country: val });
+                    try {
+                      localStorage.setItem('ledgerx_detected_country', val);
+                    } catch (_) {}
+                  }}
                   style={{
                     width: '100%',
                     padding: '10px 12px',

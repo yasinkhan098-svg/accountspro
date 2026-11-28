@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { detectCountryFromClient, getCountryPricing, ALL_COUNTRY_NAMES, CountryPricingTier } from '@/lib/countryCurrencyPricing';
+import { detectCountryFromClient, autoDetectCountryAsync, getCountryPricing, ALL_COUNTRY_NAMES, CountryPricingTier } from '@/lib/countryCurrencyPricing';
 import { offlineSyncService } from '@/lib/offlineSyncService';
 
 interface Props {
@@ -90,6 +90,9 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
     try {
       const detected = detectCountryFromClient();
       if (detected) setSelectedCountry(detected);
+      autoDetectCountryAsync().then((c) => {
+        if (c) setSelectedCountry(c);
+      });
     } catch (_) {}
   }, []);
 
@@ -258,7 +261,13 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
               <span>🌍 Select Country:</span>
               <select
                 value={selectedCountry}
-                onChange={(e) => setSelectedCountry(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCountry(val);
+                  try {
+                    localStorage.setItem('ledgerx_detected_country', val);
+                  } catch (_) {}
+                }}
                 style={{
                   padding: '5px 10px',
                   borderRadius: 6,
