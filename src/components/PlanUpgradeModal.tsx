@@ -132,11 +132,22 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
       const resRazorpay = await loadRazorpay();
       if (!resRazorpay) throw new Error('Razorpay SDK load failed. Check internet.');
 
+      const cloudBase = (typeof window !== 'undefined' && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'))
+        ? 'https://www.ledgerxerp.com'
+        : '';
+
+      const { offlineSyncService } = await import('@/lib/offlineSyncService');
+      const machineId = await offlineSyncService.getMachineId();
+
       // 1. Create order
-      const orderRes = await fetch('/api/payment/create-order', {
+      const orderRes = await fetch(`${cloudBase}/api/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: selectedPlan })
+        body: JSON.stringify({
+          plan: selectedPlan,
+          email: currentUser?.email,
+          name: currentUser?.name,
+        })
       });
       const orderData = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderData.error || 'Order creation failed');
@@ -153,7 +164,7 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
           try {
             // 3. Verify & upgrade
             const token = authClient.getToken();
-            const verifyRes = await fetch('/api/payment/upgrade-plan', {
+            const verifyRes = await fetch(`${cloudBase}/api/payment/upgrade-plan`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -161,13 +172,19 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
               },
               body: JSON.stringify({
                 razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id:   response.razorpay_order_id,
-                razorpay_signature:  response.razorpay_signature,
-                plan: selectedPlan
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                plan: selectedPlan,
+                email: currentUser?.email,
+                licenseKey: currentUser?.licenseKey,
+                machineId,
               })
             });
             const verifyData = await verifyRes.json();
             if (verifyRes.ok) {
+              if (verifyData.offlineToken) {
+                await offlineSyncService.saveOfflineToken(verifyData.offlineToken);
+              }
               // Update sessionStorage
               const userStr = sessionStorage.getItem('tally_auth_user');
               if (userStr) {
@@ -233,10 +250,10 @@ export default function PlanUpgradeModal({ currentUser, onUpgradeSuccess, onClos
 
   const currentPlanLabel =
     currentUser?.plan === 'TRIAL' ? '7-Day Free Trial'
-    : currentUser?.plan === 'MONTHLY' ? 'Monthly'
-    : currentUser?.plan === 'YEARLY' ? 'Yearly'
-    : currentUser?.plan === 'LIFETIME' ? 'Lifetime'
-    : currentUser?.plan;
+      : currentUser?.plan === 'MONTHLY' ? 'Monthly'
+        : currentUser?.plan === 'YEARLY' ? 'Yearly'
+          : currentUser?.plan === 'LIFETIME' ? 'Lifetime'
+            : currentUser?.plan;
 
   return (
     <div className="upgrade-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>

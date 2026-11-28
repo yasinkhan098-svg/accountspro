@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import { detectCountryFromClient, getCountryPricing, ALL_COUNTRY_NAMES, CountryPricingTier } from '@/lib/countryCurrencyPricing';
+import { offlineSyncService } from '@/lib/offlineSyncService';
 
 interface Props {
   currentUser: any;
@@ -81,7 +83,17 @@ const RENEWAL_CSS = `
 export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onLogout }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState('YEARLY');
+  const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'YEARLY' | 'LIFETIME'>('YEARLY');
+  const [selectedCountry, setSelectedCountry] = useState('India');
+
+  useEffect(() => {
+    try {
+      const detected = detectCountryFromClient();
+      if (detected) setSelectedCountry(detected);
+    } catch (_) {}
+  }, []);
+
+  const pricingTier: CountryPricingTier = getCountryPricing(selectedCountry);
 
   useEffect(() => {
     const styleId = 'renewal-ui-styles';
@@ -94,7 +106,8 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
     return () => { document.getElementById(styleId)?.remove(); };
   }, []);
 
-  const loadRazorpay = () => new Promise((resolve) => {
+  const loadRazorpay = () => new Promise<boolean>((resolve) => {
+    if (typeof window !== 'undefined' && (window as any).Razorpay) return resolve(true);
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.onload = () => resolve(true);
@@ -109,10 +122,24 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
       const resRazorpay = await loadRazorpay();
       if (!resRazorpay) throw new Error('Razorpay SDK failed to load. Are you online?');
 
-      const orderRes = await fetch('/api/payment/create-order', {
+      const cloudBase = (typeof window !== 'undefined' && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'))
+        ? 'https://www.ledgerxerp.com'
+        : '';
+
+      const payerEmail = currentUser?.email || '';
+      const payerName = currentUser?.name || payerEmail.split('@')[0] || 'Subscriber';
+      const machineId = await offlineSyncService.getMachineId();
+
+      const orderRes = await fetch(`${cloudBase}/api/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: selectedPlan })
+        body: JSON.stringify({
+          plan: selectedPlan,
+          country: selectedCountry,
+          currency: pricingTier.currencyCode,
+          email: payerEmail,
+          name: payerName,
+        })
       });
       const orderData = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderData.error || 'Failed to create order');
@@ -120,37 +147,45 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: orderData.amount,
-        currency: orderData.currency,
+        currency: orderData.currency || pricingTier.currencyCode,
         name: 'LedgerX ERP',
         description: selectedPlan === 'LIFETIME'
-          ? 'Lifetime Access — One Time Payment'
-          : `${selectedPlan} Subscription Renewal`,
+          ? `Lifetime Access — One Time Payment (${selectedCountry})`
+          : `${selectedPlan} Subscription Renewal (${selectedCountry})`,
         order_id: orderData.id,
         handler: async function (response: any) {
           try {
-            const verifyRes = await fetch('/api/payment/verify', {
+            const verifyRes = await fetch(`${cloudBase}/api/payment/verify`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
-                userId: currentUser.id,
-                plan: selectedPlan
+                userId: currentUser?.id,
+                email: payerEmail,
+                licenseKey: currentUser?.licenseKey,
+                machineId,
+                plan: selectedPlan,
+                country: selectedCountry,
+                currency: orderData.currency || pricingTier.currencyCode,
               })
             });
             const verifyData = await verifyRes.json();
-            if (verifyRes.ok) {
+            if (verifyRes.ok && (verifyData.success || verifyData.offlineToken)) {
+              if (verifyData.offlineToken) {
+                await offlineSyncService.saveOfflineToken(verifyData.offlineToken);
+              }
               const userStr = sessionStorage.getItem('tally_auth_user');
               if (userStr) {
                 const userObj = JSON.parse(userStr);
                 userObj.plan = selectedPlan;
-                userObj.subscriptionExpiry = verifyData.user.subscriptionExpiry;
+                userObj.subscriptionExpiry = verifyData.user?.subscriptionExpiry;
                 sessionStorage.setItem('tally_auth_user', JSON.stringify(userObj));
               }
               alert(selectedPlan === 'LIFETIME'
                 ? '🎉 Welcome to Lifetime Access! You never need to renew again.'
-                : 'Payment Successful! Thank you for renewing.');
+                : 'Payment Successful! Thank you for renewing your subscription.');
               onRenewSuccess();
             } else {
               setError(verifyData.error || 'Payment verification failed');
@@ -159,7 +194,7 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
             setError('Payment verification failed');
           }
         },
-        prefill: { name: currentUser.name, email: currentUser.email },
+        prefill: { name: payerName, email: payerEmail },
         theme: { color: selectedPlan === 'LIFETIME' ? '#7c3aed' : '#1c5282' }
       };
 
@@ -173,10 +208,11 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
     }
   };
 
-  const planLabel = currentUser.plan === 'TRIAL' ? '7-Day Free Trial'
-    : currentUser.plan === 'MONTHLY' ? 'Monthly Plan'
-    : currentUser.plan === 'YEARLY' ? 'Yearly Plan'
-    : currentUser.plan;
+  const planLabel = currentUser?.plan === 'TRIAL' ? '7-Day Free Trial'
+    : currentUser?.plan === 'MONTHLY' ? 'Monthly Plan'
+    : currentUser?.plan === 'YEARLY' ? 'Yearly Plan'
+    : currentUser?.plan === 'LIFETIME' ? 'Lifetime Plan'
+    : currentUser?.plan;
 
   return (
     <div className="renewal-wrapper">
@@ -203,6 +239,46 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
             🛡️ <span>Your Data is 100% Safe: All your companies, vouchers, ledgers &amp; account records are completely preserved. Once renewed, you will resume right where you left off!</span>
           </div>
           <div className="current-plan-badge">Current Plan: {planLabel}</div>
+
+          {/* Country / Currency Selector */}
+          <div style={{
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: 8,
+            padding: '8px 14px',
+            margin: '0 auto 20px',
+            maxWidth: 640,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🌍 Select Country:</span>
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #94a3b8',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: '#ffffff',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                {ALL_COUNTRY_NAMES.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#0284c7' }}>
+              Currency: {pricingTier.currencyCode} ({pricingTier.currencySymbol})
+            </div>
+          </div>
         </div>
 
         {error && <div className="renewal-error">{error}</div>}
@@ -214,8 +290,8 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
             onClick={() => setSelectedPlan('MONTHLY')}
           >
             <h3>Monthly</h3>
-            <div className="rprice">₹299<span>/mo</span></div>
-            <p>Flexible monthly billing. Cancel or upgrade anytime.</p>
+            <div className="rprice">{pricingTier.monthly.display}<span>/mo</span></div>
+            <p>Flexible monthly billing. Renews for 30 days.</p>
           </div>
 
           {/* YEARLY */}
@@ -225,8 +301,8 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
           >
             <div className="rbadge badge-best">Best Value</div>
             <h3>Yearly</h3>
-            <div className="rprice">₹1,999<span>/yr</span></div>
-            <p>Save ₹1,589/yr vs monthly. Full access for 12 months.</p>
+            <div className="rprice">{pricingTier.yearly.display}<span>/yr</span></div>
+            <p>Save big vs monthly. Full access for 12 months.</p>
           </div>
 
           {/* LIFETIME */}
@@ -236,7 +312,7 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
           >
             <div className="rbadge badge-lifetime">Lifetime</div>
             <h3>Lifetime</h3>
-            <div className="rprice">₹11,999<span> one-time</span></div>
+            <div className="rprice">{pricingTier.lifetime.display}<span> one-time</span></div>
             <p>Pay once, use offline forever. Lifetime local data storage.</p>
             {selectedPlan === 'LIFETIME' && (
               <div className="lifetime-features">
@@ -257,7 +333,7 @@ export default function SubscriptionRenewalUI({ currentUser, onRenewSuccess, onL
             onClick={handlePayment}
             disabled={loading}
           >
-            {loading ? 'Processing...' : selectedPlan === 'LIFETIME' ? '💎 GET LIFETIME ACCESS' : 'PAY NOW & UNLOCK'}
+            {loading ? 'Processing...' : selectedPlan === 'LIFETIME' ? `💎 GET LIFETIME ACCESS (${pricingTier.lifetime.display})` : `PAY & UNLOCK NOW (${pricingTier[selectedPlan.toLowerCase() as 'monthly' | 'yearly'].display})`}
           </button>
         </div>
       </div>

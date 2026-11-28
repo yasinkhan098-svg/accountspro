@@ -2,16 +2,33 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { createSignedLicenseToken } from '@/lib/licenseEngine';
 
 export async function POST(req: Request) {
   try {
-    const user = await getAuthenticatedUser(req);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await req.json();
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, email, licenseKey, machineId, deviceName } = body;
+
+    let user = await getAuthenticatedUser(req);
+    if (!user && email) {
+      try {
+        user = await prisma.user.findFirst({
+          where: { email: String(email).trim().toLowerCase() }
+        });
+      } catch (_) { }
+    }
+    if (!user && licenseKey) {
+      try {
+        user = await prisma.user.findFirst({
+          where: { licenseKey: String(licenseKey).trim().toUpperCase() }
+        });
+      } catch (_) { }
+    }
+
+    if (!user) return NextResponse.json({ error: 'Unauthorized: User account not found' }, { status: 401 });
 
     // Admin ko upgrade ki zaroorat nahi
     if (user.id === -1) return NextResponse.json({ error: 'Admin does not need plan upgrade' }, { status: 400 });
-
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = await req.json();
 
     const secret = process.env.RAZORPAY_KEY_SECRET;
     if (!secret) return NextResponse.json({ error: 'Razorpay secret not configured' }, { status: 500 });
@@ -61,9 +78,29 @@ export async function POST(req: Request) {
         syncExpiry.toISOString(),
         user.id
       );
-    } catch (e) {}
+    } catch (e) { }
+
+    // Generate renewed signed offline license token
+    const userExpiryMs = updatedUser.subscriptionExpiry
+      ? new Date(updatedUser.subscriptionExpiry).getTime()
+      : (plan === 'LIFETIME' ? Date.now() + 20 * 365 * 24 * 60 * 60 * 1000 : Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+    const validUntilStr = new Date(userExpiryMs).toISOString();
+
+    const offlineToken = createSignedLicenseToken({
+      userId: updatedUser.id,
+      email: updatedUser.email,
+      licenseKey: updatedUser.licenseKey || licenseKey || 'LX-ONLINE-RENEWED',
+      machineId: machineId || '',
+      deviceName: deviceName || 'Windows PC',
+      plan: updatedUser.plan || plan,
+      validUntil: validUntilStr,
+      features: ['ALL_MODULES', 'MFG_JOURNAL', 'PRINT_ENGINE', 'OFFLINE_MODE'],
+      issuedAt: new Date().toISOString(),
+    });
 
     return NextResponse.json({
+      success: true,
       message: 'Plan upgraded successfully',
       user: {
         id: updatedUser.id,
@@ -72,11 +109,13 @@ export async function POST(req: Request) {
         plan: updatedUser.plan,
         subscriptionExpiry: updatedUser.subscriptionExpiry,
         organizationName: updatedUser.organizationName,
-      }
+        licenseKey: updatedUser.licenseKey || licenseKey,
+      },
+      offlineToken,
     }, { status: 200 });
 
   } catch (error: any) {
     console.error('Plan Upgrade Error:', error);
-    return NextResponse.json({ error: 'Failed to upgrade plan' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to upgrade plan: ' + (error?.message || 'Server error') }, { status: 500 });
   }
 }
